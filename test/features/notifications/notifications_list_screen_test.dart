@@ -411,6 +411,18 @@ void main() {
       );
     });
 
+    // CONTRACT §3: the wallet-guard withdraw row deep-links to `jeeb://wallet`,
+    // the same destination as the money rows, so top-up is one tap away.
+    testWidgets('offer_withdrawn_insufficient_balance → wallet-hub', (
+      tester,
+    ) async {
+      await tapKind(
+        tester,
+        NotificationKind.offerWithdrawnInsufficientBalance,
+        expectRootId: 'wallet_hub_root',
+      );
+    });
+
     testWidgets('fee_won → wallet-hub', (tester) async {
       await tapKind(
         tester,

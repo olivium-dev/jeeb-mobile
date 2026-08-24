@@ -28,7 +28,9 @@ class DioWalletRepository implements WalletRepository {
       ),
       reservedNow: _num(json['reservedNow'] ?? json['reserved_now']),
       giftCredit: _num(json['giftCredit'] ?? json['gift_credit']),
-      currency: _str(json['currency']) ?? 'USD',
+      // c3-3: never fabricate a currency the server did not send. Blank flows
+      // through to the neutral symbol at render time instead of a wrong "USD".
+      currency: _str(json['currency']) ?? '',
     );
   }
 

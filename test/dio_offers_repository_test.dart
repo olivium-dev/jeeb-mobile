@@ -493,6 +493,136 @@ void main() {
           ),
         );
       });
+
+      // CONTRACT E7 (c4 F4-2): the accept 409 is de-leaked — no needed /
+      // available / currency and a neutral title, so only the type URI classes.
+      test(
+          'accept 409 offer-jeeber-insufficient-balance without extensions → '
+          'offerNotPending (E7 de-leak)', () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 409,
+            body: <String, dynamic>{
+              'title': 'This offer is no longer available.',
+              'status': 409,
+              'type':
+                  'https://jeeb.dev/errors/offer-jeeber-insufficient-balance',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.offerNotPending,
+            ),
+          ),
+        );
+      });
+
+      test('accept 403 wallet-holder-unresolved → holderUnresolved (E3)',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 403,
+            body: <String, dynamic>{
+              'title': 'Your account could not be resolved to a wallet holder; '
+                  'the balance check could not run.',
+              'status': 403,
+              'type': 'https://jeeb.dev/errors/wallet-holder-unresolved',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.holderUnresolved,
+            ),
+          ),
+        );
+      });
+
+      test('accept 503 offer-fee-unresolvable → feeUnresolvable (E4)',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 503,
+            body: <String, dynamic>{
+              'title': 'The offer fee could not be resolved; the balance '
+                  'check could not run.',
+              'status': 503,
+              'type': 'https://jeeb.dev/errors/offer-fee-unresolvable',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.feeUnresolvable,
+            ),
+          ),
+        );
+      });
+
+      test(
+          'accept 503 offer-exposure-unresolvable → exposureUnresolvable (E5)',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 503,
+            body: <String, dynamic>{
+              'title': 'Your open offers could not be checked; the balance '
+                  'check could not run.',
+              'status': 503,
+              'type': 'https://jeeb.dev/errors/offer-exposure-unresolvable',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.exposureUnresolvable,
+            ),
+          ),
+        );
+      });
+
+      // CONTRACT §6.5 — an unknown 503 slug (E6 included) keeps today's generic
+      // handling; the new arms must not widen into a catch-all.
+      test('accept 503 with an unknown type → unknown (generic fallback)',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 503,
+            body: <String, dynamic>{
+              'title': 'The wallet service is unavailable.',
+              'status': 503,
+              'type': 'https://jeeb.dev/errors/wallet-service-unavailable',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.unknown,
+            ),
+          ),
+        );
+      });
     });
   });
 }

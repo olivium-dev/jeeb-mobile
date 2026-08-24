@@ -206,4 +206,45 @@ void main() {
       '/jeeber/requests/7a5dffbd-6c05-4068-9b79-0cec377cae0f',
     );
   });
+
+  // W6-T3 / CONTRACT §3 — the guard-2 auto-withdraw push. `type` is the
+  // discriminator mobile routes on; `category` alone is the fallback rung.
+  group('wallet-guard withdraw push → NotificationCategory.wallet', () {
+    test('the frozen wire type resolves to wallet', () {
+      expect(
+        NotificationCategory.fromData(
+          const {'type': 'offer_withdrawn_insufficient_balance'},
+        ),
+        NotificationCategory.wallet,
+      );
+    });
+
+    test('the sibling wallet_insufficient_balance type resolves to wallet', () {
+      expect(
+        NotificationCategory.fromData(
+          const {'type': 'wallet_insufficient_balance'},
+        ),
+        NotificationCategory.wallet,
+      );
+    });
+
+    test('the upstream `jeeb.`-prefixed event type is prefix-normalised to '
+        'wallet', () {
+      expect(
+        NotificationCategory.fromData(
+          const {'type': 'jeeb.offer_withdrawn_insufficient_balance'},
+        ),
+        NotificationCategory.wallet,
+      );
+    });
+
+    test('a category-only payload still lands on wallet (direct-fallback rung: '
+        'the live route stamps category=wallet, the direct one category='
+        'delivery — which is why routing is on `type` first)', () {
+      expect(
+        NotificationCategory.fromData(const {'category': 'wallet'}),
+        NotificationCategory.wallet,
+      );
+    });
+  });
 }

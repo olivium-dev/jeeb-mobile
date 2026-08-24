@@ -260,9 +260,9 @@ class _OfferComposerState extends State<_OfferComposer>
   double? get _reserve =>
       _price == null ? null : (_price! * kJeebCommissionRate);
 
-  /// The currency the money lines render in — the wallet's, else USD (the O1
-  /// default; 42_GUARDRAILS_MOCK W1m).
-  String get _currency => _wallet?.currency ?? 'USD';
+  /// The currency the money lines render in — the wallet's, else unknown (c3-3:
+  /// never fabricate "USD"; a blank code draws the neutral money mark).
+  String get _currency => _wallet?.currency ?? '';
 
   String _fmt(double v) => v.toStringAsFixed(2);
 
@@ -308,14 +308,19 @@ class _OfferComposerState extends State<_OfferComposer>
     }
   }
 
-  /// Localized error-snack copy. The offer-cap literal has no localized copy
-  /// yet so it rides [OfferFormState.errorMessage]; everything else localizes
-  /// off [OfferFormState.errorReason] so the ready Arabic copy isn't shadowed
-  /// by a hardcoded English string (JEBV4-246).
+  /// Localized error-snack copy: every wallet-guard surface (E2–E5) resolves off
+  /// [OfferFormState.errorReason]; an unknown reason stays generic (CONTRACT §6).
   String _errorText(OfferComposerL10n l10n, OfferFormState state) {
     final literal = state.errorMessage;
     if (literal != null) return literal;
     return switch (state.errorReason) {
+      OfferSubmissionFailure.holderUnresolved => l10n.guardHolderUnresolved,
+      OfferSubmissionFailure.feeUnresolvable => l10n.guardFeeUnresolvable,
+      OfferSubmissionFailure.exposureUnresolvable =>
+        l10n.guardExposureUnresolvable,
+      OfferSubmissionFailure.offerCapReached => l10n.guardOfferLimitReached(
+          state.capInfo?.limit ?? kDefaultMaxLiveOffersFallback,
+        ),
       OfferSubmissionFailure.network => l10n.errorNetwork,
       _ => l10n.errorGeneric,
     };
@@ -658,6 +663,9 @@ class _OfferComposerState extends State<_OfferComposer>
       available: available,
       currency: currency,
       fmt: _fmt,
+      // Aggregate split (E1) — rendered only when the 402 carried the fields.
+      thisOffer: info?.thisOffer,
+      outstanding: info?.outstanding,
     );
 
     // Sheet dismissed (top-up routed away, or keep-editing) — clear the cubit's
@@ -839,6 +847,8 @@ class _InsufficientBalanceSheet extends StatelessWidget {
     required this.available,
     required this.currency,
     required this.fmt,
+    this.thisOffer,
+    this.outstanding,
   });
 
   final double needed;
@@ -846,12 +856,19 @@ class _InsufficientBalanceSheet extends StatelessWidget {
   final String currency;
   final String Function(double) fmt;
 
+  /// E1 aggregate split — this offer's own fee, and the fee already committed
+  /// to the jeeber's other live offers. Null when the 402 omitted the field.
+  final double? thisOffer;
+  final double? outstanding;
+
   static Future<void> show(
     BuildContext context, {
     required double needed,
     required double available,
     required String currency,
     required String Function(double) fmt,
+    double? thisOffer,
+    double? outstanding,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -862,15 +879,22 @@ class _InsufficientBalanceSheet extends StatelessWidget {
         available: available,
         currency: currency,
         fmt: fmt,
+        thisOffer: thisOffer,
+        outstanding: outstanding,
       ),
     );
   }
+
+  /// The server's code verbatim when it sent one; a neutral mark otherwise —
+  /// never the fabricated literal "USD" (c3-3).
+  String get _currencyLabel => currency.trim().isEmpty ? r'$' : currency;
 
   @override
   Widget build(BuildContext context) {
     final l10n = OfferComposerL10n.of(context);
     final text = context.jeebText;
     final tone = JeebSurfaceTone.of(context);
+    final currencyLabel = _currencyLabel;
     return Semantics(
       identifier: 'insufficient_balance_sheet',
       explicitChildNodes: true,
@@ -891,7 +915,11 @@ class _InsufficientBalanceSheet extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.xSmall),
             Text(
-              l10n.insufficientBody,
+              l10n.insufficientBodyAggregate(
+                fmt(needed),
+                fmt(available),
+                currencyLabel,
+              ),
               style: text.body.copyWith(color: tone.mutedInk),
             ),
             const SizedBox(height: Spacing.medium),
@@ -899,16 +927,40 @@ class _InsufficientBalanceSheet extends StatelessWidget {
               identifier: 'insufficient_balance_needed_amount',
               child: _AmountRow(
                 icon: Icons.lock_clock_outlined,
-                text: l10n.insufficientNeeded(fmt(needed), currency),
+                text: l10n.insufficientNeeded(fmt(needed), currencyLabel),
                 emphasize: true,
               ),
             ),
+            // The aggregate split, when the 402 carried it (CONTRACT §2 E1).
+            if (thisOffer != null) ...[
+              const SizedBox(height: Spacing.xSmall),
+              Semantics(
+                identifier: 'insufficient_balance_this_offer_amount',
+                child: _AmountRow(
+                  icon: Icons.receipt_long_outlined,
+                  text: l10n.insufficientThisOfferRow(fmt(thisOffer!)),
+                ),
+              ),
+            ],
+            if (outstanding != null) ...[
+              const SizedBox(height: Spacing.xSmall),
+              Semantics(
+                identifier: 'insufficient_balance_outstanding_amount',
+                child: _AmountRow(
+                  icon: Icons.pending_actions_outlined,
+                  text: l10n.insufficientOutstandingRow(fmt(outstanding!)),
+                ),
+              ),
+            ],
             const SizedBox(height: Spacing.xSmall),
             Semantics(
               identifier: 'insufficient_balance_available_amount',
               child: _AmountRow(
                 icon: Icons.account_balance_wallet_outlined,
-                text: l10n.insufficientAvailable(fmt(available), currency),
+                text: l10n.insufficientAvailable(
+                  fmt(available),
+                  currencyLabel,
+                ),
               ),
             ),
             const SizedBox(height: Spacing.large),

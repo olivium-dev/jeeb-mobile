@@ -2178,5 +2178,63 @@
   "jeeberFeedFilterSheetSubtitle": "تنطبق على قائمة الطلبات القريبة.",
   "jeeberFeedFilterSearchGroup": "بحث",
   "jeeberFeedFilterTierGroup": "الفئة",
-  "jeeberFeedSearchPillLabel": "«{query}»"
+  "jeeberFeedSearchPillLabel": "«{query}»",
+  "walletGuardErrorHolderUnresolved": "تعذّر ربط حسابك بمحفظة، لذلك لم نتمكن من التحقق من رصيدك. سجّل الخروج ثم ادخل مرة أخرى، وإذا تكررت المشكلة تواصل مع الدعم.",
+  "@walletGuardErrorHolderUnresolved": {
+    "description": "E3 wallet-holder-unresolved: shown when the gateway could not resolve a wallet holder for the signed-in jeeber, so the balance check never ran."
+  },
+  "walletGuardErrorFeeUnresolvable": "تعذّر التحقق من رسوم هذا العرض حاليًا. يرجى المحاولة مرة أخرى بعد قليل.",
+  "@walletGuardErrorFeeUnresolvable": {
+    "description": "E4 offer-fee-unresolvable: shown when the platform fee for this offer could not be computed right now."
+  },
+  "walletGuardErrorExposureUnresolvable": "تعذّر التحقق من عروضك المفتوحة حاليًا. حاول مرة أخرى بعد قليل، أو اسحب العروض التي لم تعد بحاجة إليها.",
+  "@walletGuardErrorExposureUnresolvable": {
+    "description": "E5 offer-exposure-unresolvable: shown when the jeeber’s outstanding open-offer exposure could not be totalled right now."
+  },
+  "walletGuardErrorOfferLimitReached": "لقد بلغت الحد الأقصى للعروض المفتوحة وهو {limit}. اسحب أحد عروضك أو انتظر اكتمال أحدها قبل تقديم عرض جديد.",
+  "@walletGuardErrorOfferLimitReached": {
+    "description": "E2 offer-live-limit-reached: shown when the jeeber already has the maximum number of live offers. {limit} is the server-sent cap.",
+    "placeholders": {
+      "limit": { "type": "int" }
+    }
+  },
+  "walletGuardInsufficientSheetTitle": "رصيد المحفظة غير كافٍ",
+  "@walletGuardInsufficientSheetTitle": {
+    "description": "E1 insufficient-wallet-balance: title of the bottom sheet shown when the wallet cannot cover this offer plus the open ones."
+  },
+  "walletGuardInsufficientSheetBody": "تغطية رسوم 10% لهذا العرض إضافةً إلى عروضك المفتوحة تتطلب {needed} {currency}، ورصيدك الحالي {available} {currency}. اشحن محفظتك أو اسحب أحد عروضك المفتوحة.",
+  "@walletGuardInsufficientSheetBody": {
+    "description": "E1 insufficient-wallet-balance: sheet body carrying the aggregate figures. {needed} and {available} are already-formatted amounts; {currency} is the server currency code and appears twice.",
+    "placeholders": {
+      "needed": { "type": "String" },
+      "available": { "type": "String" },
+      "currency": { "type": "String" }
+    }
+  },
+  "walletGuardPushOfferWithdrawnTitle": "تم سحب عرضك — اشحن محفظتك لمواصلة تقديم العروض",
+  "@walletGuardPushOfferWithdrawnTitle": {
+    "description": "Localized title for the offer_withdrawn_insufficient_balance push (banner + inbox row); byte-identical to the gateway EN copy."
+  },
+  "walletGuardPushOfferWithdrawnBody": "تم سحب عرضك الفائز لأن رصيد محفظتك لم يعد يغطي رسوم المنصة البالغة 10%. اضغط لشحن محفظتك.",
+  "@walletGuardPushOfferWithdrawnBody": {
+    "description": "Localized body for the offer_withdrawn_insufficient_balance push (banner + inbox row); byte-identical to the gateway EN copy."
+  },
+  "walletGuardInsufficientThisOfferRow": "رسوم هذا العرض: {amount}",
+  "@walletGuardInsufficientThisOfferRow": {
+    "description": "E1 sheet amount row for the fee of the offer being submitted; {amount} is already formatted.",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "walletGuardInsufficientOutstandingRow": "عروضك المفتوحة الأخرى: {amount}",
+  "@walletGuardInsufficientOutstandingRow": {
+    "description": "E1 sheet amount row for the fees already reserved by the jeeber’s other open offers; {amount} is already formatted.",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "notificationsKindWalletWithdrawnLabel": "تم سحب العرض",
+  "@notificationsKindWalletWithdrawnLabel": {
+    "description": "Category eyebrow in the notifications inbox for an offer withdrawn over insufficient wallet balance."
+  }
 }

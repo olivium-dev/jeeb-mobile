@@ -59,14 +59,37 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
 
   OfferSubmissionException _mapDioError(DioException e) {
     final status = e.response?.statusCode;
+    final data = e.response?.data;
+    final type = _typeOf(data);
     // {needed, available, currency} for the JM-046 sheet (42_GUARDRAILS_MOCK
     if (status == 402) {
       return OfferSubmissionException(
         OfferSubmissionFailure.insufficientBalance,
-        balance: _parseBalance(e.response?.data),
+        balance: _parseBalance(data),
       );
     }
-    if (status == 409 && _isOfferCap(e.response?.data)) {
+    if (status == 403 && type == kWalletGuardTypeHolderUnresolved) {
+      return const OfferSubmissionException(
+        OfferSubmissionFailure.holderUnresolved,
+      );
+    }
+    if (status == 503 && type == kWalletGuardTypeFeeUnresolvable) {
+      return const OfferSubmissionException(
+        OfferSubmissionFailure.feeUnresolvable,
+      );
+    }
+    if (status == 503 && type == kWalletGuardTypeExposureUnresolvable) {
+      return const OfferSubmissionException(
+        OfferSubmissionFailure.exposureUnresolvable,
+      );
+    }
+    if (status == 409 && type == kWalletGuardTypeOfferLiveLimitReached) {
+      return OfferSubmissionException(
+        OfferSubmissionFailure.offerCapReached,
+        capInfo: _parseCapInfo(data),
+      );
+    }
+    if (status == 409 && _isOfferCap(data)) {
       return const OfferSubmissionException(
         OfferSubmissionFailure.offerCapReached,
       );
@@ -106,13 +129,31 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
         haystack.contains('20');
   }
 
+  /// Exact-equality discriminator (CONTRACT §1): trim only, no lowercase.
+  static String? _typeOf(Object? data) {
+    if (data is! Map) return null;
+    final raw = data['type'];
+    return raw is String ? raw.trim() : null;
+  }
+
+  OfferCapInfo? _parseCapInfo(Object? data) {
+    if (data is! Map) return null;
+    final map = Map<String, dynamic>.from(data);
+    return OfferCapInfo(
+      limit: _intOrNull(map['limit']),
+      live: _intOrNull(map['live']),
+    );
+  }
+
   InsufficientBalanceInfo? _parseBalance(Object? data) {
     if (data is! Map) return null;
     final map = Map<String, dynamic>.from(data);
     return InsufficientBalanceInfo(
       needed: _num(map['needed'] ?? map['needed_amount']),
       available: _num(map['available'] ?? map['available_balance']),
-      currency: _str(map['currency']) ?? 'USD',
+      currency: _str(map['currency']) ?? '',
+      thisOffer: _numOrNull(map['thisOffer']),
+      outstanding: _numOrNull(map['outstanding']),
     );
   }
 
@@ -120,6 +161,19 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
     if (v is num) return v.toDouble();
     if (v is String) return double.tryParse(v) ?? 0.0;
     return 0.0;
+  }
+
+  /// Absent / unparseable stays null so the sheet can hide the row.
+  double? _numOrNull(Object? v) {
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.trim());
+    return null;
+  }
+
+  int? _intOrNull(Object? v) {
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v.trim());
+    return null;
   }
 
   String? _str(Object? v) {

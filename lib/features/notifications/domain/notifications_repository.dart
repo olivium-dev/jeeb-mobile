@@ -15,6 +15,10 @@ enum NotificationKind {
   newRequest,
   dispute,
   support,
+
+  /// Wallet-guard auto-withdraw push (CONTRACT §3) — the jeeber's winning offer
+  /// was withdrawn because the wallet no longer covers the 10% platform fee.
+  offerWithdrawnInsufficientBalance,
   unknown,
 }
 

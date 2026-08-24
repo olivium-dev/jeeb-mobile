@@ -58,6 +58,11 @@ NotificationKind notificationKindFromWireType(String? wireType) {
     case 'support_update':
     case 'support_ticket_update':
       return NotificationKind.support;
+    // CONTRACT §3 wallet-guard withdraw push (the `jeeb.` prefix is already
+    // stripped above); the second slug is the notification-service variant.
+    case 'offer_withdrawn_insufficient_balance':
+    case 'wallet_insufficient_balance':
+      return NotificationKind.offerWithdrawnInsufficientBalance;
     default:
       return NotificationKind.unknown;
   }

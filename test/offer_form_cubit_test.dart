@@ -153,12 +153,13 @@ void main() {
     );
 
     blocTest<OfferFormCubit, OfferFormState>(
-      'offer-cap (409 offer-cap-reached) emits a DISTINCT error message and '
-      'KEEPS the composer (not requestGone)',
+      'offer-cap (409 offer-live-limit-reached) carries the REASON + the '
+      'server cap figures and KEEPS the composer (not requestGone)',
       build: () => OfferFormCubit(
         repository: _FakeOfferRepo(
           throws: const OfferSubmissionException(
             OfferSubmissionFailure.offerCapReached,
+            capInfo: OfferCapInfo(limit: 20, live: 20),
           ),
         ),
       ),
@@ -172,10 +173,12 @@ void main() {
         predicate<OfferFormState>(
           (s) =>
               s.mode == OfferFormMode.error &&
-              s.errorMessage != null &&
-              s.errorMessage!.contains('20'),
-          'error mode with the offer-cap message (mentions the 20 limit), '
-              'composer preserved',
+              s.errorReason == OfferSubmissionFailure.offerCapReached &&
+              s.errorMessage == null &&
+              s.capInfo?.limit == 20 &&
+              s.capInfo?.live == 20,
+          'error mode carrying the offerCapReached reason + capInfo(20/20), '
+              'no hardcoded English message, composer preserved',
         ),
       ],
     );
@@ -229,5 +232,38 @@ void main() {
         ),
       ],
     );
+  });
+
+  group('OfferFormCubit — wallet-guard failures (CONTRACT §2 E3/E4/E5)', () {
+    // Each new guard failure rides errorReason only; the screen owns the copy.
+    for (final failure in const [
+      OfferSubmissionFailure.holderUnresolved,
+      OfferSubmissionFailure.feeUnresolvable,
+      OfferSubmissionFailure.exposureUnresolvable,
+    ]) {
+      blocTest<OfferFormCubit, OfferFormState>(
+        '${failure.name} emits error mode carrying that reason, no message',
+        build: () => OfferFormCubit(
+          repository: _FakeOfferRepo(
+            throws: OfferSubmissionException(failure),
+          ),
+        ),
+        act: (c) => c.submit(
+          requestId: 'req-1',
+          priceUsd: 5.0,
+          etaMinutes: 10,
+        ),
+        expect: () => [
+          predicate<OfferFormState>((s) => s.isSubmitting, 'submitting'),
+          predicate<OfferFormState>(
+            (s) =>
+                s.mode == OfferFormMode.error &&
+                s.errorReason == failure &&
+                s.errorMessage == null,
+            'error carrying the ${failure.name} reason, no hardcoded message',
+          ),
+        ],
+      );
+    }
   });
 }

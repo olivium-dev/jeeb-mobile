@@ -285,6 +285,12 @@ class _OfferAcceptView extends StatelessWidget {
         return l10n.offersErrorOfferNotPending;
       case OffersFailure.jeeberAtCapacity:
         return l10n.offersErrorJeeberAtCapacity;
+      case OffersFailure.holderUnresolved:
+        return l10n.walletGuardErrorHolderUnresolved;
+      case OffersFailure.feeUnresolvable:
+        return l10n.walletGuardErrorFeeUnresolvable;
+      case OffersFailure.exposureUnresolvable:
+        return l10n.walletGuardErrorExposureUnresolvable;
       case OffersFailure.rateLimited:
       case OffersFailure.unknown:
         return l10n.offersErrorGeneric;

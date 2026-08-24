@@ -285,7 +285,74 @@ void main() {
             .having((e) => e.failure, 'failure',
                 OfferSubmissionFailure.insufficientBalance)
             .having((e) => e.balance?.needed, 'needed', 0.5)
-            .having((e) => e.balance?.available, 'available', 0.2)),
+            .having((e) => e.balance?.available, 'available', 0.2)
+            .having((e) => e.balance?.currency, 'currency', 'USD')),
+      );
+    });
+
+    test('402 without currency → currency is empty, not fabricated USD',
+        () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(_err(402, body: {
+        'needed': 0.5,
+        'available': 0.2,
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure',
+                OfferSubmissionFailure.insufficientBalance)
+            .having((e) => e.balance?.currency, 'currency', '')),
+      );
+    });
+
+    test('402 aggregate body parses all four figures and tolerates an '
+        'unknown extra key (CONTRACT §1 forward-compatibility)', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(_err(402, body: {
+        'type': 'https://jeeb.dev/errors/insufficient-wallet-balance',
+        'needed': 20.0,
+        'thisOffer': 10.0,
+        'outstanding': 10.0,
+        'available': 10.0,
+        'currency': 'USD',
+        'futureKey': 'x',
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure',
+                OfferSubmissionFailure.insufficientBalance)
+            .having((e) => e.balance?.needed, 'needed', 20.0)
+            .having((e) => e.balance?.thisOffer, 'thisOffer', 10.0)
+            .having((e) => e.balance?.outstanding, 'outstanding', 10.0)
+            .having((e) => e.balance?.available, 'available', 10.0)
+            .having((e) => e.balance?.currency, 'currency', 'USD')),
+      );
+    });
+
+    test('402 without thisOffer/outstanding leaves both null (pre-aggregate '
+        'gateway stays readable)', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(_err(402, body: {
+        'needed': 0.5,
+        'available': 0.2,
+        'currency': 'USD',
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>()
+            .having((e) => e.balance?.thisOffer, 'thisOffer', isNull)
+            .having((e) => e.balance?.outstanding, 'outstanding', isNull)),
       );
     });
 
@@ -321,6 +388,89 @@ void main() {
           'failure',
           OfferSubmissionFailure.server,
         )),
+      );
+    });
+  });
+
+  // CONTRACT §1: the FULL type URI is the discriminator, matched by exact
+  // equality; unknown slugs fall back to today's generic handling (§6.5).
+  group('submitOffer — wallet-guard type URIs (CONTRACT §2 E2/E3/E4/E5)', () {
+    Future<void> expectFailure(
+      DioException error,
+      Matcher matcher,
+    ) async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(error);
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(matcher),
+      );
+    }
+
+    test('409 offer-live-limit-reached → offerCapReached carrying limit/live',
+        () async {
+      await expectFailure(
+        _err(409, body: {
+          'type': 'https://jeeb.dev/errors/offer-live-limit-reached',
+          'title': 'You have reached the maximum number of live offers.',
+          'limit': 20,
+          'live': 20,
+        }),
+        isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure',
+                OfferSubmissionFailure.offerCapReached)
+            .having((e) => e.capInfo?.limit, 'capInfo.limit', 20)
+            .having((e) => e.capInfo?.live, 'capInfo.live', 20),
+      );
+    });
+
+    test('403 wallet-holder-unresolved → holderUnresolved', () async {
+      await expectFailure(
+        _err(403, body: {
+          'type': 'https://jeeb.dev/errors/wallet-holder-unresolved',
+        }),
+        isA<OfferSubmissionException>().having((e) => e.failure, 'failure',
+            OfferSubmissionFailure.holderUnresolved),
+      );
+    });
+
+    test('503 offer-fee-unresolvable → feeUnresolvable', () async {
+      await expectFailure(
+        _err(503, body: {
+          'type': 'https://jeeb.dev/errors/offer-fee-unresolvable',
+        }),
+        isA<OfferSubmissionException>().having(
+            (e) => e.failure, 'failure', OfferSubmissionFailure.feeUnresolvable),
+      );
+    });
+
+    test('503 offer-exposure-unresolvable → exposureUnresolvable', () async {
+      await expectFailure(
+        _err(503, body: {
+          'type': 'https://jeeb.dev/errors/offer-exposure-unresolvable',
+        }),
+        isA<OfferSubmissionException>().having((e) => e.failure, 'failure',
+            OfferSubmissionFailure.exposureUnresolvable),
+      );
+    });
+
+    test('503 with an unknown type slug → server (generic fallback)', () async {
+      await expectFailure(
+        _err(503, body: {
+          'type': 'https://jeeb.dev/errors/some-future-slug',
+        }),
+        isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure', OfferSubmissionFailure.server),
+      );
+    });
+
+    test('plain 403 with no type → server (generic fallback)', () async {
+      await expectFailure(
+        _err(403),
+        isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure', OfferSubmissionFailure.server),
       );
     });
   });

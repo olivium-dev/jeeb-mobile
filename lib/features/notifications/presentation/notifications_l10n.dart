@@ -63,12 +63,19 @@ class NotificationsL10n {
         return _pick('Dispute', 'نزاع');
       case NotificationKind.support:
         return _pick('Support', 'الدعم');
+      case NotificationKind.offerWithdrawnInsufficientBalance:
+        return _l10n.notificationsKindWalletWithdrawnLabel;
       case NotificationKind.unknown:
         return _pick('Notification', 'إشعار');
     }
   }
 
   String get unreadLabel => _pick('Unread', 'غير مقروء');
+
+  // CONTRACT §5 P-1/P-2 — rendered locally so the wallet-guard push reads in
+  // Arabic; the gateway's EN wire copy is byte-identical by contract.
+  String get offerWithdrawnTitle => _l10n.walletGuardPushOfferWithdrawnTitle;
+  String get offerWithdrawnBody => _l10n.walletGuardPushOfferWithdrawnBody;
 
   String get newRequestFallbackTitle =>
       _pick('New request nearby', 'طلب جديد بالقرب منك');

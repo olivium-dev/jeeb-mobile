@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
 import '../application/push_notification_handler.dart';
 import '../domain/notification_message.dart';
+import '../domain/wallet_guard_push_copy.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../application/badge_count_cubit.dart';
@@ -136,6 +138,19 @@ class _BannerCard extends StatelessWidget {
     final JeebSemanticColors semantics = _semantics(context);
     final JeebTextStyles text = context.jeebText;
 
+    // The guard-2 withdraw push is EN-only on the wire, so render our own
+    // l10n copy; a delegate-less harness falls back to the wire strings.
+    final AppLocalizations? l10n =
+        Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final bool isGuardWithdraw =
+        isWalletGuardWithdrawPush(message.data['type']);
+    final String title = isGuardWithdraw && l10n != null
+        ? l10n.walletGuardPushOfferWithdrawnTitle
+        : message.title;
+    final String body = isGuardWithdraw && l10n != null
+        ? l10n.walletGuardPushOfferWithdrawnBody
+        : message.body;
+
     return DecoratedBox(
       key: pushBannerCardKey,
       decoration: BoxDecoration(
@@ -165,17 +180,17 @@ class _BannerCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        message.title.isEmpty ? 'Notification' : message.title,
+                        title.isEmpty ? 'Notification' : title,
                         style: text.cardTitle.copyWith(
                           color: colorScheme.onSurface,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (message.body.isNotEmpty) ...[
+                      if (body.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          message.body,
+                          body,
                           style: text.bodySmall.copyWith(
                             color: semantics.mutedText,
                           ),

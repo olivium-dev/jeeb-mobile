@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/requests/server_request_status.dart';
+import '../../offers/domain/offer_submission_repository.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
@@ -262,9 +263,15 @@ class DioOffersRepository implements OffersRepository {
 
   Never _rethrowAccept(DioException e) {
     final status = e.response?.statusCode;
+    final type = _problemType(e.response?.data);
     if (status == 409) {
       if (_isTooManyActiveDeliveries(e.response?.data)) {
         throw const OffersRepositoryException(OffersFailure.jeeberAtCapacity);
+      }
+      // E7 de-leak: the guard's 409 carries no amounts, so match the type URI
+      // exactly instead of sniffing the deliberately neutral title/detail.
+      if (type == kWalletGuardTypeOfferJeeberInsufficientBalance) {
+        throw const OffersRepositoryException(OffersFailure.offerNotPending);
       }
       throw OffersRepositoryException(
         _isRequestClosedConflict(e.response?.data)
@@ -275,7 +282,27 @@ class DioOffersRepository implements OffersRepository {
     if (status == 410 || status == 404) {
       throw const OffersRepositoryException(OffersFailure.requestNotOpen);
     }
+    if (status == 403 && type == kWalletGuardTypeHolderUnresolved) {
+      throw const OffersRepositoryException(OffersFailure.holderUnresolved);
+    }
+    if (status == 503) {
+      if (type == kWalletGuardTypeFeeUnresolvable) {
+        throw const OffersRepositoryException(OffersFailure.feeUnresolvable);
+      }
+      if (type == kWalletGuardTypeExposureUnresolvable) {
+        throw const OffersRepositoryException(
+          OffersFailure.exposureUnresolvable,
+        );
+      }
+    }
     _rethrowDio(e);
+  }
+
+  /// RFC7807 `type` URI, trimmed only — matching is exact per CONTRACT §1.
+  static String? _problemType(Object? body) {
+    if (body is! Map) return null;
+    final raw = body['type'];
+    return raw is String ? raw.trim() : null;
   }
 
   bool _isRequestClosedConflict(Object? data) {

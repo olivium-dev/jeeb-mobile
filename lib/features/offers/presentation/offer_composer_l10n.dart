@@ -75,8 +75,8 @@ class OfferComposerL10n {
   /// Western in both locales (the [MoneyFormat] digit policy).
   String get pricePlaceholder => '0.00';
 
-  /// The currency mark drawn beside the amount: `$` for USD (and for a blank
-  /// currency, which the gateway treats as USD), else the ISO code.
+  /// The currency mark beside the amount: the server's ISO code when present,
+  /// else a neutral '$' for an unknown/blank currency (no longer assumed USD).
   String currencyMark(String currency) {
     final code = currency.trim().toUpperCase();
     return code.isEmpty || code == 'USD' ? r'$' : code;
@@ -224,17 +224,41 @@ class OfferComposerL10n {
       _pick('No connection. Check your network and try again.',
           'لا يوجد اتصال. تحقق من شبكتك وحاول مجدداً.');
 
-  // ── Insufficient-balance sheet (JM-046) ───────────────────────────────────
-  /// `insufficient_balance_sheet` heading.
-  String get insufficientTitle =>
-      _pick('Not enough balance', 'الرصيد غير كافٍ');
+  // ── Wallet-guard errors (CONTRACT §5 C-1..C-4) ────────────────────────────
+  /// E3 403 `wallet-holder-unresolved`.
+  String get guardHolderUnresolved => _l10n.walletGuardErrorHolderUnresolved;
 
-  /// Body explaining the gap.
-  String get insufficientBody => _pick(
-        'Top up your wallet to reserve the $kJeebCommissionPercent% and send '
-            'this offer.',
-        'اشحن محفظتك لحجز الـ $kJeebCommissionPercent٪ وإرسال هذا العرض.',
-      );
+  /// E4 503 `offer-fee-unresolvable`.
+  String get guardFeeUnresolvable => _l10n.walletGuardErrorFeeUnresolvable;
+
+  /// E5 503 `offer-exposure-unresolvable`.
+  String get guardExposureUnresolvable =>
+      _l10n.walletGuardErrorExposureUnresolvable;
+
+  /// E2 409 `offer-live-limit-reached` — [limit] is the server's own cap.
+  String guardOfferLimitReached(int limit) =>
+      _l10n.walletGuardErrorOfferLimitReached(limit);
+
+  // ── Insufficient-balance sheet (JM-046) ───────────────────────────────────
+  /// `insufficient_balance_sheet` heading (C-5).
+  String get insufficientTitle => _l10n.walletGuardInsufficientSheetTitle;
+
+  /// C-6 aggregate body — the 10% on THIS offer plus the jeeber's open offers.
+  /// [needed]/[available] arrive pre-formatted; [currency] is the server code.
+  String insufficientBodyAggregate(
+    String needed,
+    String available,
+    String currency,
+  ) =>
+      _l10n.walletGuardInsufficientSheetBody(needed, available, currency);
+
+  /// `insufficient_balance_this_offer_amount` row label.
+  String insufficientThisOfferRow(String amount) =>
+      _l10n.walletGuardInsufficientThisOfferRow(amount);
+
+  /// `insufficient_balance_outstanding_amount` row label.
+  String insufficientOutstandingRow(String amount) =>
+      _l10n.walletGuardInsufficientOutstandingRow(amount);
 
   /// `insufficient_balance_needed_amount` — "Needed: X currency".
   String insufficientNeeded(String amount, String currency) =>

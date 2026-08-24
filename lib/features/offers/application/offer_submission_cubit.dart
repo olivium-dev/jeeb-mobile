@@ -23,6 +23,7 @@ class OfferFormState extends Equatable {
     this.errorMessage,
     this.errorReason,
     this.insufficientBalance,
+    this.capInfo,
   });
 
   final OfferFormMode mode;
@@ -38,6 +39,10 @@ class OfferFormState extends Equatable {
   final OfferSubmissionFailure? errorReason;
 
   final InsufficientBalanceInfo? insufficientBalance;
+
+  /// E2 cap figures from the 409 body — the screen renders the server's own
+  /// limit rather than a hardcoded one (CONTRACT §2 E2).
+  final OfferCapInfo? capInfo;
 
   /// Reason code for [priceError]. The application layer has no `BuildContext`,
   /// so it names the reason and the screen resolves the localized sentence.
@@ -60,6 +65,7 @@ class OfferFormState extends Equatable {
     bool clearError = false,
     InsufficientBalanceInfo? insufficientBalance,
     bool clearInsufficientBalance = false,
+    OfferCapInfo? capInfo,
   }) {
     return OfferFormState(
       mode: mode ?? this.mode,
@@ -71,6 +77,7 @@ class OfferFormState extends Equatable {
       insufficientBalance: clearInsufficientBalance
           ? null
           : (insufficientBalance ?? this.insufficientBalance),
+      capInfo: clearError ? null : (capInfo ?? this.capInfo),
     );
   }
 
@@ -83,6 +90,7 @@ class OfferFormState extends Equatable {
         errorMessage,
         errorReason,
         insufficientBalance,
+        capInfo,
       ];
 }
 
@@ -154,13 +162,17 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       return;
     }
     if (e.failure == OfferSubmissionFailure.offerCapReached) {
+      // The cap sentence is localized off errorReason + the server's own limit
+      // — never a hardcoded English literal (JEBV4-246).
       emit(state.copyWith(
         mode: OfferFormMode.error,
-        errorMessage: 'You have reached the maximum of 20 live offers. '
-            'Withdraw one to submit a new offer.',
+        errorReason: OfferSubmissionFailure.offerCapReached,
+        capInfo: e.capInfo,
       ));
       return;
     }
+    // holderUnresolved / feeUnresolvable / exposureUnresolvable land here too:
+    // the screen resolves each E1–E5 reason to its own frozen copy.
     emit(state.copyWith(mode: OfferFormMode.error, errorReason: e.failure));
   }
 

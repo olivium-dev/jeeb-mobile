@@ -1,5 +1,7 @@
 // JEBV4-246 + JEBV4-243: the offer-composer error snack must render LOCALIZED
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,9 +15,10 @@ import '../../support/sync_app_localizations.dart';
 
 /// Repository that always fails the submit with [failure].
 class _ThrowingRepo implements OfferSubmissionRepository {
-  _ThrowingRepo(this.failure);
+  _ThrowingRepo(this.failure, {this.capInfo});
 
   final OfferSubmissionFailure failure;
+  final OfferCapInfo? capInfo;
 
   @override
   Future<OfferSubmissionResult> submitOffer({
@@ -24,9 +27,17 @@ class _ThrowingRepo implements OfferSubmissionRepository {
     required int etaMinutes,
     String? note,
   }) async {
-    throw OfferSubmissionException(failure);
+    throw OfferSubmissionException(failure, capInfo: capInfo);
   }
 }
+
+/// The FROZEN copy, read from the ARB itself (CONTRACT §5) — never retyped
+/// here, so a copy edit can only pass by editing the contract's own value.
+String _frozen(String key, {String lang = 'en'}) =>
+    debugLoadAppLocalizationsSync(
+      Locale(lang),
+      File('lib/l10n/app_$lang.arb').readAsStringSync(),
+    ).byKey(key)!;
 
 Widget _harness(
   OfferSubmissionRepository repo, {
@@ -111,6 +122,80 @@ void main() {
       );
 
       handle.dispose();
+    });
+  });
+
+  group('Offer composer error snack — wallet-guard copy (CONTRACT §5)', () {
+    Future<void> expectSnack(
+      WidgetTester tester,
+      _ThrowingRepo repo,
+      String expected, {
+      Locale locale = const Locale('en'),
+    }) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_harness(repo, locale: locale));
+      await tester.pumpAndSettle();
+
+      await _submitValidDraft(tester);
+
+      expect(find.text(expected), findsOneWidget);
+      handle.dispose();
+    }
+
+    testWidgets('E3 holder-unresolved shows the C-1 copy', (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(OfferSubmissionFailure.holderUnresolved),
+        _frozen('walletGuardErrorHolderUnresolved'),
+      );
+    });
+
+    testWidgets('E3 holder-unresolved shows the ARABIC C-1 copy',
+        (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(OfferSubmissionFailure.holderUnresolved),
+        _frozen('walletGuardErrorHolderUnresolved', lang: 'ar'),
+        locale: const Locale('ar'),
+      );
+    });
+
+    testWidgets('E4 fee-unresolvable shows the C-2 copy', (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(OfferSubmissionFailure.feeUnresolvable),
+        _frozen('walletGuardErrorFeeUnresolvable'),
+      );
+    });
+
+    testWidgets('E5 exposure-unresolvable shows the C-3 copy', (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(OfferSubmissionFailure.exposureUnresolvable),
+        _frozen('walletGuardErrorExposureUnresolvable'),
+      );
+    });
+
+    testWidgets('E2 cap shows the C-4 copy substituting the SERVER limit',
+        (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(
+          OfferSubmissionFailure.offerCapReached,
+          capInfo: const OfferCapInfo(limit: 7, live: 7),
+        ),
+        _frozen('walletGuardErrorOfferLimitReached').replaceFirst('{limit}', '7'),
+      );
+    });
+
+    testWidgets('E2 cap without a limit falls back to the documented 20',
+        (tester) async {
+      await expectSnack(
+        tester,
+        _ThrowingRepo(OfferSubmissionFailure.offerCapReached),
+        _frozen('walletGuardErrorOfferLimitReached')
+            .replaceFirst('{limit}', '$kDefaultMaxLiveOffersFallback'),
+      );
     });
   });
 }

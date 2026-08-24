@@ -307,6 +307,30 @@ void main() {
       return count;
     }
 
+    // Same shape as countWalletSignalsFor, on the offers topic (W6-T3).
+    Future<int> countOffersSignalsFor(NotificationMessage message) async {
+      final t = FakePushTransport(token: 'tok-wo');
+      final b = BadgeCountCubit();
+      final signals = PushRefreshSignals();
+      var count = 0;
+      final sub =
+          signals.streamFor(const {RefreshTopic.offers}).listen((_) => count += 1);
+      final h = PushNotificationHandler(
+        transport: t,
+        badgeCount: b,
+        refreshSignals: signals,
+      );
+      addTearDown(() async {
+        await sub.cancel();
+        await h.close();
+        await b.close();
+        await signals.dispose();
+      });
+      t.emitForeground(message);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return count;
+    }
+
     // Correction 4: wallet pushes carry no id, so `wallet` must live in the
     // `idless` set — same shape as `chat`/`newRequest`.
     test('a wallet push with no id still signals wallet listeners (idless)',
@@ -318,6 +342,21 @@ void main() {
         body: 'Not enough balance',
         receivedAt: DateTime.utc(2026, 8, 8),
       );
+      expect(await countWalletSignalsFor(walletMsg), 1);
+    });
+
+    // c4 F4-3: guard-2's auto-withdraw frees a reservation AND removes an
+    // offer, so the offers-listening feeds must refetch it away too.
+    test('a wallet push also signals offers listeners', () async {
+      final walletMsg = NotificationMessage(
+        id: 'w1-offers',
+        category: NotificationCategory.wallet,
+        title: 'Offer withdrawn',
+        body: 'Not enough balance',
+        receivedAt: DateTime.utc(2026, 8, 8),
+        data: const {'type': 'offer_withdrawn_insufficient_balance'},
+      );
+      expect(await countOffersSignalsFor(walletMsg), 1);
       expect(await countWalletSignalsFor(walletMsg), 1);
     });
 

@@ -7,6 +7,12 @@ enum OffersFailure {
 
   jeeberAtCapacity,
 
+  /// Wallet-guard accept-path failures (CONTRACT E3/E4/E5). The guard could not
+  /// resolve a holder, the offer fee, or the jeeber's outstanding exposure.
+  holderUnresolved,
+  feeUnresolvable,
+  exposureUnresolvable,
+
   rateLimited,
   unknown,
 }

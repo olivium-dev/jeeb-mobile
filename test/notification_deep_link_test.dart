@@ -860,6 +860,51 @@ void main() {
     );
   });
 
+  // W6-T3 / CONTRACT §3 — the guard-2 withdraw push lands on the wallet, and
+  // the client role guard must never divert it to the shell.
+  group('wallet notifications route to the wallet, role-independently', () {
+    test('a wallet push routes to /wallet with no role', () {
+      expect(
+        deepLinkForMessage(_msg(category: NotificationCategory.wallet)),
+        '/wallet',
+      );
+    });
+
+    test('a wallet push routes to /wallet for a jeeber', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.wallet,
+            data: const {
+              'type': 'offer_withdrawn_insufficient_balance',
+              'offerId': 'o1',
+              'requestId': 'r1',
+            },
+          ),
+          role: UserRole.jeeber,
+        ),
+        '/wallet',
+      );
+    });
+
+    test('a wallet push routes to /wallet for a client too (the role guard '
+        'covers newRequest/offerAccepted/offerLost only)', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.wallet,
+            data: const {
+              'type': 'offer_withdrawn_insufficient_balance',
+              'requestId': 'r1',
+            },
+          ),
+          role: UserRole.client,
+        ),
+        '/wallet',
+      );
+    });
+  });
+
   // A15 (P2) — the assertion that would have caught the original bug, and the
   group('negative fence: no non-delivery type may resolve onto /orders/', () {
     const orderSurfaceTypes = <String>{'delivery', 'accept'};

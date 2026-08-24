@@ -1360,6 +1360,40 @@ class AppLocalizations {
   String get trackingExpiredBody => _get('trackingExpiredBody');
   String get trackingUnderReviewTitle => _get('trackingUnderReviewTitle');
   String get trackingUnderReviewBody => _get('trackingUnderReviewBody');
+
+  // Wallet-guard surfaces E1–E5 + withdrawal push; copy frozen in CONTRACT §5.
+  String get walletGuardErrorHolderUnresolved =>
+      _get('walletGuardErrorHolderUnresolved');
+  String get walletGuardErrorFeeUnresolvable =>
+      _get('walletGuardErrorFeeUnresolvable');
+  String get walletGuardErrorExposureUnresolvable =>
+      _get('walletGuardErrorExposureUnresolvable');
+  String walletGuardErrorOfferLimitReached(int limit) =>
+      _get('walletGuardErrorOfferLimitReached')
+          .replaceFirst('{limit}', '$limit');
+  String get walletGuardInsufficientSheetTitle =>
+      _get('walletGuardInsufficientSheetTitle');
+  // {currency} appears twice in both locales, so it needs replaceAll.
+  String walletGuardInsufficientSheetBody(
+    String needed,
+    String available,
+    String currency,
+  ) => _get('walletGuardInsufficientSheetBody')
+      .replaceFirst('{needed}', needed)
+      .replaceFirst('{available}', available)
+      .replaceAll('{currency}', currency);
+  String walletGuardInsufficientThisOfferRow(String amount) =>
+      _get('walletGuardInsufficientThisOfferRow')
+          .replaceFirst('{amount}', amount);
+  String walletGuardInsufficientOutstandingRow(String amount) =>
+      _get('walletGuardInsufficientOutstandingRow')
+          .replaceFirst('{amount}', amount);
+  String get walletGuardPushOfferWithdrawnTitle =>
+      _get('walletGuardPushOfferWithdrawnTitle');
+  String get walletGuardPushOfferWithdrawnBody =>
+      _get('walletGuardPushOfferWithdrawnBody');
+  String get notificationsKindWalletWithdrawnLabel =>
+      _get('notificationsKindWalletWithdrawnLabel');
 }
 
 class _AppLocalizationsDelegate

@@ -64,10 +64,18 @@ class NotificationRow extends StatelessWidget {
     // title/body — fall back to localized copy so the row is never blank. Server
     // rows (which always carry a title) are unaffected.
     final bool isNewRequest = item.kind == NotificationKind.newRequest;
-    final String title = item.title.isNotEmpty
+    // CONTRACT §3: the wallet-guard row ALWAYS renders local copy (this is what
+    // delivers Arabic); the gateway's EN wire text is byte-identical anyway.
+    final bool isWalletWithdrawn =
+        item.kind == NotificationKind.offerWithdrawnInsufficientBalance;
+    final String title = isWalletWithdrawn
+        ? copy.offerWithdrawnTitle
+        : item.title.isNotEmpty
         ? item.title
         : (isNewRequest ? copy.newRequestFallbackTitle : '');
-    final String body = item.body.isNotEmpty
+    final String body = isWalletWithdrawn
+        ? copy.offerWithdrawnBody
+        : item.body.isNotEmpty
         ? item.body
         : (isNewRequest ? copy.newRequestFallbackBody : '');
     // R21's meta run is measured `#8A93D8` — `onSurfaceVariant`, not the
@@ -211,6 +219,8 @@ IconData _iconFor(NotificationKind kind) {
       return Icons.report_problem_outlined;
     case NotificationKind.support:
       return Icons.support_agent;
+    case NotificationKind.offerWithdrawnInsufficientBalance:
+      return Icons.account_balance_wallet_outlined;
     case NotificationKind.unknown:
       return Icons.notifications_none_outlined;
   }

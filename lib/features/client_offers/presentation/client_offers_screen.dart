@@ -507,6 +507,12 @@ String offersFailureCopy(
       return l10n.offersErrorOfferNotPending;
     case OffersFailure.jeeberAtCapacity:
       return l10n.offersErrorJeeberAtCapacity;
+    case OffersFailure.holderUnresolved:
+      return l10n.walletGuardErrorHolderUnresolved;
+    case OffersFailure.feeUnresolvable:
+      return l10n.walletGuardErrorFeeUnresolvable;
+    case OffersFailure.exposureUnresolvable:
+      return l10n.walletGuardErrorExposureUnresolvable;
     // rateLimited is a TRANSIENT state the cubit handles by staying in loading
     // and auto-retrying — it must never reach a rendered error surface. Fold it
     // into the generic fallback for switch-exhaustiveness (defensive only).

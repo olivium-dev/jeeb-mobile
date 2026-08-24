@@ -254,7 +254,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       case NotificationCategory.chat:
         return const {RefreshTopic.chat};
       case NotificationCategory.wallet:
-        return const {RefreshTopic.wallet};
+        // Guard-2 auto-withdraw both frees a reservation AND removes an offer,
+        // so refresh offers too — the withdrawn offer must leave the feed.
+        return const {RefreshTopic.wallet, RefreshTopic.offers};
       case NotificationCategory.newRequest:
         return const {RefreshTopic.feed};
       case NotificationCategory.delivery:

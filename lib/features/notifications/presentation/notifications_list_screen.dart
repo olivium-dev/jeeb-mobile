@@ -307,6 +307,9 @@ class _LoadedList extends StatelessWidget {
       case NotificationKind.feeWon:
       case NotificationKind.refundPenalty:
       case NotificationKind.topup:
+      // CONTRACT §3: the wallet-guard withdraw push deep-links to `jeeb://wallet`
+      // so the top-up CTA is one tap away — same target as the money rows.
+      case NotificationKind.offerWithdrawnInsufficientBalance:
         context.goNamed('wallet');
         break;
 
