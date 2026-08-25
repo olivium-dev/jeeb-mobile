@@ -4,20 +4,32 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
-REQUIRED_FLUTTER_VERSION="3.44.2"
-BUILD_NAME="${IOS_BUILD_NAME:-1.0.0}"
-BUILD_NUMBER="${IOS_BUILD_NUMBER:-26082401}"
+REQUIRED_FLUTTER_VERSION="$(python3 - "${REPO_ROOT}/.fvmrc" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    version = json.load(handle).get('flutter', '')
+if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+    raise SystemExit('.fvmrc Flutter version is missing or malformed')
+print(version)
+PY
+)"
+BUILD_NAME="${IOS_BUILD_NAME:-}"
+BUILD_NUMBER="${IOS_BUILD_NUMBER:-}"
 GATEWAY_URL="${GATEWAY_BASE_URL:-https://app.jeeb.fds-1.com}"
 FIREBASE_CONFIG="${IOS_GOOGLE_SERVICE_INFO_PLIST_PATH:-}"
 MAPS_KEY_FILE="${IOS_GOOGLE_MAPS_API_KEY_FILE:-}"
 EXPECTED_FIREBASE_APP_ID="${IOS_FIREBASE_EXPECTED_APP_ID:-}"
+EXPECTED_FIREBASE_CLIENT_ID="${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}"
+EXPECTED_FIREBASE_REVERSED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}"
 ARCHIVE_PATH="${REPO_ROOT}/build/ios/archive/Jeeb-${BUILD_NUMBER}.xcarchive"
 EXPORT_PATH="${REPO_ROOT}/build/ios/internal-${BUILD_NUMBER}"
-EXPORT_OPTIONS="${REPO_ROOT}/ios/ExportOptions.Internal.plist"
+EXPORT_OPTIONS="${IOS_EXPORT_OPTIONS_PATH:-}"
+PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_SPECIFIER:-}"
+SIGNING_CERTIFICATE="${IOS_SIGNING_CERTIFICATE:-Apple Distribution}"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
-ASC_KEY_PATH="${APP_STORE_CONNECT_KEY_PATH:-}"
-ASC_KEY_ID="${APP_STORE_CONNECT_KEY_ID:-}"
-ASC_ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-}"
 
 fail() {
   printf 'Signed iOS internal candidate failed: %s\n' "$1" >&2
@@ -30,20 +42,42 @@ fail() {
   fail 'protected Firebase plist is missing'
 [[ -f "${MAPS_KEY_FILE}" && ! -L "${MAPS_KEY_FILE}" ]] ||
   fail 'protected Maps key file is missing'
-[[ -s "${EXPORT_OPTIONS}" ]] || fail 'internal export policy is missing'
+[[ -f "${EXPORT_OPTIONS}" && ! -L "${EXPORT_OPTIONS}" ]] ||
+  fail 'protected manual export policy is missing'
+[[ -n "${PROVISIONING_PROFILE_SPECIFIER}" ]] ||
+  fail 'manual provisioning profile specifier is missing'
+[[ -n "${SIGNING_CERTIFICATE}" ]] ||
+  fail 'manual signing certificate selector is missing'
+[[ -n "${EXPECTED_FIREBASE_CLIENT_ID}" ]] ||
+  fail 'protected approved Google Sign-In client identity is missing'
+[[ -n "${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" ]] ||
+  fail 'protected approved reversed Google Sign-In client identity is missing'
+[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  fail 'IOS_BUILD_NAME must be explicit and valid'
+[[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,17}$ ]] ||
+  fail 'IOS_BUILD_NUMBER must be explicit and valid'
 [[ ! -e "${ARCHIVE_PATH}" ]] || fail 'refusing to overwrite an archive'
 [[ ! -e "${EXPORT_PATH}" ]] || fail 'refusing to overwrite an IPA export'
 
-if [[ -n "${ASC_KEY_PATH}${ASC_KEY_ID}${ASC_ISSUER_ID}" ]]; then
-  [[ -f "${ASC_KEY_PATH}" && ! -L "${ASC_KEY_PATH}" ]] ||
-    fail 'protected App Store Connect API key is missing'
-  [[ -n "${ASC_KEY_ID}" && -n "${ASC_ISSUER_ID}" ]] ||
-    fail 'App Store Connect Key ID and Issuer ID are both required'
-  if [[ "$(uname -s)" == Darwin ]]; then
-    [[ "$(stat -f '%Lp' "${ASC_KEY_PATH}")" == 600 ]] ||
-      fail 'protected App Store Connect API key must have mode 0600'
-  fi
-fi
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :signingStyle' \
+  "${EXPORT_OPTIONS}")" == manual ]] ||
+  fail 'export policy must use manual signing'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :destination' \
+  "${EXPORT_OPTIONS}")" == export ]] ||
+  fail 'export policy must remain local and must not upload'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :manageAppVersionAndBuildNumber' \
+  "${EXPORT_OPTIONS}")" == false ]] ||
+  fail 'export policy must not mutate the App Store build number'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :uploadSymbols' \
+  "${EXPORT_OPTIONS}")" == false ]] ||
+  fail 'export policy must not upload symbols'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :teamID' \
+  "${EXPORT_OPTIONS}")" == K5RDQ8J7AN ]] ||
+  fail 'export policy team drifted'
+[[ "$(/usr/libexec/PlistBuddy -c \
+  'Print :provisioningProfiles:com.olivium.jeeb' \
+  "${EXPORT_OPTIONS}")" == "${PROVISIONING_PROFILE_SPECIFIER}" ]] ||
+  fail 'export policy provisioning profile drifted'
 
 flutter_version="$("${FLUTTER_BIN}" --version --machine | python3 -c \
   'import json,sys; print(json.load(sys.stdin)["frameworkVersion"])')"
@@ -51,6 +85,8 @@ flutter_version="$("${FLUTTER_BIN}" --version --machine | python3 -c \
   fail "Flutter ${REQUIRED_FLUTTER_VERSION} is required"
 
 IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_FIREBASE_APP_ID}" \
+IOS_FIREBASE_EXPECTED_CLIENT_ID="${EXPECTED_FIREBASE_CLIENT_ID}" \
+IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" \
   bash "${REPO_ROOT}/tool/validate_ios_google_service_info.sh" \
     "${FIREBASE_CONFIG}" >/dev/null
 bash "${REPO_ROOT}/tool/validate_ios_maps_api_key.sh" \
@@ -64,19 +100,12 @@ encoded_firebase="$(base64 <"${FIREBASE_CONFIG}" | tr -d '\n')"
 run_release_build() {
   set -euo pipefail
 
-  provisioning_auth_args=()
-  if [[ -n "${ASC_KEY_PATH}" ]]; then
-    provisioning_auth_args=(
-      -authenticationKeyPath "${ASC_KEY_PATH}"
-      -authenticationKeyID "${ASC_KEY_ID}"
-      -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
-    )
-  fi
-
   "${FLUTTER_BIN}" build ios --release --no-codesign --no-pub \
     --build-name="${BUILD_NAME}" \
     --build-number="${BUILD_NUMBER}" \
     --dart-define=APP_FLAVOR=staging \
+    --dart-define=JEEB_CLARITY_ENABLED=false \
+    --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
     --dart-define="GATEWAY_BASE_URL=${GATEWAY_URL}"
 
   xcodebuild \
@@ -85,11 +114,11 @@ run_release_build() {
     -configuration Release \
     -destination generic/platform=iOS \
     -archivePath "${ARCHIVE_PATH}" \
-    -allowProvisioningUpdates \
-    "${provisioning_auth_args[@]}" \
     -hideShellScriptEnvironment \
     DEVELOPMENT_TEAM=K5RDQ8J7AN \
-    CODE_SIGN_STYLE=Automatic \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="${SIGNING_CERTIFICATE}" \
+    PROVISIONING_PROFILE_SPECIFIER="${PROVISIONING_PROFILE_SPECIFIER}" \
     archive
 
   xcodebuild \
@@ -97,20 +126,20 @@ run_release_build() {
     -archivePath "${ARCHIVE_PATH}" \
     -exportPath "${EXPORT_PATH}" \
     -exportOptionsPlist "${EXPORT_OPTIONS}" \
-    -allowProvisioningUpdates \
-    "${provisioning_auth_args[@]}" \
     -hideShellScriptEnvironment
 }
 
 export -f run_release_build
 export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
-export ASC_KEY_PATH ASC_KEY_ID ASC_ISSUER_ID
+export PROVISIONING_PROFILE_SPECIFIER SIGNING_CERTIFICATE
 
 (
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_firebase}" \
   IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_FIREBASE_APP_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${EXPECTED_FIREBASE_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" \
   IOS_GOOGLE_MAPS_API_KEY_FILE="${MAPS_KEY_FILE}" \
     bash "${WRAPPER}" bash -c run_release_build
 )
@@ -120,7 +149,8 @@ unset -f run_release_build
 ipa_path="$(find "${EXPORT_PATH}" -maxdepth 1 -type f -name '*.ipa' -print -quit)"
 [[ -n "${ipa_path}" && -s "${ipa_path}" ]] || fail 'exported IPA is missing'
 
-bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh" \
+IOS_BUILD_NAME="${BUILD_NAME}" IOS_BUILD_NUMBER="${BUILD_NUMBER}" \
+  bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh" \
   "${ipa_path}" "${FIREBASE_CONFIG}" "${MAPS_KEY_FILE}" "${GATEWAY_URL}"
 
 printf 'Signed internal IPA: %s\n' "${ipa_path}"

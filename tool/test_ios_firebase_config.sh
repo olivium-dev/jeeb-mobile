@@ -8,7 +8,7 @@ MAPS_VALIDATOR="${REPO_ROOT}/tool/validate_ios_maps_api_key.sh"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
 TARGET="${REPO_ROOT}/ios/Runner/GoogleService-Info.plist"
 PROTECTED_XCCONFIG="${REPO_ROOT}/ios/Flutter/ProtectedFirebase.xcconfig"
-SYNTHETIC_SENDER_ID="123456789012"
+SYNTHETIC_SENDER_ID="1051234312170"
 EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:0123456789abcdef0123456789abcdef"
 SYNTHETIC_CLIENT_ID="${SYNTHETIC_SENDER_ID}-syntheticfixture.apps.googleusercontent.com"
 SYNTHETIC_REVERSED_CLIENT_ID="com.googleusercontent.apps.${SYNTHETIC_SENDER_ID}-syntheticfixture"
@@ -39,6 +39,8 @@ expect_failure() {
   local label="$1"
   local path="$2"
   if IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
+    IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+    IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
     bash "${VALIDATOR}" "${path}" >/dev/null 2>&1; then
     printf 'Expected validator failure: %s\n' "${label}" >&2
     exit 1
@@ -48,7 +50,26 @@ expect_failure() {
 valid="${TMP_DIR}/valid.plist"
 write_valid_fixture "${valid}"
 IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
   bash "${VALIDATOR}" "${valid}" >/dev/null
+
+for missing_input in \
+  IOS_FIREBASE_EXPECTED_APP_ID \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID; do
+  if (
+    export IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}"
+    export IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}"
+    export IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}"
+    unset "${missing_input}"
+    bash "${VALIDATOR}" "${valid}" >/dev/null 2>&1
+  ); then
+    printf 'Expected missing protected input failure: %s\n' \
+      "${missing_input}" >&2
+    exit 1
+  fi
+done
 
 maps_key="${TMP_DIR}/maps-api-key"
 printf '%s\n' "${SYNTHETIC_MAPS_KEY}" >"${maps_key}"
@@ -80,6 +101,12 @@ wrong_project="${TMP_DIR}/wrong-project.plist"
 cp "${valid}" "${wrong_project}"
 /usr/libexec/PlistBuddy -c 'Set :PROJECT_ID wrong-project' "${wrong_project}"
 expect_failure wrong-project "${wrong_project}"
+
+wrong_project_number="${TMP_DIR}/wrong-project-number.plist"
+cp "${valid}" "${wrong_project_number}"
+/usr/libexec/PlistBuddy -c 'Set :GCM_SENDER_ID 999999999999' \
+  "${wrong_project_number}"
+expect_failure wrong-project-number "${wrong_project_number}"
 
 wrong_app="${TMP_DIR}/wrong-app.plist"
 cp "${valid}" "${wrong_app}"
@@ -133,6 +160,8 @@ if (
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_fixture}" \
   IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
     bash "${WRAPPER}" true >/dev/null 2>&1
 ); then
   printf '%s\n' 'Expected wrapper failure without protected Maps input.' >&2
@@ -142,10 +171,14 @@ fi
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_fixture}" \
   IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
   IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key}" \
     bash "${WRAPPER}" bash -c '
       [[ -z "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]]
       [[ -z "${IOS_FIREBASE_EXPECTED_APP_ID:-}" ]]
+      [[ -z "${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}" ]]
+      [[ -z "${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}" ]]
       [[ -z "${IOS_GOOGLE_MAPS_API_KEY_FILE:-}" ]]
       test -s ios/Runner/GoogleService-Info.plist
       test -s ios/Flutter/ProtectedFirebase.xcconfig

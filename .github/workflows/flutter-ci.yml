@@ -6,38 +6,33 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  # Keep in step with ci.yml and the Mac Studio build machine (~/flutter-3.44).
-  FLUTTER_VERSION: '3.44.2'
+permissions:
+  contents: read
 
 jobs:
   analyze-test-build:
-    runs-on: ubuntu-latest
+    name: Flutter CI + coverage (79%)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Install dependencies
         id: pub_get
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -52,13 +47,14 @@ jobs:
         # See ci.yml — the `capture` harnesses are host-rendered golden tooling.
         run: flutter test --exclude-tags capture --coverage
 
-      - name: Coverage summary (lcov)
-        # Surfaces aggregate line coverage from coverage/lcov.info produced above.
-        # Raise the failure threshold here once a baseline is agreed (e.g. add
-        # `lcov --fail-under-lines <N> lcov.info`).
-        run: |
-          sudo apt-get update && sudo apt-get install -y lcov
-          lcov --summary coverage/lcov.info
+      - name: Enforce 79% line coverage floor
+        uses: VeryGoodOpenSource/very_good_coverage@c953fca3e24a915e111cc6f55f03f756dcb3964c # v3.0.0
+        with:
+          path: coverage/lcov.info
+          min_coverage: 79
+          exclude: >-
+            **/*.g.dart **/*.freezed.dart **/main.dart
+            **/firebase_options.dart **/*.config.dart
 
       - name: Skip dev FCM APK for fork PR
         if: github.event_name == 'pull_request'

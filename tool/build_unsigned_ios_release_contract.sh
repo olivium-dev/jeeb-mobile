@@ -4,7 +4,18 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
-REQUIRED_FLUTTER_VERSION="3.44.2"
+REQUIRED_FLUTTER_VERSION="$(python3 - "${REPO_ROOT}/.fvmrc" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    version = json.load(handle).get('flutter', '')
+if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+    raise SystemExit('.fvmrc Flutter version is missing or malformed')
+print(version)
+PY
+)"
 TEMPLATE="${REPO_ROOT}/ios/Runner/GoogleService-Info.plist.template"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
 TMP_DIR="$(mktemp -d)"
@@ -16,6 +27,8 @@ SYNTHETIC_REVERSED_ID="com.googleusercontent.apps.${SYNTHETIC_SENDER_ID}-synthet
 SYNTHETIC_API_KEY="AIza$(printf 'A%.0s' {1..35})"
 SYNTHETIC_MAPS_KEY="AIza$(printf 'M%.0s' {1..35})"
 SYNTHETIC_MAPS_KEY_FILE="${TMP_DIR}/maps-api-key"
+SYNTHETIC_BUILD_NAME=0.0.0
+SYNTHETIC_BUILD_NUMBER=1
 
 flutter_version="$("${FLUTTER_BIN}" --version --machine | python3 -c \
   'import json,sys; print(json.load(sys.stdin)["frameworkVersion"])')"
@@ -54,10 +67,16 @@ encoded_config="$(base64 <"${SYNTHETIC_CONFIG}" | tr -d '\n')"
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_config}" \
   IOS_FIREBASE_EXPECTED_APP_ID="${SYNTHETIC_APP_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_ID}" \
   IOS_GOOGLE_MAPS_API_KEY_FILE="${SYNTHETIC_MAPS_KEY_FILE}" \
     bash "${WRAPPER}" "${FLUTTER_BIN}" build ios --release --no-codesign \
       --no-pub \
+      --build-name="${SYNTHETIC_BUILD_NAME}" \
+      --build-number="${SYNTHETIC_BUILD_NUMBER}" \
       --dart-define=APP_FLAVOR=production \
+      --dart-define=JEEB_CLARITY_ENABLED=false \
+      --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
       --dart-define=GATEWAY_BASE_URL=https://gateway.contract.invalid
 )
 unset encoded_config

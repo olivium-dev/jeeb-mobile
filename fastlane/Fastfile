@@ -1,0 +1,46 @@
+require_relative 'BuildNumberPolicy'
+require_relative 'AppStoreBuildInventory'
+
+opt_out_usage
+
+def required_env(name)
+  value = ENV.fetch(name, '').strip
+  UI.user_error!("#{name} must be provided by the protected environment") if value.empty?
+  value
+end
+
+desc 'Read both stores and reject a non-monotonic shared mobile build number'
+lane :preflight_internal do
+  BuildNumberPolicy.parse_marketing_version!(required_env('MOBILE_BUILD_NAME'))
+  build_number = BuildNumberPolicy.parse!(required_env('MOBILE_BUILD_NUMBER'))
+  json_key_data = required_env('GOOGLE_PLAY_JSON_KEY')
+
+  play_codes = %w[internal alpha beta production].flat_map do |track|
+    Array(
+      google_play_track_version_codes(
+        json_key_data: json_key_data,
+        package_name: 'com.olivium.jeeb',
+        track: track,
+      ),
+    )
+  end
+
+  app_store_connect_api_key(
+    key_id: required_env('APP_STORE_KEY_ID'),
+    issuer_id: required_env('APP_STORE_ISSUER_ID'),
+    key_content: required_env('APP_STORE_KEY_CONTENT_B64'),
+    is_key_content_base64: true,
+  )
+  app_store_build = AppStoreBuildInventory.global_max
+
+  BuildNumberPolicy.require_newer!(
+    candidate: build_number,
+    observed: play_codes,
+    destination: 'Google Play',
+  )
+  BuildNumberPolicy.require_newer!(
+    candidate: build_number,
+    observed: [app_store_build],
+    destination: 'App Store Connect',
+  )
+end

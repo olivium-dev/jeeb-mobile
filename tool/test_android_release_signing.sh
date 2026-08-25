@@ -3,16 +3,19 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
 GRADLEW="${REPO_ROOT}/android/gradlew"
 TMP_DIR="$(mktemp -d)"
 MISSING_PROPERTIES="${TMP_DIR}/missing-key.properties"
 SYNTHETIC_PROPERTIES="${TMP_DIR}/synthetic-key.properties"
+WRONG_ALIAS_PROPERTIES="${TMP_DIR}/wrong-alias-key.properties"
 SYNTHETIC_KEYSTORE="${TMP_DIR}/synthetic-release.p12"
 SYNTHETIC_PASSWORD="contract-only-password"
-MISMATCHED_FINGERPRINT="$(printf '0%.0s' {1..64})"
+MISMATCHED_SHA1="$(printf '0%.0s' {1..40})"
+MISMATCHED_SHA256="$(printf '0%.0s' {1..64})"
 SYNTHETIC_MAPS_KEY="AIza$(printf 'A%.0s' {1..35})"
 
-flutter build apk --config-only >/dev/null
+"${FLUTTER_BIN}" build apk --config-only >/dev/null
 
 cleanup() {
   rm -rf -- "${TMP_DIR}"
@@ -79,16 +82,67 @@ printf '%s\n' \
   "storePassword=${SYNTHETIC_PASSWORD}" \
   >"${SYNTHETIC_PROPERTIES}"
 chmod 0600 "${SYNTHETIC_PROPERTIES}"
+printf '%s\n' \
+  'keyAlias=missingalias' \
+  "keyPassword=${SYNTHETIC_PASSWORD}" \
+  "storeFile=${SYNTHETIC_KEYSTORE}" \
+  "storePassword=${SYNTHETIC_PASSWORD}" \
+  >"${WRONG_ALIAS_PROPERTIES}"
+chmod 0600 "${WRONG_ALIAS_PROPERTIES}"
 
 expect_gradle_failure missing-fingerprint \
-  'Protected production signing certificate fingerprint is missing or malformed.' \
+  'Protected upload signing certificate SHA-1 is missing or malformed.' \
   :app:verifyProductionReleaseSigning \
   -Pjeeb.releaseSigningPropertiesFile="${SYNTHETIC_PROPERTIES}"
-expect_gradle_failure mismatched-fingerprint \
-  'Production release signing certificate does not match the protected fingerprint.' \
+expect_gradle_failure missing-sha256 \
+  'Protected upload signing certificate SHA-256 is missing or malformed.' \
   :app:verifyProductionReleaseSigning \
   -Pjeeb.releaseSigningPropertiesFile="${SYNTHETIC_PROPERTIES}" \
-  -Pjeeb.releaseSigningCertificateSha256="${MISMATCHED_FINGERPRINT}"
+  -Pjeeb.uploadSigningCertificateSha1="${MISMATCHED_SHA1}"
+
+export JEEB_SYNTHETIC_KEYSTORE_PASSWORD="${SYNTHETIC_PASSWORD}"
+keytool_output="$(keytool -list -v \
+  -keystore "${SYNTHETIC_KEYSTORE}" \
+  -storepass:env JEEB_SYNTHETIC_KEYSTORE_PASSWORD \
+  -alias syntheticrelease)"
+unset JEEB_SYNTHETIC_KEYSTORE_PASSWORD
+actual_sha1="$(printf '%s\n' "${keytool_output}" | \
+  sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
+actual_sha256="$(printf '%s\n' "${keytool_output}" | \
+  sed -n 's/^[[:space:]]*SHA256: //p' | head -1)"
+unset keytool_output
+[[ "${actual_sha1}" =~ ^([0-9A-F]{2}:){19}[0-9A-F]{2}$ ]] ||
+  fail 'could not derive the synthetic upload SHA-1'
+[[ "${actual_sha256}" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]] ||
+  fail 'could not derive the synthetic upload SHA-256'
+
+expect_gradle_failure wrong-alias \
+  'Production release signing certificate is unavailable.' \
+  :app:verifyProductionReleaseSigning \
+  -Pjeeb.releaseSigningPropertiesFile="${WRONG_ALIAS_PROPERTIES}" \
+  -Pjeeb.uploadSigningCertificateSha1="${actual_sha1}" \
+  -Pjeeb.uploadSigningCertificateSha256="${actual_sha256}"
+
+expect_gradle_failure mismatched-sha1 \
+  'Production release signer does not match the approved upload SHA-1.' \
+  :app:verifyProductionReleaseSigning \
+  -Pjeeb.releaseSigningPropertiesFile="${SYNTHETIC_PROPERTIES}" \
+  -Pjeeb.uploadSigningCertificateSha1="${MISMATCHED_SHA1}" \
+  -Pjeeb.uploadSigningCertificateSha256="${actual_sha256}"
+expect_gradle_failure mismatched-sha256 \
+  'Production release signer does not match the approved upload SHA-256.' \
+  :app:verifyProductionReleaseSigning \
+  -Pjeeb.releaseSigningPropertiesFile="${SYNTHETIC_PROPERTIES}" \
+  -Pjeeb.uploadSigningCertificateSha1="${actual_sha1}" \
+  -Pjeeb.uploadSigningCertificateSha256="${MISMATCHED_SHA256}"
+
+(cd "${REPO_ROOT}/android" && \
+  "${GRADLEW}" :app:verifyProductionReleaseSigning \
+    -Pjeeb.releaseSigningPropertiesFile="${SYNTHETIC_PROPERTIES}" \
+    -Pjeeb.uploadSigningCertificateSha1="${actual_sha1}" \
+    -Pjeeb.uploadSigningCertificateSha256="${actual_sha256}" \
+    -PMAPS_API_KEY="${SYNTHETIC_MAPS_KEY}" >/dev/null)
+unset actual_sha1 actual_sha256
 
 printf '%s\n' \
-  'Android release signing negatives passed; no production APK or AAB exists.'
+  'Android upload signer bindings and negatives passed; no production artifact exists.'

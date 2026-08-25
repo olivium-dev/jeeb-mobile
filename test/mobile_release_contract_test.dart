@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _canonicalResolution =
     'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved';
 
 String _source(String path) => File(path).readAsStringSync();
+
+String _sha256(String path) =>
+    sha256.convert(File(path).readAsBytesSync()).toString();
 
 Map<String, String> _lockedVersions() {
   final versions = <String, String>{};
@@ -53,9 +57,10 @@ void _registerAndroidContracts() {
     final gradle = _source('android/app/build.gradle');
     _expectContainsAll(gradle, [
       'verifyProductionReleaseSigning',
-      'ANDROID_RELEASE_EXPECTED_CERT_SHA256',
+      'ANDROID_UPLOAD_CERT_SHA1',
+      'ANDROID_UPLOAD_CERT_SHA256',
       'java.security.KeyStore.getInstance',
-      "java.security.MessageDigest.getInstance('SHA-256')",
+      "java.security.MessageDigest.getInstance(algorithm)",
       'certificate.encoded',
     ]);
     expect(gradle, isNot(contains('signingConfigs.debug')));
@@ -67,8 +72,11 @@ void _registerAndroidContracts() {
     _expectContainsAll(contract, [
       ':app:assembleProductionRelease',
       ':app:bundleProductionRelease',
-      'missing-fingerprint',
-      'mismatched-fingerprint',
+      'missing-sha256',
+      'wrong-alias',
+      'mismatched-sha1',
+      'mismatched-sha256',
+      'keytool -list -v',
       'assert_no_release_artifact',
     ]);
     expect(contract, isNot(contains('-storepass ')));
@@ -98,10 +106,16 @@ void _registerAndroidContracts() {
     final wrapper = _source('tool/run_with_android_firebase_config.sh');
     _expectContainsAll(validator, [
       'REQUIRED_PROJECT_ID="jeeb-5a293"',
+      'REQUIRED_PROJECT_NUMBER="1051234312170"',
       'REQUIRED_PACKAGE="com.olivium.jeeb"',
       'ANDROID_FIREBASE_EXPECTED_APP_ID',
-      'ANDROID_FIREBASE_EXPECTED_SHA1',
-      'oauth_match_count',
+      'ANDROID_UPLOAD_CERT_SHA1',
+      'ANDROID_UPLOAD_CERT_SHA256',
+      'ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID',
+      'ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID',
+      'upload_oauth_match_count',
+      'play_oauth_match_count',
+      '2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12',
     ]);
     expect(wrapper, contains('unset ANDROID_GOOGLE_SERVICES_JSON_B64'));
     expect(wrapper, contains('trap cleanup EXIT HUP INT TERM'));
@@ -144,6 +158,9 @@ void _registerIosContracts() {
       'REVERSED_CLIENT_ID',
       'IS_SIGNIN_ENABLED',
       'REQUIRED_BUNDLE_ID="com.olivium.jeeb"',
+      'REQUIRED_PROJECT_NUMBER="1051234312170"',
+      'IOS_FIREBASE_EXPECTED_CLIENT_ID',
+      'IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID',
     ]);
     expect(wrapper, contains('unset IOS_GOOGLE_SERVICE_INFO_PLIST_B64'));
     expect(wrapper, contains('unset IOS_GOOGLE_MAPS_API_KEY_FILE'));
@@ -175,11 +192,27 @@ void _registerIosContracts() {
     final signedInspector = _source('tool/inspect_signed_ios_release.sh');
     final exportOptions = _source('ios/ExportOptions.Internal.plist');
     _expectContainsAll(signedBuilder, [
-      '-allowProvisioningUpdates',
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
       'https://app.jeeb.fds-1.com',
+      'IOS_EXPORT_OPTIONS_PATH',
+      'IOS_PROVISIONING_PROFILE_SPECIFIER',
+      'EXPECTED_FIREBASE_CLIENT_ID',
+      'EXPECTED_FIREBASE_REVERSED_CLIENT_ID',
+      'CODE_SIGN_STYLE=Manual',
+      'export policy must remain local and must not upload',
+      'export policy must not mutate the App Store build number',
+      'export policy must not upload symbols',
+      r'IOS_BUILD_NAME="${BUILD_NAME}"',
+      r'IOS_BUILD_NUMBER="${BUILD_NUMBER}"',
+      'IOS_BUILD_NAME must be explicit and valid',
+      'IOS_BUILD_NUMBER must be explicit and valid',
+      r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
     ]);
+    expect(signedBuilder, isNot(contains('-allowProvisioningUpdates')));
+    expect(signedBuilder, isNot(contains('APP_STORE_CONNECT_')));
+    expect(signedBuilder, isNot(contains(r'IOS_BUILD_NAME:-1.0.0')));
+    expect(signedBuilder, isNot(contains(r'IOS_BUILD_NUMBER:-26082401')));
     expect(exportOptions, contains('<key>testFlightInternalTestingOnly</key>'));
     expect(exportOptions, contains('<key>signingStyle</key>'));
     _expectContainsAll(signedInspector, [
@@ -187,6 +220,27 @@ void _registerIosContracts() {
       'K5RDQ8J7AN.com.olivium.jeeb',
       'aps-environment',
       'applinks:app.jeeb.fds-1.com',
+      'IOS_BUILD_NAME must be explicit',
+      'IOS_BUILD_NUMBER must be explicit',
+      r'[[ "${expected_build_name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
+    ]);
+    expect(signedInspector, isNot(contains('26082401')));
+    expect(signedInspector, isNot(contains('1.0.0')));
+    final inspectorTest = _source('tool/test_inspect_signed_ios_release.sh');
+    _expectContainsAll(inspectorTest, [
+      '7.8.9',
+      '987654',
+      "'1.4' '1.4.0.1' 'release'",
+      "validate_ios_versions \"\${INFO_PLIST}\" '' '987654'",
+    ]);
+    final unsignedBuilder = _source(
+      'tool/build_unsigned_ios_release_contract.sh',
+    );
+    _expectContainsAll(unsignedBuilder, [
+      'SYNTHETIC_BUILD_NAME=0.0.0',
+      'SYNTHETIC_BUILD_NUMBER=1',
+      '--build-name="\${SYNTHETIC_BUILD_NAME}"',
+      '--build-number="\${SYNTHETIC_BUILD_NUMBER}"',
     ]);
   });
 
@@ -272,11 +326,416 @@ void _registerCiContracts() {
       'bash tool/test_android_release_signing.sh',
       'bash tool/build_unsigned_ios_release_contract.sh',
       'bash tool/check_ios_dependency_ownership.sh',
+      'bash tool/test_inspect_signed_ios_release.sh',
       'pod install --deployment',
       "FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'",
+      'runs-on: macos-26',
+      '/Applications/Xcode_26.6.app/Contents/Developer',
+      "xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\\.[0-9]+'",
     ]);
     expect(workflow, isNot(contains('flutter build ipa')));
     expect(workflow, isNot(contains('upload-artifact')));
+  });
+
+  test('Flutter and Gradle toolchains are repository-pinned', () {
+    final fvm = jsonDecode(_source('.fvmrc')) as Map<String, dynamic>;
+    expect(fvm['flutter'], '3.44.2');
+    final setup = _source('.github/actions/setup-flutter/action.yml');
+    _expectContainsAll(setup, [
+      r'flutter-version: ${{ steps.fvm.outputs.version }}',
+      'subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2',
+    ]);
+    for (final path in [
+      '.github/workflows/ci.yml',
+      '.github/workflows/flutter-ci.yml',
+      '.github/workflows/mobile-ci.yml',
+      '.github/workflows/trusted-mobile-rc.yml',
+    ]) {
+      final workflow = _source(path);
+      expect(workflow, contains('uses: ./.github/actions/setup-flutter'));
+      expect(workflow, contains('uses: ./.github/actions/checkout-omds'));
+      expect(workflow, isNot(contains('FLUTTER_VERSION:')));
+      expect(workflow, isNot(contains('flutter-version: 3.44.2')));
+    }
+    const omdsRevision = '6f9c16670c1c5c7a1d21e76a4006fb1aec0fc575';
+    expect(_source('.omds-revision').trim(), omdsRevision);
+    final omdsCheckout = _source('.github/actions/checkout-omds/action.yml');
+    _expectContainsAll(omdsCheckout, [
+      r'ref: ${{ steps.revision.outputs.sha }}',
+      'repository: olivium-dev/omds-flutter',
+      'persist-credentials: false',
+      'git -C __omds_checkout rev-parse HEAD',
+    ]);
+    final wrapper = _source('android/gradle/wrapper/gradle-wrapper.properties');
+    expect(wrapper, contains('gradle-8.14.4-bin.zip'));
+    expect(
+      wrapper,
+      contains(
+        'distributionSha256Sum='
+        'f1771298a70f6db5a29daf62378c4e18a17fc33c9ba6b14362e0cdf40610380d',
+      ),
+    );
+    expect(File('android/gradlew').existsSync(), isTrue);
+    expect(File('android/gradlew.bat').existsSync(), isTrue);
+    expect(
+      File('android/gradle/wrapper/gradle-wrapper.jar').existsSync(),
+      isTrue,
+    );
+    expect(
+      _sha256('android/gradle/wrapper/gradle-wrapper.jar'),
+      '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172',
+    );
+    _expectContainsAll(_source('.gitignore'), [
+      '!android/gradle/wrapper/',
+      '!android/gradle/wrapper/gradle-wrapper.properties',
+      '!android/gradle/wrapper/gradle-wrapper.jar',
+    ]);
+  });
+
+  test(
+    'ordinary CI regenerates source and gates the measured coverage floor',
+    () {
+      for (final path in [
+        '.github/workflows/ci.yml',
+        '.github/workflows/flutter-ci.yml',
+        '.github/workflows/mobile-ci.yml',
+      ]) {
+        expect(
+          _source(path),
+          contains('uses: ./.github/actions/run-build-runner'),
+        );
+      }
+      final codegen = _source('.github/actions/run-build-runner/action.yml');
+      _expectContainsAll(codegen, [
+        'path: .dart_tool/build',
+        "hashFiles('.fvmrc', 'pubspec.lock', 'build.yaml')",
+        'dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      final coverage = _source('.github/workflows/flutter-ci.yml');
+      _expectContainsAll(coverage, [
+        'VeryGoodOpenSource/very_good_coverage@'
+            'c953fca3e24a915e111cc6f55f03f756dcb3964c',
+        'min_coverage: 79',
+      ]);
+      expect(coverage, isNot(contains('continue-on-error')));
+    },
+  );
+
+  test(
+    'trusted RC is protected-main-only, immutable, signed, and retained',
+    () {
+      final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
+      _expectContainsAll(workflow, [
+        'workflow_dispatch:',
+        'environment: mobile-rc',
+        'MOBILE_RC_MAIN_RULESET_ID',
+        "api_get 'environments/mobile-rc'",
+        'required_reviewers',
+        'required_status_checks',
+        'checks: read',
+        'Flutter CI + coverage (79%)',
+        'Release security scans',
+        'check-runs?filter=latest&per_page=100',
+        '.prevent_self_review == true',
+        'required_approving_review_count',
+        r'((.reviewers // []) | length) >= 1',
+        r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
+        r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
+        r'(( 10#${BUILD_NUMBER} <= 2100000000 ))',
+        r'git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD',
+        'persist-credentials: false',
+        'flutter build appbundle --flavor production --release --no-pub',
+        'bash tool/build_signed_ios_internal_candidate.sh',
+        'jarsigner -verify -strict -verbose -certs',
+        'keytool -printcert -jarfile',
+        '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172',
+        'bash tool/inspect_android_release_payload.sh',
+        'build/app/outputs/mapping/productionRelease/mapping.txt',
+        "-name '*.dSYM'",
+        'mapping_sha256',
+        'dsym_sha256',
+        'source_run_attempt',
+        'source_head_sha',
+        'source_workflow_path',
+        'clarity_enabled: false',
+        'runs-on: macos-26',
+        '/Applications/Xcode_26.6.app/Contents/Developer',
+        "xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\\.[0-9]+'",
+        'output-metadata.json',
+        '.elements[0].versionCode == \$build_number',
+        'build/provenance/android-rc.json',
+        'build/provenance/ios-rc.json',
+        'retained: true, store_uploaded: false',
+        'uses: ./.github/actions/run-build-runner',
+        'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+        'retention-days: 7',
+        'compression-level: 0',
+      ]);
+      expect(workflow, isNot(contains('pull_request_target')));
+      expect(workflow, isNot(contains('upload-google-play')));
+      expect(workflow, isNot(contains('fastlane')));
+      expect(workflow, isNot(contains('macos-latest')));
+      expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
+    },
+  );
+
+  test('trusted RC keeps Android and iOS secret references disjoint', () {
+    final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
+    final androidStart = workflow.indexOf('  android-candidate:');
+    final iosStart = workflow.indexOf('  ios-candidate:');
+    expect(androidStart, greaterThanOrEqualTo(0));
+    expect(iosStart, greaterThan(androidStart));
+    final android = workflow.substring(androidStart, iosStart);
+    final ios = workflow.substring(iosStart);
+    expect(android, contains('secrets.ANDROID_OMDS_READ_TOKEN'));
+    expect(android, contains('secrets.ANDROID_UPLOAD_KEYSTORE_B64'));
+    expect(android, contains('secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID'));
+    expect(android, isNot(contains('secrets.IOS_')));
+    expect(android, isNot(contains('secrets.APP_STORE_CONNECT_')));
+    expect(ios, contains('secrets.IOS_OMDS_READ_TOKEN'));
+    expect(ios, contains('secrets.IOS_DISTRIBUTION_CERT_P12_B64'));
+    expect(ios, contains('IOS_PROVISIONING_PROFILE_SPECIFIER'));
+    expect(ios, contains('signingStyle string manual'));
+    expect(ios, contains('uploadSymbols bool false'));
+    expect(ios, isNot(contains('-allowProvisioningUpdates')));
+    expect(ios, isNot(contains('secrets.APP_STORE_CONNECT_')));
+    expect(ios, isNot(contains('secrets.ANDROID_')));
+  });
+
+  test('distribution consumes retained bytes and is internal-only', () {
+    final workflow = _source(
+      '.github/workflows/distribute-mobile-internal.yml',
+    );
+    _expectContainsAll(workflow, [
+      'environment: mobile-internal-distribution',
+      'environments/mobile-internal-distribution',
+      'required_reviewers',
+      '.prevent_self_review == true',
+      'android_e2e_run_id:',
+      '.path == ".github/workflows/trusted-mobile-rc.yml"',
+      '.path == ".github/workflows/android-physical-e2e.yml"',
+      'and .head_sha == \$reviewed',
+      'source_run_attempt',
+      'e2e_run_attempt',
+      'android-physical-e2e-evidence-\${E2E_RUN_ID}-\${e2e_attempt}',
+      '.digest | sub("^sha256:"; "")',
+      'bash tool/validate_android_e2e_manifest.sh',
+      'bash tool/validate_ios_rc_artifact.sh',
+      'rc_ios_artifact_id',
+      'rc_ios_archive_sha256',
+      'rc_ipa_sha256',
+      'rc_ios_provenance_sha256',
+      'rc_dsym_sha256',
+      'REST-download and verify exact retained iOS archive',
+      'actions/artifacts/\${IOS_ARTIFACT_ID}/zip',
+      'EXPECTED_ARCHIVE_SHA256',
+      'EXPECTED_IPA_SHA256',
+      'EXPECTED_PROVENANCE_SHA256',
+      'EXPECTED_DSYM_SHA256',
+      'actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0',
+      'source_run_id',
+      'artifact_sha256',
+      'mapping.txt',
+      '*-dSYMs.zip',
+      'store_uploaded == false',
+      'Dual-store monotonic build-number preflight',
+      'bundle exec fastlane preflight_internal',
+      'needs: [source-policy, store-build-number-preflight]',
+      'uses: ./.github/actions/setup-ruby',
+      'working-directory: android',
+      'working-directory: ios',
+      'bundle exec fastlane android internal',
+      'bundle exec fastlane ios internal',
+      'secrets.GOOGLE_PLAY_JSON_KEY',
+      'secrets.APP_STORE_KEY_ID',
+      'secrets.APP_STORE_ISSUER_ID',
+      'secrets.APP_STORE_KEY_CONTENT_B64',
+    ]);
+    expect(workflow, isNot(contains('android_e2e_evidence_sha256')));
+    expect(
+      workflow,
+      contains(r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'),
+    );
+    expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
+    for (final prohibited in [
+      'flutter build',
+      'xcodebuild',
+      'gradlew',
+      'track: production',
+      'submit_for_review',
+      'deliver(',
+    ]) {
+      expect(workflow, isNot(contains(prohibited)));
+    }
+
+    final android = _source('android/fastlane/Fastfile');
+    _expectContainsAll(android, [
+      "lane :internal",
+      "track: 'internal'",
+      "release_status: 'completed'",
+      'google_play_track_version_codes',
+      'BuildNumberPolicy.require_newer!',
+    ]);
+    expect(android, isNot(contains('lane :production')));
+
+    final ios = _source('ios/fastlane/Fastfile');
+    _expectContainsAll(ios, [
+      'app_store_connect_api_key',
+      'AppStoreBuildInventory.global_max',
+      'BuildNumberPolicy.parse_marketing_version!',
+      'BuildNumberPolicy.require_newer!',
+      'pilot(',
+      'distribute_external: false',
+      'skip_waiting_for_build_processing: false',
+    ]);
+    expect(ios, isNot(contains('latest_testflight_build_number')));
+    expect(ios, isNot(contains('deliver(')));
+    expect(ios, isNot(contains('submit_for_review')));
+    expect(_source('Gemfile'), contains("gem 'fastlane', '2.238.0'"));
+    expect(_source('Gemfile.lock'), contains('fastlane (2.238.0)'));
+
+    final preflight = _source('fastlane/Fastfile');
+    _expectContainsAll(preflight, [
+      'lane :preflight_internal',
+      'google_play_track_version_codes',
+      'AppStoreBuildInventory.global_max',
+      'BuildNumberPolicy.parse_marketing_version!',
+      "destination: 'Google Play'",
+      "destination: 'App Store Connect'",
+    ]);
+    expect(preflight, isNot(contains('latest_testflight_build_number')));
+    expect(preflight, isNot(contains('upload_to_play_store')));
+    expect(preflight, isNot(contains('pilot(')));
+  });
+
+  test('release evidence validators are fail-closed and negative-tested', () {
+    final payload = _source('tool/inspect_android_release_payload.sh');
+    _expectContainsAll(payload, [
+      r'192\.168\.2\.(39|50)',
+      r'10\.0\.2\.2',
+      'emulator-',
+      r'http://(localhost|127\.0\.0\.1)',
+      r'api\.jeeb\.app',
+      'devtool_shell\\.dart',
+      'DevToolApp',
+      'JEEB_DEVTOOL_ENABLED=true',
+      'JEEB_CLARITY_ENABLED',
+      'JEEB_CLARITY_PRIVACY_APPROVED',
+    ]);
+    final payloadNegatives = _source(
+      'tool/test_inspect_android_release_payload.sh',
+    );
+    _expectContainsAll(payloadNegatives, [
+      '192.168.2.39',
+      'emulator-5554',
+      'http://localhost',
+      'https://api.jeeb.app',
+      'devtool_shell.dart',
+      'JEEB_DEVTOOL_ENABLED=true',
+      'run_inspector true false',
+      'run_inspector false true',
+    ]);
+
+    final evidence = _source('tool/validate_android_e2e_manifest.sh');
+    _expectContainsAll(evidence, [
+      '.schemaVersion == 1',
+      '.verdict == "PASS"',
+      '.stage == "pre_distribution_rc"',
+      '.finalReleaseGo == false',
+      'bundletool-derived-from-retained-aab',
+      'JMS-JHP-001',
+      'JMS-JHP-002',
+      'JMS-JHP-003',
+      'phone|otp|chat|location|latitude|longitude|password|secret|token|serial|udid',
+    ]);
+    final evidenceNegatives = _source(
+      'tool/test_validate_android_e2e_manifest.sh',
+    );
+    _expectContainsAll(evidenceNegatives, [
+      'wrong-aab',
+      'emulator-device',
+      'one-device',
+      'failed-jms',
+      'wrong-stage',
+      'sensitive-field',
+      'sideload-drift',
+      "'1.4' '1.4.0.1' '' 'release'",
+    ]);
+
+    final iosArtifact = _source('tool/validate_ios_rc_artifact.sh');
+    _expectContainsAll(iosArtifact, [
+      r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
+      'EXPECTED_IPA_SHA256',
+      'EXPECTED_PROVENANCE_SHA256',
+      'EXPECTED_DSYM_SHA256',
+      'source_workflow_path == ".github/workflows/trusted-mobile-rc.yml"',
+      'source_workflow_ref ==',
+      'ipa_sha256=',
+      'provenance_sha256=',
+      'dsym_sha256=',
+    ]);
+    final iosArtifactNegatives = _source(
+      'tool/test_validate_ios_rc_artifact.sh',
+    );
+    _expectContainsAll(iosArtifactNegatives, [
+      'wrong-ipa',
+      'wrong-dsym',
+      'wrong-reviewed-sha',
+      'wrong-run-attempt',
+      'display-name-source',
+      'wrong-workflow-ref',
+      'mismatched source-policy IPA hash',
+      'mismatched source-policy provenance hash',
+      'mismatched source-policy dSYM hash',
+    ]);
+  });
+
+  test('App Store build inventory is global, paginated, and read-only', () {
+    final inventory = _source('fastlane/AppStoreBuildInventory.rb');
+    _expectContainsAll(inventory, [
+      "BUNDLE_ID = 'com.olivium.jeeb'",
+      "IOS_PLATFORM = 'IOS'",
+      'get_pre_release_versions(',
+      'response.all_pages.map(&:to_models)',
+      'get_builds(',
+      'preReleaseVersion: pre_release_version_id',
+      'parse_cf_bundle_version!',
+      'BuildNumberPolicy.parse!',
+    ]);
+    expect(inventory, isNot(contains('patch_')));
+    expect(inventory, isNot(contains('post_')));
+    expect(inventory, isNot(contains('delete_')));
+
+    final tests = _source('test/fastlane/app_store_build_inventory_test.rb');
+    _expectContainsAll(tests, [
+      'older_prerelease_version_can_hold_the_global_maximum',
+      'equal_build_numbers_have_one_global_maximum',
+      'malformed_cf_bundle_version_fails_closed',
+      'empty_inventory_returns_zero',
+      'every_prerelease_and_build_page_is_enumerated',
+      "['1.4', '1.4.0.1', '', 'release']",
+    ]);
+  });
+
+  test('release security and Ruby toolchains are repository-pinned', () {
+    final security = _source('.github/workflows/release-security.yml');
+    _expectContainsAll(security, [
+      'name: Release security scans',
+      'gitleaks_8.30.1_linux_x64.tar.gz',
+      '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb',
+      'gitleaks git . --redact --verbose --exit-code 1',
+      '--log-opts="\${base_sha}..\${head_sha}"',
+      'bundler-audit --version 0.9.3',
+      'bundle-audit check --update',
+    ]);
+    expect(security, isNot(contains('continue-on-error')));
+    expect(_source('.ruby-version').trim(), '3.3.9');
+    final rubySetup = _source('.github/actions/setup-ruby/action.yml');
+    _expectContainsAll(rubySetup, [
+      "version=\"\$(tr -d '[:space:]' <.ruby-version)\"",
+      r'ruby-version: ${{ steps.ruby.outputs.version }}',
+      'ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b',
+    ]);
   });
 
   test('release gateway has no committed LAN fallback', () {

@@ -1,0 +1,16 @@
+name: Restore and run build_runner
+description: Restore the incremental graph and regenerate source deterministically.
+
+runs:
+  using: composite
+  steps:
+    - name: Restore build_runner graph
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .dart_tool/build
+        key: >-
+          build-runner-${{ runner.os }}-${{ hashFiles('.fvmrc', 'pubspec.lock', 'build.yaml') }}
+
+    - name: Regenerate source graph
+      shell: bash
+      run: dart run build_runner build --delete-conflicting-outputs

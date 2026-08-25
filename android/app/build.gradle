@@ -56,17 +56,23 @@ def releaseSigningPropertiesComplete = keystorePropertiesFile.exists() &&
 def releaseKeystoreFile = releaseSigningPropertiesComplete
     ? file(keystoreProperties.getProperty('storeFile'))
     : null
-def expectedReleaseCertificateSha256 = (
-    project.findProperty('jeeb.releaseSigningCertificateSha256')
-        ?: System.getenv('ANDROID_RELEASE_EXPECTED_CERT_SHA256')
+def expectedUploadCertificateSha1 = (
+    project.findProperty('jeeb.uploadSigningCertificateSha1')
+        ?: System.getenv('ANDROID_UPLOAD_CERT_SHA1')
+        ?: ''
+).toString().trim()
+def expectedUploadCertificateSha256 = (
+    project.findProperty('jeeb.uploadSigningCertificateSha256')
+        ?: System.getenv('ANDROID_UPLOAD_CERT_SHA256')
         ?: ''
 ).toString().trim()
 
-def normalizedCertificateSha256 = { String fingerprint ->
+def normalizedCertificateFingerprint = { String fingerprint ->
     fingerprint.replace(':', '').toUpperCase(Locale.ROOT)
 }
 
-def signingCertificateSha256 = { File keystoreFile, String password, String alias ->
+def signingCertificateFingerprint = {
+    File keystoreFile, String password, String alias, String algorithm ->
     def keyStore = java.security.KeyStore.getInstance(
         keystoreFile,
         password.toCharArray()
@@ -77,7 +83,7 @@ def signingCertificateSha256 = { File keystoreFile, String password, String alia
             'Production release signing certificate is unavailable.'
         )
     }
-    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    def digest = java.security.MessageDigest.getInstance(algorithm)
         .digest(certificate.encoded)
     digest.collect { value -> String.format('%02X', value & 0xff) }.join()
 }
@@ -227,18 +233,32 @@ def verifyProductionReleaseSigning = tasks.register('verifyProductionReleaseSign
                 'Production release signing rejected a debug signing identity.'
             )
         }
-        if (!(expectedReleaseCertificateSha256 ==~
-            /(?i)(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})/)) {
+        if (!(expectedUploadCertificateSha1 ==~
+            /(?i)(?:[0-9a-f]{40}|(?:[0-9a-f]{2}:){19}[0-9a-f]{2})/)) {
             throw new GradleException(
-                'Protected production signing certificate fingerprint is missing or malformed.'
+                'Protected upload signing certificate SHA-1 is missing or malformed.'
             )
         }
+        if (!(expectedUploadCertificateSha256 ==~
+            /(?i)(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})/)) {
+            throw new GradleException(
+                'Protected upload signing certificate SHA-256 is missing or malformed.'
+            )
+        }
+        def actualCertificateSha1
         def actualCertificateSha256
         try {
-            actualCertificateSha256 = signingCertificateSha256(
+            actualCertificateSha1 = signingCertificateFingerprint(
                 releaseKeystoreFile,
                 keystoreProperties.getProperty('storePassword'),
-                configuredAlias
+                configuredAlias,
+                'SHA-1'
+            )
+            actualCertificateSha256 = signingCertificateFingerprint(
+                releaseKeystoreFile,
+                keystoreProperties.getProperty('storePassword'),
+                configuredAlias,
+                'SHA-256'
             )
         } catch (GradleException error) {
             throw error
@@ -247,11 +267,18 @@ def verifyProductionReleaseSigning = tasks.register('verifyProductionReleaseSign
                 'Production release signing certificate could not be inspected.'
             )
         }
-        if (actualCertificateSha256 != normalizedCertificateSha256(
-            expectedReleaseCertificateSha256
+        if (actualCertificateSha1 != normalizedCertificateFingerprint(
+            expectedUploadCertificateSha1
         )) {
             throw new GradleException(
-                'Production release signing certificate does not match the protected fingerprint.'
+                'Production release signer does not match the approved upload SHA-1.'
+            )
+        }
+        if (actualCertificateSha256 != normalizedCertificateFingerprint(
+            expectedUploadCertificateSha256
+        )) {
+            throw new GradleException(
+                'Production release signer does not match the approved upload SHA-256.'
             )
         }
     }

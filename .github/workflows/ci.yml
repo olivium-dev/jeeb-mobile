@@ -10,42 +10,36 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
-  # Must match the Mac Studio build machine (~/flutter-3.44) — the toolchain the
-  # APK that ships to the test phones is actually compiled with.
-  FLUTTER_VERSION: '3.44.2'
   FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
 
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Install dependencies
         id: pub_get
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -59,35 +53,29 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The current Flutter suite exceeds ten minutes on hosted runners.
     timeout-minutes: 20
     needs: analyze
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Install dependencies
         id: pub_get
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -99,39 +87,33 @@ jobs:
 
   build-apk:
     name: Build APK (dev)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Install dependencies
         id: pub_get
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -166,38 +148,37 @@ jobs:
 
   android-release-contracts:
     name: Android release signing contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: analyze
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+      - name: Verify the official Gradle 8.14 wrapper JAR
+        run: |
+          echo '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  android/gradle/wrapper/gradle-wrapper.jar' | \
+            sha256sum --check --strict
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Resolve locked Flutter dependencies
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: Prove production signing fails closed without approved material
         run: bash tool/test_android_release_signing.sh
@@ -207,33 +188,37 @@ jobs:
 
   ios-release-contracts:
     name: iOS release contracts
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     needs: analyze
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Checkout omds-flutter sibling for path dep
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        continue-on-error: true
-        id: checkout_omds
         with:
-          repository: olivium-dev/omds-flutter
-          path: __omds_checkout
-          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Move omds-flutter into expected sibling path
-        if: steps.checkout_omds.outcome == 'success'
-        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
+        run: |
+          set -euo pipefail
+          xcode_path=/Applications/Xcode_26.6.app/Contents/Developer
+          test -d "${xcode_path}"
+          sudo xcode-select --switch "${xcode_path}"
+          xcodebuild -version | grep -Fxq 'Xcode 26.6'
+          xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\.[0-9]+'
+          xcrun --sdk iphoneos --show-sdk-version | grep -Eq '^26\.[0-9]+'
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
 
       - name: Resolve locked Flutter dependencies
         run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
 
       - name: Resolve non-SPM CocoaPods plugins from the lock
         run: cd ios && pod install --deployment
@@ -243,6 +228,9 @@ jobs:
 
       - name: Validate protected iOS Firebase injection contract
         run: bash tool/test_ios_firebase_config.sh
+
+      - name: Validate signed iOS inspector negative contracts
+        run: bash tool/test_inspect_signed_ios_release.sh
 
       - name: Validate entitlement files
         run: |

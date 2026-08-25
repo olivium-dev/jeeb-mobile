@@ -5,8 +5,11 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/ios/Runner/GoogleService-Info.plist}"
 REQUIRED_PROJECT_ID="jeeb-5a293"
+REQUIRED_PROJECT_NUMBER="1051234312170"
 REQUIRED_BUNDLE_ID="com.olivium.jeeb"
 EXPECTED_APP_ID="${IOS_FIREBASE_EXPECTED_APP_ID:-}"
+EXPECTED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}"
+EXPECTED_REVERSED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}"
 
 fail() {
   printf 'iOS Firebase config invalid: %s\n' "$1" >&2
@@ -28,6 +31,11 @@ fi
 if [[ -z "${EXPECTED_APP_ID}" ]]; then
   fail 'protected expected Firebase app identity is missing'
 fi
+[[ "${EXPECTED_CLIENT_ID}" =~ ^${REQUIRED_PROJECT_NUMBER}-[0-9A-Za-z_-]+\.apps\.googleusercontent\.com$ ]] ||
+  fail 'protected approved Google Sign-In client identity is missing or malformed'
+expected_client_subject="${EXPECTED_CLIENT_ID%.apps.googleusercontent.com}"
+[[ "${EXPECTED_REVERSED_CLIENT_ID}" == "com.googleusercontent.apps.${expected_client_subject}" ]] ||
+  fail 'protected approved Google Sign-In client pair is missing or mismatched'
 
 if file_mode="$(stat -f '%Lp' "${CONFIG_PATH}" 2>/dev/null)"; then
   :
@@ -57,13 +65,13 @@ signin_enabled="$(plist_value IS_SIGNIN_ENABLED)"
 
 [[ "${project_id}" == "${REQUIRED_PROJECT_ID}" ]] ||
   fail 'project identity does not match the canonical Firebase project'
+[[ "${sender_id}" == "${REQUIRED_PROJECT_NUMBER}" ]] ||
+  fail 'project number does not match the canonical Firebase project'
 [[ "${bundle_id}" == "${REQUIRED_BUNDLE_ID}" ]] ||
   fail 'bundle identity does not match the canonical iOS application'
 [[ "${app_id}" == "${EXPECTED_APP_ID}" ]] ||
   fail 'Google app identity does not match the protected expected value'
-[[ "${sender_id}" =~ ^[1-9][0-9]{5,}$ ]] ||
-  fail 'GCM sender id is missing or malformed'
-[[ "${app_id}" =~ ^1:${sender_id}:ios:[0-9a-fA-F]{16,64}$ ]] ||
+[[ "${app_id}" =~ ^1:${REQUIRED_PROJECT_NUMBER}:ios:[0-9a-fA-F]{16,64}$ ]] ||
   fail 'Google app identity has an invalid shape'
 [[ "${api_key}" =~ ^AIza[0-9A-Za-z_-]{35}$ ]] ||
   fail 'Firebase API key has an invalid shape'
@@ -75,6 +83,10 @@ signin_enabled="$(plist_value IS_SIGNIN_ENABLED)"
   fail 'Google Sign-In client id is missing or malformed'
 [[ "${reversed_client_id}" =~ ^com\.googleusercontent\.apps\.[0-9]+-[0-9A-Za-z_-]+$ ]] ||
   fail 'Google Sign-In reversed client id is missing or malformed'
+[[ "${client_id}" == "${EXPECTED_CLIENT_ID}" ]] ||
+  fail 'Google Sign-In client id does not match the protected approved identity'
+[[ "${reversed_client_id}" == "${EXPECTED_REVERSED_CLIENT_ID}" ]] ||
+  fail 'Google Sign-In reversed client id does not match the protected approved identity'
 client_subject="${client_id%.apps.googleusercontent.com}"
 [[ "${reversed_client_id}" == "com.googleusercontent.apps.${client_subject}" ]] ||
   fail 'Google Sign-In client ids do not form a matching pair'
@@ -87,4 +99,4 @@ if grep -Eiq 'TODO_|PLACEHOLDER|CHANGEME|REPLACE[_ -]?ME|NOT[_ -]?REAL' \
 fi
 
 printf '%s\n' \
-  'iOS Firebase config structure, permissions, and protected identity match.'
+  'iOS Firebase project, bundle, app, and protected Google client pair match.'

@@ -1,0 +1,31 @@
+name: Setup repository Ruby
+description: Install the Ruby toolchain declared by .ruby-version.
+
+inputs:
+  bundler-cache:
+    description: Install and cache the bundle from Gemfile.lock.
+    required: false
+    default: 'true'
+
+outputs:
+  version:
+    description: Ruby version resolved from .ruby-version.
+    value: ${{ steps.ruby.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read and validate .ruby-version
+      id: ruby
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(tr -d '[:space:]' <.ruby-version)"
+        [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        printf 'version=%s\n' "${version}" >>"${GITHUB_OUTPUT}"
+
+    - name: Install pinned Ruby and bundle
+      uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+      with:
+        ruby-version: ${{ steps.ruby.outputs.version }}
+        bundler-cache: ${{ inputs.bundler-cache }}

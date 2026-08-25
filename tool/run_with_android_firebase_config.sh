@@ -15,8 +15,14 @@ fail() {
 [[ -n "${ENCODED_CONFIG}" ]] || fail 'protected JSON input is missing'
 [[ -n "${ANDROID_FIREBASE_EXPECTED_APP_ID:-}" ]] ||
   fail 'protected expected Firebase app identity is missing'
-[[ -n "${ANDROID_FIREBASE_EXPECTED_SHA1:-}" ]] ||
-  fail 'approved release SHA-1 fingerprint is missing'
+[[ -n "${ANDROID_UPLOAD_CERT_SHA1:-}" ]] ||
+  fail 'approved upload SHA-1 fingerprint is missing'
+[[ -n "${ANDROID_UPLOAD_CERT_SHA256:-}" ]] ||
+  fail 'approved upload SHA-256 fingerprint is missing'
+[[ -n "${ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID:-}" ]] ||
+  fail 'approved upload OAuth client identity is missing'
+[[ -n "${ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID:-}" ]] ||
+  fail 'approved Play app-signing OAuth client identity is missing'
 [[ ! -e "${TARGET_PATH}" ]] || fail 'refusing to overwrite an existing local Firebase config'
 if git -C "${REPO_ROOT}" ls-files --error-unmatch \
   android/app/google-services.json >/dev/null 2>&1; then

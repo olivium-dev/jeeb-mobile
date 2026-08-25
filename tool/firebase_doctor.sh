@@ -232,27 +232,48 @@ else
     warn "no 'flutter' on PATH — skipped the local-toolchain floor check"
   fi
 
-  # Both extensions: a future *.yaml workflow must not slip past this check.
+  fvm_version="$(python3 - .fvmrc <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    version = json.load(handle).get('flutter', '')
+if isinstance(version, str) and re.fullmatch(r'\d+\.\d+\.\d+', version):
+    print(version)
+PY
+)"
+  if [ -z "$fvm_version" ]; then
+    fail '.fvmrc does not declare a valid Flutter version'
+  elif [ "$(semver_cmp "$fvm_version" "$lock_flutter_floor")" -ge 0 ]; then
+    pass ".fvmrc pins Flutter $fvm_version, satisfies the lock floor"
+  else
+    fail ".fvmrc Flutter $fvm_version is BELOW the lock floor >=$lock_flutter_floor"
+  fi
+
+  setup_action='.github/actions/setup-flutter/action.yml'
+  # Match the literal GitHub expression rather than expanding it in this shell.
+  # shellcheck disable=SC2016
+  if ! grep -Fq 'flutter-version: ${{ steps.fvm.outputs.version }}' \
+    "$setup_action" 2>/dev/null; then
+    fail "$setup_action does not consume the validated .fvmrc output"
+  fi
+
+  # Both extensions: any workflow invoking Flutter must use the repository setup
+  # action and must not reintroduce a literal or workflow-level version.
   for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
     [ -f "$wf" ] || continue
-    var_val="$(grep -oE "FLUTTER_VERSION:[[:space:]]*'[0-9]+\.[0-9]+\.[0-9]+'" "$wf" 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      if printf '%s' "$line" | grep -q 'env.FLUTTER_VERSION'; then
-        ver="$var_val"
+    if grep -Eq '(^|[[:space:]])(flutter|dart)[[:space:]]+(pub|get|test|build|run|analyze)' \
+      "$wf"; then
+      if grep -Fq 'uses: ./.github/actions/setup-flutter' "$wf"; then
+        pass "$wf consumes Flutter from .fvmrc"
       else
-        ver="$(printf '%s' "$line" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+        fail "$wf invokes Flutter/Dart without the .fvmrc setup action"
       fi
-      if [ -z "$ver" ]; then
-        warn "$wf: found a flutter-version: line but could not resolve a literal version"
-        continue
-      fi
-      if [ "$(semver_cmp "$ver" "$lock_flutter_floor")" -ge 0 ]; then
-        pass "$wf pins flutter-version $ver, satisfies the lock floor"
-      else
-        fail "$wf pins flutter-version $ver, BELOW the lock floor >=$lock_flutter_floor — CI would fail 'pub get' on the SDK constraint"
-      fi
-    done < <(grep -oE 'flutter-version:.*' "$wf" 2>/dev/null || true)
+    fi
+    if grep -Eq 'FLUTTER_VERSION:|flutter-version:[[:space:]]*[0-9]' "$wf"; then
+      fail "$wf duplicates the Flutter version instead of consuming .fvmrc"
+    fi
   done
 fi
 
