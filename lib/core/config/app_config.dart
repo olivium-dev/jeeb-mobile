@@ -23,6 +23,15 @@ class AppConfig {
     defaultValue: '',
   );
 
+  /// Device-reachable Phoenix WebSocket URL.
+  ///
+  /// Staging and production builds must inject this explicitly. The empty
+  /// default is intentional: realtime fails closed instead of guessing a host.
+  static const String realtimeSocketUrl = String.fromEnvironment(
+    'JEEB_REALTIME_SOCKET_URL',
+    defaultValue: '',
+  );
+
   /// Whether email + password auth is reachable from the UI.
   static const bool emailPasswordAuthEnabled = bool.fromEnvironment(
     'EMAIL_PASSWORD_AUTH_ENABLED',

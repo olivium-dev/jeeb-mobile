@@ -30,6 +30,7 @@ concurrency:
 env:
   FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
   STAGING_GATEWAY_URL: 'https://app.jeeb.fds-1.com'
+  STAGING_REALTIME_SOCKET_URL: 'wss://app.jeeb.fds-1.com/socket/websocket'
   PLAY_APP_SIGNING_SHA1: '2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12'
   PLAY_APP_SIGNING_SHA256: '42:76:6A:BB:4B:EA:1F:A4:88:00:96:6F:78:A1:E5:4F:A0:EA:12:B8:A1:6A:58:AF:07:5A:02:01:0B:B5:58:E9'
 
@@ -299,6 +300,7 @@ jobs:
                 --dart-define=APP_FLAVOR=staging \
                 --dart-define=JEEB_CLARITY_ENABLED=false \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+                --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
                 --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
           aab_count="$(find build/app/outputs/bundle -type f -name '*.aab' |
             wc -l | tr -d '[:space:]')"
@@ -351,7 +353,8 @@ jobs:
               "${tmp_dir}/AndroidManifest.pb" \
               "${tmp_dir}/resources.pb" \
               "${tmp_dir}/libapp.so" \
-              "${STAGING_GATEWAY_URL}"
+              "${STAGING_GATEWAY_URL}" \
+              "${STAGING_REALTIME_SOCKET_URL}"
           mapping_path='build/app/outputs/mapping/productionRelease/mapping.txt'
           test -s "${mapping_path}"
           artifact_sha="$(sha256sum "${aab_path}" | cut -d ' ' -f1)"
@@ -640,6 +643,7 @@ jobs:
           IOS_GOOGLE_SERVICE_INFO_PLIST_PATH="${firebase_plist}" \
           IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key_file}" \
           GATEWAY_BASE_URL="${STAGING_GATEWAY_URL}" \
+          JEEB_REALTIME_SOCKET_URL="${STAGING_REALTIME_SOCKET_URL}" \
           IOS_EXPORT_OPTIONS_PATH="${export_options}" \
           IOS_PROVISIONING_PROFILE_SPECIFIER="${profile_uuid}" \
           IOS_SIGNING_CERTIFICATE='Apple Distribution' \

@@ -42,4 +42,11 @@ void main() {
   test('test runtime remains unable to start Clarity', () {
     expect(AppConfig.clarityAvailable, isFalse);
   });
+
+  test('compile-time defaults keep Clarity completely unconfigured', () {
+    expect(AppConfig.clarityEnabled, isFalse);
+    expect(AppConfig.clarityPrivacyApproved, isFalse);
+    expect(AppConfig.clarityProjectId, isEmpty);
+    expect(AppConfig.clarityBuildConfigured, isFalse);
+  });
 }

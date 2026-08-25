@@ -52,6 +52,11 @@ void _expectContainsAll(String source, Iterable<String> values) {
   }
 }
 
+void _expectBashPasses(String script, [List<String> arguments = const []]) {
+  final result = Process.runSync('bash', [script, ...arguments]);
+  expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+}
+
 void _registerAndroidContracts() {
   test('Android production signing inspects the certificate fingerprint', () {
     final gradle = _source('android/app/build.gradle');
@@ -139,6 +144,32 @@ void _registerAndroidContracts() {
 }
 
 void _registerIosContracts() {
+  test('iOS source plists have non-empty media permission purposes', () {
+    for (final path in ['ios/Runner/Info.plist', 'ios/Runner/Info-dev.plist']) {
+      _expectBashPasses('tool/inspect_ios_permission_descriptions.sh', [
+        path,
+        'source plist',
+      ]);
+    }
+  });
+
+  test(
+    'iOS permission inspector negatives execute and gate both artifacts',
+    () {
+      _expectBashPasses('tool/test_ios_permission_descriptions.sh');
+      final unsigned = _source('tool/inspect_unsigned_ios_release.sh');
+      final signed = _source('tool/inspect_signed_ios_release.sh');
+      _expectContainsAll(unsigned, [
+        'inspect_ios_permission_descriptions.sh',
+        "'unsigned iOS app'",
+      ]);
+      _expectContainsAll(signed, [
+        'inspect_ios_permission_descriptions.sh',
+        "'signed IPA'",
+      ]);
+    },
+  );
+
   test('iOS production source is HTTPS-only and dev owns LAN exceptions', () {
     final production = _source('ios/Runner/Info.plist');
     final development = _source('ios/Runner/Info-dev.plist');
@@ -320,6 +351,41 @@ void _registerDependencyContracts() {
 }
 
 void _registerCiContracts() {
+  test('release source contains no retired matching mutation route', () {
+    final retired = RegExp(r'/v1/matching/(find-jeebers|broadcast)');
+    final dartSources = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    for (final source in dartSources) {
+      expect(
+        source.readAsStringSync(),
+        isNot(matches(retired)),
+        reason: source.path,
+      );
+    }
+  });
+
+  test('every release build injects and inspects the realtime socket URL', () {
+    final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
+    final signed = _source('tool/build_signed_ios_internal_candidate.sh');
+    final unsigned = _source('tool/build_unsigned_ios_release_contract.sh');
+    final androidInspector = _source('tool/inspect_android_release_payload.sh');
+    final iosInspector = _source('tool/inspect_unsigned_ios_release.sh');
+    _expectContainsAll(workflow, [
+      "STAGING_REALTIME_SOCKET_URL: 'wss://app.jeeb.fds-1.com/socket/websocket'",
+      'JEEB_REALTIME_SOCKET_URL=\${STAGING_REALTIME_SOCKET_URL}',
+    ]);
+    for (final source in [signed, unsigned]) {
+      expect(source, contains('JEEB_REALTIME_SOCKET_URL='));
+      expect(source, contains('--dart-define="JEEB_REALTIME_SOCKET_URL='));
+    }
+    for (final source in [androidInspector, iosInspector]) {
+      expect(source, contains('EXPECTED_REALTIME_SOCKET_URL'));
+      expect(source, contains('/v1/matching/(find-jeebers|broadcast)'));
+    }
+  });
+
   test('CI compiles synthetic unsigned iOS and executes Android negatives', () {
     final workflow = _source('.github/workflows/ci.yml');
     _expectContainsAll(workflow, [
@@ -413,8 +479,7 @@ void _registerCiContracts() {
       ]);
       final coverage = _source('.github/workflows/flutter-ci.yml');
       _expectContainsAll(coverage, [
-        'VeryGoodOpenSource/very_good_coverage@'
-            'c953fca3e24a915e111cc6f55f03f756dcb3964c',
+        'VeryGoodOpenSource/very_good_coverage@c953fca3e24a915e111cc6f55f03f756dcb3964c',
         'min_coverage: 79',
       ]);
       expect(coverage, isNot(contains('continue-on-error')));
@@ -478,6 +543,24 @@ void _registerCiContracts() {
       expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
     },
   );
+
+  test('every release build keeps Clarity explicitly disabled', () {
+    for (final path in [
+      '.github/workflows/trusted-mobile-rc.yml',
+      'tool/build_signed_ios_internal_candidate.sh',
+      'tool/build_unsigned_ios_release_contract.sh',
+    ]) {
+      final source = _source(path);
+      expect(source, contains('JEEB_CLARITY_ENABLED=false'), reason: path);
+      expect(
+        source,
+        contains('JEEB_CLARITY_PRIVACY_APPROVED=false'),
+        reason: path,
+      );
+      expect(source, isNot(contains('JEEB_CLARITY_ENABLED=true')));
+      expect(source, isNot(contains('JEEB_CLARITY_PROJECT_ID=')));
+    }
+  });
 
   test('trusted RC keeps Android and iOS secret references disjoint', () {
     final workflow = _source('.github/workflows/trusted-mobile-rc.yml');

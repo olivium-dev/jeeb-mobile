@@ -7,6 +7,7 @@ APP_PATH="${1:-${REPO_ROOT}/build/ios/iphoneos/Runner.app}"
 CONFIG_PATH="${2:-}"
 MAPS_KEY_PATH="${3:-}"
 EXPECTED_GATEWAY_URL="${4:-}"
+EXPECTED_REALTIME_SOCKET_URL="${5:-}"
 INFO_PATH="${APP_PATH}/Info.plist"
 ENTITLEMENTS_PATH="${REPO_ROOT}/ios/Runner/Runner.Release.entitlements"
 LAUNCH_IMAGE_DIR="${REPO_ROOT}/ios/Runner/Assets.xcassets/LaunchImage.imageset"
@@ -18,11 +19,15 @@ fail() {
 
 [[ -d "${APP_PATH}" ]] || fail 'compiled Runner.app is missing'
 [[ -s "${INFO_PATH}" ]] || fail 'compiled Info.plist is missing'
+bash "${REPO_ROOT}/tool/inspect_ios_permission_descriptions.sh" \
+  "${INFO_PATH}" 'unsigned iOS app' >/dev/null
 [[ -n "${CONFIG_PATH}" && -s "${CONFIG_PATH}" ]] ||
   fail 'synthetic compile config is missing'
 [[ -n "${MAPS_KEY_PATH}" && -s "${MAPS_KEY_PATH}" ]] ||
   fail 'protected Maps key evidence is missing'
 [[ -n "${EXPECTED_GATEWAY_URL}" ]] || fail 'expected gateway URL is missing'
+[[ "${EXPECTED_REALTIME_SOCKET_URL}" == wss://*/socket/websocket ]] ||
+  fail 'expected realtime socket URL is missing or malformed'
 
 declare -a launch_images=(
   'LaunchImage.png:182:74'
@@ -86,16 +91,18 @@ FIREBASE_VERIFY_ASSERTION_SOURCE="${REPO_ROOT}/build/ios/SourcePackages/checkout
 FIREBASE_VERIFY_ASSERTION_SHA256="36f46bb2b04544a15ffb339ce522c3a943e9b061567352f078663d7067b8bd83"
 
 if [[ -f "${APP_BINARY}" ]] && LC_ALL=C grep -aEq \
-  'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|DevToolApp' \
+    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|DevToolApp' \
   "${APP_BINARY}"; then
   fail 'forbidden endpoint, developer auth, or wildcard token mint leaked from Jeeb-owned code'
 fi
 LC_ALL=C grep -aFq "${EXPECTED_GATEWAY_URL}" "${APP_BINARY}" ||
   fail 'expected gateway URL is absent from Jeeb-owned application code'
+LC_ALL=C grep -aFq "${EXPECTED_REALTIME_SOCKET_URL}" "${APP_BINARY}" ||
+  fail 'expected realtime socket URL is absent from Jeeb-owned application code'
 
 if [[ -f "${RUNNER_BINARY}" ]]; then
   if LC_ALL=C grep -aEq \
-    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://127\.0\.0\.1|/api/auth/token|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_' \
+    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://127\.0\.0\.1|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_' \
     "${RUNNER_BINARY}"; then
     fail 'forbidden endpoint, developer auth, or wildcard token mint leaked into native code'
   fi

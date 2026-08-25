@@ -14,18 +14,12 @@ class _FakeBroadcastService implements OrderBroadcastService {
   _FakeBroadcastService({this.throwFailure = false});
 
   final bool throwFailure;
-  final List<String> conversationIds = [];
   final List<String> requestIds = [];
   int calls = 0;
 
   @override
-  Future<OrderBroadcastResult> broadcast({
-    required String conversationId,
-    required String requestId,
-    String tier = '',
-  }) async {
+  Future<OrderBroadcastResult> broadcast({required String requestId}) async {
     calls++;
-    conversationIds.add(conversationId);
     requestIds.add(requestId);
     if (throwFailure) {
       throw const OrderBroadcastException(OrderBroadcastFailure.network);
@@ -36,36 +30,38 @@ class _FakeBroadcastService implements OrderBroadcastService {
 
 void main() {
   group('OrderComposeCoordinator — compose → create → broadcast (P0 #3)', () {
-    test('creates a real request from the first message when id is the `new` '
-        'sentinel, then broadcasts the SERVER-MINTED id (never `new`)',
-        () async {
-      final submission =
-          FakeRequestSubmissionService(requestId: 'req-real-abc123');
-      final broadcast = _FakeBroadcastService();
-      final coordinator = OrderComposeCoordinator(
-        submission: submission,
-        broadcast: broadcast,
-      );
+    test(
+      'creates a real request from the first message when id is the `new` '
+      'sentinel, then broadcasts the SERVER-MINTED id (never `new`)',
+      () async {
+        final submission = FakeRequestSubmissionService(
+          requestId: 'req-real-abc123',
+        );
+        final broadcast = _FakeBroadcastService();
+        final coordinator = OrderComposeCoordinator(
+          submission: submission,
+          broadcast: broadcast,
+        );
 
-      final id = await coordinator.createAndBroadcast(
-        existingRequestId: OrderComposeCoordinator.composeSentinel, // 'new'
-        firstMessage: 'Deliver a parcel from Hamra to Verdun',
-      );
+        final id = await coordinator.createAndBroadcast(
+          existingRequestId: OrderComposeCoordinator.composeSentinel, // 'new'
+          firstMessage: 'Deliver a parcel from Hamra to Verdun',
+        );
 
-      // A real request was created from the composed message.
-      expect(submission.submitCount, 1);
-      expect(
-        submission.lastDraft?.description,
-        'Deliver a parcel from Hamra to Verdun',
-      );
-      // The REAL id is returned and broadcast — never the `new` sentinel.
-      expect(id, 'req-real-abc123');
-      expect(id, isNot(OrderComposeCoordinator.composeSentinel));
-      expect(broadcast.calls, 1);
-      expect(broadcast.requestIds.single, 'req-real-abc123');
-      expect(broadcast.conversationIds.single, 'req-real-abc123');
-      expect(broadcast.requestIds, isNot(contains('new')));
-    });
+        // A real request was created from the composed message.
+        expect(submission.submitCount, 1);
+        expect(
+          submission.lastDraft?.description,
+          'Deliver a parcel from Hamra to Verdun',
+        );
+        // The REAL id is returned and broadcast — never the `new` sentinel.
+        expect(id, 'req-real-abc123');
+        expect(id, isNot(OrderComposeCoordinator.composeSentinel));
+        expect(broadcast.calls, 1);
+        expect(broadcast.requestIds.single, 'req-real-abc123');
+        expect(broadcast.requestIds, isNot(contains('new')));
+      },
+    );
 
     test('creates a request when the id is empty', () async {
       final submission = FakeRequestSubmissionService(requestId: 'req-empty-1');
@@ -85,22 +81,26 @@ void main() {
       expect(broadcast.requestIds.single, 'req-empty-1');
     });
 
-    test('falls back to a non-empty description when the first message is blank',
-        () async {
-      final submission = FakeRequestSubmissionService(requestId: 'req-blank-1');
-      final coordinator = OrderComposeCoordinator(
-        submission: submission,
-        broadcast: _FakeBroadcastService(),
-      );
+    test(
+      'falls back to a non-empty description when the first message is blank',
+      () async {
+        final submission = FakeRequestSubmissionService(
+          requestId: 'req-blank-1',
+        );
+        final coordinator = OrderComposeCoordinator(
+          submission: submission,
+          broadcast: _FakeBroadcastService(),
+        );
 
-      await coordinator.createAndBroadcast(
-        existingRequestId: 'new',
-        firstMessage: '   ',
-      );
+        await coordinator.createAndBroadcast(
+          existingRequestId: 'new',
+          firstMessage: '   ',
+        );
 
-      // The create-leg's only required field must never be empty.
-      expect(submission.lastDraft?.description, isNotEmpty);
-    });
+        // The create-leg's only required field must never be empty.
+        expect(submission.lastDraft?.description, isNotEmpty);
+      },
+    );
 
     test('reuses an existing REAL request id without creating', () async {
       final submission = FakeRequestSubmissionService();
@@ -142,23 +142,26 @@ void main() {
       expect(broadcast.calls, 0);
     });
 
-    test('soft-fails on a broadcast error but still returns the real id',
-        () async {
-      final submission =
-          FakeRequestSubmissionService(requestId: 'req-soft-1');
-      final broadcast = _FakeBroadcastService(throwFailure: true);
-      final coordinator = OrderComposeCoordinator(
-        submission: submission,
-        broadcast: broadcast,
-      );
+    test(
+      'soft-fails on a broadcast error but still returns the real id',
+      () async {
+        final submission = FakeRequestSubmissionService(
+          requestId: 'req-soft-1',
+        );
+        final broadcast = _FakeBroadcastService(throwFailure: true);
+        final coordinator = OrderComposeCoordinator(
+          submission: submission,
+          broadcast: broadcast,
+        );
 
-      final id = await coordinator.createAndBroadcast(
-        existingRequestId: 'new',
-        firstMessage: 'Deliver despite a flaky matcher',
-      );
+        final id = await coordinator.createAndBroadcast(
+          existingRequestId: 'new',
+          firstMessage: 'Deliver despite a flaky matcher',
+        );
 
-      expect(id, 'req-soft-1'); // request is created/pending regardless
-      expect(broadcast.calls, 1);
-    });
+        expect(id, 'req-soft-1'); // request is created/pending regardless
+        expect(broadcast.calls, 1);
+      },
+    );
   });
 }

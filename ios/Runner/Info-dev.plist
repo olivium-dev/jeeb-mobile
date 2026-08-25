@@ -6,6 +6,12 @@
 	<string>Jeeb needs your location to track deliveries and pick up your packages.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Jeeb needs your location in the background to provide real-time delivery tracking.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Jeeb uses your microphone to record voice messages for delivery requests and chats.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Jeeb uses your camera to take photos for delivery requests, chat attachments, and identity verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Jeeb accesses your photo library so you can select images for delivery requests, chat attachments, and identity verification.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

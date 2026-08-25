@@ -48,6 +48,7 @@ main() {
   local firebase_config="${2:-}"
   local maps_key_file="${3:-}"
   local expected_gateway_url="${4:-}"
+  local expected_realtime_socket_url="${5:-}"
   local expected_build_name="${IOS_BUILD_NAME:-}"
   local expected_build_number="${IOS_BUILD_NUMBER:-}"
   local tmp_dir
@@ -58,7 +59,7 @@ main() {
   local embedded_profile
   local profile_plist
   local profile_app_identifier
-  local info_path
+  local INFO_PATH
 
   umask 077
   tmp_dir="$(mktemp -d)"
@@ -71,6 +72,8 @@ main() {
   [[ -s "${firebase_config}" ]] || fail 'Firebase evidence is missing'
   [[ -s "${maps_key_file}" ]] || fail 'Maps evidence is missing'
   [[ -n "${expected_gateway_url}" ]] || fail 'expected gateway URL is missing'
+  [[ -n "${expected_realtime_socket_url}" ]] ||
+    fail 'expected realtime socket URL is missing'
   [[ -n "${expected_build_name}" ]] || fail 'IOS_BUILD_NAME must be explicit'
   [[ -n "${expected_build_number}" ]] || fail 'IOS_BUILD_NUMBER must be explicit'
 
@@ -78,6 +81,9 @@ main() {
   app_path="$(find "${tmp_dir}/Payload" -maxdepth 1 -type d \
     -name '*.app' -print -quit)"
   [[ -n "${app_path}" ]] || fail 'IPA payload app is missing'
+  INFO_PATH="${app_path}/Info.plist"
+  bash "${REPO_ROOT}/tool/inspect_ios_permission_descriptions.sh" \
+    "${INFO_PATH}" 'signed IPA' >/dev/null
 
   codesign --verify --deep --strict "${app_path}" >/dev/null 2>&1 ||
     fail 'code signature verification failed'
@@ -113,11 +119,10 @@ main() {
 
   bash "${REPO_ROOT}/tool/inspect_unsigned_ios_release.sh" \
     "${app_path}" "${firebase_config}" "${maps_key_file}" \
-    "${expected_gateway_url}" >/dev/null
+    "${expected_gateway_url}" "${expected_realtime_socket_url}" >/dev/null
 
-  info_path="${app_path}/Info.plist"
   validate_ios_versions \
-    "${info_path}" "${expected_build_name}" "${expected_build_number}"
+    "${INFO_PATH}" "${expected_build_name}" "${expected_build_number}"
 
   printf '%s\n' \
     'Signed iOS identity, entitlements, versions, Firebase, Maps, and endpoint contracts passed.'

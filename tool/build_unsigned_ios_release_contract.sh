@@ -29,6 +29,7 @@ SYNTHETIC_MAPS_KEY="AIza$(printf 'M%.0s' {1..35})"
 SYNTHETIC_MAPS_KEY_FILE="${TMP_DIR}/maps-api-key"
 SYNTHETIC_BUILD_NAME=0.0.0
 SYNTHETIC_BUILD_NUMBER=1
+SYNTHETIC_REALTIME_SOCKET_URL='wss://realtime.contract.invalid/socket/websocket'
 
 flutter_version="$("${FLUTTER_BIN}" --version --machine | python3 -c \
   'import json,sys; print(json.load(sys.stdin)["frameworkVersion"])')"
@@ -77,6 +78,7 @@ encoded_config="$(base64 <"${SYNTHETIC_CONFIG}" | tr -d '\n')"
       --dart-define=APP_FLAVOR=production \
       --dart-define=JEEB_CLARITY_ENABLED=false \
       --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+      --dart-define="JEEB_REALTIME_SOCKET_URL=${SYNTHETIC_REALTIME_SOCKET_URL}" \
       --dart-define=GATEWAY_BASE_URL=https://gateway.contract.invalid
 )
 unset encoded_config
@@ -92,6 +94,7 @@ unset encoded_config
 
 bash "${REPO_ROOT}/tool/inspect_unsigned_ios_release.sh" \
   "${REPO_ROOT}/build/ios/iphoneos/Runner.app" "${SYNTHETIC_CONFIG}" \
-  "${SYNTHETIC_MAPS_KEY_FILE}" 'https://gateway.contract.invalid'
+  "${SYNTHETIC_MAPS_KEY_FILE}" 'https://gateway.contract.invalid' \
+  "${SYNTHETIC_REALTIME_SOCKET_URL}"
 printf '%s\n' \
   'Unsigned iOS release compiled with synthetic config; no provider evidence claimed.'

@@ -19,6 +19,7 @@ PY
 BUILD_NAME="${IOS_BUILD_NAME:-}"
 BUILD_NUMBER="${IOS_BUILD_NUMBER:-}"
 GATEWAY_URL="${GATEWAY_BASE_URL:-https://app.jeeb.fds-1.com}"
+REALTIME_SOCKET_URL="${JEEB_REALTIME_SOCKET_URL:-}"
 FIREBASE_CONFIG="${IOS_GOOGLE_SERVICE_INFO_PLIST_PATH:-}"
 MAPS_KEY_FILE="${IOS_GOOGLE_MAPS_API_KEY_FILE:-}"
 EXPECTED_FIREBASE_APP_ID="${IOS_FIREBASE_EXPECTED_APP_ID:-}"
@@ -38,6 +39,8 @@ fail() {
 
 [[ "${GATEWAY_URL}" == https://app.jeeb.fds-1.com ]] ||
   fail 'the internal candidate must point at the canonical staging edge'
+[[ "${REALTIME_SOCKET_URL}" == wss://app.jeeb.fds-1.com/socket/websocket ]] ||
+  fail 'the internal candidate must use the canonical staging realtime socket'
 [[ -f "${FIREBASE_CONFIG}" && ! -L "${FIREBASE_CONFIG}" ]] ||
   fail 'protected Firebase plist is missing'
 [[ -f "${MAPS_KEY_FILE}" && ! -L "${MAPS_KEY_FILE}" ]] ||
@@ -106,6 +109,7 @@ run_release_build() {
     --dart-define=APP_FLAVOR=staging \
     --dart-define=JEEB_CLARITY_ENABLED=false \
     --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+    --dart-define="JEEB_REALTIME_SOCKET_URL=${REALTIME_SOCKET_URL}" \
     --dart-define="GATEWAY_BASE_URL=${GATEWAY_URL}"
 
   xcodebuild \
@@ -130,7 +134,7 @@ run_release_build() {
 }
 
 export -f run_release_build
-export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL ARCHIVE_PATH
+export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
 export PROVISIONING_PROFILE_SPECIFIER SIGNING_CERTIFICATE
 
@@ -151,7 +155,8 @@ ipa_path="$(find "${EXPORT_PATH}" -maxdepth 1 -type f -name '*.ipa' -print -quit
 
 IOS_BUILD_NAME="${BUILD_NAME}" IOS_BUILD_NUMBER="${BUILD_NUMBER}" \
   bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh" \
-  "${ipa_path}" "${FIREBASE_CONFIG}" "${MAPS_KEY_FILE}" "${GATEWAY_URL}"
+  "${ipa_path}" "${FIREBASE_CONFIG}" "${MAPS_KEY_FILE}" "${GATEWAY_URL}" \
+  "${REALTIME_SOCKET_URL}"
 
 printf 'Signed internal IPA: %s\n' "${ipa_path}"
 printf 'IPA SHA-256: %s\n' "$(shasum -a 256 "${ipa_path}" | awk '{print $1}')"

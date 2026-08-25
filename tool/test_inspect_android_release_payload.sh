@@ -11,14 +11,17 @@ resources="${TMP_DIR}/resources.pb"
 binary="${TMP_DIR}/libapp.so"
 printf '%s' 'com.olivium.jeeb app.jeeb.fds-1.com' >"${manifest}"
 printf '%s' 'firebase maps' >"${resources}"
-printf '%s' 'https://app.jeeb.fds-1.com safe-release' >"${binary}"
+printf '%s' \
+  'https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket safe-release' \
+  >"${binary}"
 
 run_inspector() {
   JEEB_CLARITY_ENABLED="${1}" \
   JEEB_CLARITY_PRIVACY_APPROVED="${2}" \
     bash "${REPO_ROOT}/tool/inspect_android_release_payload.sh" \
       "${manifest}" "${resources}" "${binary}" \
-      https://app.jeeb.fds-1.com
+      https://app.jeeb.fds-1.com \
+      wss://app.jeeb.fds-1.com/socket/websocket
 }
 
 run_inspector false false >/dev/null
@@ -34,6 +37,8 @@ for forbidden in \
   'super_login' \
   'unified_payment' \
   '/v1/payments/' \
+  '/v1/matching/find-jeebers' \
+  '/v1/matching/broadcast' \
   'devtool_shell.dart' \
   'main_devtool.dart' \
   'DevToolApp' \
@@ -44,7 +49,9 @@ for forbidden in \
       "${forbidden}" >&2
     exit 1
   fi
-  printf '%s' 'https://app.jeeb.fds-1.com safe-release' >"${binary}"
+  printf '%s' \
+    'https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket safe-release' \
+    >"${binary}"
 done
 
 if run_inspector true false >/dev/null 2>&1; then
