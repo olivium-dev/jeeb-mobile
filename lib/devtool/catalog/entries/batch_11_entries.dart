@@ -157,7 +157,8 @@ final CatalogEntry _earningsTabEntry = CatalogEntry(
       // The real gate resolves in one frame and never settles into a capture;
       // the seam holds it so M4's loading arm is visible at all.
       'Loading — resolving the session',
-      (_) => _tabPreview(EarningsTab(sessionUserId: Completer<String?>().future)),
+      (_) =>
+          _tabPreview(EarningsTab(sessionUserId: Completer<String?>().future)),
     ),
   ],
 );
@@ -419,7 +420,7 @@ final CatalogEntry _transactionDetailEntry = CatalogEntry(
       ),
     ),
     CatalogState(
-      'Refund — dispute link',
+      'Fee balance adjustment — dispute link',
       (_) => const TransactionDetailScreen(
         transactionId: 'txn-refund-001',
         repository: TransactionDetailScreenFakeRepository(
@@ -482,9 +483,7 @@ final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
   states: [
     CatalogState(
       'Charge-at-store instructions',
-      (_) => const WalletChargeInfoScreenHost(
-        screen: WalletChargeInfoScreen(),
-      ),
+      (_) => const WalletChargeInfoScreenHost(screen: WalletChargeInfoScreen()),
     ),
   ],
 );

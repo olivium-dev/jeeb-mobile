@@ -27,9 +27,9 @@ class WalletActivityL10n {
   String get errorTitle => _l10n.walletActivityErrorTitle;
 
   String get networkError => _pick(
-        'No connection. Check your network and try again.',
-        'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
-      );
+    'No connection. Check your network and try again.',
+    'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 
   String get loadMoreError =>
@@ -44,11 +44,11 @@ class WalletActivityL10n {
       case WalletLedgerType.released:
         return _pick('Released', 'تم الإفراج');
       case WalletLedgerType.refund:
-        return _pick('Refund', 'استرداد');
+        return _pick('Fee balance adjustment', 'تسوية رصيد الرسوم');
       case WalletLedgerType.penalty:
         return _pick('Penalty', 'غرامة');
       case WalletLedgerType.topup:
-        return _pick('Top up', 'شحن رصيد');
+        return _pick('Fee balance added', 'إضافة رصيد الرسوم');
       case WalletLedgerType.gift:
         return _pick('Starter credit', 'رصيد بداية');
       case WalletLedgerType.unknown:
@@ -56,14 +56,15 @@ class WalletActivityL10n {
     }
   }
 
-  String refLabel(String ref) => ref.isEmpty
-      ? ''
-      : _pick('Ref: $ref', 'مرجع: $ref');
+  String refLabel(String ref) =>
+      ref.isEmpty ? '' : _pick('Ref: $ref', 'مرجع: $ref');
 
   String signedAmount(double amount, int sign, String? currency) {
     final magnitude = amount.abs().toStringAsFixed(2);
     final prefix = sign < 0 ? '-' : '+';
-    final suffix = (currency != null && currency.isNotEmpty) ? ' $currency' : '';
+    final suffix = (currency != null && currency.isNotEmpty)
+        ? ' $currency'
+        : '';
     return '$prefix$magnitude$suffix';
   }
 

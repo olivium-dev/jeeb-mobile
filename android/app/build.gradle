@@ -29,14 +29,63 @@ def mapsApiKey = (
 def mapsApiKeyIsValid = mapsApiKey ==~ /^AIza[0-9A-Za-z_-]{30,}$/
 
 // Release signing material — read from android/key.properties (gitignored; see
-// android/.gitignore). Absent on machines without the release keystore, in
-// which case the release build falls back to debug signing (below).
+// android/.gitignore). Production release tasks fail closed when this material
+// is incomplete. They must never fall back to the local debug signer.
 def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('key.properties')
+def signingPropertiesOverride = project.findProperty(
+    'jeeb.releaseSigningPropertiesFile'
+)?.toString()?.trim()
+def keystorePropertiesFile = signingPropertiesOverride
+    ? rootProject.file(signingPropertiesOverride)
+    : rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withReader('UTF-8') { reader ->
         keystoreProperties.load(reader)
     }
+}
+def requiredReleaseSigningProperties = [
+    'keyAlias',
+    'keyPassword',
+    'storeFile',
+    'storePassword',
+]
+def releaseSigningPropertiesComplete = keystorePropertiesFile.exists() &&
+    requiredReleaseSigningProperties.every { propertyName ->
+        keystoreProperties.getProperty(propertyName, '').toString().trim()
+    }
+def releaseKeystoreFile = releaseSigningPropertiesComplete
+    ? file(keystoreProperties.getProperty('storeFile'))
+    : null
+def expectedUploadCertificateSha1 = (
+    project.findProperty('jeeb.uploadSigningCertificateSha1')
+        ?: System.getenv('ANDROID_UPLOAD_CERT_SHA1')
+        ?: ''
+).toString().trim()
+def expectedUploadCertificateSha256 = (
+    project.findProperty('jeeb.uploadSigningCertificateSha256')
+        ?: System.getenv('ANDROID_UPLOAD_CERT_SHA256')
+        ?: ''
+).toString().trim()
+
+def normalizedCertificateFingerprint = { String fingerprint ->
+    fingerprint.replace(':', '').toUpperCase(Locale.ROOT)
+}
+
+def signingCertificateFingerprint = {
+    File keystoreFile, String password, String alias, String algorithm ->
+    def keyStore = java.security.KeyStore.getInstance(
+        keystoreFile,
+        password.toCharArray()
+    )
+    def certificate = keyStore.getCertificate(alias)
+    if (certificate == null) {
+        throw new GradleException(
+            'Production release signing certificate is unavailable.'
+        )
+    }
+    def digest = java.security.MessageDigest.getInstance(algorithm)
+        .digest(certificate.encoded)
+    digest.collect { value -> String.format('%02X', value & 0xff) }.join()
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -50,7 +99,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "app.jeeb.mobile"
+    namespace "com.olivium.jeeb"
     compileSdk 36
     ndkVersion = "28.2.13676358"
 
@@ -65,9 +114,9 @@ android {
     }
 
     defaultConfig {
-        applicationId "app.jeeb.mobile"
+        applicationId "com.olivium.jeeb"
         minSdk 24
-        targetSdk 34
+        targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
@@ -77,7 +126,10 @@ android {
         // `+=` preserves Flutter's ${applicationName} placeholder. The
         // verifyMapsApiKey dependency below stops manifest processing before
         // this sentinel can ever reach an APK.
-        manifestPlaceholders += [MAPS_API_KEY: mapsApiKey ?: 'MISSING_MAPS_API_KEY']
+        manifestPlaceholders += [
+            MAPS_API_KEY: mapsApiKey ?: 'MISSING_MAPS_API_KEY',
+            APP_LINK_HOST: 'app.jeeb.fds-1.com',
+        ]
     }
 
     // Dev Tool second launcher icon, opt-in even on dev/staging:
@@ -93,19 +145,26 @@ android {
     productFlavors {
         dev {
             dimension "environment"
-            applicationIdSuffix ".dev"
+            // Preserve the existing developer-only Firebase registration.
+            // Store candidates never use this flavor.
+            applicationId "app.jeeb.mobile.dev"
             versionNameSuffix "-dev"
             resValue "string", "app_name", "Jeeb Dev"
             // Opt-IN (-Pjeeb.devtool=true): a normal dev build must ship ONE
             // launcher, or the launcher/monkey can open the Dev Tool alias.
             resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
+            // Preserve the developer deep-link host while release candidates
+            // verify against the canonical staging Cloudflare edge.
+            manifestPlaceholders.APP_LINK_HOST = 'jeeb.app'
         }
         staging {
             dimension "environment"
-            applicationIdSuffix ".staging"
+            // Staging is runtime configuration, never a second store identity.
+            applicationId "com.olivium.jeeb"
             versionNameSuffix "-stg"
             resValue "string", "app_name", "Jeeb Staging"
             resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
+            manifestPlaceholders.APP_LINK_HOST = 'app.jeeb.fds-1.com'
         }
         production {
             dimension "environment"
@@ -113,18 +172,20 @@ android {
             // Production hides the Dev Tool launcher icon (defence-in-depth
             // alongside the compile-time kDevToolEnabled dart-define).
             resValue "bool", "jeeb_devtool_enabled", "false"
+            manifestPlaceholders.APP_LINK_HOST = 'app.jeeb.fds-1.com'
         }
     }
 
     signingConfigs {
         // Release signing, driven by android/key.properties (gitignored).
-        // Populated only when the properties file is present so CI/dev machines
-        // without the keystore can still assemble a (debug-signed) release.
+        // Debug builds do not use this configuration. Production release tasks
+        // depend on verifyProductionReleaseSigning below and fail before an
+        // artifact is packaged when the configuration is unavailable.
         release {
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningPropertiesComplete) {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
-                storeFile file(keystoreProperties['storeFile'])
+                storeFile releaseKeystoreFile
                 storePassword keystoreProperties['storePassword']
             }
         }
@@ -132,13 +193,101 @@ android {
 
     buildTypes {
         release {
-            // Use the real release keystore when key.properties is present;
-            // otherwise fall back to debug signing (previous placeholder behaviour).
-            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+def verifyProductionReleaseSigning = tasks.register('verifyProductionReleaseSigning') {
+    group = 'verification'
+    description = 'Fails production release builds unless approved signing inputs are complete.'
+    doLast {
+        if (!keystorePropertiesFile.exists()) {
+            throw new GradleException(
+                'Production release signing is unavailable. Provide the protected signing inputs.'
+            )
+        }
+        if (!releaseSigningPropertiesComplete) {
+            throw new GradleException(
+                'Production release signing is incomplete. Required protected inputs are missing.'
+            )
+        }
+        if (releaseKeystoreFile == null || !releaseKeystoreFile.isFile() ||
+            !releaseKeystoreFile.canRead()) {
+            throw new GradleException(
+                'Production release keystore is unavailable or unreadable.'
+            )
+        }
+        def configuredAlias = keystoreProperties.getProperty('keyAlias', '').trim()
+        def localDebugKeystore = new File(
+            System.getProperty('user.home'),
+            '.android/debug.keystore'
+        )
+        if (configuredAlias.equalsIgnoreCase('androiddebugkey') ||
+            releaseKeystoreFile.canonicalFile == localDebugKeystore.canonicalFile ||
+            releaseKeystoreFile.name.equalsIgnoreCase('debug.keystore')) {
+            throw new GradleException(
+                'Production release signing rejected a debug signing identity.'
+            )
+        }
+        if (!(expectedUploadCertificateSha1 ==~
+            /(?i)(?:[0-9a-f]{40}|(?:[0-9a-f]{2}:){19}[0-9a-f]{2})/)) {
+            throw new GradleException(
+                'Protected upload signing certificate SHA-1 is missing or malformed.'
+            )
+        }
+        if (!(expectedUploadCertificateSha256 ==~
+            /(?i)(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})/)) {
+            throw new GradleException(
+                'Protected upload signing certificate SHA-256 is missing or malformed.'
+            )
+        }
+        def actualCertificateSha1
+        def actualCertificateSha256
+        try {
+            actualCertificateSha1 = signingCertificateFingerprint(
+                releaseKeystoreFile,
+                keystoreProperties.getProperty('storePassword'),
+                configuredAlias,
+                'SHA-1'
+            )
+            actualCertificateSha256 = signingCertificateFingerprint(
+                releaseKeystoreFile,
+                keystoreProperties.getProperty('storePassword'),
+                configuredAlias,
+                'SHA-256'
+            )
+        } catch (GradleException error) {
+            throw error
+        } catch (Exception ignored) {
+            throw new GradleException(
+                'Production release signing certificate could not be inspected.'
+            )
+        }
+        if (actualCertificateSha1 != normalizedCertificateFingerprint(
+            expectedUploadCertificateSha1
+        )) {
+            throw new GradleException(
+                'Production release signer does not match the approved upload SHA-1.'
+            )
+        }
+        if (actualCertificateSha256 != normalizedCertificateFingerprint(
+            expectedUploadCertificateSha256
+        )) {
+            throw new GradleException(
+                'Production release signer does not match the approved upload SHA-256.'
+            )
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name != verifyProductionReleaseSigning.name &&
+        task.name.toLowerCase().contains('productionrelease')) {
+        task.dependsOn(verifyProductionReleaseSigning)
     }
 }
 

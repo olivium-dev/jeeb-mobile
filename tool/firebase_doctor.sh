@@ -11,19 +11,16 @@ cd "$REPO_ROOT"
 # package             | kind   | lower(>=)  | upper(<)  | exact
 ENVELOPE_TABLE='
 firebase_core         range    3.13.1       3.15.0      -
-firebase_auth         exact    -            -           5.4.2
+firebase_auth         exact    -            -           5.6.0
 firebase_messaging    major    15.0.0       16.0.0      -
 cloud_firestore       major    5.0.0        6.0.0       -
 '
 
 MAIN_GSJ="android/app/google-services.json"
 DEV_GSJ="android/app/src/dev/google-services.json"
-EXPECTED_PROJECT_NUMBER="1051234312170"
 EXPECTED_PROJECT_ID="jeeb-5a293"
-EXPECTED_DEV_APP_ID="1:1051234312170:android:146d7f24f109e38523dc93"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 LOCK="pubspec.lock"
-SPEC="pubspec.yaml"
 
 FAILS=0
 WARNS=0
@@ -71,67 +68,28 @@ lock_version() {
 }
 
 # =============================================================================
-section "1. google-services.json — tracked, identity, no leaks"
+section "1. native Firebase configs — protected injection boundary"
 # =============================================================================
 
-check_gsj() {
-  local f="$1"; local require_dev_client="$2"
-  if [ ! -f "$f" ]; then
-    fail "$f is missing"
-    return
-  fi
-
+check_protected_config() {
+  local f="$1"
   if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-    pass "$f is tracked"
+    fail "$f is tracked; native provider config must be injected at build time"
   else
-    fail "$f exists but is not tracked by git"
+    pass "$f is untracked"
   fi
 
-  # --no-index is mandatory: plain check-ignore skips TRACKED paths, which
-  # would make this regression check permanently vacuous for these files.
+  # --no-index is mandatory: it also evaluates an accidentally tracked path.
   if git check-ignore -q --no-index "$f" 2>/dev/null; then
-    fail "$f is matched by .gitignore (must never be re-ignored, see docs/firebase-invariants.md §2)"
+    pass "$f is protected by .gitignore"
   else
-    pass "$f is not gitignored"
+    fail "$f is not ignored; a transient protected injection could be committed"
   fi
 
-  if [ "$HAVE_JQ" = "no" ]; then
-    return
-  fi
-
-  local pn pid
-  pn="$(jq -r '.project_info.project_number' "$f" 2>/dev/null || echo '')"
-  pid="$(jq -r '.project_info.project_id' "$f" 2>/dev/null || echo '')"
-  if [ "$pn" = "$EXPECTED_PROJECT_NUMBER" ] && [ "$pid" = "$EXPECTED_PROJECT_ID" ]; then
-    pass "$f project identity is $pid / $pn"
+  if [ -e "$f" ]; then
+    fail "$f exists outside an active protected wrapper invocation"
   else
-    fail "$f project identity is '$pid'/'$pn', expected '$EXPECTED_PROJECT_ID'/'$EXPECTED_PROJECT_NUMBER'"
-  fi
-
-  if jq -e '[.client[]?.client_info.android_client_info.package_name] | index("app.jeeb.mobile") != null' "$f" >/dev/null 2>&1; then
-    pass "$f carries app.jeeb.mobile client"
-  else
-    fail "$f is missing the app.jeeb.mobile client"
-  fi
-
-  if [ "$require_dev_client" = "yes" ]; then
-    if jq -e '[.client[]?.client_info.android_client_info.package_name] | index("app.jeeb.mobile.dev") != null' "$f" >/dev/null 2>&1; then
-      pass "$f carries app.jeeb.mobile.dev client"
-    else
-      fail "$f is missing the app.jeeb.mobile.dev client"
-    fi
-  fi
-
-  if grep -qi 'alrahmah' "$f"; then
-    fail "$f references the FORBIDDEN 'alrahmah' project"
-  else
-    pass "$f has no 'alrahmah' reference"
-  fi
-
-  if grep -q 'private_key' "$f"; then
-    fail "$f contains a 'private_key' field — this looks like a leaked service-account key, not a client config"
-  else
-    pass "$f has no 'private_key' field"
+    pass "$f is absent after wrapper cleanup"
   fi
 }
 
@@ -139,8 +97,9 @@ if [ "$HAVE_JQ" = "no" ]; then
   fail "jq is not installed — the google-services.json identity/client checks CANNOT run. Install it (macOS: 'brew install jq', Debian/Ubuntu: 'apt-get install -y jq') and re-run."
 fi
 
-check_gsj "$MAIN_GSJ" no
-check_gsj "$DEV_GSJ" yes
+check_protected_config "$MAIN_GSJ"
+check_protected_config "$DEV_GSJ"
+check_protected_config "ios/Runner/GoogleService-Info.plist"
 
 # .firebaserc pins the CLI/flutterfire default project — without it a stray
 # 'flutterfire configure' can rewrite every config to another visible project.
@@ -273,27 +232,48 @@ else
     warn "no 'flutter' on PATH — skipped the local-toolchain floor check"
   fi
 
-  # Both extensions: a future *.yaml workflow must not slip past this check.
+  fvm_version="$(python3 - .fvmrc <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    version = json.load(handle).get('flutter', '')
+if isinstance(version, str) and re.fullmatch(r'\d+\.\d+\.\d+', version):
+    print(version)
+PY
+)"
+  if [ -z "$fvm_version" ]; then
+    fail '.fvmrc does not declare a valid Flutter version'
+  elif [ "$(semver_cmp "$fvm_version" "$lock_flutter_floor")" -ge 0 ]; then
+    pass ".fvmrc pins Flutter $fvm_version, satisfies the lock floor"
+  else
+    fail ".fvmrc Flutter $fvm_version is BELOW the lock floor >=$lock_flutter_floor"
+  fi
+
+  setup_action='.github/actions/setup-flutter/action.yml'
+  # Match the literal GitHub expression rather than expanding it in this shell.
+  # shellcheck disable=SC2016
+  if ! grep -Fq 'flutter-version: ${{ steps.fvm.outputs.version }}' \
+    "$setup_action" 2>/dev/null; then
+    fail "$setup_action does not consume the validated .fvmrc output"
+  fi
+
+  # Both extensions: any workflow invoking Flutter must use the repository setup
+  # action and must not reintroduce a literal or workflow-level version.
   for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
     [ -f "$wf" ] || continue
-    var_val="$(grep -oE "FLUTTER_VERSION:[[:space:]]*'[0-9]+\.[0-9]+\.[0-9]+'" "$wf" 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      if printf '%s' "$line" | grep -q 'env.FLUTTER_VERSION'; then
-        ver="$var_val"
+    if grep -Eq '(^|[[:space:]])(flutter|dart)[[:space:]]+(pub|get|test|build|run|analyze)' \
+      "$wf"; then
+      if grep -Fq 'uses: ./.github/actions/setup-flutter' "$wf"; then
+        pass "$wf consumes Flutter from .fvmrc"
       else
-        ver="$(printf '%s' "$line" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+        fail "$wf invokes Flutter/Dart without the .fvmrc setup action"
       fi
-      if [ -z "$ver" ]; then
-        warn "$wf: found a flutter-version: line but could not resolve a literal version"
-        continue
-      fi
-      if [ "$(semver_cmp "$ver" "$lock_flutter_floor")" -ge 0 ]; then
-        pass "$wf pins flutter-version $ver, satisfies the lock floor"
-      else
-        fail "$wf pins flutter-version $ver, BELOW the lock floor >=$lock_flutter_floor — CI would fail 'pub get' on the SDK constraint"
-      fi
-    done < <(grep -oE 'flutter-version:.*' "$wf" 2>/dev/null || true)
+    fi
+    if grep -Eq 'FLUTTER_VERSION:|flutter-version:[[:space:]]*[0-9]' "$wf"; then
+      fail "$wf duplicates the Flutter version instead of consuming .fvmrc"
+    fi
   done
 fi
 
@@ -335,27 +315,27 @@ else
 fi
 
 # =============================================================================
-section "8. dev Firebase config validator (protected identity)"
+section "8. protected Firebase validators and wrappers"
 # =============================================================================
 
-if [ -f tool/validate_dev_google_services.sh ]; then
-  if DEV_FIREBASE_EXPECTED_PROJECT_NUMBER="$EXPECTED_PROJECT_NUMBER" \
-     DEV_FIREBASE_EXPECTED_PROJECT_ID="$EXPECTED_PROJECT_ID" \
-     DEV_FIREBASE_EXPECTED_APP_ID="$EXPECTED_DEV_APP_ID" \
-     bash tool/validate_dev_google_services.sh "$DEV_GSJ"; then
-    pass "validate_dev_google_services.sh"
+for protected_tool in \
+  tool/validate_android_google_services.sh \
+  tool/validate_dev_google_services.sh \
+  tool/run_with_android_firebase_config.sh \
+  tool/run_with_dev_firebase_config.sh \
+  tool/run_with_ios_firebase_config.sh; do
+  if [ -f "$protected_tool" ]; then
+    pass "$protected_tool is present"
   else
-    warn "validate_dev_google_services.sh did not pass against $DEV_GSJ (see output above)"
+    fail "$protected_tool is missing"
   fi
-else
-  warn "tool/validate_dev_google_services.sh is missing — orphaned validator not wired"
-fi
+done
 
 # =============================================================================
 section "9. known gaps (informational, non-blocking)"
 # =============================================================================
 
-warn "staging flavor (app.jeeb.mobile.staging) has NO Firebase client entry in any google-services.json — latent, never exercised on hardware"
+warn "staging and production share canonical package com.olivium.jeeb; store-delivered Firebase behavior remains a live acceptance gate"
 warn "iOS dev configs (Release-dev/Debug-dev/Profile-dev) exclude GoogleService-Info.plist by design — iOS dev builds ship with no Firebase"
 
 # =============================================================================

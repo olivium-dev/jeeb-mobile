@@ -28,33 +28,29 @@ final class KycRejectedScreenFixtures {
 
   /// Rejected, but the back-office attached no structured cause.
   /// The closest thing this screen has to an empty state: the decision is real
-  static KycGateway rejectedWithoutReason() => FakeKycGateway(
-        initial: const KycSubmission(status: KycStatus.rejected),
-      );
+  static KycGateway rejectedWithoutReason() =>
+      FakeKycGateway(initial: const KycSubmission(status: KycStatus.rejected));
 
   /// A submission that is NOT rejected but still carries a reason.
   /// `KycStatus.resubmitRequested` is the tri-state third path (E19/Q-040/SM-6)
   static KycGateway resubmitRequestedWithReason() => FakeKycGateway(
-        initial: const KycSubmission(
-          status: KycStatus.resubmitRequested,
-          rejectionReason: KycRejectionReason.idUnreadable,
-          resubmitSteps: <KycResubmitStep>[KycResubmitStep.selfie],
-        ),
-      );
+    initial: const KycSubmission(
+      status: KycStatus.resubmitRequested,
+      rejectionReason: KycRejectionReason.idUnreadable,
+      resubmitSteps: <KycResubmitStep>[KycResubmitStep.selfie],
+    ),
+  );
 
-  /// `GET /v1/kyc/status` failed — the cubit's `error` branch.
+  /// `GET /v1/kyc/status` failed — the screen redirects to canonical KYC.
   static KycGateway failing() => const KycRejectedScreenFailingGateway();
 
-  /// `GET /v1/kyc/status` is still on the wire and never lands — the cubit's
-  /// opening `loading` phase, held open.
+  /// `GET /v1/kyc/status` is still on the wire and never lands — the neutral
+  /// authority-loading frame stays open and paints no rejection decision.
   static KycGateway pending() => const KycRejectedScreenPendingGateway();
 
   static KycGateway _rejectedWith(KycRejectionReason reason) => FakeKycGateway(
-        initial: KycSubmission(
-          status: KycStatus.rejected,
-          rejectionReason: reason,
-        ),
-      );
+    initial: KycSubmission(status: KycStatus.rejected, rejectionReason: reason),
+  );
 }
 
 /// Thrown by [KycRejectedScreenFailingGateway] so a failed read is a typed
@@ -90,17 +86,15 @@ class KycRejectedScreenFailingGateway implements KycGateway {
     required String templateId,
     required String tosVersion,
     required String signatureBlob,
-  }) =>
-      throw UnsupportedError('kyc-rejected never signs the ToS');
+  }) => throw UnsupportedError('kyc-rejected never signs the ToS');
 
   @override
   Future<KycSubmission> submit(KycSubmission draft) =>
       throw UnsupportedError('kyc-rejected is FINAL — it never submits (D52)');
 }
 
-/// A `fetchStatus()` read that never lands, holding the cubit on
-/// `KycRejectedStatus.loading` for as long as the surface is open.
-/// The screen paints no spinner in that phase, so nothing schedules frames and
+/// A `fetchStatus()` read that never lands, holding the authority-loading frame
+/// for as long as the surface is open.
 class KycRejectedScreenPendingGateway implements KycGateway {
   const KycRejectedScreenPendingGateway();
 
@@ -120,8 +114,7 @@ class KycRejectedScreenPendingGateway implements KycGateway {
     required String templateId,
     required String tosVersion,
     required String signatureBlob,
-  }) =>
-      throw UnsupportedError('kyc-rejected never signs the ToS');
+  }) => throw UnsupportedError('kyc-rejected never signs the ToS');
 
   @override
   Future<KycSubmission> submit(KycSubmission draft) =>

@@ -52,8 +52,10 @@ Widget _harness() {
 
 void _noop() {}
 
-String _priceText(WidgetTester tester) =>
-    tester.widget<EditableText>(find.byType(EditableText).first).controller.text;
+String _priceText(WidgetTester tester) => tester
+    .widget<EditableText>(find.byType(EditableText).first)
+    .controller
+    .text;
 
 void main() {
   group('Offer composer price stepper (screen 17)', () {
@@ -74,8 +76,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('+1 from empty enters 1.00 and the CTA restates the net',
-        (tester) async {
+    testWidgets('+1 from empty enters 1.00 and the CTA restates the net', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
@@ -88,15 +91,16 @@ void main() {
       expect(_priceText(tester), '1.00');
       // 1.00 − 10% platform fee = 0.90 kept, restated on the CTA.
       expect(
-        find.text('Send offer — keep ${MoneyFormat.format(0.9)}'),
+        find.text('Send offer — net ${MoneyFormat.format(0.9)} after Jeeb fee'),
         findsOneWidget,
       );
 
       handle.dispose();
     });
 
-    testWidgets('−1 at empty is a no-op and the CTA stays generic',
-        (tester) async {
+    testWidgets('−1 at empty is a no-op and the CTA stays generic', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
@@ -108,13 +112,14 @@ void main() {
 
       expect(_priceText(tester), isEmpty);
       expect(find.text('Send offer'), findsOneWidget);
-      expect(find.textContaining('Send offer — keep'), findsNothing);
+      expect(find.textContaining('Send offer — net'), findsNothing);
 
       handle.dispose();
     });
 
-    testWidgets('−1 floors at 0: 1.00 → cleared, never a zero bid',
-        (tester) async {
+    testWidgets('−1 floors at 0: 1.00 → cleared, never a zero bid', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
@@ -135,8 +140,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('typing a price drives the breakdown and the CTA together',
-        (tester) async {
+    testWidgets('typing a price drives the breakdown and the CTA together', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
@@ -149,7 +155,7 @@ void main() {
       expect(find.textContaining(MoneyFormat.format(0.8)), findsWidgets);
       expect(find.text(MoneyFormat.format(7.2)), findsOneWidget);
       expect(
-        find.text('Send offer — keep ${MoneyFormat.format(7.2)}'),
+        find.text('Send offer — net ${MoneyFormat.format(7.2)} after Jeeb fee'),
         findsOneWidget,
       );
 

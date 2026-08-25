@@ -1,0 +1,36 @@
+name: Setup repository Flutter
+description: Install the Flutter SDK pinned by .fvmrc.
+
+outputs:
+  version:
+    description: Flutter version resolved from .fvmrc.
+    value: ${{ steps.fvm.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read and validate .fvmrc
+      id: fvm
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(python3 - <<'PY'
+        import json
+        import re
+
+        with open('.fvmrc', encoding='utf-8') as handle:
+            version = json.load(handle).get('flutter', '')
+        if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+            raise SystemExit('.fvmrc must contain a semantic Flutter version')
+        print(version)
+        PY
+        )"
+        printf 'version=%s\n' "${version}" >>"${GITHUB_OUTPUT}"
+
+    - name: Install pinned Flutter
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      with:
+        flutter-version: ${{ steps.fvm.outputs.version }}
+        channel: stable
+        cache: true
+

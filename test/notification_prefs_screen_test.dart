@@ -140,8 +140,8 @@ Future<_FakePrefsRepo> _pumpLoaded(WidgetTester tester) async {
 /// `find.bySemanticsIdentifier` node finder cannot be composed with
 /// `find.descendant`.
 Finder _semanticsHost(String identifier) => find.byWidgetPredicate(
-      (w) => w is Semantics && w.properties.identifier == identifier,
-    );
+  (w) => w is Semantics && w.properties.identifier == identifier,
+);
 
 BoxDecoration _trackDecoration(WidgetTester tester, String rowIdentifier) {
   final track = find.descendant(
@@ -150,10 +150,13 @@ BoxDecoration _trackDecoration(WidgetTester tester, String rowIdentifier) {
   );
   expect(track, findsOneWidget);
   return tester
-      .widget<DecoratedBox>(
-        find.descendant(of: track, matching: find.byType(DecoratedBox)).first,
-      )
-      .decoration as BoxDecoration;
+          .widget<DecoratedBox>(
+            find
+                .descendant(of: track, matching: find.byType(DecoratedBox))
+                .first,
+          )
+          .decoration
+      as BoxDecoration;
 }
 
 void main() {
@@ -205,33 +208,34 @@ void main() {
       },
     );
 
-    testWidgets(
-      'wallet + rating-reminders rows use dedicated subtitles (F9)',
-      (tester) async {
-        await _pumpLoaded(tester);
+    testWidgets('wallet + rating-reminders rows use dedicated subtitles (F9)', (
+      tester,
+    ) async {
+      await _pumpLoaded(tester);
 
-        // Wallet row: dedicated wallet-notification subtitle, not the
-        expect(
-          find.text('Top-ups, refunds, and balance updates'),
-          findsOneWidget,
-        );
+      // Wallet row: dedicated wallet-notification subtitle, not the
+      expect(
+        find.text('Fee balance, reserves, and adjustments'),
+        findsOneWidget,
+      );
 
-        // Rating-reminders row: dedicated rating copy, not the offers copy.
-        expect(
-          find.text('Reminders to rate completed deliveries'),
-          findsOneWidget,
-        );
+      // Rating-reminders row: dedicated rating copy, not the offers copy.
+      expect(
+        find.text('Reminders to rate completed deliveries'),
+        findsOneWidget,
+      );
 
-        // The offers subtitle must now appear exactly once (the offers row
-        expect(find.text('Discounts and seasonal promotions'), findsOneWidget);
-      },
-    );
+      // The offers subtitle must now appear exactly once (the offers row
+      expect(find.text('Discounts and seasonal promotions'), findsOneWidget);
+    });
 
     testWidgets('toggling a category drives a debounced PUT', (tester) async {
       final repo = await _pumpLoaded(tester);
 
       // Marketing defaults OFF — tap its switch to turn it on.
-      await tester.tap(find.bySemanticsIdentifier('notif_prefs_marketing_toggle'));
+      await tester.tap(
+        find.bySemanticsIdentifier('notif_prefs_marketing_toggle'),
+      );
       await tester.pump(); // optimistic update
       await tester.pump(const Duration(milliseconds: 30)); // debounce → PUT
       await tester.pump();
@@ -242,8 +246,9 @@ void main() {
   });
 
   group('MIDNIGHT M3-24 — carried from R22 (M2-19)', () {
-    testWidgets('mounts the content field with R22\'s single top-end glow',
-        (tester) async {
+    testWidgets('mounts the content field with R22\'s single top-end glow', (
+      tester,
+    ) async {
       await _pumpLoaded(tester);
       final field = tester.widget<JeebMidnightField>(
         find.byType(JeebMidnightField),
@@ -260,27 +265,37 @@ void main() {
       );
     });
 
-    testWidgets('an ON toggle draws the accent track, never the periwinkle one',
-        (tester) async {
-      await _pumpLoaded(tester);
-      final roles = JeebColorRoles.midnight();
-      // Defaults: offers/orderStatus/wallet ON, marketing OFF.
-      final on = _trackDecoration(tester, 'notif_prefs_offers_toggle');
+    testWidgets(
+      'an ON toggle draws the accent track, never the periwinkle one',
+      (tester) async {
+        await _pumpLoaded(tester);
+        final roles = JeebColorRoles.midnight();
+        // Defaults: offers/orderStatus/wallet ON, marketing OFF.
+        final on = _trackDecoration(tester, 'notif_prefs_offers_toggle');
 
-      expect(on.color, roles.accent);
-      expect(on.color, isNot(JeebSemanticColors.midnight().mutedText),
-          reason: 'the OMDS switch resolved its ON track off '
-              'SwitchThemeData.trackColor — periwinkle inkMuted.');
-      expect(on.boxShadow, hasLength(1));
-      expect(
-        on.boxShadow!.single.color,
-        roles.accent.withValues(alpha: NotificationToggleTrack.glowAlpha),
-      );
-      expect(on.boxShadow!.single.blurRadius, NotificationToggleTrack.glowBlur);
-    });
+        expect(on.color, roles.accent);
+        expect(
+          on.color,
+          isNot(JeebSemanticColors.midnight().mutedText),
+          reason:
+              'the OMDS switch resolved its ON track off '
+              'SwitchThemeData.trackColor — periwinkle inkMuted.',
+        );
+        expect(on.boxShadow, hasLength(1));
+        expect(
+          on.boxShadow!.single.color,
+          roles.accent.withValues(alpha: NotificationToggleTrack.glowAlpha),
+        );
+        expect(
+          on.boxShadow!.single.blurRadius,
+          NotificationToggleTrack.glowBlur,
+        );
+      },
+    );
 
-    testWidgets('an OFF toggle draws pressed glass and no bloom',
-        (tester) async {
+    testWidgets('an OFF toggle draws pressed glass and no bloom', (
+      tester,
+    ) async {
       await _pumpLoaded(tester);
       final off = _trackDecoration(tester, 'notif_prefs_marketing_toggle');
 
@@ -288,8 +303,9 @@ void main() {
       expect(off.boxShadow, isEmpty);
     });
 
-    testWidgets('the knob is white and travels to the reading end when on',
-        (tester) async {
+    testWidgets('the knob is white and travels to the reading end when on', (
+      tester,
+    ) async {
       await _pumpLoaded(tester);
       final onTrack = find.descendant(
         of: _semanticsHost('notif_prefs_offers_toggle'),
@@ -327,16 +343,17 @@ void main() {
       expect(size.height, NotificationToggleTrack.trackHeight);
     });
 
-    testWidgets('the ON knob mirrors to the start edge under Arabic',
-        (tester) async {
-      await _pumpWithRepo(tester, _FakePrefsRepo(),
-          locale: const Locale('ar'));
+    testWidgets('the ON knob mirrors to the start edge under Arabic', (
+      tester,
+    ) async {
+      await _pumpWithRepo(tester, _FakePrefsRepo(), locale: const Locale('ar'));
       final track = find.descendant(
         of: _semanticsHost('notif_prefs_offers_toggle'),
         matching: find.byType(NotificationToggleTrack),
       );
-      final knob =
-          find.descendant(of: track, matching: find.byType(SizedBox)).last;
+      final knob = find
+          .descendant(of: track, matching: find.byType(SizedBox))
+          .last;
       expect(
         tester.getCenter(knob).dx,
         lessThan(tester.getCenter(track).dx),
@@ -350,8 +367,9 @@ void main() {
       expect(find.byType(SwitchListTile), findsNothing);
     });
 
-    testWidgets('the locked transactional row is a row, not a dead switch',
-        (tester) async {
+    testWidgets('the locked transactional row is a row, not a dead switch', (
+      tester,
+    ) async {
       await _pumpLoaded(tester);
       final row = tester.widget<JeebListRow>(
         find.descendant(
@@ -363,8 +381,9 @@ void main() {
       expect((row.trailing! as Icon).icon, Icons.lock);
     });
 
-    testWidgets('the cold read shows the radar illustration, not a spinner',
-        (tester) async {
+    testWidgets('the cold read shows the radar illustration, not a spinner', (
+      tester,
+    ) async {
       await _pumpWithRepo(tester, _PendingPrefsRepo());
       final empty = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
       expect(empty.status, JeebEmptyStateStatus.loading);
@@ -373,20 +392,27 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('a failed read keeps the illustration and re-fetches on retry',
-        (tester) async {
-      final repo = _FailingPrefsRepo();
-      await _pumpWithRepo(tester, repo);
-      final empty = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(empty.status, JeebEmptyStateStatus.error);
-      expect(empty.variant, JeebEmptyStateVariant.radar);
-      expect(repo.fetchCount, 1);
+    testWidgets(
+      'a failed read keeps the illustration and re-fetches on retry',
+      (tester) async {
+        final repo = _FailingPrefsRepo();
+        await _pumpWithRepo(tester, repo);
+        final empty = tester.widget<JeebEmptyState>(
+          find.byType(JeebEmptyState),
+        );
+        expect(empty.status, JeebEmptyStateStatus.error);
+        expect(empty.variant, JeebEmptyStateVariant.radar);
+        expect(repo.fetchCount, 1);
 
-      expect(find.bySemanticsIdentifier('notif_prefs_retry_cta'), findsOneWidget);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      await tester.pump();
-      expect(repo.fetchCount, 2);
-    });
+        expect(
+          find.bySemanticsIdentifier('notif_prefs_retry_cta'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        await tester.pump();
+        expect(repo.fetchCount, 2);
+      },
+    );
   });
 }

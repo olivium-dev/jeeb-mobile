@@ -1,0 +1,48 @@
+require 'json'
+require_relative '../../fastlane/BuildNumberPolicy'
+
+opt_out_usage
+default_platform(:android)
+
+def required_env(name)
+  value = ENV.fetch(name, '').strip
+  UI.user_error!("#{name} must be provided by the protected environment") if value.empty?
+  value
+end
+
+platform :android do
+  desc 'Upload the already-tested AAB to Google Play Internal Testing only'
+  lane :internal do
+    aab_path = required_env('ANDROID_AAB_PATH')
+    build_number = BuildNumberPolicy.parse!(required_env('MOBILE_BUILD_NUMBER'))
+    UI.user_error!('Retained AAB is missing') unless File.file?(aab_path)
+
+    json_key_data = required_env('GOOGLE_PLAY_JSON_KEY')
+    existing_codes = %w[internal alpha beta production].flat_map do |track|
+      Array(
+        google_play_track_version_codes(
+          json_key_data: json_key_data,
+          package_name: 'com.olivium.jeeb',
+          track: track,
+        ),
+      )
+    end.map(&:to_i)
+    BuildNumberPolicy.require_newer!(
+      candidate: build_number,
+      observed: existing_codes,
+      destination: 'Google Play',
+    )
+
+    upload_to_play_store(
+      json_key_data: json_key_data,
+      package_name: 'com.olivium.jeeb',
+      aab: aab_path,
+      track: 'internal',
+      release_status: 'completed',
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+    )
+  end
+end

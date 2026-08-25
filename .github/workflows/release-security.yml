@@ -1,0 +1,65 @@
+name: Release security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-security:
+    name: Release security scans
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install checksum-pinned Gitleaks 8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/gitleaks.tar.gz"
+          binary_dir="${RUNNER_TEMP}/gitleaks-bin"
+          curl --fail --silent --show-error --location \
+            --output "${archive}" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  '"${archive}" | \
+            sha256sum --check --strict
+          mkdir -p "${binary_dir}"
+          tar -xzf "${archive}" -C "${binary_dir}" gitleaks
+          chmod 0755 "${binary_dir}/gitleaks"
+          printf '%s\n' "${binary_dir}" >>"${GITHUB_PATH}"
+
+      - name: Block secrets introduced by this pull request or main push
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha="${PR_BASE_SHA:-${PUSH_BASE_SHA}}"
+          head_sha="${PR_HEAD_SHA:-${PUSH_HEAD_SHA}}"
+          [[ "${base_sha}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${head_sha}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${base_sha}" != 0000000000000000000000000000000000000000 ]]
+          git cat-file -e "${base_sha}^{commit}"
+          git cat-file -e "${head_sha}^{commit}"
+          gitleaks git . --redact --verbose --exit-code 1 \
+            --log-opts="${base_sha}..${head_sha}"
+
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+
+      - name: Block Ruby dependency advisories in the release toolchain
+        run: |
+          set -euo pipefail
+          gem install bundler-audit --version 0.9.3 --no-document
+          bundle-audit check --update

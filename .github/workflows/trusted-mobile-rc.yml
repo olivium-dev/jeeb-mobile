@@ -1,0 +1,726 @@
+name: Trusted mobile release candidate
+
+run-name: RC ${{ inputs.build_name }}+${{ inputs.build_number }} @ ${{ inputs.reviewed_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed commit on protected main (40 lowercase hex)
+        required: true
+        type: string
+      build_name:
+        description: Store version, for example 1.4.0
+        required: true
+        type: string
+      build_number:
+        description: Monotonic positive integer used by Android and iOS
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+concurrency:
+  group: mobile-rc-${{ inputs.reviewed_sha }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
+  STAGING_GATEWAY_URL: 'https://app.jeeb.fds-1.com'
+  STAGING_REALTIME_SOCKET_URL: 'wss://app.jeeb.fds-1.com/socket/websocket'
+  PLAY_APP_SIGNING_SHA1: '2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12'
+  PLAY_APP_SIGNING_SHA256: '42:76:6A:BB:4B:EA:1F:A4:88:00:96:6F:78:A1:E5:4F:A0:EA:12:B8:A1:6A:58:AF:07:5A:02:01:0B:B5:58:E9'
+
+jobs:
+  policy-preflight:
+    name: Protected-main and environment policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      reviewed_sha: ${{ steps.candidate.outputs.reviewed_sha }}
+    steps:
+      - name: Checkout protected main without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable candidate and shared versions
+        id: candidate
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]
+          [[ "${GITHUB_REF}" == refs/heads/main ]]
+          [[ "${GITHUB_REPOSITORY}" == olivium-dev/jeeb-mobile ]]
+          [[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${REVIEWED_SHA}" != 0000000000000000000000000000000000000000 ]]
+          [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
+          (( 10#${BUILD_NUMBER} <= 2100000000 ))
+          resolved_sha="$(git rev-parse "${REVIEWED_SHA}^{commit}")"
+          [[ "${resolved_sha}" == "${REVIEWED_SHA}" ]]
+          git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ "${REVIEWED_SHA}" == "${GITHUB_SHA}" ]]
+          printf 'reviewed_sha=%s\n' "${REVIEWED_SHA}" >>"${GITHUB_OUTPUT}"
+
+      - name: Require owner-approved main ruleset and protected mobile-rc environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_RULESET_ID: ${{ vars.MOBILE_RC_MAIN_RULESET_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "${MAIN_RULESET_ID}" =~ ^[1-9][0-9]*$ ]] || {
+            echo '::error::MOBILE_RC_MAIN_RULESET_ID is absent or malformed.'
+            exit 1
+          }
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf -- "${tmp_dir}"' EXIT HUP INT TERM
+          required_contexts='[
+            "Analyze",
+            "Test",
+            "Build APK (dev)",
+            "Android release signing contracts",
+            "iOS release contracts",
+            "Flutter CI + coverage (79%)",
+            "L10n parity gate (T-MOB-FIX-002)",
+            "Release security scans"
+          ]'
+          api_get() {
+            local endpoint="$1"
+            local output="$2"
+            local status
+            status="$(curl --silent --show-error --location \
+              --output "${output}" --write-out '%{http_code}' \
+              --header 'Accept: application/vnd.github+json' \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/${endpoint}")"
+            [[ "${status}" == 200 ]] || {
+              echo "::error::Governance API check failed closed (${status})."
+              return 1
+            }
+          }
+          api_get "rulesets/${MAIN_RULESET_ID}" "${tmp_dir}/ruleset.json"
+          jq -e \
+            --argjson id "${MAIN_RULESET_ID}" \
+            --argjson required "${required_contexts}" '
+            .id == $id
+            and .target == "branch"
+            and .enforcement == "active"
+            and ((.conditions.ref_name.include // []) | any(
+              . == "refs/heads/main" or . == "~DEFAULT_BRANCH"
+            ))
+            and ((.conditions.ref_name.exclude // []) | length == 0)
+            and any(.rules[]?;
+              .type == "pull_request"
+              and (.parameters.required_approving_review_count // 0) >= 1
+            )
+            and any(.rules[]? | select(.type == "required_status_checks");
+              ([.parameters.required_status_checks[]?.context] | unique) as $configured
+              | (($required - $configured) | length) == 0
+            )
+          ' "${tmp_dir}/ruleset.json" >/dev/null || {
+            echo '::error::The approved main ruleset does not require every release check context.'
+            exit 1
+          }
+          api_get \
+            "commits/${REVIEWED_SHA}/check-runs?filter=latest&per_page=100" \
+            "${tmp_dir}/checks.json"
+          jq -e \
+            --arg sha "${REVIEWED_SHA}" \
+            --argjson required "${required_contexts}" '
+            [.check_runs[]? | select(
+              .head_sha == $sha
+              and .status == "completed"
+              and .conclusion == "success"
+            ) | .name] | unique as $successful
+            | (($required - $successful) | length) == 0
+          ' "${tmp_dir}/checks.json" >/dev/null || {
+            echo '::error::Reviewed commit lacks one or more successful release checks.'
+            exit 1
+          }
+          api_get 'environments/mobile-rc' "${tmp_dir}/environment.json"
+          jq -e '
+            .name == "mobile-rc"
+            and any(.protection_rules[]?;
+              .type == "required_reviewers"
+              and ((.reviewers // []) | length) >= 1
+              and .prevent_self_review == true
+            )
+            and .deployment_branch_policy.protected_branches == true
+            and .deployment_branch_policy.custom_branch_policies == false
+          ' "${tmp_dir}/environment.json" >/dev/null || {
+            echo '::error::mobile-rc lacks independent review or protected-branch enforcement.'
+            exit 1
+          }
+          printf '%s\n' \
+            'Protected main ruleset and mobile-rc approval boundary verified.'
+
+  android-candidate:
+    name: Signed production AAB (staging runtime)
+    needs: policy-preflight
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: mobile-rc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact reviewed commit without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require protected Android dependency credential
+        env:
+          ANDROID_OMDS_READ_TOKEN: ${{ secrets.ANDROID_OMDS_READ_TOKEN }}
+        run: test -n "${ANDROID_OMDS_READ_TOKEN}"
+
+      - name: Checkout repository-pinned OMDS dependency
+        id: checkout_omds
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.ANDROID_OMDS_READ_TOKEN }}
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter from .fvmrc
+        id: flutter
+        uses: ./.github/actions/setup-flutter
+
+      - name: Verify checkout and resolve locked dependencies
+        env:
+          REVIEWED_SHA: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${REVIEWED_SHA}" ]]
+          if git config --local --get-regexp \
+            '^(http\..*\.extraheader|credential\.)' >/dev/null 2>&1; then
+            echo '::error::Checkout credentials remained persisted.'
+            exit 1
+          fi
+          echo '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  android/gradle/wrapper/gradle-wrapper.jar' | \
+            sha256sum --check --strict
+          flutter pub get --enforce-lockfile
+          bash tool/check_firebase_core_pin.sh
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: Build, inspect, and record signed AAB
+        id: build_android
+        env:
+          REVIEWED_SHA: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          OMDS_SHA: ${{ steps.checkout_omds.outputs.revision }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_CERT_SHA1: ${{ secrets.ANDROID_UPLOAD_CERT_SHA1 }}
+          ANDROID_UPLOAD_CERT_SHA256: ${{ secrets.ANDROID_UPLOAD_CERT_SHA256 }}
+          ANDROID_GOOGLE_SERVICES_JSON_B64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_B64 }}
+          ANDROID_FIREBASE_EXPECTED_APP_ID: ${{ secrets.ANDROID_FIREBASE_EXPECTED_APP_ID }}
+          ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
+          ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
+          MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          required=(
+            ANDROID_KEYSTORE_B64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+            ANDROID_STORE_PASSWORD ANDROID_UPLOAD_CERT_SHA1
+            ANDROID_UPLOAD_CERT_SHA256 ANDROID_GOOGLE_SERVICES_JSON_B64
+            ANDROID_FIREBASE_EXPECTED_APP_ID
+            ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID
+            ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID MAPS_API_KEY
+          )
+          for variable in "${required[@]}"; do
+            [[ -n "${!variable:-}" ]] || {
+              echo "::error::Required Android protected input is absent: ${variable}"
+              exit 1
+            }
+          done
+          tmp_dir="$(mktemp -d)"
+          keystore="${tmp_dir}/upload.p12"
+          properties="${GITHUB_WORKSPACE}/android/key.properties"
+          [[ ! -e "${properties}" ]]
+          cleanup() {
+            rm -f -- "${properties}"
+            rm -rf -- "${tmp_dir}"
+          }
+          trap cleanup EXIT HUP INT TERM
+          printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode >"${keystore}"
+          unset ANDROID_KEYSTORE_B64
+          chmod 0600 "${keystore}"
+          printf '%s\n' \
+            "keyAlias=${ANDROID_KEY_ALIAS}" \
+            "keyPassword=${ANDROID_KEY_PASSWORD}" \
+            "storeFile=${keystore}" \
+            "storePassword=${ANDROID_STORE_PASSWORD}" \
+            >"${properties}"
+          chmod 0600 "${properties}"
+          keytool_output="$(keytool -list -v -keystore "${keystore}" \
+            -storepass:env ANDROID_STORE_PASSWORD -alias "${ANDROID_KEY_ALIAS}")"
+          actual_sha1="$(printf '%s\n' "${keytool_output}" |
+            sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
+          actual_sha256="$(printf '%s\n' "${keytool_output}" |
+            sed -n 's/^[[:space:]]*SHA256: //p' | head -1)"
+          unset keytool_output
+          normalize() {
+            printf '%s' "$1" | tr -d ':' | tr '[:lower:]' '[:upper:]'
+          }
+          [[ "$(normalize "${actual_sha1}")" == \
+            "$(normalize "${ANDROID_UPLOAD_CERT_SHA1}")" ]]
+          [[ "$(normalize "${actual_sha256}")" == \
+            "$(normalize "${ANDROID_UPLOAD_CERT_SHA256}")" ]]
+          rm -f -- build/app/outputs/bundle/productionRelease/*.aab
+          ANDROID_GOOGLE_SERVICES_JSON_B64="${ANDROID_GOOGLE_SERVICES_JSON_B64}" \
+            bash tool/run_with_android_firebase_config.sh \
+              flutter build appbundle --flavor production --release --no-pub \
+                --build-name="${BUILD_NAME}" \
+                --build-number="${BUILD_NUMBER}" \
+                --dart-define=APP_FLAVOR=staging \
+                --dart-define=JEEB_CLARITY_ENABLED=false \
+                --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+                --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
+                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
+          aab_count="$(find build/app/outputs/bundle -type f -name '*.aab' |
+            wc -l | tr -d '[:space:]')"
+          [[ "${aab_count}" == 1 ]]
+          aab_path="$(find build/app/outputs/bundle -type f -name '*.aab' \
+            -print -quit)"
+          test -s "${aab_path}"
+          metadata_path="$(find build/app/outputs/bundle -type f \
+            -name output-metadata.json -print -quit)"
+          test -s "${metadata_path}"
+          jq -e \
+            --arg build_name "${BUILD_NAME}" \
+            --argjson build_number "${BUILD_NUMBER}" '
+              (.elements | length) == 1
+              and .elements[0].versionName == $build_name
+              and .elements[0].versionCode == $build_number
+            ' "${metadata_path}" >/dev/null
+          test ! -e android/app/google-services.json
+          unzip -tqq "${aab_path}"
+          jarsigner -verify -strict -verbose -certs "${aab_path}" \
+            >"${tmp_dir}/jarsigner.txt" 2>&1
+          grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt"
+          jar_cert="$(keytool -printcert -jarfile "${aab_path}")"
+          artifact_sha1="$(printf '%s\n' "${jar_cert}" |
+            sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
+          artifact_sha256="$(printf '%s\n' "${jar_cert}" |
+            sed -n 's/^[[:space:]]*SHA256: //p' | head -1)"
+          unset jar_cert
+          [[ "$(normalize "${artifact_sha1}")" == \
+            "$(normalize "${actual_sha1}")" ]]
+          [[ "$(normalize "${artifact_sha256}")" == \
+            "$(normalize "${actual_sha256}")" ]]
+          unzip -p "${aab_path}" base/manifest/AndroidManifest.xml \
+            >"${tmp_dir}/AndroidManifest.pb"
+          LC_ALL=C grep -aFq 'com.olivium.jeeb' \
+            "${tmp_dir}/AndroidManifest.pb"
+          LC_ALL=C grep -aFq 'app.jeeb.fds-1.com' \
+            "${tmp_dir}/AndroidManifest.pb"
+          unzip -p "${aab_path}" base/resources.pb >"${tmp_dir}/resources.pb"
+          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
+            "${tmp_dir}/resources.pb"
+          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/resources.pb"
+          app_binary="$(unzip -Z1 "${aab_path}" |
+            awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print; exit}')"
+          [[ -n "${app_binary}" ]]
+          unzip -p "${aab_path}" "${app_binary}" >"${tmp_dir}/libapp.so"
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+            bash tool/inspect_android_release_payload.sh \
+              "${tmp_dir}/AndroidManifest.pb" \
+              "${tmp_dir}/resources.pb" \
+              "${tmp_dir}/libapp.so" \
+              "${STAGING_GATEWAY_URL}" \
+              "${STAGING_REALTIME_SOCKET_URL}"
+          mapping_path='build/app/outputs/mapping/productionRelease/mapping.txt'
+          test -s "${mapping_path}"
+          artifact_sha="$(sha256sum "${aab_path}" | cut -d ' ' -f1)"
+          mapping_sha="$(sha256sum "${mapping_path}" | cut -d ' ' -f1)"
+          mkdir -p build/provenance
+          jq -n \
+            --arg platform android \
+            --arg reviewed_sha "${REVIEWED_SHA}" \
+            --arg dependency_sha "${OMDS_SHA}" \
+            --arg build_name "${BUILD_NAME}" \
+            --arg build_number "${BUILD_NUMBER}" \
+            --arg runtime staging \
+            --arg native_id com.olivium.jeeb \
+            --arg artifact_sha256 "${artifact_sha}" \
+            --arg mapping_sha256 "${mapping_sha}" \
+            --arg upload_sha1 "${actual_sha1}" \
+            --arg upload_sha256 "${actual_sha256}" \
+            --arg play_sha1 "${PLAY_APP_SIGNING_SHA1}" \
+            --arg play_sha256 "${PLAY_APP_SIGNING_SHA256}" \
+            --arg source_run_id "${GITHUB_RUN_ID}" \
+            --arg source_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg source_head_sha "${GITHUB_SHA}" \
+            --arg source_workflow_path '.github/workflows/trusted-mobile-rc.yml' \
+            --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            '{platform, reviewed_sha, dependency_sha, build_name, build_number,
+              runtime, native_id, artifact_sha256, mapping_sha256,
+              upload_sha1, upload_sha256, play_sha1, play_sha256,
+              source_run_id, source_run_attempt, source_head_sha,
+              source_workflow_path, source_workflow_ref,
+              clarity_enabled: false,
+              retained: true, store_uploaded: false}' \
+            >build/provenance/android-rc.json
+          chmod 0600 build/provenance/android-rc.json
+          retained_dir='build/retained/android'
+          retained_aab="${retained_dir}/jeeb-${BUILD_NAME}+${BUILD_NUMBER}.aab"
+          retained_provenance="${retained_dir}/provenance.json"
+          retained_mapping="${retained_dir}/mapping.txt"
+          mkdir -p "${retained_dir}"
+          install -m 0600 "${aab_path}" "${retained_aab}"
+          install -m 0600 "${mapping_path}" "${retained_mapping}"
+          install -m 0600 build/provenance/android-rc.json \
+            "${retained_provenance}"
+          [[ "$(sha256sum "${retained_aab}" | cut -d ' ' -f1)" == \
+            "${artifact_sha}" ]]
+          {
+            printf 'artifact_path=%s\n' "${retained_aab}"
+            printf 'provenance_path=%s\n' "${retained_provenance}"
+            printf 'mapping_path=%s\n' "${retained_mapping}"
+          } >>"${GITHUB_OUTPUT}"
+          {
+            echo '### Android RC provenance'
+            echo "- Reviewed commit: \`${REVIEWED_SHA}\`"
+            echo "- OMDS commit: \`${OMDS_SHA}\`"
+            echo "- Version: \`${BUILD_NAME}+${BUILD_NUMBER}\`"
+            echo "- AAB SHA-256: \`${artifact_sha}\`"
+            echo "- R8 mapping SHA-256: \`${mapping_sha}\`"
+            echo "- Native identity: \`com.olivium.jeeb\`; runtime: \`staging\`"
+            echo '- Store upload: disabled; exact signed bytes retained for 7 days'
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain exact signed Android candidate and provenance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-rc-android-${{ inputs.build_number }}-${{ needs.policy-preflight.outputs.reviewed_sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ steps.build_android.outputs.artifact_path }}
+            ${{ steps.build_android.outputs.provenance_path }}
+            ${{ steps.build_android.outputs.mapping_path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  ios-candidate:
+    name: Signed production IPA (staging runtime)
+    needs: policy-preflight
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: mobile-rc
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      XCODE_PATH: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Checkout exact reviewed commit without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require protected iOS dependency credential
+        env:
+          IOS_OMDS_READ_TOKEN: ${{ secrets.IOS_OMDS_READ_TOKEN }}
+        run: test -n "${IOS_OMDS_READ_TOKEN}"
+
+      - name: Checkout repository-pinned OMDS dependency
+        id: checkout_omds
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.IOS_OMDS_READ_TOKEN }}
+
+      - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
+        run: |
+          set -euo pipefail
+          test -d "${XCODE_PATH}"
+          sudo xcode-select --switch "${XCODE_PATH}"
+          xcodebuild -version | grep -Fxq 'Xcode 26.6'
+          xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\.[0-9]+'
+          xcrun --sdk iphoneos --show-sdk-version | grep -Eq '^26\.[0-9]+'
+
+      - name: Set up Flutter from .fvmrc
+        id: flutter
+        uses: ./.github/actions/setup-flutter
+
+      - name: Verify checkout and resolve locked dependencies
+        env:
+          REVIEWED_SHA: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${REVIEWED_SHA}" ]]
+          if git config --local --get-regexp \
+            '^(http\..*\.extraheader|credential\.)' >/dev/null 2>&1; then
+            echo '::error::Checkout credentials remained persisted.'
+            exit 1
+          fi
+          flutter pub get --enforce-lockfile
+          bash tool/check_firebase_core_pin.sh
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: Resolve locked native dependencies
+        run: |
+          set -euo pipefail
+          cd ios
+          pod install --deployment
+          cd ..
+          bash tool/check_ios_dependency_ownership.sh
+
+      - name: Build, inspect, and record signed IPA
+        id: build_ios
+        env:
+          REVIEWED_SHA: ${{ needs.policy-preflight.outputs.reviewed_sha }}
+          IOS_BUILD_NAME: ${{ inputs.build_name }}
+          IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+          OMDS_SHA: ${{ steps.checkout_omds.outputs.revision }}
+          IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+          IOS_FIREBASE_EXPECTED_APP_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_APP_ID }}
+          IOS_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_CLIENT_ID }}
+          IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
+          IOS_GOOGLE_MAPS_API_KEY: ${{ secrets.IOS_GOOGLE_MAPS_API_KEY }}
+          IOS_DISTRIBUTION_CERT_P12_B64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_B64 }}
+          IOS_DISTRIBUTION_CERT_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_PASSWORD }}
+          IOS_DISTRIBUTION_CERT_SHA256: ${{ secrets.IOS_DISTRIBUTION_CERT_SHA256 }}
+          IOS_PROVISIONING_PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          required=(
+            IOS_GOOGLE_SERVICE_INFO_PLIST_B64 IOS_FIREBASE_EXPECTED_APP_ID
+            IOS_FIREBASE_EXPECTED_CLIENT_ID
+            IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID IOS_GOOGLE_MAPS_API_KEY
+            IOS_DISTRIBUTION_CERT_P12_B64
+            IOS_DISTRIBUTION_CERT_P12_PASSWORD IOS_DISTRIBUTION_CERT_SHA256
+            IOS_PROVISIONING_PROFILE_B64
+          )
+          for variable in "${required[@]}"; do
+            [[ -n "${!variable:-}" ]] || {
+              echo "::error::Required iOS protected input is absent: ${variable}"
+              exit 1
+            }
+          done
+          tmp_dir="$(mktemp -d)"
+          keychain_path="${tmp_dir}/mobile-rc.keychain-db"
+          profile_path=''
+          cleanup() {
+            security delete-keychain "${keychain_path}" >/dev/null 2>&1 || true
+            if [[ -n "${profile_path}" ]]; then
+              rm -f -- "${profile_path}"
+            fi
+            rm -rf -- "${tmp_dir}"
+          }
+          trap cleanup EXIT HUP INT TERM
+          decode_base64() {
+            local value="$1"
+            local destination="$2"
+            if printf '%s' "${value}" | base64 --decode \
+              >"${destination}" 2>/dev/null; then
+              return
+            fi
+            printf '%s' "${value}" | base64 -D >"${destination}"
+          }
+          firebase_plist="${tmp_dir}/GoogleService-Info.plist"
+          maps_key_file="${tmp_dir}/maps-api-key"
+          certificate_p12="${tmp_dir}/distribution.p12"
+          certificate_pem="${tmp_dir}/distribution.pem"
+          certificate_der="${tmp_dir}/distribution.der"
+          provisioning_profile="${tmp_dir}/profile.mobileprovision"
+          profile_plist="${tmp_dir}/profile.plist"
+          export_options="${tmp_dir}/ExportOptions.plist"
+          decode_base64 "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64}" "${firebase_plist}"
+          decode_base64 "${IOS_DISTRIBUTION_CERT_P12_B64}" "${certificate_p12}"
+          decode_base64 "${IOS_PROVISIONING_PROFILE_B64}" "${provisioning_profile}"
+          printf '%s\n' "${IOS_GOOGLE_MAPS_API_KEY}" >"${maps_key_file}"
+          unset IOS_GOOGLE_SERVICE_INFO_PLIST_B64
+          unset IOS_DISTRIBUTION_CERT_P12_B64 IOS_PROVISIONING_PROFILE_B64
+          unset IOS_GOOGLE_MAPS_API_KEY
+          chmod 0600 "${firebase_plist}" "${maps_key_file}" \
+            "${certificate_p12}" "${provisioning_profile}"
+          IOS_GOOGLE_SERVICE_INFO_PLIST_PATH="${firebase_plist}" \
+            bash tool/validate_ios_google_service_info.sh "${firebase_plist}"
+          bash tool/validate_ios_maps_api_key.sh "${maps_key_file}"
+          openssl pkcs12 -in "${certificate_p12}" -clcerts -nokeys \
+            -passin env:IOS_DISTRIBUTION_CERT_P12_PASSWORD \
+            -out "${certificate_pem}" >/dev/null 2>&1
+          openssl x509 -in "${certificate_pem}" -outform DER \
+            -out "${certificate_der}"
+          actual_cert_sha256="$(shasum -a 256 "${certificate_der}" |
+            cut -d ' ' -f1 | tr '[:lower:]' '[:upper:]')"
+          expected_cert_sha256="$(printf '%s' "${IOS_DISTRIBUTION_CERT_SHA256}" |
+            tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          [[ "${actual_cert_sha256}" == "${expected_cert_sha256}" ]]
+          security cms -D -i "${provisioning_profile}" \
+            >"${profile_plist}" 2>/dev/null
+          profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' \
+            "${profile_plist}")"
+          [[ "${profile_uuid}" =~ \
+            ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]]
+          profile_app_id="$(/usr/libexec/PlistBuddy -c \
+            'Print :Entitlements:application-identifier' "${profile_plist}")"
+          [[ "${profile_app_id}" == K5RDQ8J7AN.com.olivium.jeeb ]]
+          plutil -create xml1 "${export_options}"
+          /usr/libexec/PlistBuddy -c 'Add :destination string export' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c \
+            'Add :manageAppVersionAndBuildNumber bool false' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c \
+            'Add :method string app-store-connect' "${export_options}"
+          /usr/libexec/PlistBuddy -c \
+            'Add :signingCertificate string Apple Distribution' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c 'Add :signingStyle string manual' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c 'Add :teamID string K5RDQ8J7AN' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c \
+            'Add :testFlightInternalTestingOnly bool true' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c 'Add :uploadSymbols bool false' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' \
+            "${export_options}"
+          /usr/libexec/PlistBuddy -c \
+            "Add :provisioningProfiles:com.olivium.jeeb string ${profile_uuid}" \
+            "${export_options}"
+          chmod 0600 "${export_options}"
+          python3 - "${profile_plist}" <<'PY'
+          import datetime
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], "rb") as handle:
+              profile = plistlib.load(handle)
+          expires = profile.get("ExpirationDate")
+          if not isinstance(expires, datetime.datetime):
+              raise SystemExit("Provisioning profile expiration is missing")
+          now = datetime.datetime.now(datetime.timezone.utc)
+          if expires.replace(tzinfo=datetime.timezone.utc) <= now:
+              raise SystemExit("Provisioning profile is expired")
+          PY
+          profile_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "${profile_dir}"
+          profile_path="${profile_dir}/${profile_uuid}.mobileprovision"
+          install -m 0600 "${provisioning_profile}" "${profile_path}"
+          keychain_password="$(openssl rand -hex 32)"
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 7200 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_p12}" -k "${keychain_path}" \
+            -P "${IOS_DISTRIBUTION_CERT_P12_PASSWORD}" \
+            -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "${keychain_password}" "${keychain_path}" >/dev/null
+          security list-keychains -d user -s "${keychain_path}"
+          IOS_GOOGLE_SERVICE_INFO_PLIST_PATH="${firebase_plist}" \
+          IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key_file}" \
+          GATEWAY_BASE_URL="${STAGING_GATEWAY_URL}" \
+          JEEB_REALTIME_SOCKET_URL="${STAGING_REALTIME_SOCKET_URL}" \
+          IOS_EXPORT_OPTIONS_PATH="${export_options}" \
+          IOS_PROVISIONING_PROFILE_SPECIFIER="${profile_uuid}" \
+          IOS_SIGNING_CERTIFICATE='Apple Distribution' \
+            bash tool/build_signed_ios_internal_candidate.sh
+          ipa_count="$(find build/ios -type f -name '*.ipa' |
+            wc -l | tr -d '[:space:]')"
+          [[ "${ipa_count}" == 1 ]]
+          ipa_path="$(find build/ios -type f -name '*.ipa' -print -quit)"
+          test -s "${ipa_path}"
+          test ! -e ios/Runner/GoogleService-Info.plist
+          test ! -e ios/Flutter/ProtectedFirebase.xcconfig
+          dsym_root="build/ios/archive/Jeeb-${IOS_BUILD_NUMBER}.xcarchive/dSYMs"
+          test -d "${dsym_root}"
+          [[ "$(find "${dsym_root}" -type d -name '*.dSYM' | wc -l | tr -d ' ')" -ge 1 ]]
+          dsym_archive="${tmp_dir}/Jeeb-${IOS_BUILD_NUMBER}-dSYMs.zip"
+          ditto -c -k --keepParent "${dsym_root}" "${dsym_archive}"
+          test -s "${dsym_archive}"
+          artifact_sha="$(shasum -a 256 "${ipa_path}" | cut -d ' ' -f1)"
+          dsym_sha="$(shasum -a 256 "${dsym_archive}" | cut -d ' ' -f1)"
+          mkdir -p build/provenance
+          jq -n \
+            --arg platform ios \
+            --arg reviewed_sha "${REVIEWED_SHA}" \
+            --arg dependency_sha "${OMDS_SHA}" \
+            --arg build_name "${IOS_BUILD_NAME}" \
+            --arg build_number "${IOS_BUILD_NUMBER}" \
+            --arg runtime staging \
+            --arg native_id com.olivium.jeeb \
+            --arg artifact_sha256 "${artifact_sha}" \
+            --arg dsym_sha256 "${dsym_sha}" \
+            --arg source_run_id "${GITHUB_RUN_ID}" \
+            --arg source_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg source_head_sha "${GITHUB_SHA}" \
+            --arg source_workflow_path '.github/workflows/trusted-mobile-rc.yml' \
+            --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            '{platform, reviewed_sha, dependency_sha, build_name, build_number,
+              runtime, native_id, artifact_sha256, dsym_sha256, source_run_id,
+              source_run_attempt, source_head_sha, source_workflow_path,
+              source_workflow_ref, clarity_enabled: false,
+              retained: true, store_uploaded: false}' \
+            >build/provenance/ios-rc.json
+          chmod 0600 build/provenance/ios-rc.json
+          retained_dir='build/retained/ios'
+          retained_ipa="${retained_dir}/jeeb-${IOS_BUILD_NAME}+${IOS_BUILD_NUMBER}.ipa"
+          retained_provenance="${retained_dir}/provenance.json"
+          retained_dsym="${retained_dir}/Jeeb-${IOS_BUILD_NUMBER}-dSYMs.zip"
+          mkdir -p "${retained_dir}"
+          install -m 0600 "${ipa_path}" "${retained_ipa}"
+          install -m 0600 "${dsym_archive}" "${retained_dsym}"
+          install -m 0600 build/provenance/ios-rc.json \
+            "${retained_provenance}"
+          [[ "$(shasum -a 256 "${retained_ipa}" | cut -d ' ' -f1)" == \
+            "${artifact_sha}" ]]
+          {
+            printf 'artifact_path=%s\n' "${retained_ipa}"
+            printf 'provenance_path=%s\n' "${retained_provenance}"
+            printf 'dsym_path=%s\n' "${retained_dsym}"
+          } >>"${GITHUB_OUTPUT}"
+          {
+            echo '### iOS RC provenance'
+            echo "- Reviewed commit: \`${REVIEWED_SHA}\`"
+            echo "- OMDS commit: \`${OMDS_SHA}\`"
+            echo "- Version: \`${IOS_BUILD_NAME}+${IOS_BUILD_NUMBER}\`"
+            echo "- IPA SHA-256: \`${artifact_sha}\`"
+            echo "- dSYM archive SHA-256: \`${dsym_sha}\`"
+            echo "- Native identity: \`com.olivium.jeeb\`; runtime: \`staging\`"
+            echo '- Store upload: disabled; exact signed bytes retained for 7 days'
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain exact signed iOS candidate and provenance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-rc-ios-${{ inputs.build_number }}-${{ needs.policy-preflight.outputs.reviewed_sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ steps.build_ios.outputs.artifact_path }}
+            ${{ steps.build_ios.outputs.provenance_path }}
+            ${{ steps.build_ios.outputs.dsym_path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

@@ -1,4 +1,4 @@
-package app.jeeb.mobile
+package com.olivium.jeeb
 
 import android.content.Context
 import android.content.Intent
@@ -19,10 +19,10 @@ import java.io.File
 // runtime. FlutterFragmentActivity is a drop-in replacement that keeps the same
 // configureFlutterEngine / getInitialRoute / onCreate seam wiring below intact.
 class MainActivity : FlutterFragmentActivity() {
-    private val seamChannelName = "app.jeeb.mobile/dev_seam"
+    private val seamChannelName = "com.olivium.jeeb/dev_seam"
 
     // Samsung app-sleep silently drops FCM while the app is battery-restricted.
-    private val powerChannelName = "app.jeeb.mobile/power"
+    private val powerChannelName = "com.olivium.jeeb/power"
 
     // Debug-only seam keys read from `adb shell am start … -e <key> <value>`.
     private val seamKeys = listOf(
@@ -55,15 +55,6 @@ class MainActivity : FlutterFragmentActivity() {
         "jeeb.seam.recovery_code",
         "jeeb.seam.recovery_countdown_expired",
         "jeeb.seam.set_password_mode",
-        // super-login+ seam (QA-only, kDebugMode-gated on the Dart side): the real
-        // minted gateway JWT + its user/role, injected at launch. Without these in
-        // the allowlist readSeamExtras() dropped them, so the documented
-        // `am start -e jeeb.seam.super_login_token <JWT>` path silently landed on
-        // /login (only the /data/local/tmp/jeeb-dev-seam.json file source worked).
-        "jeeb.seam.super_login_token",
-        "jeeb.seam.super_login_refresh",
-        "jeeb.seam.super_login_user_id",
-        "jeeb.seam.super_login_role",
     )
 
     // `adb push jeeb-dev-seam.json /data/local/tmp/jeeb-dev-seam.json`.
@@ -75,18 +66,6 @@ class MainActivity : FlutterFragmentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
         super.onCreate(savedInstanceState)
-    }
-
-    // Jeeber Dev Tool launcher routing: when this activity was started via the
-    // `.DevToolLauncher` activity-alias (the Dev Tool icon), hand Flutter the
-    // "/devtool" initial route so lib/main.dart boots the Dev Tool shell instead
-    // of the product app. Any other launch (the normal app icon, a deep link)
-    // falls through to the default FlutterActivity behaviour.
-    override fun getInitialRoute(): String? {
-        if (componentName?.className == "app.jeeb.mobile.DevToolLauncher") {
-            return "/devtool"
-        }
-        return super.getInitialRoute()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

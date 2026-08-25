@@ -436,6 +436,7 @@ final CatalogEntry _kycRejectedEntry = CatalogEntry(
     CatalogState(
       'Status read failed',
       (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.failing()),
+      capturePolicy: CatalogCapturePolicy.navigationOnly,
     ),
     CatalogState(
       'Status read in flight',

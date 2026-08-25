@@ -25,17 +25,16 @@ already caused a real incident — see the SHA cited per rule.
 
 | File | Tracked? | Why |
 |---|---|---|
-| `android/app/google-services.json` (prod/staging flavor) | **YES** | Firebase *client* config is public by design (it's shipped inside the APK anyway) — there is no secret in it. |
-| `android/app/src/dev/google-services.json` | **YES** | Same reasoning; dev flavor ships two clients (`app.jeeb.mobile` + `app.jeeb.mobile.dev`), same project. |
+| `android/app/google-services.json` (production/staging) | **NO — protected injection** | The release wrapper validates project, canonical package `com.olivium.jeeb`, app ID, signer-bound OAuth client, file mode, and cleanup before building. |
+| `android/app/src/dev/google-services.json` | **NO — protected injection** | The dev wrapper validates the existing `app.jeeb.mobile.dev` registration and removes the mode-0600 file on success or failure. |
 | `*.template` files (both flavors) | YES | Reference/onboarding copies with `TODO_*` sentinels. |
 | `pubspec.lock` | **YES** | Pins the resolved Firebase package graph (firebase_core/auth/messaging/cloud_firestore/crashlytics + all `*_platform_interface`/`*_web` transitives) so a fresh `pub get` can't silently re-roll into the pigeon-poison range (§3). Mirrors `ios/Podfile.lock`, which has always been tracked. |
-| `ios/Runner/GoogleService-Info.plist` | **NO — stays gitignored** | Not injected by any pipeline today; iOS dev builds exclude it entirely (`EXCLUDED_SOURCE_FILE_NAMES` in the `-dev` Xcode configs) by design. This is the one legitimate untracked Firebase file. |
-| `lib/core/firebase/firebase_options.dart` | **DELETED** | Dead placeholder (`DefaultFirebaseOptions.currentPlatform` always threw). Zero references repo-wide — no call site ever used it. All three real `Firebase.initializeApp()` sites are optionless and native-config-driven (see §5). Its `.gitignore` entry for the never-generated `firebase_options.g.dart` is removed too. |
+| `ios/Runner/GoogleService-Info.plist` | **NO — protected injection** | The iOS wrapper validates canonical bundle/project identity and removes the file after compile/archive, including failure paths. |
+| `lib/core/firebase/firebase_options.dart` | **DELETED** | Dead placeholder (`DefaultFirebaseOptions.currentPlatform` always threw). Zero references repo-wide; native config drives initialization (see §5). |
 
-**`.gitignore` must never re-ignore `google-services.json` (either flavor) or
-`pubspec.lock`.** If you find either re-added to `.gitignore`, that is a
-regression of the historical failure mode below — revert it, don't "fix" the
-ignore rule.
+**All three real native configs must be gitignored, untracked, and absent when
+their wrapper is not active. `pubspec.lock` must remain tracked and unignored.**
+Templates document shape only; they are not accepted as build inputs.
 
 **Root cause M1 — gitignored-but-required config, 7 confirmed incidents**
 (`68600da8`+`95b1736d` 06-22 same-day contradiction, `ed1f00c4` 06-30 force-track,
@@ -43,21 +42,17 @@ ignore rule.
 sits unmerged for 4 weeks, `7184c551`/`7c4c139c`/`23cb37b8` 07-21 identical fix
 landed independently 3× by parallel lanes, `963cdae6` 08-05, `b22aff78` 08-15
 reinstates the dead 4-week-stale regime wholesale on merge). The mechanism is
-always the same: a required file gets gitignored (or a branch that gitignores
-it survives long enough to get merged later), then something destructive —
-**`git clean -X`/`-x`, an rsync `--exclude`, or template regeneration**
-— deletes the "ignored" file that a build actually needs, and the break isn't
-caught because nothing enforces "this file must be tracked." `b22aff78` is the
-clearest single incident: a merge-all sweep reinstated the gitignored-dev-json
-regime *and* landed two permanently-red contract tests in the same commit
-(root cause M2, see §4). If you are ever tempted to gitignore a Firebase
-config file "to keep it out of git", read the incident list above first.
+always involved an implicit local file with no supported reconstruction path.
+The current policy closes that mechanism: builds fail closed without protected
+input, wrappers validate before use, cleanup is trapped, and source tests prove
+the real files remain absent/untracked/ignored. Never restore a skip-worktree
+overlay or direct shell redirection as a substitute for the wrappers.
 
 ## 3. Dependency envelope
 
 ```
 firebase_core        >=3.13.1 <3.15.0   (resolved 3.14.0)
-firebase_auth        5.4.2 EXACT        (resolved 5.4.2)
+firebase_auth        5.6.0 EXACT        (resolved 5.6.0)
 firebase_messaging    ^15.1.3           (resolved 15.2.7)
 cloud_firestore       ^5.6.5            (resolved 5.6.9)
 firebase_crashlytics  ^4.1.3            (resolved 4.3.7)
@@ -74,14 +69,12 @@ build machine and not another" per the fix commit. The range `>=3.13.1
 <3.15.0` is the fix and is not negotiable; do not widen it to `^3.x` or bump
 past 3.15.0 without re-deriving this whole analysis.
 
-**Why 3.15.2+ is also blocked, not just 3.15.0/3.15.1:** 3.15.2+ requires
-`platform_interface ^6.0.0` outright, which is incompatible with the
-`firebase_auth 5.4.2` **exact** pin — that pin exists because `ios/Podfile`
-pins native `FirebaseSDKVersion = '11.4.0'` (plus two forced pod pins,
-`FirebaseCoreInternal`/`FirebaseSharedSwift` at 11.4.0, to stop transitive
-float to 11.15.0 which needs Xcode 16/Swift 6). Moving `firebase_auth` past
-5.4.2 means moving the native floor past 11.4.0, which is a coordinated
-Dart+native+Podfile change, not a one-line bump. `firebase_messaging`,
+**Why 3.15.2+ is also blocked, not just 3.15.0/3.15.1:** the currently tested
+FlutterFire bill of materials is the 3.14.0 generation, including exact
+`firebase_auth 5.6.0`, and the protected unsigned/signed iOS release gates
+resolve it successfully through the tracked SwiftPM/CocoaPods graph. Moving
+past this family is a coordinated Dart+native+lockfile change, not a one-line
+bump. `firebase_messaging`,
 `cloud_firestore`, and `firebase_crashlytics` stay on open caret ranges
 deliberately — over-pinning them blocks legitimate patches with no
 documented native-floor-per-version map to justify it — but any resolve
@@ -124,15 +117,11 @@ The config-file invariants in §2 are separately asserted by
 `gateway_chat_firebase_token_minter_test`, which guard *chat identity* and have
 nothing to do with the doctor.)
 
-**Alarm-fatigue guard (root cause M2):** a guard that is permanently red
-teaches everyone to ignore it, and real drift ships unnoticed underneath the
-noise — that is exactly how M1 incident #19 (`b22aff78`) landed: two
-contract tests asserting a CI secret-injection pipeline
-(`DEV_GOOGLE_SERVICES_JSON_B64`) that was never built, both deterministically
-red from the moment they were added. Every guard in this doc is required to
-be green against the tree as committed. If you add a guard and it can't pass
-today, it does not belong in this contract — fix the tree first, or don't
-add the guard yet.
+**Alarm-fatigue guard (root cause M2):** a guard that is permanently red teaches
+everyone to ignore it. The protected dev pipeline is now implemented through
+`tool/run_with_dev_firebase_config.sh`; CI must call that wrapper and must not
+write the payload directly. Every guard in this document is required to be
+green against the committed tree.
 
 ## 5. Runtime
 
@@ -182,10 +171,10 @@ a 0% observed rate, so any hit is worth investigating immediately.
 
 ## 6. Known gaps (gaps, not bugs — do not "fix" these without an owner decision)
 
-- **Staging flavor has no Firebase client entry** in any `google-services.json`
-  (`applicationIdSuffix ".staging"`, `android/app/build.gradle:105-107`).
-  Latent: no staging build has ever run on hardware, so this has never been
-  exercised. If someone builds staging, expect init to fail or mismatch.
+- **Staging and production share the permanent native identity**
+  `com.olivium.jeeb`; staging is selected through runtime defines, not a package
+  suffix. Protected configuration and source gates are green, while real
+  store-installed Firebase/FCM behavior remains an explicit acceptance gate.
 - **iOS dev builds ship with no Firebase at all**, by design — the `-dev`
   Xcode configs (`Release-dev`/`Debug-dev`/`Profile-dev`) exclude
   `GoogleService-Info.plist` via `EXCLUDED_SOURCE_FILE_NAMES`. This is
@@ -197,14 +186,10 @@ a 0% observed rate, so any hit is worth investigating immediately.
   found no evidence of double-firing — the risk this gap represents is
   **duplicate pushes, not lost pushes**. Don't treat a user report of "I got
   two notifications" as a registration bug; check this producer first.
-- **CI is disabled fleet-wide** (`ci.yml`, `flutter-ci.yml`, `mobile-ci.yml`
-  all `disabled_manually`; only `fail-closed-deploy-policy.yml` is active,
-  and it runs exactly one step, `check_fail_closed_deployment.py` — it does
-  **not** run `tool/check_firebase_core_pin.sh` or anything Firebase-related).
-  That means **local `flutter test` is the real gate** for everything in
-  this document until GitHub Actions is re-enabled (owner-gated, Phase P).
-  Don't assume a green PR means these workflows checked anything — they
-  didn't run.
+- **CI is enabled for pull requests and main.** Source tests and dependency
+  guards run without provider files; the secret-dependent dev APK build runs
+  only after a main push through the protected wrapper. A green PR remains
+  source evidence, not proof of real Firebase delivery on a store build.
 
 ## 7. If push is broken, do this in order
 

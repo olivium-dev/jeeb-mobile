@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../session/auth_loss_signals.dart';
 import 'auth_token_store.dart';
 
 class BearerAuthInterceptor extends Interceptor {
@@ -18,8 +19,7 @@ class BearerAuthInterceptor extends Interceptor {
         if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
         }
-      } catch (_) {
-      }
+      } catch (_) {}
     }
     handler.next(options);
   }
@@ -34,10 +34,10 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     // expiry. Preconditions in docs/adr/0002-v1-unversioned-compat-window.md.
     this.refreshPath = '/v1/auth/refresh',
     Future<void> Function()? onUnauthenticated,
-  })  : _retryClient = retryClient,
-        _refreshClient = refreshClient,
-        _tokenStore = tokenStore,
-        _onUnauthenticated = onUnauthenticated;
+  }) : _retryClient = retryClient,
+       _refreshClient = refreshClient,
+       _tokenStore = tokenStore,
+       _onUnauthenticated = onUnauthenticated;
 
   final Dio _retryClient;
   final Dio _refreshClient;
@@ -82,10 +82,12 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     }
 
     final body = refreshResponse.data;
-    final newAccess =
-        body is Map<String, dynamic> ? body['accessToken'] as String? : null;
-    final newRefresh =
-        body is Map<String, dynamic> ? body['refreshToken'] as String? : null;
+    final newAccess = body is Map<String, dynamic>
+        ? body['accessToken'] as String?
+        : null;
+    final newRefresh = body is Map<String, dynamic>
+        ? body['refreshToken'] as String?
+        : null;
     if (newAccess == null || newAccess.isEmpty) {
       await _logout();
       handler.next(err);
@@ -107,6 +109,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
       final retried = await _retryClient.fetch<dynamic>(options);
       handler.resolve(retried);
     } on DioException catch (retryErr) {
+      if (retryErr.response?.statusCode == 401) await _logout();
       handler.next(retryErr);
     }
   }
@@ -114,15 +117,14 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
   Future<void> _logout() async {
     try {
       await _tokenStore.clear();
-    } catch (_) {
-    }
+    } catch (_) {}
     final cb = _onUnauthenticated;
     if (cb != null) {
       try {
         await cb();
-      } catch (_) {
-      }
+      } catch (_) {}
     }
+    AuthLossSignals.instance.signal();
   }
 
   Future<String?> _safeRead(Future<String?> Function() read) async {

@@ -1,13 +1,37 @@
-/// Result of broadcasting an order-chat request. [notifiedCount] drives waiting screen
-/// variant selection; screen routes via [requestId].
+/// One Jeeber considered by the canonical gateway matching run.
+class OrderMatchingCandidate {
+  const OrderMatchingCandidate({
+    required this.userId,
+    required this.vehicleType,
+    required this.distanceKm,
+    required this.rating,
+  });
+
+  final String userId;
+  final String vehicleType;
+  final double distanceKm;
+  final double rating;
+}
+
+/// Typed result of the canonical gateway `POST /matching/run` mutation.
 class OrderBroadcastResult {
   const OrderBroadcastResult({
     required this.requestId,
     this.notifiedCount = 0,
+    this.candidateCount = 0,
+    this.candidates = const [],
+    this.tierId = '',
+    this.radiusKm = 0,
+    this.elapsedMs = 0,
   });
 
   final String requestId;
   final int notifiedCount;
+  final int candidateCount;
+  final List<OrderMatchingCandidate> candidates;
+  final String tierId;
+  final double radiusKm;
+  final int elapsedMs;
 }
 
 /// Failure surface for compose→broadcast step. Screen keeps user in composer.
@@ -21,11 +45,6 @@ class OrderBroadcastException implements Exception {
 
 /// Broadcasts order-chat request to nearby Jeebers. PURE domain contract (no Dio/Flutter/GetIt).
 abstract class OrderBroadcastService {
-  /// Broadcast request behind [conversationId] (conversation id or fresh-compose request id).
-  /// [tier] + [origin] forwarded to matching (may be empty if upstream create-leg pinned them).
-  Future<OrderBroadcastResult> broadcast({
-    required String conversationId,
-    required String requestId,
-    String tier,
-  });
+  /// Runs matching once for the persisted [requestId].
+  Future<OrderBroadcastResult> broadcast({required String requestId});
 }

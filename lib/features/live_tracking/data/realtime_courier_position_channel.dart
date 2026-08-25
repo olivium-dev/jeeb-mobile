@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/realtime/realtime_socket_policy.dart';
 import '../domain/courier_position_channel.dart';
 import 'courier_position_socket.dart';
 
@@ -21,9 +22,11 @@ class DeliveryPositionChannelDescriptor {
   final String deliveryId;
   final String topic;
   final String channel;
+
   /// Load-bearing on SERVER (Throttle policy keyed by stream name).
   final String stream;
   final String token;
+
   /// Null is DEFAULT (prevents accidental loopback dial).
   final String? socketUrl;
   final DateTime? expiresAt;
@@ -36,17 +39,18 @@ class RealtimeCourierPositionChannel implements CourierPositionChannel {
     this._dio, {
     WebSocketChannel Function(Uri uri)? channelFactory,
     Duration keepAlive = kCourierPositionKeepAlive,
-  })  : _channelFactory = channelFactory,
-        _keepAlive = keepAlive;
+    RealtimeSocketPolicy socketPolicy = const RealtimeSocketPolicy(),
+  }) : _channelFactory = channelFactory,
+       _keepAlive = keepAlive,
+       _socketPolicy = socketPolicy;
 
   final Dio _dio;
   final WebSocketChannel Function(Uri uri)? _channelFactory;
   final Duration _keepAlive;
+  final RealtimeSocketPolicy _socketPolicy;
 
   @override
-  Future<Stream<CourierPositionFix>?> open({
-    required String deliveryId,
-  }) async {
+  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async {
     final descriptor = await resolve(deliveryId);
     if (descriptor == null) return null;
     final socketUri = _socketUriOf(descriptor);
@@ -93,30 +97,46 @@ class RealtimeCourierPositionChannel implements CourierPositionChannel {
     final token = data['token'] as String?;
     if (topic == null || topic.isEmpty) return null;
     if (token == null || token.isEmpty) return null;
+    final returnedId = (data['deliveryId'] ?? data['delivery_id']) as String?;
+    if (!_bindingAllowed(deliveryId, returnedId, topic)) return null;
     final channel = data['channel'] as String?;
     final stream = data['stream'] as String?;
+    if (channel != 'topic:$topic' || !_allowedStreams.contains(stream)) {
+      return null;
+    }
+    return _descriptorFrom(data, returnedId!, topic, token, channel!, stream!);
+  }
+
+  bool _bindingAllowed(String requestedId, String? returnedId, String topic) =>
+      requestedId.isNotEmpty &&
+      returnedId == requestedId &&
+      topic == 'jeeb:delivery:$requestedId';
+
+  DeliveryPositionChannelDescriptor _descriptorFrom(
+    Map<String, dynamic> data,
+    String deliveryId,
+    String topic,
+    String token,
+    String channel,
+    String stream,
+  ) {
     final socketUrl = (data['socketUrl'] ?? data['socket_url']) as String?;
     final expiresAt = (data['expiresAt'] ?? data['expires_at']) as String?;
     return DeliveryPositionChannelDescriptor(
-      deliveryId:
-          (data['deliveryId'] ?? data['delivery_id']) as String? ?? deliveryId,
+      deliveryId: deliveryId,
       topic: topic,
-      channel: (channel != null && channel.isNotEmpty) ? channel : 'topic:$topic',
-      stream: (stream != null && stream.isNotEmpty) ? stream : 'location',
+      channel: channel,
+      stream: stream,
       token: token,
       socketUrl: socketUrl,
       expiresAt: expiresAt == null ? null : DateTime.tryParse(expiresAt),
     );
   }
 
-  /// Rejects non-ws(s) scheme (deployment error).
+  /// Require encrypted transport outside the explicitly selected dev flavor.
   Uri? _socketUriOf(DeliveryPositionChannelDescriptor descriptor) {
-    final raw = descriptor.socketUrl;
-    if (raw == null || raw.isEmpty) return null;
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return null;
-    if (uri.scheme != 'ws' && uri.scheme != 'wss') return null;
-    if (uri.host.isEmpty) return null;
-    return uri;
+    return _socketPolicy.descriptorUri(descriptor.socketUrl);
   }
 }
+
+const _allowedStreams = <String>{'location'};

@@ -2,24 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Sprint 1 Stream B: APNs environment for FCM push. Flip to
-	     "production" for App Store / TestFlight release builds. -->
+	<!-- Development/profile provisioning only. Release uses
+	     Runner.Release.entitlements and production APNs. -->
 	<key>aps-environment</key>
 	<string>development</string>
-	<!--
-	    Sprint 3 (deeplink): iOS Universal Links. PLACEHOLDER domain — the real
-	    apex/marketing domain is owner-owned and may differ from `jeeb.app`.
-	    DEFERRED: infra MUST host the Apple App Site Association (AASA) file at
-	    https://<domain>/.well-known/apple-app-site-association listing
-	    "<TEAMID>.<bundleId>" with the `/orders/*`, `/chat/*`, `/wallet/*`, …
-	    components before Universal Links verify on device. Until the AASA is
-	    hosted, only the jeeb:// custom scheme (no domain verification needed)
-	    resolves; this entitlement is inert without it. The custom-scheme path
-	    needs NO entitlement — it is handled by the Info.plist CFBundleURLTypes /
-	    the Flutter deep-link channel. -->
+	<!-- Canonical staging edge. Cloudflare must serve the AASA file at
+	     /.well-known/apple-app-site-association without redirects. -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:jeeb.app</string>
+		<string>applinks:app.jeeb.fds-1.com</string>
 	</array>
 </dict>
 </plist>

@@ -5,13 +5,4 @@
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!--
-      Allow cleartext HTTP to localhost (127.0.0.1) so an `adb reverse`-
-      tunnelled live-gateway session can reach the MacBook socat forwarder over
-      the USB cable (super_login_plus seam). Scoped to loopback only; harmless
-      for normal Maestro flows that also use localhost or the emulator alias
-      (10.0.2.2). Production/staging builds do NOT include this file.
-    -->
-    <application
-        android:networkSecurityConfig="@xml/network_security_config" />
 </manifest>

@@ -1,4 +1,4 @@
-// Guards the Firebase config-integrity invariants documented in
+// Guards the protected Firebase config invariants documented in
 // docs/firebase-invariants.md.
 
 import 'dart:convert';
@@ -8,14 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _prodConfig = 'android/app/google-services.json';
 const _devConfig = 'android/app/src/dev/google-services.json';
+const _iosConfig = 'ios/Runner/GoogleService-Info.plist';
 const _prodTemplate = 'android/app/google-services.json.template';
 const _devTemplate = 'android/app/src/dev/google-services.json.template';
 const _iosTemplate = 'ios/Runner/GoogleService-Info.plist.template';
-const _realConfigs = <String>[_prodConfig, _devConfig];
-const _templates = <String>[_prodTemplate, _devTemplate];
+const _protectedConfigs = <String>[_prodConfig, _devConfig, _iosConfig];
+const _templates = <String>[_prodTemplate, _devTemplate, _iosTemplate];
 
 const _expectedProjectId = 'jeeb-5a293';
-const _expectedProjectNumber = '1051234312170';
 const _forbiddenProject = 'alrahmah';
 
 Future<bool> _isTracked(String path) async {
@@ -27,8 +27,8 @@ Future<bool> _isTracked(String path) async {
   return result.exitCode == 0;
 }
 
-/// `--no-index` is mandatory: without it git skips tracked paths outright, so
-/// this check would be permanently vacuous for the (tracked) real configs.
+/// `--no-index` also evaluates tracked paths, so this test cannot pass merely
+/// because a future change accidentally commits one of the protected files.
 Future<bool> _isIgnored(String path) async {
   final result = await Process.run('git', <String>[
     'check-ignore',
@@ -39,219 +39,143 @@ Future<bool> _isIgnored(String path) async {
   return result.exitCode == 0;
 }
 
-Map<String, dynamic> _readJson(String path) =>
-    jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
-
-List<dynamic> _clients(Map<String, dynamic> config) =>
-    config['client'] as List<dynamic>;
-
-Set<String> _packageNames(Map<String, dynamic> config) => _clients(config)
-    .map((client) => client as Map<String, dynamic>)
-    .map((client) => client['client_info'] as Map<String, dynamic>)
-    .map(
-      (info) => (info['android_client_info'] as Map<String, dynamic>)['package_name']
-          as String,
-    )
-    .toSet();
+Map<String, String> _syntheticDevEnvironment() {
+  const projectNumber = '123456789012';
+  const projectId = 'jeeb-test';
+  const appId = '1:123456789012:android:abcdef0123456789';
+  final apiKey = 'AIza${List<String>.filled(35, 'A').join()}';
+  final config = <String, Object>{
+    'project_info': <String, String>{
+      'project_number': projectNumber,
+      'project_id': projectId,
+      'storage_bucket': '$projectId.appspot.com',
+    },
+    'client': <Object>[
+      <String, Object>{
+        'client_info': <String, Object>{
+          'mobilesdk_app_id': appId,
+          'android_client_info': <String, String>{
+            'package_name': 'app.jeeb.mobile.dev',
+          },
+        },
+        'oauth_client': <Object>[],
+        'api_key': <Object>[
+          <String, String>{'current_key': apiKey},
+        ],
+        'services': <String, Object>{},
+      },
+    ],
+    'configuration_version': '1',
+  };
+  return <String, String>{
+    'DEV_GOOGLE_SERVICES_JSON_B64': base64Encode(
+      utf8.encode(jsonEncode(config)),
+    ),
+    'DEV_FIREBASE_EXPECTED_PROJECT_NUMBER': projectNumber,
+    'DEV_FIREBASE_EXPECTED_PROJECT_ID': projectId,
+    'DEV_FIREBASE_EXPECTED_APP_ID': appId,
+  };
+}
 
 void main() {
-  for (final path in _realConfigs) {
-    test('$path is tracked in git and not gitignored', () async {
+  for (final path in _protectedConfigs) {
+    test('$path remains an absent, untracked, ignored build input', () async {
       expect(
         await _isTracked(path),
-        isTrue,
+        isFalse,
         reason:
-            '$path must be a committed (real, not gitignored) Firebase '
-            'config — F2 requires the real dev+prod configs to live in VCS.',
+            '$path is injected only through a protected build wrapper and '
+            'must never be committed.',
       );
       expect(
         await _isIgnored(path),
+        isTrue,
+        reason: '$path must stay ignored so a transient injection cannot land.',
+      );
+      expect(
+        File(path).existsSync(),
         isFalse,
         reason:
-            '$path matched a .gitignore rule; remove the stale ignore entry '
-            'so the real config stays tracked.',
-      );
-    });
-  }
-
-  for (final path in _realConfigs) {
-    test('$path targets Firebase project jeeb-5a293 / 1051234312170', () {
-      final projectInfo =
-          _readJson(path)['project_info'] as Map<String, dynamic>;
-      expect(
-        projectInfo['project_id'],
-        _expectedProjectId,
-        reason:
-            '$path must point at the ONLY allowed Firebase project '
-            '($_expectedProjectId); a different project_id means push/chat '
-            'will silently target the wrong Firebase app.',
-      );
-      expect(
-        projectInfo['project_number'],
-        _expectedProjectNumber,
-        reason:
-            '$path project_number must match $_expectedProjectNumber '
-            '(the jeeb-5a293 project number).',
+            '$path remained after a local build; the protected wrapper cleanup '
+            'must remove it even when the wrapped command fails.',
       );
     });
   }
 
   test(
-    'dev config has client entries for both app.jeeb.mobile.dev and app.jeeb.mobile',
-    () {
-      final devPackages = _packageNames(_readJson(_devConfig));
-      expect(
-        devPackages,
-        contains('app.jeeb.mobile.dev'),
-        reason:
-            '$_devConfig must configure the dev applicationId so the dev '
-            'build variant can register for FCM.',
-      );
-      expect(
-        devPackages,
-        contains('app.jeeb.mobile'),
-        reason:
-            '$_devConfig must also cover app.jeeb.mobile so dev builds that '
-            'use the prod applicationId still resolve.',
-      );
-    },
-  );
-
-  test('prod config covers app.jeeb.mobile', () {
-    expect(
-      _packageNames(_readJson(_prodConfig)),
-      contains('app.jeeb.mobile'),
-      reason: '$_prodConfig must configure the release applicationId.',
-    );
-  });
-
-  test('every client entry in both real configs has a non-empty api_key', () {
-    for (final path in _realConfigs) {
-      for (final client in _clients(_readJson(path))) {
-        final apiKeys =
-            (client as Map<String, dynamic>)['api_key'] as List<dynamic>;
-        expect(
-          apiKeys,
-          isNotEmpty,
-          reason:
-              '$path: every client entry needs an api_key, else FCM '
-              'registration fails at runtime with no build-time signal.',
-        );
-        for (final key in apiKeys) {
-          final currentKey = (key as Map<String, dynamic>)['current_key'];
-          expect(
-            currentKey is String && currentKey.isNotEmpty,
-            isTrue,
-            reason: '$path: api_key.current_key must be a non-empty string.',
-          );
-        }
-      }
-    }
-  });
-
-  test('real configs contain no TODO_ sentinel (they are real, not templates)', () {
-    for (final path in _realConfigs) {
-      expect(
-        File(path).readAsStringSync(),
-        isNot(contains('TODO_')),
-        reason:
-            '$path is the REAL injected config; a TODO_ sentinel means the '
-            'template was committed in its place.',
-      );
-    }
-  });
-
-  test(
-    'real configs contain no private_key (service-account keys must never land in VCS)',
-    () {
-      for (final path in _realConfigs) {
-        expect(
-          File(path).readAsStringSync(),
-          isNot(contains('private_key')),
-          reason:
-              '$path must never carry a service-account private_key — that '
-              'is a different (and far more sensitive) credential than an '
-              'Android client api_key.',
-        );
-      }
-    },
-  );
-
-  test(
-    'templates still exist, still hold TODO_ placeholders, and carry no private_key',
+    'templates exist, retain TODO placeholders, and contain no private key',
     () {
       for (final path in _templates) {
-        expect(
-          File(path).existsSync(),
-          isTrue,
-          reason:
-              '$path documents how to regenerate the real config on a '
-              'fresh clone; deleting it breaks onboarding.',
-        );
+        expect(File(path).existsSync(), isTrue, reason: '$path is missing.');
         final raw = File(path).readAsStringSync();
-        expect(
-          raw,
-          contains('TODO_'),
-          reason:
-              '$path must stay a placeholder template, never a real key.',
-        );
+        expect(raw, contains('TODO_'));
         expect(raw, isNot(contains('private_key')));
         expect(raw, isNot(contains('private_key_id')));
+        expect(raw.toLowerCase(), isNot(contains(_forbiddenProject)));
       }
     },
   );
+
+  test('production Android template uses canonical store identity', () {
+    final raw = File(_prodTemplate).readAsStringSync();
+    expect(raw, contains('"package_name": "com.olivium.jeeb"'));
+    expect(raw, isNot(contains('"package_name": "app.jeeb.mobile"')));
+  });
+
+  test('.firebaserc pins the one existing Firebase project', () {
+    final firebaserc = File('.firebaserc');
+    expect(firebaserc.existsSync(), isTrue);
+    final raw = firebaserc.readAsStringSync();
+    expect(raw, contains('"$_expectedProjectId"'));
+    expect(raw.toLowerCase(), isNot(contains(_forbiddenProject)));
+  });
+
+  test('protected injection wrappers and invariant documentation exist', () {
+    for (final path in const <String>[
+      'tool/run_with_android_firebase_config.sh',
+      'tool/run_with_dev_firebase_config.sh',
+      'tool/run_with_ios_firebase_config.sh',
+      'docs/firebase-invariants.md',
+    ]) {
+      expect(File(path).existsSync(), isTrue, reason: '$path is missing.');
+    }
+  });
 
   test(
-    'no tracked Firebase config or template references the forbidden alrahmah project',
-    () {
-      for (final path in <String>[..._realConfigs, ..._templates, _iosTemplate]) {
-        expect(
-          File(path).readAsStringSync().toLowerCase(),
-          isNot(contains(_forbiddenProject)),
-          reason:
-              '$path references "$_forbiddenProject" — the ONLY allowed '
-              'Firebase project is $_expectedProjectId '
-              '($_expectedProjectNumber); alrahmah-d7a33 is forbidden.',
-        );
-      }
+    'dev wrapper validates, exposes transiently, and always cleans up',
+    () async {
+      final target = File(_devConfig);
+      expect(target.existsSync(), isFalse);
+
+      final success = await Process.run('bash', <String>[
+        'tool/run_with_dev_firebase_config.sh',
+        'bash',
+        '-c',
+        'test -f android/app/src/dev/google-services.json',
+      ], environment: _syntheticDevEnvironment());
+      expect(
+        success.exitCode,
+        0,
+        reason: '${success.stdout}\n${success.stderr}',
+      );
+      expect(
+        target.existsSync(),
+        isFalse,
+        reason: 'success cleanup did not run',
+      );
+
+      final failure = await Process.run('bash', <String>[
+        'tool/run_with_dev_firebase_config.sh',
+        'bash',
+        '-c',
+        'exit 17',
+      ], environment: _syntheticDevEnvironment());
+      expect(failure.exitCode, 17);
+      expect(
+        target.existsSync(),
+        isFalse,
+        reason: 'failure cleanup did not run',
+      );
     },
   );
-
-  test('.firebaserc pins the Firebase CLI default project to jeeb-5a293', () {
-    final firebaserc = File('.firebaserc');
-    expect(
-      firebaserc.existsSync(),
-      isTrue,
-      reason:
-          '.firebaserc must exist to pin the Firebase CLI/flutterfire to '
-          '$_expectedProjectId — the logged-in CLI account can see other '
-          'projects, and without the pin a stray "flutterfire configure" '
-          'rewrites every config wholesale to the wrong project.',
-    );
-    final raw = firebaserc.readAsStringSync();
-    expect(
-      raw,
-      contains('"$_expectedProjectId"'),
-      reason:
-          '.firebaserc must name $_expectedProjectId as the default project '
-          '— any other value un-pins the CLI from the ONLY allowed project.',
-    );
-    expect(
-      raw.toLowerCase(),
-      isNot(contains(_forbiddenProject)),
-      reason:
-          '.firebaserc references "$_forbiddenProject" — alrahmah-d7a33 is '
-          'the FORBIDDEN project and must never appear in the CLI pin.',
-    );
-  });
-
-  test('docs/firebase-invariants.md exists', () {
-    expect(
-      File('docs/firebase-invariants.md').existsSync(),
-      isTrue,
-      reason:
-          'docs/firebase-invariants.md is the prose companion to this '
-          'guard test and must exist.',
-    );
-  });
 }

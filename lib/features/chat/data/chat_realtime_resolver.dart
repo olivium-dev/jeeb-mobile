@@ -1,24 +1,37 @@
 import 'package:dio/dio.dart';
 
-import '../../../core/network/mock_gateway_client.dart';
+import '../../../core/realtime/realtime_socket_policy.dart';
 import '../domain/chat_socket.dart';
 import 'live_realtime_chat_socket.dart';
+
+typedef ChatRealtimeSocketFactory =
+    ChatSocket Function(
+      String conversationId,
+      RealtimeChannelDescriptor descriptor,
+      Uri socketUri,
+    );
 
 class RealtimeChannelDescriptor {
   const RealtimeChannelDescriptor({
     required this.conversationId,
+    required this.viewerId,
     required this.topic,
+    required this.connectToken,
     required this.ticket,
-    this.roleInConvo,
+    required this.roleInConvo,
   });
 
   final String conversationId;
 
+  final String viewerId;
+
   final String topic;
+
+  final String connectToken;
 
   final String ticket;
 
-  final String? roleInConvo;
+  final String roleInConvo;
 }
 
 class ChatRealtimeResolver {
@@ -26,32 +39,25 @@ class ChatRealtimeResolver {
     required Dio dio,
     required this.currentUserId,
     Uri? socketBaseUri,
-  })  : _dio = dio,
-        _socketBaseUri =
-            socketBaseUri ?? Uri.parse(MockGatewayClient.webSocketUrl);
+    ChatRealtimeSocketFactory? socketFactory,
+    RealtimeSocketPolicy socketPolicy = const RealtimeSocketPolicy(),
+  }) : _dio = dio,
+       _socketBaseUriOverride = socketBaseUri,
+       _socketFactory = socketFactory,
+       _socketPolicy = socketPolicy;
 
   final Dio _dio;
   final String currentUserId;
-  final Uri _socketBaseUri;
+  final Uri? _socketBaseUriOverride;
+  final ChatRealtimeSocketFactory? _socketFactory;
+  final RealtimeSocketPolicy _socketPolicy;
 
   Future<RealtimeChannelDescriptor?> resolve(String conversationId) async {
     try {
-      final resp = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<Map<String, dynamic>>(
         '/v1/realtime/jeeb:chat:$conversationId',
       );
-      final data = resp.data;
-      if (data == null) return null;
-      final topic = (data['topic'] ?? data['Topic']) as String?;
-      if (topic == null || topic.isEmpty) return null;
-      return RealtimeChannelDescriptor(
-        conversationId:
-            (data['conversationId'] ?? data['conversation_id']) as String? ??
-                conversationId,
-        topic: topic,
-        ticket: (data['ticket'] ?? data['Ticket']) as String? ?? '',
-        roleInConvo:
-            (data['roleInConvo'] ?? data['role_in_convo']) as String?,
-      );
+      return _parse(conversationId, response.data);
     } on DioException {
       return null;
     } catch (_) {
@@ -62,48 +68,87 @@ class ChatRealtimeResolver {
   Future<ChatSocket?> connect(String conversationId) async {
     final descriptor = await resolve(conversationId);
     if (descriptor == null) return null;
-    final token = await _mintConnectToken();
-    return LiveRealtimeChatSocket(
-      conversationId: conversationId,
-      currentUserId: currentUserId,
-      topic: _bridgedTopicFor(descriptor.topic, conversationId),
-      ticket: descriptor.ticket,
-      connectToken: token,
-      wsUri: _socketBaseUri,
+    if (!_nonBlank(descriptor.connectToken) || !_nonBlank(descriptor.ticket)) {
+      return null;
+    }
+    final socketUri = _socketPolicy.configuredUri(
+      developmentOverride: _socketBaseUriOverride,
+    );
+    if (socketUri == null) return null;
+    final factory = _socketFactory ?? _buildSocket;
+    return factory(conversationId, descriptor, socketUri);
+  }
+
+  RealtimeChannelDescriptor? _parse(
+    String conversationId,
+    Map<String, dynamic>? data,
+  ) {
+    if (data == null) return null;
+    final returnedId =
+        (data['conversationId'] ?? data['conversation_id']) as String?;
+    final viewerId = data['viewerId'] as String?;
+    final topic = (data['topic'] ?? data['Topic']) as String?;
+    final role = (data['roleInConvo'] ?? data['role_in_convo']) as String?;
+    final connectToken = data['token'] as String?;
+    final ticket = (data['ticket'] ?? data['Ticket']) as String?;
+    if (topic == null || topic.isEmpty) return null;
+    if (!_bindingAllowed(
+      conversationId,
+      returnedId,
+      viewerId,
+      topic,
+      role,
+      connectToken,
+      ticket,
+    )) {
+      return null;
+    }
+    return RealtimeChannelDescriptor(
+      conversationId: returnedId!,
+      viewerId: viewerId!,
+      topic: topic,
+      connectToken: connectToken!,
+      ticket: ticket!,
+      roleInConvo: role!,
     );
   }
 
-  String _bridgedTopicFor(String descriptorTopic, String conversationId) {
-    const v2Prefix = 'jeeb:chat:';
-    const v1Prefix = 'jeeb_conversation:';
-    if (descriptorTopic.startsWith(v2Prefix)) return descriptorTopic;
-    if (descriptorTopic.startsWith(v1Prefix)) {
-      return '$v2Prefix${descriptorTopic.substring(v1Prefix.length)}';
-    }
-    return '$v2Prefix$conversationId';
+  bool _bindingAllowed(
+    String requestedId,
+    String? returnedId,
+    String? viewerId,
+    String topic,
+    String? role,
+    String? connectToken,
+    String? ticket,
+  ) =>
+      _nonBlank(requestedId) &&
+      _nonBlank(currentUserId) &&
+      returnedId == requestedId &&
+      viewerId == currentUserId &&
+      topic == 'jeeb:chat:$requestedId' &&
+      _validRoles.contains(role) &&
+      _nonBlank(connectToken) &&
+      _nonBlank(ticket);
+
+  ChatSocket _buildSocket(
+    String conversationId,
+    RealtimeChannelDescriptor descriptor,
+    Uri socketUri,
+  ) {
+    return LiveRealtimeChatSocket(
+      conversationId: conversationId,
+      currentUserId: currentUserId,
+      topic: _topicFor(descriptor.topic, conversationId),
+      connectToken: descriptor.connectToken,
+      ticket: descriptor.ticket,
+      wsUri: socketUri,
+    );
   }
 
-  Future<String> _mintConnectToken() async {
-    try {
-      final base = MockGatewayClient.realtimeHttpBase;
-      final url = base.replace(path: '/api/auth/token').toString();
-      final resp = await Dio().post<Map<String, dynamic>>(
-        url,
-        data: <String, Object?>{
-          'user_id': currentUserId,
-          'role': 'client',
-          'scopes': <String>['subscribe', 'publish'],
-          'topics': <String>['*'],
-        },
-        options: Options(
-          headers: <String, Object?>{'Content-Type': 'application/json'},
-          receiveTimeout: const Duration(seconds: 8),
-          sendTimeout: const Duration(seconds: 8),
-        ),
-      );
-      return (resp.data?['token'] as String?) ?? '';
-    } catch (_) {
-      return '';
-    }
-  }
+  String _topicFor(String descriptorTopic, String _) => descriptorTopic;
 }
+
+const _validRoles = <String>{'client', 'jeeber_offerer', 'jeeber_winner'};
+
+bool _nonBlank(String? value) => value != null && value.trim().isNotEmpty;

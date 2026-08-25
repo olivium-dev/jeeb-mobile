@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/accessibility/accessibility.dart';
+import '../../../../core/delivery/delivery_status_vocab.dart';
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
@@ -163,8 +164,9 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
   String _referenceHeading() {
     final summary = widget.summary;
     if (summary.hasRef) return friendlyReference(summary.orderRef);
-    final id =
-        summary.requestId.isNotEmpty ? summary.requestId : summary.deliveryId;
+    final id = summary.requestId.isNotEmpty
+        ? summary.requestId
+        : summary.deliveryId;
     return friendlyReference(id);
   }
 
@@ -188,28 +190,20 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
   /// status reads as the matched stage: the strip only renders on an accepted
   /// order, so "Matched" is the honest floor.
   String _statusLabel(AppLocalizations l10n) {
-    switch (widget.summary.statusId.trim().toLowerCase()) {
-      case 'picked':
-      case 'picked_up':
-      case 'pickedup':
-      case 'at_pickup':
+    switch (DeliveryStatusVocab.stageOf(widget.summary.statusId)) {
+      case DeliveryStatusStage.pickedUp:
         return l10n.deliveryStagePickedUp;
-      case 'intransit':
-      case 'in_transit':
-      case 'in transit':
-      case 'atdoor':
-      case 'at_door':
-      case 'at door':
-      case 'en_route':
+      case DeliveryStatusStage.inTransit:
         return l10n.deliveryStageInTransit;
-      case 'delivered':
-      case 'done':
-      case 'completed':
+      case DeliveryStatusStage.atDoor:
+        return l10n.activeDeliveryStatusAtDoor;
+      case DeliveryStatusStage.delivered:
         return l10n.deliveryStageDelivered;
-      case 'cancelled':
-      case 'canceled':
+      case DeliveryStatusStage.cancelled:
         return l10n.deliveryStageCancelled;
-      default:
+      case DeliveryStatusStage.ordered:
+      case DeliveryStatusStage.otherTerminal:
+      case DeliveryStatusStage.unknown:
         return l10n.deliveryStageMatched;
     }
   }
@@ -258,8 +252,10 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
 
   void _toggle() {
     final willExpand = !_expanded;
-    ChatHeaderExpansionStore.instance
-        .setExpanded(_expansionKey, expanded: willExpand);
+    ChatHeaderExpansionStore.instance.setExpanded(
+      _expansionKey,
+      expanded: willExpand,
+    );
     setState(() {});
     // EXPANDING is the catch-up moment; collapsing is not. The customer has
     // just asked to see the locked fields and the live status, which is the one
@@ -375,7 +371,9 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
                         icon: Icons.schedule,
                         fieldLabel: l10n.orderChatFieldEta,
                         value: widget.summary.hasEta
-                            ? l10n.deliveryEtaMinutes(widget.summary.etaMinutes!)
+                            ? l10n.deliveryEtaMinutes(
+                                widget.summary.etaMinutes!,
+                              )
                             : l10n.orderSummaryValuePending,
                       ),
                       _SummaryChip(
@@ -543,7 +541,8 @@ class _TrackPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final glass = Theme.of(context).extension<JeebSemanticColors>() ??
+    final glass =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     return Semantics(
@@ -645,9 +644,7 @@ class _PartyRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               // A qualifier: same ink, lighter weight and smaller type.
-              style: context.jeebText.caption.copyWith(
-                color: colors.onPrimary,
-              ),
+              style: context.jeebText.caption.copyWith(color: colors.onPrimary),
             ),
           ),
         ),

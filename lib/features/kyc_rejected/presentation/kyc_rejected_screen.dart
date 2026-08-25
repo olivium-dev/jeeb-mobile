@@ -24,9 +24,10 @@ import '../application/kyc_rejected_state.dart';
 /// Wiring (30_BACKLOG JM-043 · 42_GUARDRAILS_MOCK): the structured rejection
 /// reason is fetched from `GET /v1/kyc/status` (the app-rewrite of
 /// `GET /user-management/users/:userId/kyc`) through the existing [KycGateway]
-/// (`DioKycGateway`, bound in `injection_container.dart`). The reason is lifted
-/// from `KycStatusView`'s rejected branch and only enriches the body — a failed
-/// or non-rejected fetch degrades to the generic FINAL copy, never resubmit.
+/// (`DioKycGateway`, bound in `injection_container.dart`). The route renders a
+/// rejection only after that read returns [KycStatus.rejected]. A different
+/// decision or a failed read returns to the canonical KYC surface, so a crafted
+/// deep link can never manufacture a terminal identity decision.
 ///
 /// Roots/ids match 65_W2_TEST_PLAN §2 JM-043 (`kyc_rejected_root` is the root;
 /// `kyc_rejected_resubmit_cta` MUST stay ABSENT — assertNotVisible).
@@ -54,7 +55,15 @@ class KycRejectedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<KycRejectedCubit>(
       create: (_) => KycRejectedCubit(gateway ?? _resolveGateway())..load(),
-      child: const _KycRejectedView(),
+      child: BlocConsumer<KycRejectedCubit, KycRejectedState>(
+        listenWhen: (previous, current) =>
+            !previous.shouldLeaveRejectedRoute &&
+            current.shouldLeaveRejectedRoute,
+        listener: (context, state) => context.goNamed('kyc-status'),
+        builder: (context, state) => state.isAuthoritativelyRejected
+            ? const _KycRejectedView()
+            : const _KycRejectedAuthorityLoadingView(),
+      ),
     );
   }
 
@@ -62,11 +71,33 @@ class KycRejectedScreen extends StatelessWidget {
   /// gate (`test/core/router/w2_routes_resolve_test.dart`) builds this screen
   /// with a bare GetIt, so fall back to [FakeKycGateway] when unregistered
   /// (mirrors `KycWizardScreen._resolveGateway`). The Fake returns a
-  /// non-rejected stored submission, so the screen simply shows the generic
-  /// FINAL copy — never a crash, never a resubmit.
+  /// non-rejected submission, so the authority gate redirects to KYC status.
   KycGateway _resolveGateway() {
     if (sl.isRegistered<KycGateway>()) return sl<KycGateway>();
     return FakeKycGateway();
+  }
+}
+
+/// Neutral frame shown while the server decides whether this terminal route is
+/// valid. It deliberately contains no rejection copy: a crafted deep link must
+/// never paint a terminal identity decision before `/v1/kyc/status` confirms it.
+class _KycRejectedAuthorityLoadingView extends StatelessWidget {
+  const _KycRejectedAuthorityLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'kyc_rejected_authority_loading',
+      child: const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: SafeArea(child: Center(child: OmdsLoadingState())),
+        ),
+      ),
+    );
   }
 }
 
@@ -191,12 +222,9 @@ class _RejectionBlock extends StatelessWidget {
 /// Renders the structured rejection cause (when the status fetch resolves to a
 /// rejected submission carrying a `rejection_reason`).
 ///
-/// The cause is a NON-BLOCKING enrichment: the FINAL copy and the two exits are
-/// the primary content and must never wait on `GET /v1/kyc/status`. So the
-/// loading, fetch-error and no-structured-reason states all render the same
-/// designed frame — the one above, complete on its own — rather than a skeleton
-/// or an apology for an optional line. Deliberate silence, not a gap; the three
-/// states are mounted in the catalog so each is captured.
+/// The cause is a NON-BLOCKING enrichment after the authority gate has already
+/// confirmed a final rejection. A missing structured reason keeps the designed
+/// final-rejection frame complete on its own.
 class _RejectionReasonSection extends StatelessWidget {
   const _RejectionReasonSection();
 

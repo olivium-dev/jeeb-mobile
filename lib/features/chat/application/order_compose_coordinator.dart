@@ -10,8 +10,8 @@ class OrderComposeCoordinator {
   const OrderComposeCoordinator({
     required RequestSubmissionService submission,
     required OrderBroadcastService broadcast,
-  })  : _submission = submission,
-        _broadcast = broadcast;
+  }) : _submission = submission,
+       _broadcast = broadcast;
 
   final RequestSubmissionService _submission;
   final OrderBroadcastService _broadcast;
@@ -27,8 +27,7 @@ class OrderComposeCoordinator {
     String? tierId,
   }) async {
     var requestId = existingRequestId;
-    final needsCreate =
-        requestId.isEmpty || requestId == composeSentinel;
+    final needsCreate = requestId.isEmpty || requestId == composeSentinel;
 
     if (needsCreate) {
       final created = await _create(firstMessage, tierId);
@@ -37,10 +36,7 @@ class OrderComposeCoordinator {
     }
 
     try {
-      await _broadcast.broadcast(
-        conversationId: requestId,
-        requestId: requestId,
-      );
+      await _broadcast.broadcast(requestId: requestId);
     } on OrderBroadcastException {
       // Soft-fail: request is already created/pending; waiting screen reflects own coverage fetch.
     }
@@ -48,8 +44,9 @@ class OrderComposeCoordinator {
   }
 
   Future<String?> _create(String firstMessage, String? tierId) async {
-    final description =
-        firstMessage.trim().isNotEmpty ? firstMessage.trim() : 'Delivery request';
+    final description = firstMessage.trim().isNotEmpty
+        ? firstMessage.trim()
+        : 'Delivery request';
     try {
       final id = await _submission.submit(
         RequestDraft(description: description, tierId: tierId),

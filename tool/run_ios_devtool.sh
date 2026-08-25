@@ -10,6 +10,7 @@ device="${1:-${JEEB_IOS_DEVICE:-iPhone 15}}"
 base_url="${JEEB_IOS_BASE_URL:-http://192.168.2.39:10090}"
 flutter_bin="${JEEB_FLUTTER_BIN:-flutter}"
 mock_prefixes="${JEEB_USE_MOCK_PREFIXES:-false}"
+realtime_socket_url="${JEEB_IOS_REALTIME_SOCKET_URL:-ws://192.168.2.39:5804/socket/websocket}"
 
 if [[ $# -gt 1 ]]; then
   echo "Usage: $0 [simulator-name-or-id]" >&2
@@ -34,4 +35,5 @@ exec "${flutter_bin}" run \
   --dart-define=JEEB_USE_MOCK_PREFIXES="${mock_prefixes}" \
   --dart-define=JEEB_DEVTOOL_ENABLED=true \
   --dart-define=JEEB_REALTIME_TRACKING=true \
+  --dart-define=JEEB_REALTIME_SOCKET_URL="${realtime_socket_url}" \
   --route=/devtool

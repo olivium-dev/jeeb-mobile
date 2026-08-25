@@ -4,10 +4,13 @@ import 'package:omds/omds.dart';
 
 import '../app/bootstrap.dart';
 import '../core/dev_flags.dart';
+import '../core/di/injection_container.dart';
 import '../core/diagnostics/gesture_log.dart';
 import '../core/observability/session_trace/observability_config.dart';
 import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/theme/app_theme.dart';
+import '../features/registration/data/super_login_demo_user.dart';
+import '../features/registration/data/super_login_service.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
@@ -66,7 +69,26 @@ class DevToolApp extends StatefulWidget {
 }
 
 class _DevToolAppState extends State<DevToolApp> {
-  late final Future<BootstrapResult> _bootstrap = Bootstrap.minimal();
+  late final Future<BootstrapResult> _bootstrap = _bootstrapDevTool();
+
+  Future<BootstrapResult> _bootstrapDevTool() async {
+    final result = await Bootstrap.minimal();
+    _registerSuperLoginDependencies();
+    return result;
+  }
+
+  void _registerSuperLoginDependencies() {
+    if (!sl.isRegistered<SuperLoginService>()) {
+      sl.registerLazySingleton<SuperLoginService>(
+        () => DefaultSuperLoginService(dio: sl()),
+      );
+    }
+    if (!sl.isRegistered<SuperLoginDemoUserService>()) {
+      sl.registerLazySingleton<SuperLoginDemoUserService>(
+        () => DefaultSuperLoginDemoUserService(dio: sl()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

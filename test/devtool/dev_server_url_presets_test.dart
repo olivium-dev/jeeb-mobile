@@ -5,22 +5,29 @@ import 'package:jeeb_mobile/devtool/dev_settings_page.dart';
 /// Owner ruling 2026-07-31 (`OWNER-DECISIONS.md`, DEVICE-E2E ru
 void main() {
   group('Dev Tool server-URL presets', () {
-    test('MSI is present and is FIRST', () {
-      expect(kDevServerUrlPresets.first, kMsiGatewayBaseUrl);
-      expect(kMsiGatewayBaseUrl, 'http://192.168.2.39:10090');
+    test('configured development gateway is first', () {
+      expect(kDevServerUrlPresets.first, kConfiguredDevGatewayBaseUrl);
+      expect(kConfiguredDevGatewayBaseUrl, 'https://gateway.dev.invalid');
     });
 
-    test('MSI is origin-only — no /v1, which would double to /v1/v1', () {
-      expect(kMsiGatewayBaseUrl.endsWith('/v1'), isFalse);
-      expect(Uri.parse(kMsiGatewayBaseUrl).path, isEmpty);
-      expect(Uri.parse(kMsiGatewayBaseUrl).port, 10090);
-      expect(Uri.parse(kMsiGatewayBaseUrl).host, '192.168.2.39');
+    test('configured development gateway is an HTTPS origin', () {
+      final uri = Uri.parse(kConfiguredDevGatewayBaseUrl);
+      expect(uri.scheme, 'https');
+      expect(uri.path, isEmpty);
+      expect(uri.host, 'gateway.dev.invalid');
     });
 
-    test('the two pre-existing presets are RETAINED, not replaced', () {
-      expect(kDevServerUrlPresets, contains('http://10.0.2.2:4010'));
-      expect(kDevServerUrlPresets, contains('https://api.jeeb.app/v1'));
-      expect(kDevServerUrlPresets, hasLength(3));
+    test('defaults do not place cleartext endpoints in release snapshots', () {
+      expect(kConfiguredDevMockBaseUrl, 'https://mock.dev.invalid');
+      expect(kDevServerUrlPresets, hasLength(2));
+      expect(
+        kDevServerUrlPresets.every(
+          (value) =>
+              Uri.parse(value).scheme == 'https' &&
+              Uri.parse(value).host.endsWith('.invalid'),
+        ),
+        isTrue,
+      );
     });
 
     test('HARD RULE: no preset points at the banned .50 host', () {

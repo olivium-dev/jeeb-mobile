@@ -20,16 +20,13 @@ build/
 android/.gradle/
 android/local.properties
 android/captures/
-android/gradlew
-android/gradlew.bat
-# Ignore the Gradle build dir contents but allow descent so the wrapper
-# properties can be tracked. CI has no committed wrapper, so without this it
-# resolves Gradle 8.4 — and AGP 8.11.1 requires Gradle >= 8.13. The wrapper
-# jar stays ignored (Flutter/Gradle bootstraps it).
+# Ignore other Gradle build-dir contents while tracking the complete,
+# checksum-gated wrapper required to bootstrap Gradle 8.14.4 reproducibly.
 android/gradle/*
 !android/gradle/wrapper/
 android/gradle/wrapper/*
 !android/gradle/wrapper/gradle-wrapper.properties
+!android/gradle/wrapper/gradle-wrapper.jar
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # iOS — track the Runner Xcode project (parity with android/); ignore only
@@ -59,6 +56,9 @@ coverage/
 # Build / capture junk (not source; keep the integration tree clean)
 # Flutter crash logs dropped at repo root by the tool
 flutter_*.log
+# Firebase CLI diagnostics can contain local paths, account metadata, and
+# request traces. Keep them out of source control and evidence bundles.
+/firebase-debug.log
 # Ad-hoc capture/QA screenshots dropped at the repo root (numbered PNGs).
 # Scoped to root only — assets/**, docs/screenshots/**, android/** PNGs stay tracked.
 /*.png
@@ -90,11 +90,21 @@ firestore-debug.log
 /org/
 /samples/
 
-# Firebase config regime (see docs/firebase-invariants.md for the full contract):
-# google-services.json (all flavors) and pubspec.lock are committed on purpose —
-# client config is public by design; the lock pins deps for cross-machine repro.
-# Only the iOS plist stays out of VCS.
+# Firebase native client configs are protected build-time inputs. They identify
+# the canonical public Firebase app, but their package/signer bindings still
+# belong to the release boundary and are injected through validated wrappers.
+# Only placeholder templates are committed; real Android/iOS configs must stay
+# absent from source and are removed by the wrapper trap after every build.
+android/app/src/dev/google-services.json
+/android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+# Transient release build setting derived from the protected iOS plist.
+ios/Flutter/ProtectedFirebase.xcconfig
+# Runner.xcworkspace is the canonical hybrid CocoaPods+SwiftPM graph. Xcode may
+# generate this redundant project-local resolution file during local probing.
+ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+# FlutterFire-generated real options (placeholder template stays committed).
+lib/core/firebase/firebase_options.g.dart
 
 # Agent worktrees (large, machine-local)
 .claude/worktrees/

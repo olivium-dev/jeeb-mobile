@@ -76,7 +76,8 @@ void main() {
     _ScriptedAdapter retryAdapter,
     _ScriptedAdapter refreshAdapter,
     List<String> logoutCalls,
-  }) buildHarness({
+  })
+  buildHarness({
     required ResponseBody Function(RequestOptions) mainResponder,
     required ResponseBody Function(RequestOptions) retryResponder,
     required ResponseBody Function(RequestOptions) refreshResponder,
@@ -142,87 +143,110 @@ void main() {
     );
   });
 
-  test('refreshes token on 401 and retries the original request once',
-      () async {
+  test(
+    'refreshes token on 401 and retries the original request once',
+    () async {
+      final h = buildHarness(
+        // Original request is rejected with 401 exactly once.
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        // The retry (with the new bearer) succeeds.
+        retryResponder: (_) => _json({'data': 'fresh'}, 200),
+        // The refresh endpoint rotates the token pair.
+        refreshResponder: (_) => _json({
+          'accessToken': 'new-access',
+          'refreshToken': 'new-refresh',
+        }, 200),
+      );
+
+      final res = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
+
+      // Resolved with the retried success, not the initial 401.
+      expect(res.statusCode, 200);
+      expect(res.data, {'data': 'fresh'});
+
+      // Refresh ran exactly once, against the refresh path.
+      expect(h.refreshAdapter.callCount, 1);
+      expect(h.refreshAdapter.requests.single.path, '/v1/auth/refresh');
+
+      // The original request was retried exactly once, carrying the NEW bearer.
+      expect(h.retryAdapter.callCount, 1);
+      final retried = h.retryAdapter.requests.single;
+      expect(retried.path, '/v1/jeeb/wallet');
+      expect(retried.headers['Authorization'], 'Bearer new-access');
+
+      // The rotated pair was persisted, preserving userId.
+      verify(
+        () => store.save(
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          userId: 'user-1',
+        ),
+      ).called(1);
+
+      // No logout on a successful refresh.
+      expect(h.logoutCalls, isEmpty);
+      verifyNever(() => store.clear());
+    },
+  );
+
+  test('terminal 401 after a successful refresh logs out once', () async {
     final h = buildHarness(
-      // Original request is rejected with 401 exactly once.
       mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
-      // The retry (with the new bearer) succeeds.
-      retryResponder: (_) => _json({'data': 'fresh'}, 200),
-      // The refresh endpoint rotates the token pair.
-      refreshResponder: (_) => _json(
-        {'accessToken': 'new-access', 'refreshToken': 'new-refresh'},
-        200,
-      ),
-    );
-
-    final res = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
-
-    // Resolved with the retried success, not the initial 401.
-    expect(res.statusCode, 200);
-    expect(res.data, {'data': 'fresh'});
-
-    // Refresh ran exactly once, against the refresh path.
-    expect(h.refreshAdapter.callCount, 1);
-    expect(h.refreshAdapter.requests.single.path, '/v1/auth/refresh');
-
-    // The original request was retried exactly once, carrying the NEW bearer.
-    expect(h.retryAdapter.callCount, 1);
-    final retried = h.retryAdapter.requests.single;
-    expect(retried.path, '/v1/jeeb/wallet');
-    expect(retried.headers['Authorization'], 'Bearer new-access');
-
-    // The rotated pair was persisted, preserving userId.
-    verify(
-      () => store.save(
-        accessToken: 'new-access',
-        refreshToken: 'new-refresh',
-        userId: 'user-1',
-      ),
-    ).called(1);
-
-    // No logout on a successful refresh.
-    expect(h.logoutCalls, isEmpty);
-    verifyNever(() => store.clear());
-  });
-
-  test('logs out on failed refresh and does not retry (no infinite loop)',
-      () async {
-    final h = buildHarness(
-      mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
-      retryResponder: (_) => _json({'should': 'never-run'}, 200),
-      // The refresh itself returns 401 → Dio throws → interceptor logs out.
-      refreshResponder: (_) => _json({'error': 'expired'}, 401),
+      retryResponder: (_) => _json({'error': 'still unauthorized'}, 401),
+      refreshResponder: (_) => _json({
+        'accessToken': 'new-access',
+        'refreshToken': 'new-refresh',
+      }, 200),
     );
 
     await expectLater(
       h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
-      throwsA(
-        isA<DioException>().having(
-          (e) => e.response?.statusCode,
-          'statusCode',
-          401,
-        ),
-      ),
+      throwsA(isA<DioException>()),
     );
 
-    // Refresh was attempted once and failed; the original request was NEVER
-    expect(h.refreshAdapter.callCount, 1);
-    expect(h.retryAdapter.callCount, 0);
-
-    // Session was cleared and the logout callback fired exactly once.
     verify(() => store.clear()).called(1);
     expect(h.logoutCalls, ['logout']);
-
-    // Nothing was persisted on a failed refresh.
-    verifyNever(
-      () => store.save(
-        accessToken: any(named: 'accessToken'),
-        refreshToken: any(named: 'refreshToken'),
-        userId: any(named: 'userId'),
-      ),
-    );
   });
+
+  test(
+    'logs out on failed refresh and does not retry (no infinite loop)',
+    () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        // The refresh itself returns 401 → Dio throws → interceptor logs out.
+        refreshResponder: (_) => _json({'error': 'expired'}, 401),
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
+      );
+
+      // Refresh was attempted once and failed; the original request was NEVER
+      expect(h.refreshAdapter.callCount, 1);
+      expect(h.retryAdapter.callCount, 0);
+
+      // Session was cleared and the logout callback fired exactly once.
+      verify(() => store.clear()).called(1);
+      expect(h.logoutCalls, ['logout']);
+
+      // Nothing was persisted on a failed refresh.
+      verifyNever(
+        () => store.save(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+          userId: any(named: 'userId'),
+        ),
+      );
+    },
+  );
 
   test('does not refresh on a 401 from the refresh endpoint itself', () async {
     final h = buildHarness(
@@ -251,68 +275,72 @@ void main() {
     expect(h.logoutCalls, isEmpty);
   });
 
-  test('already-retried 401 is passed through without a second refresh',
-      () async {
-    // Guard 3: a request already tagged with the retried flag must not refresh
-    final h = buildHarness(
-      mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
-      retryResponder: (_) => _json({'should': 'never-run'}, 200),
-      refreshResponder: (_) => _json({'should': 'never-run'}, 200),
-    );
+  test(
+    'already-retried 401 is passed through without a second refresh',
+    () async {
+      // Guard 3: a request already tagged with the retried flag must not refresh
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
 
-    await expectLater(
-      h.mainDio.get<dynamic>(
-        '/v1/jeeb/wallet',
-        options: Options(extra: {'jeeb.auth.retried': true}),
-      ),
-      throwsA(isA<DioException>()),
-    );
+      await expectLater(
+        h.mainDio.get<dynamic>(
+          '/v1/jeeb/wallet',
+          options: Options(extra: {'jeeb.auth.retried': true}),
+        ),
+        throwsA(isA<DioException>()),
+      );
 
-    expect(h.refreshAdapter.callCount, 0);
-    expect(h.retryAdapter.callCount, 0);
-    verifyNever(() => store.clear());
-  });
+      expect(h.refreshAdapter.callCount, 0);
+      expect(h.retryAdapter.callCount, 0);
+      verifyNever(() => store.clear());
+    },
+  );
 
   // R2-9: the /v1 flag-day guard on the refresh path. `/auth/refresh` is the
   // legacy AuthController over the same ITokenService, so the twin is real.
   group('refresh-path unversioned fallback (DioClient wiring)', () {
-    test('a 404 on /v1/auth/refresh rotates via the unversioned twin',
-        () async {
-      final h = buildHarness(
-        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
-        retryResponder: (_) => _json({'data': 'fresh'}, 200),
-        refreshResponder: (options) => options.path == '/v1/auth/refresh'
-            ? _json({'error': 'not found'}, 404)
-            : _json(
-                {'accessToken': 'new-access', 'refreshToken': 'new-refresh'},
-                200,
-              ),
-        refreshFallback: true,
-      );
+    test(
+      'a 404 on /v1/auth/refresh rotates via the unversioned twin',
+      () async {
+        final h = buildHarness(
+          mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+          retryResponder: (_) => _json({'data': 'fresh'}, 200),
+          refreshResponder: (options) => options.path == '/v1/auth/refresh'
+              ? _json({'error': 'not found'}, 404)
+              : _json({
+                  'accessToken': 'new-access',
+                  'refreshToken': 'new-refresh',
+                }, 200),
+          refreshFallback: true,
+        );
 
-      final res = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
+        final res = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
 
-      expect(res.statusCode, 200);
-      expect(res.data, {'data': 'fresh'});
+        expect(res.statusCode, 200);
+        expect(res.data, {'data': 'fresh'});
 
-      // Versioned first, then the twin — exactly two refresh calls, no more.
-      expect(h.refreshAdapter.paths, ['/v1/auth/refresh', '/auth/refresh']);
+        // Versioned first, then the twin — exactly two refresh calls, no more.
+        expect(h.refreshAdapter.paths, ['/v1/auth/refresh', '/auth/refresh']);
 
-      expect(h.retryAdapter.callCount, 1);
-      expect(
-        h.retryAdapter.requests.single.headers['Authorization'],
-        'Bearer new-access',
-      );
-      verify(
-        () => store.save(
-          accessToken: 'new-access',
-          refreshToken: 'new-refresh',
-          userId: 'user-1',
-        ),
-      ).called(1);
-      expect(h.logoutCalls, isEmpty);
-      verifyNever(() => store.clear());
-    });
+        expect(h.retryAdapter.callCount, 1);
+        expect(
+          h.retryAdapter.requests.single.headers['Authorization'],
+          'Bearer new-access',
+        );
+        verify(
+          () => store.save(
+            accessToken: 'new-access',
+            refreshToken: 'new-refresh',
+            userId: 'user-1',
+          ),
+        ).called(1);
+        expect(h.logoutCalls, isEmpty);
+        verifyNever(() => store.clear());
+      },
+    );
 
     test('when neither refresh path exists, behaviour is unchanged', () async {
       final h = buildHarness(
@@ -325,8 +353,11 @@ void main() {
       await expectLater(
         h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
         throwsA(
-          isA<DioException>()
-              .having((e) => e.response?.statusCode, 'statusCode', 401),
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'statusCode',
+            401,
+          ),
         ),
       );
 

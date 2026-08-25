@@ -156,6 +156,8 @@ void main() {
       findsOneWidget,
       reason: 'a terminal delivery must land on the completed panel',
     );
+    expect(find.text('Delivered successfully'), findsNWidgets(2));
+    expect(find.text('Active delivery'), findsNothing);
     // No mark-delivered affordance on a finished delivery.
     expect(find.byType(OmdsErrorState), findsNothing);
     semantics.dispose();
@@ -188,7 +190,8 @@ void main() {
           find.bySemanticsIdentifier(scenario.semanticsId),
           findsOneWidget,
         );
-        expect(find.text(scenario.title), findsOneWidget);
+        expect(find.text(scenario.title), findsNWidgets(2));
+        expect(find.text('Active delivery'), findsNothing);
         expect(
           find.bySemanticsIdentifier('delivery_completed_state'),
           findsNothing,

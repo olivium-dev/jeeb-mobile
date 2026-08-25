@@ -86,6 +86,10 @@ class _FakeChannel implements CourierPositionChannel {
     final boom = failWith;
     if (boom != null) throw boom;
     if (returnsNull) return null;
+    // The production cubit owns and cancels the subscription; this fake keeps
+    // the controller open so tests can distinguish remote stream completion
+    // from subscriber cancellation.
+    // ignore: close_sinks
     final controller =
         StreamController<CourierPositionFix>(onCancel: () => cancelled = true);
     _controller = controller;

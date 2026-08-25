@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/realtime/realtime_socket_policy.dart';
 import 'package:jeeb_mobile/features/live_tracking/data/realtime_courier_position_channel.dart';
 
 import '../../support/fake_web_socket_channel.dart';
@@ -10,57 +11,62 @@ void main() {
   const deliveryId = 'DLV-42';
   const topic = 'jeeb:delivery:$deliveryId';
   const channelName = 'topic:$topic';
+  const canonicalSocketUrl = 'wss://app.jeeb.fds-1.com/socket/websocket';
+  const socketPolicy = RealtimeSocketPolicy(configuredUrl: canonicalSocketUrl);
 
   late List<Uri> dialled;
   late FakeWebSocketChannel ws;
   late List<String> requestedPaths;
 
   Map<String, dynamic> descriptor({
-    Object? socketUrl = 'ws://192.168.2.39:5804/socket/websocket',
+    Object? deliveryIdValue = deliveryId,
+    Object? socketUrl = canonicalSocketUrl,
     String token = 'guardian-subscribe-jwt',
     Object? topicValue = topic,
     Object? channelValue = channelName,
     Object? streamValue = 'location',
-  }) =>
-      <String, dynamic>{
-        'deliveryId': deliveryId,
-        'topic': topicValue,
-        'channel': channelValue,
-        'stream': streamValue,
-        'socketUrl': socketUrl,
-        'token': token,
-        'expiresAt': '2026-08-01T09:15:00+00:00',
-      };
+  }) => <String, dynamic>{
+    'deliveryId': deliveryIdValue,
+    'topic': topicValue,
+    'channel': channelValue,
+    'stream': streamValue,
+    'socketUrl': socketUrl,
+    'token': token,
+    'expiresAt': '2026-08-01T09:15:00+00:00',
+  };
 
   /// A Dio whose adapter is replaced by a scripted responder — no server, but
   /// the shipped `RealtimeCourierPositionChannel` code path in full, including
-  Dio dioAnswering({
-    int status = 200,
-    Map<String, dynamic>? body,
-  }) {
+  Dio dioAnswering({int status = 200, Map<String, dynamic>? body}) {
     requestedPaths = <String>[];
     final dio = Dio(BaseOptions(baseUrl: 'https://gateway.test'));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        requestedPaths.add(options.path);
-        if (status >= 200 && status < 300) {
-          handler.resolve(Response<Map<String, dynamic>>(
-            requestOptions: options,
-            statusCode: status,
-            data: body,
-          ));
-          return;
-        }
-        handler.reject(DioException(
-          requestOptions: options,
-          response: Response<dynamic>(
-            requestOptions: options,
-            statusCode: status,
-          ),
-          type: DioExceptionType.badResponse,
-        ));
-      },
-    ));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requestedPaths.add(options.path);
+          if (status >= 200 && status < 300) {
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: status,
+                data: body,
+              ),
+            );
+            return;
+          }
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response<dynamic>(
+                requestOptions: options,
+                statusCode: status,
+              ),
+              type: DioExceptionType.badResponse,
+            ),
+          );
+        },
+      ),
+    );
     return dio;
   }
 
@@ -77,6 +83,7 @@ void main() {
         if (factoryThrows) throw StateError('unreachable host');
         return ws;
       },
+      socketPolicy: socketPolicy,
     );
   }
 
@@ -93,14 +100,52 @@ void main() {
 
       expect(positions, isNotNull);
       expect(requestedPaths.single, '/v1/realtime/jeeb:delivery:$deliveryId');
-      expect(dialled.single.host, '192.168.2.39');
-      expect(dialled.single.port, 5804);
+      expect(dialled.single.host, 'app.jeeb.fds-1.com');
       expect(dialled.single.queryParameters['token'], 'guardian-subscribe-jwt');
-      final join =
-          ws.sentByClient.firstWhere((f) => f.contains('phx_join'));
+      final join = ws.sentByClient.firstWhere((f) => f.contains('phx_join'));
       expect(join, contains(channelName));
       expect(join, contains('location'));
     });
+  });
+
+  group('production descriptor binding rejects before socket creation', () {
+    Future<void> expectRejected(Map<String, dynamic> body) async {
+      final channel = channelOver(dioAnswering(body: body));
+
+      expect(await channel.open(deliveryId: deliveryId), isNull);
+      expect(dialled, isEmpty);
+    }
+
+    test('rejects a descriptor bound to another delivery', () {
+      return expectRejected(descriptor(deliveryIdValue: 'DLV-EVIL'));
+    });
+
+    test('rejects a topic bound to another delivery', () {
+      return expectRejected(descriptor(topicValue: 'jeeb:delivery:DLV-EVIL'));
+    });
+
+    test('rejects a missing returned delivery id', () {
+      final body = descriptor()..remove('deliveryId');
+      return expectRejected(body);
+    });
+
+    test('rejects a non-canonical socket URL', () {
+      return expectRejected(
+        descriptor(socketUrl: 'wss://attacker.example/socket/websocket'),
+      );
+    });
+
+    for (final value in <Object?>[null, '', 'topic:jeeb:delivery:DLV-EVIL']) {
+      test('rejects hostile channel $value', () {
+        return expectRejected(descriptor(channelValue: value));
+      });
+    }
+
+    for (final value in <Object?>[null, '', 'presence', '*']) {
+      test('rejects hostile stream $value', () {
+        return expectRejected(descriptor(streamValue: value));
+      });
+    }
   });
 
   group('degrade — every one of these must be indistinguishable from '
@@ -111,9 +156,13 @@ void main() {
     }) async {
       final positions = await channel.open(deliveryId: deliveryId);
       expect(positions, isNull, reason: because);
-      expect(dialled, isEmpty,
-          reason: 'a null return that still dialled a socket is a leak, not a '
-              'degrade ($because)');
+      expect(
+        dialled,
+        isEmpty,
+        reason:
+            'a null return that still dialled a socket is a leak, not a '
+            'degrade ($because)',
+      );
     }
 
     test('socketUrl is null — the gateway default, not an edge case', () async {
@@ -132,9 +181,23 @@ void main() {
 
     test('socketUrl is not a ws(s) scheme', () async {
       await expectDegraded(
-        channelOver(dioAnswering(body: descriptor(socketUrl: 'http://x:5804/'))),
-        because: 'dialling it would produce an obscure transport error rather '
+        channelOver(
+          dioAnswering(body: descriptor(socketUrl: 'http://x:5804/')),
+        ),
+        because:
+            'dialling it would produce an obscure transport error rather '
             'than a clean degrade',
+      );
+    });
+
+    test('cleartext ws is rejected outside the development flavor', () async {
+      await expectDegraded(
+        channelOver(
+          dioAnswering(
+            body: descriptor(socketUrl: 'ws://realtime.test/socket/websocket'),
+          ),
+        ),
+        because: 'staging and production tracking require encrypted WSS',
       );
     });
 
@@ -146,29 +209,38 @@ void main() {
     });
 
     test('404 — unknown delivery', () async {
-      await expectDegraded(channelOver(dioAnswering(status: 404)),
-          because: 'no such delivery');
+      await expectDegraded(
+        channelOver(dioAnswering(status: 404)),
+        because: 'no such delivery',
+      );
     });
 
     test('503 — no Guardian secret configured on the gateway', () async {
-      await expectDegraded(channelOver(dioAnswering(status: 503)),
-          because: 'the gateway refuses to hand back a useless descriptor');
+      await expectDegraded(
+        channelOver(dioAnswering(status: 503)),
+        because: 'the gateway refuses to hand back a useless descriptor',
+      );
     });
 
     test('a gateway that does not serve the route at all', () async {
-      await expectDegraded(channelOver(dioAnswering(status: 405)),
-          because: 'an older gateway predates #339');
+      await expectDegraded(
+        channelOver(dioAnswering(status: 405)),
+        because: 'an older gateway predates #339',
+      );
     });
 
     test('an empty body', () async {
-      await expectDegraded(channelOver(dioAnswering()),
-          because: '200 with no descriptor is not a descriptor');
+      await expectDegraded(
+        channelOver(dioAnswering()),
+        because: '200 with no descriptor is not a descriptor',
+      );
     });
 
     test('a descriptor with no token', () async {
       await expectDegraded(
         channelOver(dioAnswering(body: descriptor(token: ''))),
-        because: 'joining without a credential is refused anyway, and we do '
+        because:
+            'joining without a credential is refused anyway, and we do '
             'NOT fall back to the service\'s open "*" minter',
       );
     });
@@ -202,27 +274,15 @@ void main() {
   });
 
   group('descriptor parsing', () {
-    test('derives the channel only when the gateway did not send one', () async {
-      final channel =
-          channelOver(dioAnswering(body: descriptor(channelValue: null)));
-
-      await channel.open(deliveryId: deliveryId);
-
-      expect(
-        ws.sentByClient.firstWhere((f) => f.contains('phx_join')),
-        contains(channelName),
-      );
-    });
-
     test('accepts snake_case socket_url', () async {
       final body = descriptor(socketUrl: null)
-        ..['socket_url'] = 'ws://msi.test:5804/socket/websocket';
+        ..['socket_url'] = canonicalSocketUrl;
       final channel = channelOver(dioAnswering(body: body));
 
       final positions = await channel.open(deliveryId: deliveryId);
 
       expect(positions, isNotNull);
-      expect(dialled.single.host, 'msi.test');
+      expect(dialled.single.host, 'app.jeeb.fds-1.com');
     });
 
     test('resolve() surfaces the descriptor fields verbatim', () async {
@@ -235,7 +295,7 @@ void main() {
       expect(d.channel, channelName);
       expect(d.stream, 'location');
       expect(d.token, 'guardian-subscribe-jwt');
-      expect(d.socketUrl, 'ws://192.168.2.39:5804/socket/websocket');
+      expect(d.socketUrl, canonicalSocketUrl);
       expect(d.expiresAt, isNotNull);
     });
   });

@@ -12,6 +12,8 @@ const Set<String> kSensitiveHeaderNames = {
 const Set<String> kSensitiveDataKeys = {
   'authorization',
   'token',
+  'ticket',
+  'membershipticket',
   'accesstoken',
   'refreshtoken',
   'idtoken',

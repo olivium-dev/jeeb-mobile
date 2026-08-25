@@ -1,0 +1,42 @@
+require_relative '../../fastlane/BuildNumberPolicy'
+require_relative '../../fastlane/AppStoreBuildInventory'
+
+opt_out_usage
+default_platform(:ios)
+
+def required_env(name)
+  value = ENV.fetch(name, '').strip
+  UI.user_error!("#{name} must be provided by the protected environment") if value.empty?
+  value
+end
+
+platform :ios do
+  desc 'Upload the already-tested IPA to TestFlight internal testing only'
+  lane :internal do
+    ipa_path = required_env('IOS_IPA_PATH')
+    BuildNumberPolicy.parse_marketing_version!(required_env('MOBILE_BUILD_NAME'))
+    build_number = BuildNumberPolicy.parse!(required_env('MOBILE_BUILD_NUMBER'))
+    UI.user_error!('Retained IPA is missing') unless File.file?(ipa_path)
+
+    api_key = app_store_connect_api_key(
+      key_id: required_env('APP_STORE_KEY_ID'),
+      issuer_id: required_env('APP_STORE_ISSUER_ID'),
+      key_content: required_env('APP_STORE_KEY_CONTENT_B64'),
+      is_key_content_base64: true,
+    )
+    latest_build = AppStoreBuildInventory.global_max
+    BuildNumberPolicy.require_newer!(
+      candidate: build_number,
+      observed: [latest_build],
+      destination: 'App Store Connect',
+    )
+
+    pilot(
+      api_key: api_key,
+      app_identifier: 'com.olivium.jeeb',
+      ipa: ipa_path,
+      distribute_external: false,
+      skip_waiting_for_build_processing: false,
+    )
+  end
+end

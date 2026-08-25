@@ -83,16 +83,12 @@ class OfferComposerL10n {
   }
 
   /// a11y label for the `−1` pill — `−1` alone reads badly.
-  String get priceDecrementLabel => _pick(
-        'Decrease offer by 1',
-        'خفض العرض بمقدار ١',
-      );
+  String get priceDecrementLabel =>
+      _pick('Decrease offer by 1', 'خفض العرض بمقدار ١');
 
   /// a11y label for the `+1` pill.
-  String get priceIncrementLabel => _pick(
-        'Increase offer by 1',
-        'زيادة العرض بمقدار ١',
-      );
+  String get priceIncrementLabel =>
+      _pick('Increase offer by 1', 'زيادة العرض بمقدار ١');
 
   /// Validation under the price field.
   String get priceRequiredError => _l10n.offerComposerPriceRequired;
@@ -104,10 +100,8 @@ class OfferComposerL10n {
   /// The section label's inline hint — the band ceiling. The board reads
   /// `· Flash allows ≤ 60 min`; the tier is not on this route (see the header
   /// TODO), so only the ceiling is rendered — never a guessed tier name.
-  String etaCeilingHint(int minutes) => _pick(
-        '· ${_ltr('≤ $minutes')} min',
-        '· ${_ltr('≤ $minutes')} دقيقة',
-      );
+  String etaCeilingHint(int minutes) =>
+      _pick('· ${_ltr('≤ $minutes')} min', '· ${_ltr('≤ $minutes')} دقيقة');
 
   /// "{minutes} min" — a single bounded ETA option label.
   String etaOption(int minutes) =>
@@ -124,9 +118,9 @@ class OfferComposerL10n {
 
   /// `offer_composer_note_field` placeholder (board `tpl 1009`).
   String get noteHint => _pick(
-        'Add a note — "I\'m 5 mins from the pharmacy" (optional)',
-        'أضف ملاحظة — "أنا على بعد ٥ دقائق من الصيدلية" (اختياري)',
-      );
+    'Add a note — "I\'m 5 mins from the pharmacy" (optional)',
+    'أضف ملاحظة — "أنا على بعد ٥ دقائق من الصيدلية" (اختياري)',
+  );
 
   // ── Economics layer (D37 / D44 / D1) ────────────────────────────────────
   /// `offer_composer_offer_line` label — the Jeeber's own bid.
@@ -136,15 +130,15 @@ class OfferComposerL10n {
   /// [kJeebCommissionPercent] so the word and the number cannot drift (D37/D44
   /// — "Platform fee", NEVER "Commission").
   String get feeRowLabel => _pick(
-        'Platform fee ($kJeebCommissionPercent%)',
-        'رسوم المنصة ($kJeebCommissionPercent٪)',
-      );
+    'Platform fee ($kJeebCommissionPercent%)',
+    'رسوم المنصة ($kJeebCommissionPercent٪)',
+  );
 
   /// Fee line shown before a price is entered (no amount yet).
   String get feeLinePending => _pick(
-        'Platform fee: $kJeebCommissionPercent% of your offer',
-        'رسوم المنصة: $kJeebCommissionPercent٪ من عرضك',
-      );
+    'Platform fee: $kJeebCommissionPercent% of your offer',
+    'رسوم المنصة: $kJeebCommissionPercent٪ من عرضك',
+  );
 
   /// `offer_composer_net_line` label — what the Jeeber keeps after the fee.
   ///
@@ -153,13 +147,13 @@ class OfferComposerL10n {
   /// defines net that way, so the composer and Earnings now agree. The board's
   /// `(cash)` qualifier is dropped on purpose — the cash in hand IS the full
   /// offer; the reserve footnote carries the wallet mechanics.
-  String get keepRowLabel => _pick('You keep', 'تحتفظ بـ');
+  String get keepRowLabel => _pick('Net after Jeeb fee', 'الصافي بعد رسوم جيب');
 
   /// Net line shown before a price is entered.
   String get netLinePending => _pick(
-        'You keep: your offer minus the platform fee',
-        'تحتفظ بـ: عرضك ناقص رسوم المنصة',
-      );
+    'Net after Jeeb fee: your offer minus the platform fee',
+    'الصافي بعد رسوم جيب: عرضك ناقص رسوم المنصة',
+  );
 
   /// A formatted, LTR-isolated money token (`$8.00`, `LBP 15,000.00`).
   String money(double amount, String currency) =>
@@ -173,27 +167,28 @@ class OfferComposerL10n {
   /// `offer_composer_reserve_note` — reserve/charge/release copy (D1).
   /// [amount] arrives pre-formatted through [money].
   String reserveNote(String amount) => _pick(
-        '$amount is reserved from your wallet now · charged only if you win · '
-            'released if you’re not picked.',
-        'يُحجز الآن $amount من محفظتك · يُخصم فقط إذا فزت · '
-            'يُعاد إن لم يقع الاختيار عليك.',
-      );
+    'The customer pays your full offer in cash. $amount is held from your '
+        'Jeeber fee balance · applied as Jeeb’s platform fee only if '
+        'selected · released otherwise.',
+    'يدفع العميل قيمة عرضك كاملة نقداً. يُحجز $amount من رصيد رسوم الجيبر · '
+        'ويُطبّق كرسوم منصة جيب فقط عند اختيارك · ويُحرّر خلاف ذلك.',
+  );
 
   /// Reserve note shown before a price is entered.
   String get reserveNotePending => _pick(
-        '$kJeebCommissionPercent% is reserved now from your wallet · charged '
-            'only if you win · released if you don’t.',
-        'يُحجز الآن $kJeebCommissionPercent٪ من محفظتك · يُخصم فقط إذا فزت · '
-            'يُعاد إن لم تفز.',
-      );
+    'The customer pays your full offer in cash. $kJeebCommissionPercent% '
+        'is held from your Jeeber fee balance · applied as Jeeb’s platform '
+        'fee only if selected · released otherwise.',
+    'يدفع العميل قيمة عرضك كاملة نقداً. يُحجز $kJeebCommissionPercent٪ من '
+        'رصيد رسوم الجيبر · ويُطبّق كرسوم منصة جيب فقط عند اختيارك · '
+        'ويُحرّر خلاف ذلك.',
+  );
 
   // ── Wallet strip ────────────────────────────────────────────────────────
   /// `offer_composer_wallet_strip` — the available balance. [amount] arrives
   /// pre-formatted through [money].
-  String walletStrip(String amount) => _pick(
-        'Wallet: $amount available',
-        'المحفظة: $amount متاح',
-      );
+  String walletStrip(String amount) =>
+      _pick('Fee balance: $amount available', 'رصيد الرسوم: $amount متاح');
 
   /// `offer_composer_wallet_topup_cta` — reuses the shipped wallet key.
   String get walletTopUpCta => _l10n.walletTopUpCta;
@@ -206,23 +201,25 @@ class OfferComposerL10n {
   /// `offer_composer_send_cta` with the kept amount restated (board `tpl
   /// 1031`). [amount] arrives pre-formatted through [money].
   String sendCtaWithNet(String amount) => _pick(
-        'Send offer — keep $amount',
-        'أرسل العرض — تحتفظ بـ $amount',
-      );
+    'Send offer — net $amount after Jeeb fee',
+    'أرسل العرض — الصافي $amount بعد رسوم جيب',
+  );
 
   // ── Transient feedback ────────────────────────────────────────────────────
   /// Request-gone snack — reuses the existing offer-submit getter.
   String get requestGone => _l10n.offerSubmitRequestGone;
 
   /// Generic submit-failure snack.
-  String get errorGeneric =>
-      _pick('Couldn’t send your offer. Please try again.',
-          'تعذّر إرسال عرضك. يرجى المحاولة مجدداً.');
+  String get errorGeneric => _pick(
+    'Couldn’t send your offer. Please try again.',
+    'تعذّر إرسال عرضك. يرجى المحاولة مجدداً.',
+  );
 
   /// Network-failure snack.
-  String get errorNetwork =>
-      _pick('No connection. Check your network and try again.',
-          'لا يوجد اتصال. تحقق من شبكتك وحاول مجدداً.');
+  String get errorNetwork => _pick(
+    'No connection. Check your network and try again.',
+    'لا يوجد اتصال. تحقق من شبكتك وحاول مجدداً.',
+  );
 
   // ── Insufficient-balance sheet (JM-046) ───────────────────────────────────
   /// `insufficient_balance_sheet` heading.
@@ -231,10 +228,10 @@ class OfferComposerL10n {
 
   /// Body explaining the gap.
   String get insufficientBody => _pick(
-        'Top up your wallet to reserve the $kJeebCommissionPercent% and send '
-            'this offer.',
-        'اشحن محفظتك لحجز الـ $kJeebCommissionPercent٪ وإرسال هذا العرض.',
-      );
+    'Top up your wallet to reserve the $kJeebCommissionPercent% and send '
+        'this offer.',
+    'اشحن محفظتك لحجز الـ $kJeebCommissionPercent٪ وإرسال هذا العرض.',
+  );
 
   /// `insufficient_balance_needed_amount` — "Needed: X currency".
   String insufficientNeeded(String amount, String currency) =>
@@ -255,7 +252,7 @@ class OfferComposerL10n {
   /// `offer_composer_insufficient_reason` — F1 client pre-check under the
   /// disabled CTA. Short by design; the send-time sheet carries the figures.
   String get ctaDisabledInsufficientReason => _pick(
-        'Not enough wallet balance to cover this offer’s fee.',
-        'رصيد المحفظة لا يكفي لتغطية رسوم هذا العرض.',
-      );
+    'Not enough wallet balance to cover this offer’s fee.',
+    'رصيد المحفظة لا يكفي لتغطية رسوم هذا العرض.',
+  );
 }

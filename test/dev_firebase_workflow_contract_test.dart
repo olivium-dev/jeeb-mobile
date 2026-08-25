@@ -2,13 +2,15 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-// The disabled workflows must keep the gates a Phase-P re-enable depends on,
-// and must not resurrect the dead base64 dev-config injection design.
+// CI must keep the Firebase gates and use the fail-closed protected injection
+// wrapper rather than materializing a persistent client config itself.
 
 const _analyzeGate = 'dart analyze --fatal-infos .';
 const _testGate = 'flutter test --exclude-tags capture';
 const _pinGate = 'bash tool/check_firebase_core_pin.sh';
-const _deadInjectionSecret = 'DEV_GOOGLE_SERVICES_JSON_B64';
+const _protectedInjectionSecret = 'DEV_GOOGLE_SERVICES_JSON_B64';
+const _protectedInjectionWrapper = 'tool/run_with_dev_firebase_config.sh';
+const _rawConfigRedirect = '> android/app/src/dev/google-services.json';
 
 /// Extracts the top-level `on:` YAML mapping so the pull_request check
 /// inspects the trigger block, not an arbitrary substring in the file.
@@ -75,7 +77,7 @@ void main() {
     );
 
     test(
-      'ci.yml and flutter-ci.yml do not resurrect the dead base64 dev-config injection design',
+      'ci.yml and flutter-ci.yml build through protected dev config wrapper',
       () {
         for (final path in const <String>[
           '.github/workflows/ci.yml',
@@ -84,11 +86,24 @@ void main() {
           final workflow = File(path).readAsStringSync();
           expect(
             workflow,
-            isNot(contains(_deadInjectionSecret)),
+            contains(_protectedInjectionSecret),
             reason:
-                '$path must not reintroduce $_deadInjectionSecret — that '
-                'injection path was never implemented and the validator it '
-                'would feed is unusable without it (see p0-gate-truth.md)',
+                '$path must receive the protected dev Firebase payload only '
+                'for the main-branch hardware build.',
+          );
+          expect(
+            workflow,
+            contains(_protectedInjectionWrapper),
+            reason:
+                '$path must build through $_protectedInjectionWrapper so the '
+                'validated 0600 file is removed on success and failure.',
+          );
+          expect(
+            workflow,
+            isNot(contains(_rawConfigRedirect)),
+            reason:
+                '$path must not write the protected config directly; direct '
+                'redirection bypasses validation, permissions, and cleanup.',
           );
         }
       },

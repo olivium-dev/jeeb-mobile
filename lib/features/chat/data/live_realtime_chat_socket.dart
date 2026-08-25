@@ -10,12 +10,12 @@ class LiveRealtimeChatSocket implements ChatSocket {
     required this.conversationId,
     required this.currentUserId,
     required this.topic,
+    required this.connectToken,
     required this.ticket,
     required Uri wsUri,
-    this.connectToken = '',
     WebSocketChannel Function(Uri uri)? channelFactory,
-  })  : _wsUri = wsUri,
-        _channelFactory = channelFactory ?? WebSocketChannel.connect;
+  }) : _wsUri = wsUri,
+       _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
   final String conversationId;
 
@@ -50,12 +50,13 @@ class LiveRealtimeChatSocket implements ChatSocket {
     if (_channel != null) {
       throw StateError('LiveRealtimeChatSocket already connected');
     }
-    final uri = _wsUri.replace(queryParameters: <String, String>{
-      ..._wsUri.queryParameters,
-      'vsn': '2.0.0',
-      if (connectToken.isNotEmpty) 'token': connectToken,
-      if (ticket.isNotEmpty) 'ticket': ticket,
-    });
+    final uri = _wsUri.replace(
+      queryParameters: <String, String>{
+        ..._wsUri.queryParameters,
+        'vsn': '2.0.0',
+        'token': connectToken,
+      },
+    );
     final channel = _channelFactory(uri);
     _channel = channel;
     await channel.ready;
@@ -74,13 +75,15 @@ class LiveRealtimeChatSocket implements ChatSocket {
 
   void join() {
     final joinRef = '${++_ref}';
-    _sendRaw(PhoenixV2Frame.encode(
-      joinRef: joinRef,
-      ref: joinRef,
-      topic: topic,
-      event: 'phx_join',
-      payload: <String, Object?>{if (ticket.isNotEmpty) 'ticket': ticket},
-    ));
+    _sendRaw(
+      PhoenixV2Frame.encode(
+        joinRef: joinRef,
+        ref: joinRef,
+        topic: topic,
+        event: 'phx_join',
+        payload: <String, Object?>{if (ticket.isNotEmpty) 'ticket': ticket},
+      ),
+    );
   }
 
   void _onFrame(dynamic frame) {
@@ -93,14 +96,12 @@ class LiveRealtimeChatSocket implements ChatSocket {
       final payload = decoded.payload;
       if (payload == null) return;
       final nested = payload['data'];
-      final Map<String, Object?> data =
-          nested is Map ? nested.cast<String, Object?>() : payload;
+      final Map<String, Object?> data = nested is Map
+          ? nested.cast<String, Object?>()
+          : payload;
       final normalized = _normalize(data);
       if (normalized == null) return;
-      _events.add(<String, Object?>{
-        'event': 'new_msg',
-        'payload': normalized,
-      });
+      _events.add(<String, Object?>{'event': 'new_msg', 'payload': normalized});
     } catch (e) {
       if (!_errors.isClosed) _errors.add(e);
     }
@@ -122,7 +123,8 @@ class LiveRealtimeChatSocket implements ChatSocket {
     } else {
       body = const <String, Object?>{};
     }
-    final createdAt = (data['created_at'] ?? data['sentAt'] ?? data['createdAt'])
+    final createdAt =
+        (data['created_at'] ?? data['sentAt'] ?? data['createdAt'])
             as String? ??
         DateTime.now().toUtc().toIso8601String();
     return <String, Object?>{
@@ -161,8 +163,7 @@ class LiveRealtimeChatSocket implements ChatSocket {
     _subscription = null;
     try {
       await _channel?.sink.close();
-    } catch (_) {
-    }
+    } catch (_) {}
     _channel = null;
     if (!_events.isClosed) await _events.close();
     if (!_errors.isClosed) await _errors.close();

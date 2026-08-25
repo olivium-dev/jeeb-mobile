@@ -16,7 +16,7 @@ class StubWalletTransactionRepository implements WalletTransactionRepository {
         sign: 1,
         currency: 'USD',
         timestamp: '2026-06-19T10:00:00Z',
-        title: 'Dispute refund',
+        title: 'Fee balance adjustment',
         ref: 'dispute-stub-$id',
         disputeId: 'dispute-client-001',
         orderId: 'req-stub-$id',

@@ -27,7 +27,11 @@ Widget _harness(WalletChargeInfoScreen screen) {
         name: 'wallet-charge-info',
         builder: (_, _) => screen,
       ),
-      GoRoute(path: '/wallet', name: 'wallet', builder: (_, _) => const Scaffold()),
+      GoRoute(
+        path: '/wallet',
+        name: 'wallet',
+        builder: (_, _) => const Scaffold(),
+      ),
     ],
   );
   return MaterialApp.router(
@@ -153,7 +157,7 @@ void main() {
       expect(launchedUri!.path, '/9613000099');
       expect(
         launchedUri!.queryParameters['text'],
-        'Hi, I would like to top up my Jeeb wallet.',
+        'Hi, I would like to add cash-funded Jeeb fee balance.',
       );
     },
   );
@@ -180,7 +184,7 @@ void main() {
 
       expect(
         launchedUri!.queryParameters['text'],
-        'Hi, I would like to top up my Jeeb wallet. '
+        'Hi, I would like to add cash-funded Jeeb fee balance. '
         'My account phone number is +96170123456.',
       );
     },
@@ -199,8 +203,10 @@ void main() {
         },
       );
       addTearDown(
-        () => tester.binding.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.platform, null),
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
       );
       await pump(
         tester,

@@ -76,6 +76,18 @@ void main() {
       final String name =
           '${_slug(entry.feature)}__${_slug(entry.screen)}__$i-${_slug(state.label)}';
 
+      if (state.capturePolicy == CatalogCapturePolicy.navigationOnly) {
+        test(
+          'capture $name',
+          () {},
+          skip:
+              'Redirect behavior is covered by test/features/kyc_rejected/'
+              'kyc_rejected_midnight_test.dart: a failed authority read leaves '
+              'the terminal route.',
+        );
+        continue;
+      }
+
       testWidgets('capture $name', (WidgetTester tester) async {
         tester.view.physicalSize = _kCanvas;
         tester.view.devicePixelRatio = 1.0;

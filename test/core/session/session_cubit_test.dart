@@ -1,11 +1,13 @@
 // Unit coverage for the FR-P0-3 SessionCubit token classifier.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
+import 'package:jeeb_mobile/core/session/auth_loss_signals.dart';
 import 'package:jeeb_mobile/core/session/session_cubit.dart';
 import 'package:jeeb_mobile/core/session/session_gate.dart';
 import 'package:jeeb_mobile/core/session/session_state.dart';
@@ -101,31 +103,37 @@ void main() {
       addTearDown(cubit.close);
     });
 
-    test('non-JWT mock token → authenticated (presence is enough)', () async {
-      when(() => store.accessToken)
-          .thenAnswer((_) async => 'mock-jwt-access-super-user');
-      final cubit = build();
-      await cubit.refresh();
-      expect(cubit.state.status, SessionStatus.authenticated);
-      addTearDown(cubit.close);
-    });
+    test(
+      'non-JWT token → unauthenticated (malformed tokens fail closed)',
+      () async {
+        when(
+          () => store.accessToken,
+        ).thenAnswer((_) async => 'mock-jwt-access-super-user');
+        final cubit = build();
+        await cubit.refresh();
+        expect(cubit.state.status, SessionStatus.unauthenticated);
+        addTearDown(cubit.close);
+      },
+    );
 
-    test('JWT-shaped token with non-numeric exp → authenticated', () async {
-      // 3 segments but exp is a string → not a usable expiry → presence wins.
+    test('JWT-shaped token with non-numeric exp → unauthenticated', () async {
       final header = base64Url.encode(utf8.encode('{}')).replaceAll('=', '');
       final payload = base64Url
           .encode(utf8.encode('{"exp":"soon"}'))
           .replaceAll('=', '');
-      when(() => store.accessToken)
-          .thenAnswer((_) async => '$header.$payload.sig');
+      when(
+        () => store.accessToken,
+      ).thenAnswer((_) async => '$header.$payload.sig');
       final cubit = build();
       await cubit.refresh();
-      expect(cubit.state.status, SessionStatus.authenticated);
+      expect(cubit.state.status, SessionStatus.unauthenticated);
       addTearDown(cubit.close);
     });
 
     test('keystore read throws → unauthenticated (FAIL CLOSED)', () async {
-      when(() => store.accessToken).thenThrow(Exception('keystore unavailable'));
+      when(
+        () => store.accessToken,
+      ).thenThrow(Exception('keystore unavailable'));
       final cubit = build();
       await cubit.refresh();
       expect(
@@ -147,11 +155,43 @@ void main() {
       await cubit.refresh();
       expect(cubit.isUnauthenticated, isTrue);
 
-      token = 'mock-jwt-access-user-1'; // e.g. after a successful OTP verify
+      token = _jwtWithExp(DateTime.utc(2030).millisecondsSinceEpoch ~/ 1000);
       await cubit.refresh();
       expect(cubit.isUnauthenticated, isFalse);
       expect(cubit.state.isAuthenticated, isTrue);
       addTearDown(cubit.close);
+    });
+
+    test('terminal auth-loss signal flips the session immediately', () async {
+      when(() => store.accessToken).thenAnswer(
+        (_) async =>
+            _jwtWithExp(DateTime.utc(2030).millisecondsSinceEpoch ~/ 1000),
+      );
+      final cubit = build();
+      addTearDown(cubit.close);
+      await cubit.refresh();
+      expect(cubit.state.isAuthenticated, isTrue);
+
+      AuthLossSignals.instance.signal();
+
+      expect(cubit.state.status, SessionStatus.unauthenticated);
+    });
+
+    test('stale refresh cannot reopen a terminally lost session', () async {
+      final pendingToken = Completer<String?>();
+      when(() => store.accessToken).thenAnswer((_) => pendingToken.future);
+      final cubit = build();
+      addTearDown(cubit.close);
+
+      final refresh = cubit.refresh();
+      await Future<void>.delayed(Duration.zero);
+      AuthLossSignals.instance.signal();
+      pendingToken.complete(
+        _jwtWithExp(DateTime.utc(2030).millisecondsSinceEpoch ~/ 1000),
+      );
+      await refresh;
+
+      expect(cubit.state.status, SessionStatus.unauthenticated);
     });
   });
 

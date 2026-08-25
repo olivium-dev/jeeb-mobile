@@ -74,7 +74,7 @@ const WalletTransaction transactionDetailScreenRefundRow = WalletTransaction(
   sign: 1,
   currency: 'USD',
   timestamp: '2026-06-19T10:00:00Z',
-  title: 'Dispute refund',
+  title: 'Fee balance adjustment',
   ref: 'dispute-stub-txn-refund-001',
   disputeId: 'dispute-client-001',
   orderId: 'req-stub-txn-refund-001',
@@ -110,12 +110,12 @@ const WalletTransaction transactionDetailScreenMinimalRow = WalletTransaction(
 /// W3m is free to add ledger kinds without the app shipping, and
 const WalletTransaction transactionDetailScreenUnknownTypeRow =
     WalletTransaction(
-  id: 'led-adj-7781',
-  type: WalletLedgerType.unknown,
-  amount: 3.25,
-  sign: -1,
-  currency: 'USD',
-  timestamp: '2026-07-28T06:05:00Z',
-  title: 'Manual ops adjustment',
-  ref: 'adj-manual-7781',
-);
+      id: 'led-adj-7781',
+      type: WalletLedgerType.unknown,
+      amount: 3.25,
+      sign: -1,
+      currency: 'USD',
+      timestamp: '2026-07-28T06:05:00Z',
+      title: 'Manual ops adjustment',
+      ref: 'adj-manual-7781',
+    );

@@ -1,0 +1,43 @@
+name: Checkout repository-pinned OMDS
+description: Resolve and place the single tracked OMDS revision used by CI and release builds.
+
+inputs:
+  token:
+    description: Read-only token for olivium-dev/omds-flutter.
+    required: true
+
+outputs:
+  revision:
+    description: Exact OMDS commit resolved from .omds-revision.
+    value: ${{ steps.revision.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate tracked OMDS revision
+      id: revision
+      shell: bash
+      run: |
+        set -euo pipefail
+        sha="$(tr -d '[:space:]' <.omds-revision)"
+        [[ "${sha}" =~ ^[0-9a-f]{40}$ ]]
+        printf 'sha=%s\n' "${sha}" >>"${GITHUB_OUTPUT}"
+
+    - name: Checkout exact OMDS dependency
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: olivium-dev/omds-flutter
+        ref: ${{ steps.revision.outputs.sha }}
+        path: __omds_checkout
+        token: ${{ inputs.token }}
+        persist-credentials: false
+
+    - name: Place and verify locked path dependency
+      shell: bash
+      run: |
+        set -euo pipefail
+        destination="$(dirname "${GITHUB_WORKSPACE}")/omds-flutter"
+        [[ ! -e "${destination}" ]]
+        [[ "$(git -C __omds_checkout rev-parse HEAD)" == \
+          '${{ steps.revision.outputs.sha }}' ]]
+        mv "${GITHUB_WORKSPACE}/__omds_checkout" "${destination}"

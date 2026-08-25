@@ -32,21 +32,20 @@ WalletTransaction _txn({
   String? disputeId,
   double? pinnedPrice,
   double? feeRate,
-}) =>
-    WalletTransaction(
-      id: 'led-1',
-      type: type,
-      amount: amount,
-      sign: sign,
-      currency: 'USD',
-      timestamp: '2026-06-19T10:00:00Z',
-      ref: offerId ?? disputeId,
-      offerId: offerId,
-      orderId: orderId,
-      disputeId: disputeId,
-      pinnedPrice: pinnedPrice,
-      feeRate: feeRate,
-    );
+}) => WalletTransaction(
+  id: 'led-1',
+  type: type,
+  amount: amount,
+  sign: sign,
+  currency: 'USD',
+  timestamp: '2026-06-19T10:00:00Z',
+  ref: offerId ?? disputeId,
+  offerId: offerId,
+  orderId: orderId,
+  disputeId: disputeId,
+  pinnedPrice: pinnedPrice,
+  feeRate: feeRate,
+);
 
 void main() {
   Future<void> pump(
@@ -89,8 +88,9 @@ void main() {
     expect(find.bySemanticsIdentifier('txn_detail_amount'), findsOneWidget);
   });
 
-  testWidgets('D37: fee_won shows exact 10% rate + pinned price + order link',
-      (tester) async {
+  testWidgets('D37: fee_won shows exact 10% rate + pinned price + order link', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: _ScriptedTxnRepository(
@@ -106,32 +106,44 @@ void main() {
 
     expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsOneWidget);
     expect(
-        find.bySemanticsIdentifier('txn_detail_pinned_price'), findsOneWidget);
+      find.bySemanticsIdentifier('txn_detail_pinned_price'),
+      findsOneWidget,
+    );
     expect(find.text('10%'), findsOneWidget);
     expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsOneWidget);
     expect(find.bySemanticsIdentifier('txn_detail_dispute_link'), findsNothing);
   });
 
-  testWidgets('D2: refund shows the dispute link, not the order link',
-      (tester) async {
-    await pump(
-      tester,
-      repo: _ScriptedTxnRepository(
-        _txn(
-          type: WalletLedgerType.refund,
-          sign: 1,
-          amount: 9,
-          disputeId: 'dispute-1',
+  testWidgets(
+    'D2: internal adjustment shows the dispute link without refund copy',
+    (tester) async {
+      await pump(
+        tester,
+        repo: _ScriptedTxnRepository(
+          _txn(
+            type: WalletLedgerType.refund,
+            sign: 1,
+            amount: 9,
+            disputeId: 'dispute-1',
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(
-        find.bySemanticsIdentifier('txn_detail_dispute_link'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsNothing);
-    expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsNothing);
-    expect(find.bySemanticsIdentifier('txn_detail_pinned_price'), findsNothing);
-  });
+      expect(
+        find.bySemanticsIdentifier('txn_detail_dispute_link'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsNothing);
+      expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('txn_detail_pinned_price'),
+        findsNothing,
+      );
+      expect(find.text('Fee balance adjustment'), findsOneWidget);
+      expect(find.textContaining('refund', findRichText: true), findsNothing);
+      expect(find.textContaining('payment', findRichText: true), findsNothing);
+    },
+  );
 
   testWidgets('D2: penalty shows the dispute link', (tester) async {
     await pump(
@@ -147,30 +159,41 @@ void main() {
     );
 
     expect(
-        find.bySemanticsIdentifier('txn_detail_dispute_link'), findsOneWidget);
+      find.bySemanticsIdentifier('txn_detail_dispute_link'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsNothing);
   });
 
-  testWidgets('reserve shows the order link, no fee breakdown, no dispute link',
-      (tester) async {
-    await pump(
-      tester,
-      repo: _ScriptedTxnRepository(
-        _txn(
-          type: WalletLedgerType.reserve,
-          orderId: 'req-9',
-          offerId: 'off-9',
+  testWidgets(
+    'reserve shows the order link, no fee breakdown, no dispute link',
+    (tester) async {
+      await pump(
+        tester,
+        repo: _ScriptedTxnRepository(
+          _txn(
+            type: WalletLedgerType.reserve,
+            orderId: 'req-9',
+            offerId: 'off-9',
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('txn_detail_dispute_link'), findsNothing);
-    expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsNothing);
-  });
+      expect(
+        find.bySemanticsIdentifier('txn_detail_order_link'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('txn_detail_dispute_link'),
+        findsNothing,
+      );
+      expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsNothing);
+    },
+  );
 
-  testWidgets('top-up shows neither the order link nor the dispute link',
-      (tester) async {
+  testWidgets('top-up shows neither the order link nor the dispute link', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: _ScriptedTxnRepository(
@@ -183,8 +206,9 @@ void main() {
     expect(find.bySemanticsIdentifier('txn_detail_dispute_link'), findsNothing);
   });
 
-  testWidgets('failed load surfaces the error state; root survives',
-      (tester) async {
+  testWidgets('failed load surfaces the error state; root survives', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: _ScriptedTxnRepository(

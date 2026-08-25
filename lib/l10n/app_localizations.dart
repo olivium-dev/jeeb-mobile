@@ -258,6 +258,14 @@ class AppLocalizations {
   String get settingsProfileSection => _get('settingsProfileSection');
   String get settingsNotificationsSection =>
       _get('settingsNotificationsSection');
+  String get claritySettingsSection => _get('claritySettingsSection');
+  String get claritySettingsTitle => _get('claritySettingsTitle');
+  String get claritySettingsSubtitle => _get('claritySettingsSubtitle');
+  String get clarityDisclosureTitle => _get('clarityDisclosureTitle');
+  String get clarityDisclosureBody => _get('clarityDisclosureBody');
+  String get clarityAllow => _get('clarityAllow');
+  String get clarityDontAllow => _get('clarityDontAllow');
+  String get clarityUpdateFailed => _get('clarityUpdateFailed');
   String get settingsAddressesSection => _get('settingsAddressesSection');
   String get settingsSecuritySection => _get('settingsSecuritySection');
   String get settingsAccountSection => _get('settingsAccountSection');
