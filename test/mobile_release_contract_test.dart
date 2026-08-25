@@ -397,7 +397,8 @@ void _registerCiContracts() {
       "FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'",
       'runs-on: macos-26',
       '/Applications/Xcode_26.6.app/Contents/Developer',
-      "xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\\.[0-9]+'",
+      'sdk_inventory="\$(xcodebuild -showsdks)"',
+      "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
     ]);
     expect(workflow, isNot(contains('flutter build ipa')));
     expect(workflow, isNot(contains('upload-artifact')));
