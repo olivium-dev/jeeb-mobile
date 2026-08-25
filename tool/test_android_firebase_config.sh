@@ -19,14 +19,24 @@ cat >"${CONFIG_PATH}" <<'JSON'
       "mobilesdk_app_id": "1:1051234312170:android:0123456789abcdef",
       "android_client_info": {"package_name": "com.olivium.jeeb"}
     },
-    "oauth_client": [{
-      "client_id": "1051234312170-synthetic.apps.googleusercontent.com",
-      "client_type": 1,
-      "android_info": {
-        "package_name": "com.olivium.jeeb",
-        "certificate_hash": "77485A6B9FAA39A7F7A3A2A7E7F8070CB44F430D"
+    "oauth_client": [
+      {
+        "client_id": "1051234312170-synthetic-upload.apps.googleusercontent.com",
+        "client_type": 1,
+        "android_info": {
+          "package_name": "com.olivium.jeeb",
+          "certificate_hash": "77485A6B9FAA39A7F7A3A2A7E7F8070CB44F430D"
+        }
+      },
+      {
+        "client_id": "1051234312170-synthetic-play.apps.googleusercontent.com",
+        "client_type": 1,
+        "android_info": {
+          "package_name": "com.olivium.jeeb",
+          "certificate_hash": "2ECFAF7F13AB9EB534E404AD3BA9F6B2A1EA7712"
+        }
       }
-    }],
+    ],
     "api_key": [{"current_key": "x"}],
     "services": {}
   }],
@@ -42,7 +52,10 @@ mv "${CONFIG_PATH}.next" "${CONFIG_PATH}"
 chmod 0600 "${CONFIG_PATH}"
 
 export ANDROID_FIREBASE_EXPECTED_APP_ID='1:1051234312170:android:0123456789abcdef'
-export ANDROID_FIREBASE_EXPECTED_SHA1='77:48:5A:6B:9F:AA:39:A7:F7:A3:A2:A7:E7:F8:07:0C:B4:4F:43:0D'
+export ANDROID_UPLOAD_CERT_SHA1='77:48:5A:6B:9F:AA:39:A7:F7:A3:A2:A7:E7:F8:07:0C:B4:4F:43:0D'
+export ANDROID_UPLOAD_CERT_SHA256='AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA'
+export ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID='1051234312170-synthetic-upload.apps.googleusercontent.com'
+export ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID='1051234312170-synthetic-play.apps.googleusercontent.com'
 bash "${REPO_ROOT}/tool/validate_android_google_services.sh" "${CONFIG_PATH}"
 
 wrong_path="${WORK_DIR}/wrong.json"

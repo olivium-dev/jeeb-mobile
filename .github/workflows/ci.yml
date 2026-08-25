@@ -207,9 +207,12 @@ jobs:
           xcode_path=/Applications/Xcode_26.6.app/Contents/Developer
           test -d "${xcode_path}"
           sudo xcode-select --switch "${xcode_path}"
-          xcodebuild -version | grep -Fxq 'Xcode 26.6'
-          xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\.[0-9]+'
-          xcrun --sdk iphoneos --show-sdk-version | grep -Eq '^26\.[0-9]+'
+          xcode_version="$(xcodebuild -version)"
+          grep -Fxq 'Xcode 26.6' <<<"${xcode_version}"
+          sdk_inventory="$(xcodebuild -showsdks)"
+          grep -Eq -- '-sdk iphoneos26\.[0-9]+' <<<"${sdk_inventory}"
+          iphoneos_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          grep -Eq '^26\.[0-9]+' <<<"${iphoneos_version}"
 
       - name: Set up Flutter from .fvmrc
         uses: ./.github/actions/setup-flutter
