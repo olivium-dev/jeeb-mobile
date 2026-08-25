@@ -49,8 +49,7 @@ void main() {
     expect(all, contains('deviceId'));
   });
 
-  test(
-      'Authorization header is logged as the exact tok:<fnv8>~<last4> handle, '
+  test('Authorization header is logged as the exact tok:<fnv8>~<last4> handle, '
       'never raw', () {
     const headerValue = 'Bearer $jwt';
     final options = RequestOptions(
@@ -75,8 +74,7 @@ void main() {
     expect(all, isNot(contains('LEAKED-signature')));
   });
 
-  test(
-      'createDio wires RedactingLogInterceptor and NEVER the raw '
+  test('createDio wires RedactingLogInterceptor and NEVER the raw '
       'LogInterceptor (run-22 logcat token leak)', () {
     // flutter test runs in debug mode, so the kDebugMode branch is active.
     final dio = MockGatewayClient.createDio(baseUrl: 'http://localhost:4010');
@@ -88,7 +86,8 @@ void main() {
     expect(
       dio.interceptors.whereType<LogInterceptor>(),
       isEmpty,
-      reason: 'the raw LogInterceptor printed full Authorization headers '
+      reason:
+          'the raw LogInterceptor printed full Authorization headers '
           'and token bodies to logcat',
     );
   });
@@ -111,6 +110,36 @@ void main() {
     expect(all, isNot(contains('LEAKED-signature-DEADBEEF')));
     expect(all, contains('tok:'));
     expect(all, contains('userId'));
+  });
+
+  test('response logging redacts distinct realtime credentials', () {
+    const token = 'guardian-connect-token-RAW-1111';
+    const ticket = 'channel-join-ticket-RAW-2222';
+    const membershipTicket = 'membership-ticket-RAW-3333';
+    final options = RequestOptions(
+      path: '/v1/realtime/jeeb:chat:conversation-42',
+      method: 'GET',
+    );
+    final response = Response<dynamic>(
+      requestOptions: options,
+      statusCode: 200,
+      data: <String, Object?>{
+        'token': token,
+        'ticket': ticket,
+        'membershipTicket': membershipTicket,
+        'conversationId': 'conversation-42',
+      },
+    );
+
+    interceptor.onResponse(response, ResponseInterceptorHandler());
+
+    final all = printed.join('\n');
+    for (final secret in <String>[token, ticket, membershipTicket]) {
+      expect(all, isNot(contains(secret)));
+      expect(all, contains(DiagRedaction.redactToken(secret)));
+    }
+    expect(all, contains('conversationId'));
+    expect(all, contains('conversation-42'));
   });
 
   // ===========================================================================
@@ -145,19 +174,21 @@ void main() {
       expect(all.length, lessThan(300));
     });
 
-    test('a plain List<int> request body is summarized too (the signed PUT)',
-        () {
-      final options = RequestOptions(
-        path: '/api/cdn/upload/put-signed/chat_attachment',
-        method: 'PUT',
-        data: List<int>.filled(2048, 0x41),
-      );
+    test(
+      'a plain List<int> request body is summarized too (the signed PUT)',
+      () {
+        final options = RequestOptions(
+          path: '/api/cdn/upload/put-signed/chat_attachment',
+          method: 'PUT',
+          data: List<int>.filled(2048, 0x41),
+        );
 
-      interceptor.onRequest(options, RequestInterceptorHandler());
+        interceptor.onRequest(options, RequestInterceptorHandler());
 
-      final all = printed.join('\n');
-      expect(all, contains('<binary 2048 bytes>'));
-      expect(all, isNot(contains('65, 65, 65')));
-    });
+        final all = printed.join('\n');
+        expect(all, contains('<binary 2048 bytes>'));
+        expect(all, isNot(contains('65, 65, 65')));
+      },
+    );
   });
 }

@@ -9,7 +9,7 @@ import 'package:jeeb_mobile/features/chat/data/live_realtime_chat_socket.dart';
 void main() {
   const conversationId = 'conversation-42';
   const currentUserId = 'user-1';
-  const canonicalTopic = 'jeeb_conversation:$conversationId';
+  const canonicalTopic = 'jeeb:chat:$conversationId';
   const canonicalSocketUrl = 'wss://app.jeeb.fds-1.com/socket/websocket';
   const socketPolicy = RealtimeSocketPolicy(configuredUrl: canonicalSocketUrl);
 
@@ -34,17 +34,19 @@ void main() {
     Object? viewerIdValue = currentUserId,
     Object? topicValue = canonicalTopic,
     Object? roleValue = 'client',
+    String connectToken = 'guardian-connect-token',
     String ticket = 'membership-ticket',
   }) => <String, dynamic>{
     'conversationId': conversationIdValue,
     'viewerId': viewerIdValue,
     'topic': topicValue,
     'roleInConvo': roleValue,
+    'token': connectToken,
     'ticket': ticket,
   };
 
   test(
-    'uses the gateway-issued actor, role, topic, and membership ticket',
+    'uses gateway actor, role, topic, connect token, and membership ticket',
     () async {
       final resolver = ChatRealtimeResolver(
         dio: dioAnswering(descriptor()),
@@ -56,14 +58,16 @@ void main() {
 
       expect(socket, isA<LiveRealtimeChatSocket>());
       final live = socket! as LiveRealtimeChatSocket;
+      expect(live.connectToken, 'guardian-connect-token');
       expect(live.ticket, 'membership-ticket');
       expect(live.topic, canonicalTopic);
     },
   );
 
-  for (final missing in <String>['ticket', 'socket config']) {
+  for (final missing in <String>['token', 'ticket', 'socket config']) {
     test('fails closed when the gateway descriptor has no $missing', () async {
       final body = descriptor(
+        connectToken: missing == 'token' ? '' : 'guardian-connect-token',
         ticket: missing == 'ticket' ? '' : 'membership-ticket',
       );
       final resolver = ChatRealtimeResolver(
@@ -107,7 +111,13 @@ void main() {
 
     test('rejects a topic bound to another conversation', () {
       return expectRejected(
-        descriptor(topicValue: 'jeeb_conversation:conversation-evil'),
+        descriptor(topicValue: 'jeeb:chat:conversation-evil'),
+      );
+    });
+
+    test('rejects the legacy jeeb_conversation topic', () {
+      return expectRejected(
+        descriptor(topicValue: 'jeeb_conversation:$conversationId'),
       );
     });
 
@@ -124,6 +134,29 @@ void main() {
       final body = descriptor()..remove('viewerId');
       return expectRejected(body);
     });
+
+    test('rejects ticket-only credentials before socket creation', () {
+      return expectRejected(
+        descriptor(connectToken: '', ticket: 'guardian-token-in-join-only'),
+      );
+    });
+
+    test('rejects token-only credentials before socket creation', () {
+      return expectRejected(
+        descriptor(connectToken: 'guardian-connect-token', ticket: ''),
+      );
+    });
+
+    for (final field in <String>['token', 'ticket']) {
+      test('rejects a blank $field before socket creation', () {
+        return expectRejected(
+          descriptor(
+            connectToken: field == 'token' ? '   ' : 'guardian-connect-token',
+            ticket: field == 'ticket' ? '   ' : 'membership-ticket',
+          ),
+        );
+      });
+    }
 
     for (final role in <Object?>['admin', '', null]) {
       test('rejects invalid role $role', () {

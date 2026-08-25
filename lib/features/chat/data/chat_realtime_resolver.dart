@@ -16,6 +16,7 @@ class RealtimeChannelDescriptor {
     required this.conversationId,
     required this.viewerId,
     required this.topic,
+    required this.connectToken,
     required this.ticket,
     required this.roleInConvo,
   });
@@ -25,6 +26,8 @@ class RealtimeChannelDescriptor {
   final String viewerId;
 
   final String topic;
+
+  final String connectToken;
 
   final String ticket;
 
@@ -65,7 +68,9 @@ class ChatRealtimeResolver {
   Future<ChatSocket?> connect(String conversationId) async {
     final descriptor = await resolve(conversationId);
     if (descriptor == null) return null;
-    if (descriptor.ticket.isEmpty) return null;
+    if (!_nonBlank(descriptor.connectToken) || !_nonBlank(descriptor.ticket)) {
+      return null;
+    }
     final socketUri = _socketPolicy.configuredUri(
       developmentOverride: _socketBaseUriOverride,
     );
@@ -84,26 +89,27 @@ class ChatRealtimeResolver {
     final viewerId = data['viewerId'] as String?;
     final topic = (data['topic'] ?? data['Topic']) as String?;
     final role = (data['roleInConvo'] ?? data['role_in_convo']) as String?;
+    final connectToken = data['token'] as String?;
+    final ticket = (data['ticket'] ?? data['Ticket']) as String?;
     if (topic == null || topic.isEmpty) return null;
-    if (!_bindingAllowed(conversationId, returnedId, viewerId, topic, role)) {
+    if (!_bindingAllowed(
+      conversationId,
+      returnedId,
+      viewerId,
+      topic,
+      role,
+      connectToken,
+      ticket,
+    )) {
       return null;
     }
-    return _descriptorFrom(data, returnedId!, viewerId!, topic, role!);
-  }
-
-  RealtimeChannelDescriptor _descriptorFrom(
-    Map<String, dynamic> data,
-    String conversationId,
-    String viewerId,
-    String topic,
-    String role,
-  ) {
     return RealtimeChannelDescriptor(
-      conversationId: conversationId,
-      viewerId: viewerId,
+      conversationId: returnedId!,
+      viewerId: viewerId!,
       topic: topic,
-      ticket: (data['ticket'] ?? data['Ticket']) as String? ?? '',
-      roleInConvo: role,
+      connectToken: connectToken!,
+      ticket: ticket!,
+      roleInConvo: role!,
     );
   }
 
@@ -113,13 +119,17 @@ class ChatRealtimeResolver {
     String? viewerId,
     String topic,
     String? role,
+    String? connectToken,
+    String? ticket,
   ) =>
-      requestedId.isNotEmpty &&
-      currentUserId.isNotEmpty &&
+      _nonBlank(requestedId) &&
+      _nonBlank(currentUserId) &&
       returnedId == requestedId &&
       viewerId == currentUserId &&
-      topic == 'jeeb_conversation:$requestedId' &&
-      _validRoles.contains(role);
+      topic == 'jeeb:chat:$requestedId' &&
+      _validRoles.contains(role) &&
+      _nonBlank(connectToken) &&
+      _nonBlank(ticket);
 
   ChatSocket _buildSocket(
     String conversationId,
@@ -130,6 +140,7 @@ class ChatRealtimeResolver {
       conversationId: conversationId,
       currentUserId: currentUserId,
       topic: _topicFor(descriptor.topic, conversationId),
+      connectToken: descriptor.connectToken,
       ticket: descriptor.ticket,
       wsUri: socketUri,
     );
@@ -139,3 +150,5 @@ class ChatRealtimeResolver {
 }
 
 const _validRoles = <String>{'client', 'jeeber_offerer', 'jeeber_winner'};
+
+bool _nonBlank(String? value) => value != null && value.trim().isNotEmpty;

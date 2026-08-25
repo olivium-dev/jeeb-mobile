@@ -1,27 +1,27 @@
 # Chat realtime descriptor gateway handoff
 
-Mobile production realtime is intentionally fail-closed until the gateway
-descriptor binds the authenticated actor explicitly.
+Mobile production realtime consumes the gateway-owned descriptor and fails
+closed unless every actor, channel, and credential binding is present.
 
-At inspected `jeeb-gateway` commit
-`231736d661e3dffe5365ee4f1d37be3b0cdeef84`,
-`GET /v1/realtime/{tenant}:chat:{conversationId}` returns
-`conversationId`, `topic`, `roleInConvo`, and `ticket`. It does not return the
-authenticated viewer ID, so mobile cannot prove the descriptor was minted for
-its active session.
+The approved `jeeb-gateway` contract at `5f3da8b2` returns
+`conversationId`, bearer-derived `viewerId`, canonical
+`topic = jeeb:chat:{conversationId}`, `roleInConvo`, Guardian connect `token`,
+and membership `ticket` from
+`GET /v1/realtime/jeeb:chat:{conversationId}`.
 
-Required additive gateway contract:
+Mobile contract enforcement:
 
-- Add non-empty camel-case `viewerId` to `RealtimeChannelDescriptor`.
-- Set it only from `UserIdentity.TryGetUserId`; never accept it from the route,
-  query, or request body.
-- Keep `conversationId`, `topic`, `roleInConvo`, and `ticket` unchanged.
-- Contract-test that `viewerId` equals the bearer subject for `client`,
-  `jeeber_offerer`, and `jeeber_winner` descriptors.
-- Contract-test that callers cannot assert another viewer ID.
+- `viewerId` must equal the active bearer-bound mobile user.
+- `conversationId` and `topic` must match the requested conversation exactly;
+  the legacy `jeeb_conversation:*` topic is rejected.
+- `roleInConvo` must be `client`, `jeeber_offerer`, or `jeeber_winner`.
+- `token` and `ticket` must both be non-empty before any socket is created.
+- `token` is sent only as the Phoenix socket connect query parameter expected
+  by `LiveCommSocket.connect/3`.
+- `ticket` is sent only in the `phx_join` payload; the two credentials are
+  never swapped or duplicated.
 
-No socket host or second token is requested from the gateway. The reviewed
-mobile release injects `JEEB_REALTIME_SOCKET_URL` at compile time and uses the
-existing membership ticket. Until the additive `viewerId` field is deployed,
-chat safely degrades to its existing REST/push behavior without opening a
-socket.
+The socket host remains the mobile-owned compile-time
+`JEEB_REALTIME_SOCKET_URL` under the existing WSS allowlist policy. Invalid or
+incomplete descriptors degrade to the existing REST/push behavior without
+opening a socket. Mobile never logs either credential.
