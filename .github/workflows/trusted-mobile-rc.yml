@@ -428,9 +428,12 @@ jobs:
           set -euo pipefail
           test -d "${XCODE_PATH}"
           sudo xcode-select --switch "${XCODE_PATH}"
-          xcodebuild -version | grep -Fxq 'Xcode 26.6'
-          xcodebuild -showsdks | grep -Eq -- '-sdk iphoneos26\.[0-9]+'
-          xcrun --sdk iphoneos --show-sdk-version | grep -Eq '^26\.[0-9]+'
+          xcode_version="$(xcodebuild -version)"
+          grep -Fxq 'Xcode 26.6' <<<"${xcode_version}"
+          sdk_inventory="$(xcodebuild -showsdks)"
+          grep -Eq -- '-sdk iphoneos26\.[0-9]+' <<<"${sdk_inventory}"
+          iphoneos_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          grep -Eq '^26\.[0-9]+' <<<"${iphoneos_version}"
 
       - name: Set up Flutter from .fvmrc
         id: flutter
