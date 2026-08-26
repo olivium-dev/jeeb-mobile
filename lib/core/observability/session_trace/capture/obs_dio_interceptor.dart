@@ -72,6 +72,7 @@ final class ObsDioInterceptor extends Interceptor {
     Response<dynamic>? response,
     DioException? error,
   }) {
+    final suppressPayload = DiagRedaction.isBodySuppressedPath(options.path);
     final seq = _seqFor(options);
     return ObsApiEvent(
       id: Observability.instance.newEventId(ObsEventType.api, seq),
@@ -82,29 +83,43 @@ final class ObsDioInterceptor extends Interceptor {
       path: DiagRedaction.scrubPath(options.path),
       statusCode: response?.statusCode,
       durationMs: _elapsedMs(options),
-      requestHeaders: _requestHeaders(options),
-      requestBody: _requestBody(options),
-      responseHeaders: _responseHeaders(response),
-      responseBody: _responseBody(response),
+      requestHeaders: _requestHeaders(
+        options,
+        suppressPayload: suppressPayload,
+      ),
+      requestBody: _requestBody(options, suppressPayload: suppressPayload),
+      responseHeaders: _responseHeaders(
+        response,
+        suppressPayload: suppressPayload,
+      ),
+      responseBody: _responseBody(response, suppressPayload: suppressPayload),
       correlationId: _correlationId(options, response),
       screen: _screenFor(options),
       errorType: error?.type.name,
-      errorMessage: _errorMessage(error),
+      errorMessage: _errorMessage(error, suppressPayload: suppressPayload),
     );
   }
 
-  static Map<String, Object?> _requestHeaders(RequestOptions options) {
+  static Map<String, Object?> _requestHeaders(
+    RequestOptions options, {
+    required bool suppressPayload,
+  }) {
     final redacted = SecretRedactor.redactHeaders(
-      _toObjectMap(options.headers),
+      _toObjectMap(options.headers, omitSizeMetadata: suppressPayload),
     );
+    if (suppressPayload) return redacted;
     final bytes = _encodedLength(options.data);
     if (bytes == null) return redacted;
     return <String, Object?>{...redacted, _requestBytesKey: bytes};
   }
 
-  static Object? _requestBody(RequestOptions options) {
+  static Object? _requestBody(
+    RequestOptions options, {
+    required bool suppressPayload,
+  }) {
     final config = ObservabilityConfig.instance;
     if (!config.captureApiBodies) return null;
+    if (suppressPayload) return DiagRedaction.suppressedSensitiveBody;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(options.data),
       full: config.redactionEnabled,
@@ -112,19 +127,27 @@ final class ObsDioInterceptor extends Interceptor {
     );
   }
 
-  static Map<String, Object?> _responseHeaders(Response<dynamic>? response) {
+  static Map<String, Object?> _responseHeaders(
+    Response<dynamic>? response, {
+    required bool suppressPayload,
+  }) {
     if (response == null) return const <String, Object?>{};
     final redacted = SecretRedactor.redactHeaders(
-      _flattenHeaders(response.headers),
+      _flattenHeaders(response.headers, omitSizeMetadata: suppressPayload),
     );
+    if (suppressPayload) return redacted;
     final bytes = _responseByteLength(response);
     if (bytes == null) return redacted;
     return <String, Object?>{...redacted, _responseBytesKey: bytes};
   }
 
-  static Object? _responseBody(Response<dynamic>? response) {
+  static Object? _responseBody(
+    Response<dynamic>? response, {
+    required bool suppressPayload,
+  }) {
     final config = ObservabilityConfig.instance;
     if (response == null || !config.captureApiBodies) return null;
+    if (suppressPayload) return DiagRedaction.suppressedSensitiveBody;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(response.data),
       full: config.redactionEnabled,
@@ -132,8 +155,12 @@ final class ObsDioInterceptor extends Interceptor {
     );
   }
 
-  static String? _errorMessage(DioException? error) {
+  static String? _errorMessage(
+    DioException? error, {
+    required bool suppressPayload,
+  }) {
     if (error == null) return null;
+    if (suppressPayload) return DiagRedaction.suppressedSensitiveBody;
     final raw = error.message ?? error.error?.toString() ?? error.type.name;
     final capped = raw.length > _maxErrorMessageChars
         ? '${raw.substring(0, _maxErrorMessageChars)}…'
@@ -182,15 +209,32 @@ final class ObsDioInterceptor extends Interceptor {
     return null;
   }
 
-  static Map<String, Object?> _toObjectMap(Map<String, dynamic> headers) =>
-      headers.map((key, value) => MapEntry(key, value as Object?));
+  static Map<String, Object?> _toObjectMap(
+    Map<String, dynamic> headers, {
+    required bool omitSizeMetadata,
+  }) => <String, Object?>{
+    for (final entry in headers.entries)
+      if (!omitSizeMetadata || !_isSizeMetadataHeader(entry.key))
+        entry.key: entry.value as Object?,
+  };
 
-  static Map<String, Object?> _flattenHeaders(Headers headers) {
+  static Map<String, Object?> _flattenHeaders(
+    Headers headers, {
+    required bool omitSizeMetadata,
+  }) {
     final out = <String, Object?>{};
     headers.map.forEach((key, values) {
+      if (omitSizeMetadata && _isSizeMetadataHeader(key)) return;
       out[key] = values.length == 1 ? values.first : values;
     });
     return out;
+  }
+
+  static bool _isSizeMetadataHeader(String name) {
+    final normalized = name.toLowerCase();
+    return normalized == Headers.contentLengthHeader ||
+        normalized == _requestBytesKey ||
+        normalized == _responseBytesKey;
   }
 
   static Object? _jsonSafeBody(Object? raw) {
@@ -242,8 +286,7 @@ final class ObsDioInterceptor extends Interceptor {
       final raw = response.headers.value(Headers.contentLengthHeader);
       final headerBytes = raw == null ? null : int.tryParse(raw);
       if (headerBytes != null) return headerBytes;
-    } catch (_) {
-    }
+    } catch (_) {}
     return _encodedLength(response.data);
   }
 }

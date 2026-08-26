@@ -167,7 +167,12 @@ void main() {
   });
 
   group('P0 — OTP endpoint bodies are suppressed without derivation', () {
-    const paths = <String>['/v1/auth/otp/request', '/v1/auth/otp/verify'];
+    const paths = <String>[
+      '/v1/auth/otp/request',
+      '/v1/auth/otp/verify',
+      '/auth/otp/request',
+      '/auth/otp/verify',
+    ];
 
     test('request logs use one constant for nested canary structures', () {
       for (final path in paths) {

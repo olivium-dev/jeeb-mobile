@@ -157,6 +157,8 @@ void main() {
         '/v1/auth/otp/request/',
         'v1/auth/otp/verify',
         'HTTPS://app.jeeb.fds-1.com/v1/auth/otp/VERIFY?source=test',
+        '/auth/otp/request',
+        'auth/otp/verify/',
       ]) {
         expect(DiagRedaction.isBodySuppressedPath(path), isTrue, reason: path);
       }
@@ -167,6 +169,8 @@ void main() {
         '/v1/auth/login',
         '/v1/auth/otp/request-status',
         '/v1/auth/otp/verify/receipt',
+        '/auth/otp/request-status',
+        '/auth/otp/verify/receipt',
         '/v1/health?next=/v1/auth/otp/request',
       ]) {
         expect(DiagRedaction.isBodySuppressedPath(path), isFalse, reason: path);

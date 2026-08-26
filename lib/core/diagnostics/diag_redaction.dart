@@ -40,6 +40,8 @@ abstract final class DiagRedaction {
   static const Set<String> _bodySuppressedPaths = {
     '/v1/auth/otp/request',
     '/v1/auth/otp/verify',
+    '/auth/otp/request',
+    '/auth/otp/verify',
   };
 
   static String redactToken(String? secret) {
