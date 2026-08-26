@@ -35,6 +35,13 @@ const Set<String> kSensitiveDataKeys = {
 abstract final class DiagRedaction {
   static const String _nullHandle = 'tok:∅';
 
+  static const String suppressedSensitiveBody = '<sensitive-body-suppressed>';
+
+  static const Set<String> _bodySuppressedPaths = {
+    '/v1/auth/otp/request',
+    '/v1/auth/otp/verify',
+  };
+
   static String redactToken(String? secret) {
     if (secret == null || secret.isEmpty) return _nullHandle;
     if (secret.length < _minLengthForTail) return 'tok:${_fnv1a8(secret)}';
@@ -49,6 +56,15 @@ abstract final class DiagRedaction {
 
   static bool isSensitiveKey(String key) =>
       kSensitiveDataKeys.contains(_normalizeKey(key));
+
+  static bool isBodySuppressedPath(String pathOrUri) {
+    final path = scrubPath(pathOrUri).toLowerCase();
+    final withLeadingSlash = path.startsWith('/') ? path : '/$path';
+    final normalized = withLeadingSlash.endsWith('/')
+        ? withLeadingSlash.substring(0, withLeadingSlash.length - 1)
+        : withLeadingSlash;
+    return _bodySuppressedPaths.contains(normalized);
+  }
 
   static Map<String, Object?> redactHeaders(Map<String, Object?> headers) {
     final out = <String, Object?>{};

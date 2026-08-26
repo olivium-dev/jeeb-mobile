@@ -149,4 +149,28 @@ void main() {
       expect(DiagRedaction.scrubPath('/orders/:id'), '/orders/:id');
     });
   });
+
+  group('OTP body suppression paths', () {
+    test('matches request and verify across Dio path representations', () {
+      for (final path in <String>[
+        '/v1/auth/otp/request',
+        '/v1/auth/otp/request/',
+        'v1/auth/otp/verify',
+        'HTTPS://app.jeeb.fds-1.com/v1/auth/otp/VERIFY?source=test',
+      ]) {
+        expect(DiagRedaction.isBodySuppressedPath(path), isTrue, reason: path);
+      }
+    });
+
+    test('does not suppress unrelated or merely similar endpoints', () {
+      for (final path in <String>[
+        '/v1/auth/login',
+        '/v1/auth/otp/request-status',
+        '/v1/auth/otp/verify/receipt',
+        '/v1/health?next=/v1/auth/otp/request',
+      ]) {
+        expect(DiagRedaction.isBodySuppressedPath(path), isFalse, reason: path);
+      }
+    });
+  });
 }

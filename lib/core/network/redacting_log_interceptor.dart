@@ -12,19 +12,22 @@ class RedactingLogInterceptor extends Interceptor {
       final headers = DiagRedaction.redactHeaders(options.headers);
       debugPrint(
         '[http→] ${options.method} ${DiagRedaction.scrubPath(options.uri.toString())}'
-        ' headers=$headers body=${_redactBody(options.data)}',
+        ' headers=$headers body=${_redactBody(options.uri.toString(), options.data)}',
       );
     }
     handler.next(options);
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     if (kDebugMode) {
       debugPrint(
         '[http←] ${response.statusCode} ${response.requestOptions.method} '
         '${DiagRedaction.scrubPath(response.requestOptions.path)} '
-        'body=${_redactBody(response.data)}',
+        'body=${_redactBody(response.requestOptions.path, response.data)}',
       );
     }
     handler.next(response);
@@ -36,13 +39,16 @@ class RedactingLogInterceptor extends Interceptor {
       debugPrint(
         '[http✗] ${err.response?.statusCode} ${err.requestOptions.method} '
         '${DiagRedaction.scrubPath(err.requestOptions.path)} '
-        'body=${_redactBody(err.response?.data)}',
+        'body=${_redactBody(err.requestOptions.path, err.response?.data)}',
       );
     }
     handler.next(err);
   }
 
-  static Object? _redactBody(Object? data) {
+  static Object? _redactBody(String pathOrUri, Object? data) {
+    if (DiagRedaction.isBodySuppressedPath(pathOrUri)) {
+      return DiagRedaction.suppressedSensitiveBody;
+    }
     if (data is List<int>) return '<binary ${data.length} bytes>';
     if (data is Map<String, Object?>) return DiagRedaction.scrubMap(data);
     if (data is Map) {
