@@ -285,17 +285,15 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
     super.dispose();
   }
 
-  /// Back out of the Dev Tool's own stack first, and close the layer only
-  /// once it is back at the shell. iOS has no system back button, so this is
-  /// reachable solely through the close affordance.
-  void _handleClose() {
-    final NavigatorState? navigator = _navigator.currentState;
-    if (navigator != null && navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-    widget.onClose();
-  }
+  /// Closes the layer outright, from any depth of the Dev Tool's own stack.
+  ///
+  /// It deliberately does NOT pop one level first. `X` is labelled "close" and
+  /// exists so an accidental shake costs one tap; making it Back meant a user
+  /// three pages deep tapped it three times and, each time, stayed inside the
+  /// tool they were trying to leave. Navigating BACK within the Dev Tool is
+  /// already served by each page's own `AppBar` leading button, which the
+  /// nested `Navigator` supplies whenever it can pop.
+  void _handleClose() => widget.onClose();
 
   /// Unlike [_handleClose] this does NOT unwind the Dev Tool's own stack first:
   /// the whole tree is about to be rebuilt, so popping back to the shell would

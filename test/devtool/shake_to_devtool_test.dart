@@ -579,6 +579,58 @@ void main() {
     );
 
     testWidgets(
+      'X closes from a pushed Dev Tool page, it is not a Back button',
+      (tester) async {
+        // Regression: `X` used to pop one level of the Dev Tool's own stack
+        // when it could, so a user several pages deep tapped "close" and stayed
+        // inside the tool. Back within the tool is the AppBar's job.
+        final clock = _FakeClock();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            builder: (context, child) => DevToolShakeHost(
+              clock: clock.call,
+              layerBuilder: (_) => Scaffold(
+                body: Builder(
+                  builder: (context) => Center(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const Scaffold(
+                            body: Center(child: Text('DEEP DEV TOOL PAGE')),
+                          ),
+                        ),
+                      ),
+                      child: const Text('go deeper'),
+                    ),
+                  ),
+                ),
+              ),
+              child: child!,
+            ),
+            home: const Scaffold(body: Center(child: _ProductProbe())),
+          ),
+        );
+
+        await _deliverShake(tester);
+        await tester.tap(find.text('go deeper'));
+        await tester.pumpAndSettle();
+        expect(find.text('DEEP DEV TOOL PAGE'), findsOneWidget);
+
+        await tester.tap(find.byKey(kDevToolShakeCloseKey));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(kDevToolShakeLayerKey),
+          findsNothing,
+          reason: 'ONE tap on X must leave the Dev Tool entirely, however deep '
+              'the user has navigated inside it',
+        );
+        expect(find.text('PRODUCT UI'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'X closes WITHOUT restarting, so an accidental shake costs nothing',
       (tester) async {
         // The Dev Tool opens on a physical gesture that fires by accident, so

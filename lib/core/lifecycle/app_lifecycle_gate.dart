@@ -110,9 +110,19 @@ class _AmbientAppLifecycleGate implements AppLifecycleGate {
 
   void attach(AppLifecycleGate source) {
     if (identical(source, _source)) return;
-    _source.removeForegroundListener(_onSourceChanged);
+    final AppLifecycleGate previous = _source;
+    previous.removeForegroundListener(_onSourceChanged);
     _source = source;
     source.addForegroundListener(_onSourceChanged);
+    // Dropping the listener is not enough: a `WidgetsBindingAppLifecycleGate`
+    // registers itself as a binding observer in its constructor, so an
+    // un-disposed predecessor keeps receiving every lifecycle transition for
+    // the life of the process. `configureDependencies` installs a fresh gate on
+    // each run, and the Dev Tool's `Apply & Restart` runs it again per restart —
+    // so without this the observer list grows once per restart.
+    if (previous is WidgetsBindingAppLifecycleGate) {
+      previous.dispose();
+    }
     _onSourceChanged(source.isForeground);
   }
 

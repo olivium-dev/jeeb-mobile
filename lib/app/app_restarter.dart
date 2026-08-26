@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/di/injection_container.dart';
+import '../core/previews/jeeb_preview.dart';
+import '../core/theme/app_theme.dart';
 
 /// Rebuilds the whole app from scratch, in-process.
 ///
@@ -72,12 +74,32 @@ class _AppRestarterState extends State<AppRestarter> {
 
     // Phase 2 — drop every registration so `configureDependencies` can run
     // again without tripping its unguarded `registerSingleton`.
-    await sl.reset();
+    //
+    // Guarded: `sl.reset()` runs every registered disposer, and a throwing
+    // disposer must not strand the app. Without this, one bad `dispose` leaves
+    // `_tearingDown` true forever and the user is left staring at the black
+    // teardown surface with no way back — a far worse outcome than a singleton
+    // that failed to close.
+    try {
+      await sl.reset();
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'jeeb dev tool',
+          context: ErrorDescription('disposing services during an app restart'),
+        ),
+      );
+    }
 
     // Phase 3 — mount a fresh generation. The new key forces a new element and
     // therefore a new `_JeebBootstrapState`, whose `late final _bootstrap`
     // field runs `Bootstrap.minimal()` from the top.
-    if (!mounted) return;
+    if (!mounted) {
+      _restartInFlight = false;
+      return;
+    }
     setState(() {
       _generation = UniqueKey();
       _tearingDown = false;
@@ -90,9 +112,39 @@ class _AppRestarterState extends State<AppRestarter> {
     if (_tearingDown) {
       // Deliberately not the branded splash: this is a single frame with no
       // app tree mounted, and the splash resolves theme/localization that the
-      // reset is about to invalidate.
-      return const ColoredBox(color: Color(0xFF000000));
+      // reset is about to invalidate. The colour comes from the theme rather
+      // than a literal — `no_raw_semantic_colors_test` forbids raw hex colour
+      // literals outside `lib/core/theme/`, and there is no `BuildContext`
+      // carrying a theme here because the tree above us is gone.
+      return ColoredBox(color: AppTheme.midnight().scaffoldBackgroundColor);
     }
     return KeyedSubtree(key: _generation, child: widget.child);
   }
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED.
+
+/// The single frame between "tear the app down" and "mount it again".
+///
+/// Worth a preview because it IS a user-visible state — every `Apply & Restart`
+/// paints it — and because getting its colour wrong reads as a crash-to-black
+/// rather than a deliberate restart.
+@JeebPreview(
+  group: 'app',
+  name: 'Restart · teardown frame',
+  size: Size(390, 844),
+)
+Widget appRestarterTeardownFrame() =>
+    ColoredBox(color: AppTheme.midnight().scaffoldBackgroundColor);
+
+/// The idle state: [AppRestarter] is transparent until a restart is requested,
+/// so its child must render byte-identically to an unwrapped tree.
+@JeebPreview(
+  group: 'app',
+  name: 'Restart · idle passthrough',
+  size: Size(390, 844),
+)
+Widget appRestarterIdle() => AppRestarter(
+  child: ColoredBox(color: AppTheme.midnight().colorScheme.surface),
+);

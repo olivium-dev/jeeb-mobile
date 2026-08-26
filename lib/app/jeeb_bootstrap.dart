@@ -356,3 +356,14 @@ Widget jeebBootstrapFailedVerbose() =>
 )
 Widget jeebBootstrapFailedArabicPayload() =>
     _jeebBootstrapFailed(jeebBootstrapArabicError);
+
+/// [JeebRoot] in its production shape: the dev-only wrap folds away and the
+/// root is exactly [JeebBootstrap]. Worth a preview because the whole
+/// compile-out guarantee rests on this widget rendering identically with the
+/// Dev Tool off.
+@JeebPreview(
+  group: 'app',
+  name: 'Root · production shape',
+  size: jeebBootstrapPreviewBox,
+)
+Widget jeebRootProductionShape() => const JeebRoot();

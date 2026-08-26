@@ -20,6 +20,10 @@ import UIKit
   private var devToolShakeChannel: FlutterMethodChannel?
   private let shakeCatcher = DevToolShakeCatcherView(frame: .zero)
   private let shakeDetector = DevToolShakeDetector()
+  /// True between `keyboardWillShow` and `keyboardDidHide`. While set, the
+  /// catcher must not take first responder — doing so resigns whatever text
+  /// field owns it and dismisses the keyboard under the user.
+  private var keyboardIsUp = false
   #endif
 
   override func application(
@@ -86,10 +90,22 @@ import UIKit
       self?.devToolShakeChannel?.invokeMethod("open", arguments: nil)
     }
     shakeDetector.start()
+    NotificationCenter.default.addObserver(
+      forName: UIResponder.keyboardWillShowNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in self?.keyboardIsUp = true }
+    NotificationCenter.default.addObserver(
+      forName: UIResponder.keyboardDidHideNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.keyboardIsUp = false
+      self?.reassertShakeCatcher()
+    }
     for name in [
       UIScene.didActivateNotification,
       UIApplication.didBecomeActiveNotification,
-      UIResponder.keyboardDidHideNotification,
       UIWindow.didBecomeKeyNotification,
     ] {
       NotificationCenter.default.addObserver(
@@ -152,6 +168,13 @@ import UIKit
   /// caller set is chosen so this only runs at moments when stealing it back is
   /// invisible to the user.
   private func reassertShakeCatcher() {
+    // Never take first responder away from a live text field. `didBecomeActive`
+    // and `didBecomeKey` fire on returning from Control Center or a system
+    // interruption WHILE a field is still focused, and `becomeFirstResponder()`
+    // would unconditionally resign it — dismissing the keyboard mid-typing.
+    // CoreMotion is the primary detector and needs none of this, so when in
+    // doubt the correct move is to skip.
+    guard !keyboardIsUp else { return }
     guard
       let windowScene = UIApplication.shared.connectedScenes
         .compactMap({ $0 as? UIWindowScene })
