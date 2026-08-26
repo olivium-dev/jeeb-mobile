@@ -1,6 +1,6 @@
 name: Distribute retained mobile RC internally
 
-run-name: Internal distribution ${{ inputs.build_name }}+${{ inputs.build_number }} from RC ${{ inputs.source_run_id }}
+run-name: Internal distribution ${{ inputs.platform }} ${{ inputs.build_name }}+${{ inputs.build_number }} from RC ${{ inputs.source_run_id }}
 
 on:
   workflow_dispatch:
@@ -10,17 +10,26 @@ on:
         required: true
         type: string
       reviewed_sha:
-        description: Exact reviewed commit embedded in both retained candidates
+        description: Exact reviewed commit embedded in the retained candidates
         required: true
         type: string
       build_name:
-        description: Exact store version embedded in both retained candidates
+        description: Exact store version embedded in the retained candidates
         required: true
         type: string
       build_number:
-        description: Exact shared monotonic build number embedded in both candidates
+        description: Exact monotonic build number embedded in the candidates
         required: true
         type: string
+      platform:
+        description: Retained candidate platform set to distribute
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - android
+          - ios
 
 permissions:
   actions: read
@@ -59,6 +68,7 @@ jobs:
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
+          DISTRIBUTION_PLATFORM: ${{ inputs.platform }}
         shell: bash
         run: |
           set -euo pipefail
@@ -70,6 +80,9 @@ jobs:
           [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
           (( 10#${BUILD_NUMBER} <= 2100000000 ))
+          [[ "${DISTRIBUTION_PLATFORM}" == both || \
+            "${DISTRIBUTION_PLATFORM}" == android || \
+            "${DISTRIBUTION_PLATFORM}" == ios ]]
           git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD
           omds_sha="$(tr -d '[:space:]' <.omds-revision)"
           [[ "${omds_sha}" =~ ^[0-9a-f]{40}$ ]]
@@ -130,10 +143,9 @@ jobs:
             fi
           }
 
+          if [[ "${DISTRIBUTION_PLATFORM}" != ios ]]; then
           android_name="mobile-rc-android-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
-          ios_name="mobile-rc-ios-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
           android_record="$(artifact_record "${source_artifacts}" "${android_name}")"
-          ios_record="$(artifact_record "${source_artifacts}" "${ios_name}")"
           android_zip="${tmp_dir}/android-rc.zip"
           download_verified_artifact "${android_record}" "${android_zip}" >/dev/null
           validate_zip_entries "${android_zip}"
@@ -178,7 +190,11 @@ jobs:
               and .retained == true
               and .store_uploaded == false
             ' "${provenance}" >/dev/null
+          fi
 
+          if [[ "${DISTRIBUTION_PLATFORM}" != android ]]; then
+          ios_name="mobile-rc-ios-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
+          ios_record="$(artifact_record "${source_artifacts}" "${ios_name}")"
           ios_artifact_id="$(jq -r '.id' <<<"${ios_record}")"
           ios_zip="${tmp_dir}/ios-rc.zip"
           ios_archive_sha="$(download_verified_artifact \
@@ -218,6 +234,7 @@ jobs:
           [[ "${ipa_sha}" =~ ^[0-9a-f]{64}$ ]]
           [[ "${ios_provenance_sha}" =~ ^[0-9a-f]{64}$ ]]
           [[ "${dsym_sha}" =~ ^[0-9a-f]{64}$ ]]
+          fi
 
           environment_json="$(gh api \
             "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
@@ -233,13 +250,17 @@ jobs:
           {
             printf 'source_run_id=%s\n' "${SOURCE_RUN_ID}"
             printf 'source_run_attempt=%s\n' "${source_attempt}"
+            if [[ "${DISTRIBUTION_PLATFORM}" != ios ]]; then
             printf 'rc_aab_sha256=%s\n' "${aab_sha}"
             printf 'rc_android_provenance_sha256=%s\n' "${provenance_sha}"
+            fi
+            if [[ "${DISTRIBUTION_PLATFORM}" != android ]]; then
             printf 'rc_ios_artifact_id=%s\n' "${ios_artifact_id}"
             printf 'rc_ios_archive_sha256=%s\n' "${ios_archive_sha}"
             printf 'rc_ipa_sha256=%s\n' "${ipa_sha}"
             printf 'rc_ios_provenance_sha256=%s\n' "${ios_provenance_sha}"
             printf 'rc_dsym_sha256=%s\n' "${dsym_sha}"
+            fi
           } >>"${GITHUB_OUTPUT}"
 
   store-build-number-preflight:
@@ -270,7 +291,10 @@ jobs:
   android-internal:
     name: Google Play Internal Testing — same retained AAB
     needs: [source-policy, store-build-number-preflight]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.platform != 'ios'
     environment: mobile-internal-distribution
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -383,7 +407,10 @@ jobs:
   ios-internal:
     name: TestFlight Internal Testing — same retained IPA
     needs: [source-policy, store-build-number-preflight]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.platform != 'android'
     environment: mobile-internal-distribution
     runs-on: macos-14
     timeout-minutes: 45

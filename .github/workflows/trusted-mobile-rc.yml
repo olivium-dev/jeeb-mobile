@@ -1,6 +1,6 @@
 name: Trusted mobile release candidate
 
-run-name: RC ${{ inputs.build_name }}+${{ inputs.build_number }} @ ${{ inputs.reviewed_sha }}
+run-name: RC ${{ inputs.platform }} ${{ inputs.build_name }}+${{ inputs.build_number }} @ ${{ inputs.reviewed_sha }}
 
 on:
   workflow_dispatch:
@@ -17,6 +17,15 @@ on:
         description: Monotonic positive integer used by Android and iOS
         required: true
         type: string
+      platform:
+        description: Candidate platform set
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - android
+          - ios
 
 permissions:
   actions: read
@@ -55,6 +64,7 @@ jobs:
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
+          CANDIDATE_PLATFORM: ${{ inputs.platform }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,6 +76,9 @@ jobs:
           [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
           (( 10#${BUILD_NUMBER} <= 2100000000 ))
+          [[ "${CANDIDATE_PLATFORM}" == both || \
+            "${CANDIDATE_PLATFORM}" == android || \
+            "${CANDIDATE_PLATFORM}" == ios ]]
           resolved_sha="$(git rev-parse "${REVIEWED_SHA}^{commit}")"
           [[ "${resolved_sha}" == "${REVIEWED_SHA}" ]]
           git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD
@@ -139,7 +152,10 @@ jobs:
   android-candidate:
     name: Signed production AAB (staging runtime)
     needs: policy-preflight
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.platform != 'ios'
     environment: mobile-rc
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -410,7 +426,10 @@ jobs:
   ios-candidate:
     name: Signed production IPA (staging runtime)
     needs: policy-preflight
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.platform != 'android'
     environment: mobile-internal-distribution
     runs-on: macos-26
     timeout-minutes: 90
