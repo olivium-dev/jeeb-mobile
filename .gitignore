@@ -106,5 +106,10 @@ ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 # FlutterFire-generated real options (placeholder template stays committed).
 lib/core/firebase/firebase_options.g.dart
 
+# Android candidate custody private material is environment-secret only. The
+# matching public certificate is the sole PEM allowed under .github/release/.
+/.github/release/*private*.pem
+/.github/release/*.key.pem
+
 # Agent worktrees (large, machine-local)
 .claude/worktrees/

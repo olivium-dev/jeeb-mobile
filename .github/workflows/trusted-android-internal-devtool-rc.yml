@@ -118,15 +118,16 @@ jobs:
 
       - uses: ./.github/actions/run-build-runner
 
-      - name: Test restricted policy and payload inspectors
+      - name: Test restricted policy, payload, and custody inspectors
         run: |
           flutter analyze
           flutter test test/internal_devtool --reporter expanded
           bash tool/test_android_internal_candidate_integrity.sh
+          bash tool/test_android_internal_candidate_custody.sh
           bash tool/test_inspect_android_internal_release_payload.sh
           bash tool/test_inspect_android_release_payload.sh
 
-      - name: Build, inspect, and retain signed internal candidate
+      - name: Build, inspect, encrypt, and retain signed internal candidate
         id: candidate
         env:
           BUILD_NAME: ${{ inputs.build_name }}
@@ -162,8 +163,16 @@ jobs:
           tmp_dir="$(mktemp -d)"
           keystore="${tmp_dir}/upload.p12"
           properties="${GITHUB_WORKSPACE}/android/key.properties"
+          aab=''
+          mapping=''
           cleanup() {
             rm -f -- "${properties}"
+            if [[ -n "${aab}" ]]; then
+              rm -f -- "${aab}"
+            fi
+            if [[ -n "${mapping}" ]]; then
+              rm -f -- "${mapping}"
+            fi
             rm -rf -- "${tmp_dir}"
           }
           trap cleanup EXIT HUP INT TERM
@@ -248,12 +257,7 @@ jobs:
           artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
           metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
-          retained='build/retained/android-internal-devtool'
-          mkdir -p "${retained}"
-          retained_aab="${retained}/jeeb-internal-${BUILD_NAME}+${BUILD_NUMBER}.aab"
-          install -m 0600 "${aab}" "${retained_aab}"
-          install -m 0600 "${metadata}" "${retained}/output-metadata.json"
-          install -m 0600 "${mapping}" "${retained}/mapping.txt"
+          provenance="${tmp_dir}/provenance.json"
           jq -n \
             --arg reviewed_sha "${REVIEWED_SHA}" \
             --arg dependency_sha "${OMDS_SHA}" \
@@ -288,8 +292,8 @@ jobs:
               gateway_origin, realtime_socket,
               devtool:true, super_login:false, clarity_enabled:false,
               clarity_privacy_approved:false, retained:true,
-              store_uploaded:false}' >"${retained}/provenance.json"
-          chmod 0600 "${retained}/provenance.json"
+              store_uploaded:false}' >"${provenance}"
+          chmod 0600 "${provenance}"
           ANDROID_PACKAGE_NAME=com.olivium.jeeb \
           MOBILE_BUILD_NAME="${BUILD_NAME}" \
           MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
@@ -303,24 +307,41 @@ jobs:
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \
             bash tool/validate_android_internal_devtool_artifact.sh \
-              "${retained_aab}" "${retained}/provenance.json" \
-              "${retained}/output-metadata.json" >/dev/null
-          {
-            printf 'artifact_path=%s\n' "${retained_aab}"
-            printf 'metadata_path=%s\n' "${retained}/output-metadata.json"
-            printf 'mapping_path=%s\n' "${retained}/mapping.txt"
-            printf 'provenance_path=%s\n' "${retained}/provenance.json"
-          } >>"${GITHUB_OUTPUT}"
+              "${aab}" "${provenance}" "${metadata}" >/dev/null
+          inner_archive="${tmp_dir}/candidate.zip"
+          python3 tool/android_internal_candidate_custody.py pack-inner \
+            --aab "${aab}" \
+            --metadata "${metadata}" \
+            --mapping "${mapping}" \
+            --provenance "${provenance}" \
+            --output "${inner_archive}"
+          recipient_cert="${GITHUB_WORKSPACE}/.github/release/android-internal-candidate-recipient.pem"
+          [[ -s "${recipient_cert}" ]] || {
+            printf '%s\n' 'Android candidate encryption recipient is not provisioned' >&2
+            exit 1
+          }
+          retained='build/retained/android-internal-devtool'
+          mkdir -p "${retained}"
+          candidate_cms="${retained}/candidate.cms"
+          bash tool/android_internal_candidate_custody.sh encrypt \
+            "${inner_archive}" "${candidate_cms}" "${recipient_cert}"
+          bash tool/android_internal_candidate_custody.sh inspect \
+            "${candidate_cms}"
+          [[ "$(find "${retained}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" == 1 ]]
+          [[ "$(basename "${candidate_cms}")" == candidate.cms ]]
+          rm -f -- "${aab}" "${mapping}" "${metadata}" "${provenance}" \
+            "${inner_archive}"
+          [[ ! -e "${aab}" && ! -e "${mapping}" && ! -e "${metadata}" ]]
+          [[ ! -e "${provenance}" && ! -e "${inner_archive}" ]]
+          aab=''
+          mapping=''
+          printf 'candidate_path=%s\n' "${candidate_cms}" >>"${GITHUB_OUTPUT}"
 
-      - name: Retain exact candidate without uploading
+      - name: Retain exact ciphertext-only candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-internal-devtool-${{ inputs.build_number }}-${{ needs.policy.outputs.reviewed_sha }}-attempt-${{ github.run_attempt }}
-          path: |
-            ${{ steps.candidate.outputs.artifact_path }}
-            ${{ steps.candidate.outputs.metadata_path }}
-            ${{ steps.candidate.outputs.mapping_path }}
-            ${{ steps.candidate.outputs.provenance_path }}
+          path: ${{ steps.candidate.outputs.candidate_path }}
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

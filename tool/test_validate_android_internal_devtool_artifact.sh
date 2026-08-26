@@ -22,6 +22,7 @@ export JEEB_RELEASE_PROFILE=release
 aab_path="${TMP_DIR}/jeeb-internal.aab"
 metadata_path="${TMP_DIR}/output-metadata.json"
 provenance_path="${TMP_DIR}/provenance.json"
+mapping_path="${TMP_DIR}/mapping.txt"
 mkdir -p "${TMP_DIR}/aab/base/manifest"
 printf '%s\n' 'com.olivium.jeeb DevToolLauncher' \
   >"${TMP_DIR}/aab/base/manifest/AndroidManifest.xml"
@@ -65,9 +66,12 @@ sha256_file() {
 
 aab_sha="$(sha256_file "${aab_path}")"
 metadata_sha="$(sha256_file "${metadata_path}")"
+printf '%s\n' 'mapping fixture' >"${mapping_path}"
+mapping_sha="$(sha256_file "${mapping_path}")"
 jq -n \
   --arg aab "${aab_sha}" \
   --arg metadata "${metadata_sha}" \
+  --arg mapping "${mapping_sha}" \
   --arg name "${MOBILE_BUILD_NAME}" \
   --arg number "${MOBILE_BUILD_NUMBER}" \
   --arg reviewed "${REVIEWED_SHA}" \
@@ -81,7 +85,7 @@ jq -n \
       build_profile:"release", release_profile:true, runtime:"staging",
       version_name:$name, version_code:$number, build_name:$name,
       build_number:$number, artifact_sha256:$aab, metadata_sha256:$metadata,
-      metadata_kind:"gradle-merged-manifest-v3",
+      metadata_kind:"gradle-merged-manifest-v3", mapping_sha256:$mapping,
       signer_sha1:$signer_sha1, signer_sha256:$signer_sha256,
       reviewed_sha:$reviewed, source_run_id:$source_run,
       source_run_attempt:$source_attempt, source_head_sha:$reviewed,
@@ -99,6 +103,42 @@ jq -n \
 validator="${REPO_ROOT}/tool/validate_android_internal_devtool_artifact.sh"
 bash "${validator}" "${aab_path}" "${provenance_path}" "${metadata_path}" \
   >/dev/null
+
+openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+  -subj '/CN=Jeeb encrypted validator test' \
+  -keyout "${TMP_DIR}/custody.key.pem" \
+  -out "${TMP_DIR}/custody.cert.pem" >/dev/null 2>&1
+python3 "${REPO_ROOT}/tool/android_internal_candidate_custody.py" pack-inner \
+  --aab "${aab_path}" --metadata "${metadata_path}" \
+  --mapping "${mapping_path}" --provenance "${provenance_path}" \
+  --output "${TMP_DIR}/candidate.zip"
+bash "${REPO_ROOT}/tool/android_internal_candidate_custody.sh" encrypt \
+  "${TMP_DIR}/candidate.zip" "${TMP_DIR}/candidate.cms" \
+  "${TMP_DIR}/custody.cert.pem"
+encrypted_validation="$({
+  bash "${REPO_ROOT}/tool/validate_encrypted_android_internal_candidate.sh" \
+    "${TMP_DIR}/candidate.cms" "${TMP_DIR}/custody.cert.pem" \
+    "${TMP_DIR}/custody.key.pem" "${TMP_DIR}/encrypted-output"
+} 2>"${TMP_DIR}/encrypted-validation.log")"
+[[ "$(sed -n 's/^aab_sha256=//p' <<<"${encrypted_validation}")" == \
+  "${aab_sha}" ]]
+unset encrypted_validation
+
+printf '%s\n' 'changed mapping fixture' >"${TMP_DIR}/wrong-mapping.txt"
+python3 "${REPO_ROOT}/tool/android_internal_candidate_custody.py" pack-inner \
+  --aab "${aab_path}" --metadata "${metadata_path}" \
+  --mapping "${TMP_DIR}/wrong-mapping.txt" --provenance "${provenance_path}" \
+  --output "${TMP_DIR}/wrong-mapping.zip"
+bash "${REPO_ROOT}/tool/android_internal_candidate_custody.sh" encrypt \
+  "${TMP_DIR}/wrong-mapping.zip" "${TMP_DIR}/wrong-mapping.cms" \
+  "${TMP_DIR}/custody.cert.pem"
+if bash "${REPO_ROOT}/tool/validate_encrypted_android_internal_candidate.sh" \
+  "${TMP_DIR}/wrong-mapping.cms" "${TMP_DIR}/custody.cert.pem" \
+  "${TMP_DIR}/custody.key.pem" "${TMP_DIR}/wrong-mapping-output" \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'Encrypted validator accepted mismatched mapping bytes.' >&2
+  exit 1
+fi
 
 assert_rejected_provenance() {
   local filter="$1"
