@@ -82,6 +82,23 @@ void main() {
     for (final marker in _workflowMarkers) {
       expect(buildWorkflow, contains(marker));
     }
+    expect(
+      buildWorkflow,
+      isNot(contains('ANDROID_CANDIDATE_DECRYPT_KEY_B64')),
+      reason: 'the lower-trust build environment must never receive the key',
+    );
+    final retainStep = buildWorkflow.substring(
+      buildWorkflow.indexOf('Retain exact ciphertext-only candidate'),
+    );
+    expect(
+      retainStep,
+      contains(r'${{ steps.candidate.outputs.candidate_path }}'),
+    );
+    expect(retainStep, isNot(contains('artifact_path')));
+    expect(retainStep, isNot(contains('metadata_path')));
+    expect(retainStep, isNot(contains('mapping_path')));
+    expect(retainStep, isNot(contains('provenance_path')));
+    expect(retainStep, isNot(contains('.aab')));
     expect(buildWorkflow, isNot(contains('upload_to_play_store')));
     expect(buildWorkflow, isNot(contains('pilot(')));
     expect(fastfile, contains('lane :internal_devtool'));
@@ -101,6 +118,17 @@ void main() {
       isNot(contains('fastlane android internal\n')),
     );
     expect(distributionWorkflow, isNot(contains('track: production')));
+    expect(distributionWorkflow, isNot(contains('actions/download-artifact')));
+    expect(distributionWorkflow, isNot(contains('unzip ')));
+    expect(
+      RegExp(
+        'secrets\\.ANDROID_CANDIDATE_DECRYPT_KEY_B64',
+      ).allMatches(distributionWorkflow).length,
+      2,
+      reason: 'only the two protected decrypt-and-verify jobs receive the key',
+    );
+    expect(distributionWorkflow, isNot(contains('set -x')));
+    expect(distributionWorkflow, isNot(contains(r'echo "${ANDROID_CANDIDATE')));
   });
 
   test(
@@ -153,6 +181,27 @@ void main() {
     expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
     expect(result.stdout, contains('strict signer controls passed'));
   });
+
+  test('encrypted candidate custody is authenticated and fail closed', () {
+    final custody = _source('tool/android_internal_candidate_custody.sh');
+    for (final marker in <String>[
+      'id-smime-ct-authEnvelopedData',
+      'rsaesOaep',
+      'aes-256-gcm',
+      'rsa_padding_mode:oaep',
+      'rsa_oaep_md:sha256',
+      'rsa_mgf1_md:sha256',
+    ]) {
+      expect(custody, contains(marker));
+    }
+    expect(custody, isNot(contains('set -x')));
+
+    final result = Process.runSync('bash', <String>[
+      'tool/test_android_internal_candidate_custody.sh',
+    ]);
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(result.stdout, contains('encrypted-custody controls passed'));
+  });
 }
 
 String _source(String path) => File(path).readAsStringSync();
@@ -190,12 +239,24 @@ const _workflowMarkers = <String>[
   'source_run_attempt',
   'source_workflow_ref',
   'store_uploaded:false',
+  'android_internal_candidate_custody.py pack-inner',
+  'android_internal_candidate_custody.sh encrypt',
+  'android-internal-candidate-recipient.pem',
+  'candidate.cms',
+  'Retain exact ciphertext-only candidate',
 ];
 
 const _distributionWorkflowMarkers = <String>[
   'environment: mobile-internal-distribution',
   '.path == ".github/workflows/trusted-android-internal-devtool-rc.yml"',
   'artifact_archive_sha256',
+  'candidate_cms_sha256',
+  'artifact_id',
+  'ANDROID_CANDIDATE_DECRYPT_KEY_B64',
+  'android_internal_candidate_custody.py extract-artifact',
+  'validate_encrypted_android_internal_candidate.sh',
+  'REST re-download, decrypt privately, and reverify exact candidate',
+  'Erase private plaintext candidate',
   'EXPECTED_AAB_SHA',
   'EXPECTED_METADATA_SHA',
   'EXPECTED_PROVENANCE_SHA',

@@ -38,7 +38,9 @@ jobs:
     timeout-minutes: 15
     outputs:
       source_run_attempt: ${{ steps.policy.outputs.source_run_attempt }}
+      artifact_id: ${{ steps.policy.outputs.artifact_id }}
       artifact_archive_sha256: ${{ steps.policy.outputs.artifact_archive_sha256 }}
+      candidate_cms_sha256: ${{ steps.policy.outputs.candidate_cms_sha256 }}
       aab_sha256: ${{ steps.policy.outputs.aab_sha256 }}
       metadata_sha256: ${{ steps.policy.outputs.metadata_sha256 }}
       provenance_sha256: ${{ steps.policy.outputs.provenance_sha256 }}
@@ -59,6 +61,7 @@ jobs:
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
           SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
+          ANDROID_CANDIDATE_DECRYPT_KEY_B64: ${{ secrets.ANDROID_CANDIDATE_DECRYPT_KEY_B64 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -109,25 +112,17 @@ jobs:
             >"${archive}"
           archive_sha="$(sha256sum "${archive}" | cut -d ' ' -f1)"
           [[ "${archive_sha}" == "${expected_archive_sha}" ]]
-          unzip -tqq "${archive}"
-          if unzip -Z1 "${archive}" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
-            exit 1
-          fi
-          mkdir "${tmp_dir}/candidate"
-          unzip -q "${archive}" -d "${tmp_dir}/candidate"
-          root="${tmp_dir}/candidate"
-          aab="$(find "${root}" -type f -name '*.aab' -print -quit)"
-          metadata="$(find "${root}" -type f \
-            -name output-metadata.json -print -quit)"
-          provenance="$(find "${root}" -type f \
-            -name provenance.json -print -quit)"
-          mapping="$(find "${root}" -type f -name mapping.txt -print -quit)"
-          [[ -s "${aab}" && -s "${metadata}" ]]
-          [[ -s "${provenance}" && -s "${mapping}" ]]
-          [[ "$(find "${root}" -type f -name '*.aab' | wc -l | tr -d ' ')" == 1 ]]
-          [[ "$(find "${root}" -type f -name provenance.json | wc -l | tr -d ' ')" == 1 ]]
-          [[ "$(find "${root}" -type f -name output-metadata.json | wc -l | tr -d ' ')" == 1 ]]
-
+          ciphertext="${tmp_dir}/candidate.cms"
+          python3 tool/android_internal_candidate_custody.py extract-artifact \
+            --archive "${archive}" --output "${ciphertext}"
+          [[ -n "${ANDROID_CANDIDATE_DECRYPT_KEY_B64:-}" ]] || exit 1
+          private_key="${tmp_dir}/candidate-private-key.pem"
+          printf '%s' "${ANDROID_CANDIDATE_DECRYPT_KEY_B64}" | \
+            base64 --decode >"${private_key}"
+          unset ANDROID_CANDIDATE_DECRYPT_KEY_B64
+          chmod 0600 "${private_key}"
+          recipient_cert="${GITHUB_WORKSPACE}/.github/release/android-internal-candidate-recipient.pem"
+          validation="$({
           ANDROID_PACKAGE_NAME=com.olivium.jeeb \
           MOBILE_BUILD_NAME="${BUILD_NAME}" \
           MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
@@ -140,14 +135,23 @@ jobs:
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \
-            bash tool/validate_android_internal_devtool_artifact.sh \
-              "${aab}" "${provenance}" "${metadata}" >/dev/null
-          aab_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
-          metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
-          provenance_sha="$(sha256sum "${provenance}" | cut -d ' ' -f1)"
-          mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
-          jq -e --arg mapping "${mapping_sha}" \
-            '.mapping_sha256 == $mapping' "${provenance}" >/dev/null
+            bash tool/validate_encrypted_android_internal_candidate.sh \
+              "${ciphertext}" "${recipient_cert}" "${private_key}" \
+              "${tmp_dir}/private-candidate"
+          } 2>"${tmp_dir}/validation-error.txt")" || {
+            printf '%s\n' 'Encrypted candidate validation failed' >&2
+            exit 1
+          }
+          candidate_cms_sha="$(sed -n 's/^candidate_cms_sha256=//p' <<<"${validation}")"
+          aab_sha="$(sed -n 's/^aab_sha256=//p' <<<"${validation}")"
+          metadata_sha="$(sed -n 's/^metadata_sha256=//p' <<<"${validation}")"
+          provenance_sha="$(sed -n 's/^provenance_sha256=//p' <<<"${validation}")"
+          mapping_sha="$(sed -n 's/^mapping_sha256=//p' <<<"${validation}")"
+          for digest in "${candidate_cms_sha}" "${aab_sha}" "${metadata_sha}" \
+            "${provenance_sha}" "${mapping_sha}"; do
+            [[ "${digest}" =~ ^[0-9a-f]{64}$ ]]
+          done
+          unset validation
 
           environment_json="$(gh api \
             "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
@@ -163,7 +167,9 @@ jobs:
           ' <<<"${environment_json}" >/dev/null
           {
             printf 'source_run_attempt=%s\n' "${source_attempt}"
+            printf 'artifact_id=%s\n' "${artifact_id}"
             printf 'artifact_archive_sha256=%s\n' "${archive_sha}"
+            printf 'candidate_cms_sha256=%s\n' "${candidate_cms_sha}"
             printf 'aab_sha256=%s\n' "${aab_sha}"
             printf 'metadata_sha256=%s\n' "${metadata_sha}"
             printf 'provenance_sha256=%s\n' "${provenance_sha}"
@@ -205,40 +211,67 @@ jobs:
         with:
           ref: ${{ inputs.reviewed_sha }}
           persist-credentials: false
-      - name: Download exact retained candidate
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: android-internal-devtool-${{ inputs.build_number }}-${{ inputs.reviewed_sha }}-attempt-${{ needs.source-policy.outputs.source_run_attempt }}
-          path: ${{ runner.temp }}/android-internal-devtool
-          run-id: ${{ inputs.source_run_id }}
-          github-token: ${{ github.token }}
-      - name: Reverify downloaded bytes and expose exact paths
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+      - name: REST re-download, decrypt privately, and reverify exact candidate
         id: candidate
         env:
+          GH_TOKEN: ${{ github.token }}
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
           SOURCE_RUN_ATTEMPT: ${{ needs.source-policy.outputs.source_run_attempt }}
           SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
+          ARTIFACT_ID: ${{ needs.source-policy.outputs.artifact_id }}
+          EXPECTED_ARCHIVE_SHA: ${{ needs.source-policy.outputs.artifact_archive_sha256 }}
+          EXPECTED_CANDIDATE_CMS_SHA: ${{ needs.source-policy.outputs.candidate_cms_sha256 }}
           EXPECTED_AAB_SHA: ${{ needs.source-policy.outputs.aab_sha256 }}
           EXPECTED_METADATA_SHA: ${{ needs.source-policy.outputs.metadata_sha256 }}
           EXPECTED_PROVENANCE_SHA: ${{ needs.source-policy.outputs.provenance_sha256 }}
           EXPECTED_MAPPING_SHA: ${{ needs.source-policy.outputs.mapping_sha256 }}
+          ANDROID_CANDIDATE_DECRYPT_KEY_B64: ${{ secrets.ANDROID_CANDIDATE_DECRYPT_KEY_B64 }}
         shell: bash
         run: |
           set -euo pipefail
-          root='${{ runner.temp }}/android-internal-devtool'
-          aab="$(find "${root}" -type f -name '*.aab' -print -quit)"
-          metadata="$(find "${root}" -type f \
-            -name output-metadata.json -print -quit)"
-          provenance="$(find "${root}" -type f \
-            -name provenance.json -print -quit)"
-          mapping="$(find "${root}" -type f -name mapping.txt -print -quit)"
-          [[ "$(sha256sum "${aab}" | cut -d ' ' -f1)" == "${EXPECTED_AAB_SHA}" ]]
-          [[ "$(sha256sum "${metadata}" | cut -d ' ' -f1)" == "${EXPECTED_METADATA_SHA}" ]]
-          [[ "$(sha256sum "${provenance}" | cut -d ' ' -f1)" == "${EXPECTED_PROVENANCE_SHA}" ]]
-          [[ "$(sha256sum "${mapping}" | cut -d ' ' -f1)" == "${EXPECTED_MAPPING_SHA}" ]]
+          umask 077
+          [[ "${ARTIFACT_ID}" =~ ^[1-9][0-9]*$ ]]
+          tmp_dir="$(mktemp -d)"
+          root='${{ runner.temp }}/android-internal-devtool-private'
+          validation_complete=false
+          erase_private_root() {
+            if [[ -d "${root}" ]]; then
+              find "${root}" -type f -delete
+              find "${root}" -depth -type d -empty -delete
+            fi
+          }
+          cleanup() {
+            if [[ "${validation_complete}" != true ]]; then
+              erase_private_root
+            fi
+            rm -rf -- "${tmp_dir}"
+          }
+          trap cleanup EXIT HUP INT TERM
+          archive="${tmp_dir}/candidate-artifact.zip"
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            >"${archive}"
+          [[ "$(sha256sum "${archive}" | cut -d ' ' -f1)" == \
+            "${EXPECTED_ARCHIVE_SHA}" ]]
+          ciphertext="${tmp_dir}/candidate.cms"
+          python3 tool/android_internal_candidate_custody.py extract-artifact \
+            --archive "${archive}" --output "${ciphertext}"
+          [[ "$(sha256sum "${ciphertext}" | cut -d ' ' -f1)" == \
+            "${EXPECTED_CANDIDATE_CMS_SHA}" ]]
+          [[ -n "${ANDROID_CANDIDATE_DECRYPT_KEY_B64:-}" ]] || exit 1
+          private_key="${tmp_dir}/candidate-private-key.pem"
+          printf '%s' "${ANDROID_CANDIDATE_DECRYPT_KEY_B64}" | \
+            base64 --decode >"${private_key}"
+          unset ANDROID_CANDIDATE_DECRYPT_KEY_B64
+          chmod 0600 "${private_key}"
+          recipient_cert="${GITHUB_WORKSPACE}/.github/release/android-internal-candidate-recipient.pem"
+          [[ ! -e "${root}" ]]
+          validation="$({
           ANDROID_PACKAGE_NAME=com.olivium.jeeb \
           MOBILE_BUILD_NAME="${BUILD_NAME}" \
           MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
@@ -251,15 +284,29 @@ jobs:
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \
-            bash tool/validate_android_internal_devtool_artifact.sh \
-              "${aab}" "${provenance}" "${metadata}" >/dev/null
+            bash tool/validate_encrypted_android_internal_candidate.sh \
+              "${ciphertext}" "${recipient_cert}" "${private_key}" "${root}"
+          } 2>"${tmp_dir}/validation-error.txt")" || {
+            printf '%s\n' 'Encrypted candidate revalidation failed' >&2
+            exit 1
+          }
+          [[ "$(sed -n 's/^candidate_cms_sha256=//p' <<<"${validation}")" == \
+            "${EXPECTED_CANDIDATE_CMS_SHA}" ]]
+          [[ "$(sed -n 's/^aab_sha256=//p' <<<"${validation}")" == \
+            "${EXPECTED_AAB_SHA}" ]]
+          [[ "$(sed -n 's/^metadata_sha256=//p' <<<"${validation}")" == \
+            "${EXPECTED_METADATA_SHA}" ]]
+          [[ "$(sed -n 's/^provenance_sha256=//p' <<<"${validation}")" == \
+            "${EXPECTED_PROVENANCE_SHA}" ]]
+          [[ "$(sed -n 's/^mapping_sha256=//p' <<<"${validation}")" == \
+            "${EXPECTED_MAPPING_SHA}" ]]
+          unset validation
+          validation_complete=true
           {
-            printf 'aab_path=%s\n' "${aab}"
-            printf 'metadata_path=%s\n' "${metadata}"
-            printf 'provenance_path=%s\n' "${provenance}"
+            printf 'aab_path=%s\n' "${root}/candidate.aab"
+            printf 'metadata_path=%s\n' "${root}/output-metadata.json"
+            printf 'provenance_path=%s\n' "${root}/provenance.json"
           } >>"${GITHUB_OUTPUT}"
-      - name: Set up repository Ruby
-        uses: ./.github/actions/setup-ruby
       - name: Upload provenance-verified AAB to Internal Testing only
         working-directory: android
         env:
@@ -280,6 +327,17 @@ jobs:
           JEEB_RELEASE_PROFILE: release
           GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
         run: bundle exec fastlane android internal_devtool
+      - name: Erase private plaintext candidate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          private_root='${{ runner.temp }}/android-internal-devtool-private'
+          if [[ -d "${private_root}" ]]; then
+            find "${private_root}" -type f -delete
+            find "${private_root}" -depth -type d -empty -delete
+          fi
+          [[ ! -e "${private_root}" ]]
       - name: Record internal-only distribution receipt
         env:
           AAB_SHA256: ${{ needs.source-policy.outputs.aab_sha256 }}
