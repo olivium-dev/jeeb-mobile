@@ -1,0 +1,306 @@
+name: Distribute restricted Android Dev Tool internally
+
+run-name: Android Internal Dev Tool ${{ inputs.build_name }}+${{ inputs.build_number }} from ${{ inputs.source_run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful trusted Android internal Dev Tool run ID
+        required: true
+        type: string
+      reviewed_sha:
+        description: Exact reviewed protected-main commit in the candidate
+        required: true
+        type: string
+      build_name:
+        description: Exact retained version name
+        required: true
+        type: string
+      build_number:
+        description: Exact retained version code
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: android-internal-devtool-distribution-${{ inputs.build_number }}
+  cancel-in-progress: false
+
+jobs:
+  source-policy:
+    name: Verify protected source run and immutable retained candidate
+    environment: mobile-internal-distribution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      source_run_attempt: ${{ steps.policy.outputs.source_run_attempt }}
+      artifact_archive_sha256: ${{ steps.policy.outputs.artifact_archive_sha256 }}
+      aab_sha256: ${{ steps.policy.outputs.aab_sha256 }}
+      metadata_sha256: ${{ steps.policy.outputs.metadata_sha256 }}
+      provenance_sha256: ${{ steps.policy.outputs.provenance_sha256 }}
+      mapping_sha256: ${{ steps.policy.outputs.mapping_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate source run, artifact digest, and candidate bindings
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]
+          [[ "${GITHUB_REF}" == refs/heads/main ]]
+          [[ "${GITHUB_REPOSITORY}" == olivium-dev/jeeb-mobile ]]
+          [[ "${SOURCE_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
+          (( 10#${BUILD_NUMBER} >= 26082601 ))
+          (( 10#${BUILD_NUMBER} <= 2100000000 ))
+          [[ "$(git rev-parse HEAD)" == "${REVIEWED_SHA}" ]]
+
+          source_json="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}")"
+          jq -e --arg reviewed "${REVIEWED_SHA}" '
+            .path == ".github/workflows/trusted-android-internal-devtool-rc.yml"
+            and .event == "workflow_dispatch"
+            and .head_branch == "main"
+            and .head_sha == $reviewed
+            and .status == "completed"
+            and .conclusion == "success"
+            and (.run_attempt | type == "number" and . >= 1)
+          ' <<<"${source_json}" >/dev/null
+          source_attempt="$(jq -r '.run_attempt' <<<"${source_json}")"
+          artifacts="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100")"
+          artifact_name="android-internal-devtool-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
+          record="$(jq -ce --arg expected "${artifact_name}" '
+            [.artifacts[] | select(
+              .name == $expected
+              and .expired == false
+              and (.id | type == "number" and . >= 1)
+              and (.digest | type == "string"
+                and test("^sha256:[0-9a-f]{64}$"))
+            )] | if length == 1 then .[0] else error("artifact mismatch") end
+          ' <<<"${artifacts}")"
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf -- "${tmp_dir}"' EXIT HUP INT TERM
+          archive="${tmp_dir}/candidate.zip"
+          artifact_id="$(jq -r '.id' <<<"${record}")"
+          expected_archive_sha="$(jq -r '.digest | sub("^sha256:"; "")' \
+            <<<"${record}")"
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" \
+            >"${archive}"
+          archive_sha="$(sha256sum "${archive}" | cut -d ' ' -f1)"
+          [[ "${archive_sha}" == "${expected_archive_sha}" ]]
+          unzip -tqq "${archive}"
+          if unzip -Z1 "${archive}" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+            exit 1
+          fi
+          mkdir "${tmp_dir}/candidate"
+          unzip -q "${archive}" -d "${tmp_dir}/candidate"
+          root="${tmp_dir}/candidate"
+          aab="$(find "${root}" -type f -name '*.aab' -print -quit)"
+          metadata="$(find "${root}" -type f \
+            -name output-metadata.json -print -quit)"
+          provenance="$(find "${root}" -type f \
+            -name provenance.json -print -quit)"
+          mapping="$(find "${root}" -type f -name mapping.txt -print -quit)"
+          [[ -s "${aab}" && -s "${metadata}" ]]
+          [[ -s "${provenance}" && -s "${mapping}" ]]
+          [[ "$(find "${root}" -type f -name '*.aab' | wc -l | tr -d ' ')" == 1 ]]
+          [[ "$(find "${root}" -type f -name provenance.json | wc -l | tr -d ' ')" == 1 ]]
+          [[ "$(find "${root}" -type f -name output-metadata.json | wc -l | tr -d ' ')" == 1 ]]
+
+          ANDROID_PACKAGE_NAME=com.olivium.jeeb \
+          MOBILE_BUILD_NAME="${BUILD_NAME}" \
+          MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
+          REVIEWED_SHA="${REVIEWED_SHA}" \
+          SOURCE_RUN_ID="${SOURCE_RUN_ID}" \
+          SOURCE_RUN_ATTEMPT="${source_attempt}" \
+          SOURCE_WORKFLOW_REF="${SOURCE_WORKFLOW_REF}" \
+          JEEB_DEVTOOL_BUILD=true \
+          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_RELEASE_PROFILE=release \
+            bash tool/validate_android_internal_devtool_artifact.sh \
+              "${aab}" "${provenance}" "${metadata}" >/dev/null
+          aab_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
+          metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
+          provenance_sha="$(sha256sum "${provenance}" | cut -d ' ' -f1)"
+          mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
+          jq -e --arg mapping "${mapping_sha}" \
+            '.mapping_sha256 == $mapping' "${provenance}" >/dev/null
+
+          environment_json="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
+          jq -e '
+            .name == "mobile-internal-distribution"
+            and any(.protection_rules[]?;
+              .type == "required_reviewers"
+              and ((.reviewers // []) | length) >= 1
+              and .prevent_self_review == true
+            )
+            and .deployment_branch_policy.protected_branches == true
+            and .deployment_branch_policy.custom_branch_policies == false
+          ' <<<"${environment_json}" >/dev/null
+          {
+            printf 'source_run_attempt=%s\n' "${source_attempt}"
+            printf 'artifact_archive_sha256=%s\n' "${archive_sha}"
+            printf 'aab_sha256=%s\n' "${aab_sha}"
+            printf 'metadata_sha256=%s\n' "${metadata_sha}"
+            printf 'provenance_sha256=%s\n' "${provenance_sha}"
+            printf 'mapping_sha256=%s\n' "${mapping_sha}"
+          } >>"${GITHUB_OUTPUT}"
+
+  store-build-number-preflight:
+    name: Re-read both store maxima before internal distribution
+    needs: source-policy
+    environment: mobile-internal-distribution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          persist-credentials: false
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+      - name: Enforce fresh shared mobile build-number policy
+        env:
+          MOBILE_BUILD_NAME: ${{ inputs.build_name }}
+          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_CONTENT_B64: ${{ secrets.APP_STORE_KEY_CONTENT_B64 }}
+        run: bundle exec fastlane preflight_internal
+
+  play-internal:
+    name: Upload exact restricted AAB to Play Internal only
+    needs: [source-policy, store-build-number-preflight]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: mobile-internal-distribution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          persist-credentials: false
+      - name: Download exact retained candidate
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: android-internal-devtool-${{ inputs.build_number }}-${{ inputs.reviewed_sha }}-attempt-${{ needs.source-policy.outputs.source_run_attempt }}
+          path: ${{ runner.temp }}/android-internal-devtool
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Reverify downloaded bytes and expose exact paths
+        id: candidate
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_RUN_ATTEMPT: ${{ needs.source-policy.outputs.source_run_attempt }}
+          SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
+          EXPECTED_AAB_SHA: ${{ needs.source-policy.outputs.aab_sha256 }}
+          EXPECTED_METADATA_SHA: ${{ needs.source-policy.outputs.metadata_sha256 }}
+          EXPECTED_PROVENANCE_SHA: ${{ needs.source-policy.outputs.provenance_sha256 }}
+          EXPECTED_MAPPING_SHA: ${{ needs.source-policy.outputs.mapping_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='${{ runner.temp }}/android-internal-devtool'
+          aab="$(find "${root}" -type f -name '*.aab' -print -quit)"
+          metadata="$(find "${root}" -type f \
+            -name output-metadata.json -print -quit)"
+          provenance="$(find "${root}" -type f \
+            -name provenance.json -print -quit)"
+          mapping="$(find "${root}" -type f -name mapping.txt -print -quit)"
+          [[ "$(sha256sum "${aab}" | cut -d ' ' -f1)" == "${EXPECTED_AAB_SHA}" ]]
+          [[ "$(sha256sum "${metadata}" | cut -d ' ' -f1)" == "${EXPECTED_METADATA_SHA}" ]]
+          [[ "$(sha256sum "${provenance}" | cut -d ' ' -f1)" == "${EXPECTED_PROVENANCE_SHA}" ]]
+          [[ "$(sha256sum "${mapping}" | cut -d ' ' -f1)" == "${EXPECTED_MAPPING_SHA}" ]]
+          ANDROID_PACKAGE_NAME=com.olivium.jeeb \
+          MOBILE_BUILD_NAME="${BUILD_NAME}" \
+          MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
+          REVIEWED_SHA="${REVIEWED_SHA}" \
+          SOURCE_RUN_ID="${SOURCE_RUN_ID}" \
+          SOURCE_RUN_ATTEMPT="${SOURCE_RUN_ATTEMPT}" \
+          SOURCE_WORKFLOW_REF="${SOURCE_WORKFLOW_REF}" \
+          JEEB_DEVTOOL_BUILD=true \
+          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_RELEASE_PROFILE=release \
+            bash tool/validate_android_internal_devtool_artifact.sh \
+              "${aab}" "${provenance}" "${metadata}" >/dev/null
+          {
+            printf 'aab_path=%s\n' "${aab}"
+            printf 'metadata_path=%s\n' "${metadata}"
+            printf 'provenance_path=%s\n' "${provenance}"
+          } >>"${GITHUB_OUTPUT}"
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+      - name: Upload provenance-verified AAB to Internal Testing only
+        working-directory: android
+        env:
+          ANDROID_AAB_PATH: ${{ steps.candidate.outputs.aab_path }}
+          ANDROID_METADATA_PATH: ${{ steps.candidate.outputs.metadata_path }}
+          ANDROID_PROVENANCE_PATH: ${{ steps.candidate.outputs.provenance_path }}
+          ANDROID_PACKAGE_NAME: com.olivium.jeeb
+          MOBILE_BUILD_NAME: ${{ inputs.build_name }}
+          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_RUN_ATTEMPT: ${{ needs.source-policy.outputs.source_run_attempt }}
+          SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
+          JEEB_DEVTOOL_BUILD: 'true'
+          JEEB_SUPER_LOGIN_ENABLED: 'false'
+          JEEB_CLARITY_ENABLED: 'false'
+          JEEB_CLARITY_PRIVACY_APPROVED: 'false'
+          JEEB_RELEASE_PROFILE: release
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+        run: bundle exec fastlane android internal_devtool
+      - name: Record internal-only distribution receipt
+        env:
+          AAB_SHA256: ${{ needs.source-policy.outputs.aab_sha256 }}
+        run: |
+          mkdir -p build/distribution-receipts
+          jq -n \
+            --arg artifact_sha256 "${AAB_SHA256}" \
+            --arg source_run_id '${{ inputs.source_run_id }}' \
+            --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
+            --arg reviewed_sha '${{ inputs.reviewed_sha }}' \
+            --arg version_name '${{ inputs.build_name }}' \
+            --arg version_code '${{ inputs.build_number }}' \
+            '{platform:"android", destination:"google-play-internal",
+              artifact_sha256, source_run_id, source_run_attempt, reviewed_sha,
+              version_name, version_code, devtool:true, super_login:false,
+              clarity_enabled:false, release_profile:true}' \
+            >build/distribution-receipts/android-internal-devtool.json
+      - name: Retain internal distribution receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-internal-devtool-receipt-${{ inputs.build_number }}-${{ inputs.source_run_id }}
+          path: build/distribution-receipts/android-internal-devtool.json
+          if-no-files-found: error
+          retention-days: 30

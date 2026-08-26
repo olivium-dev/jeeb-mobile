@@ -1,8 +1,10 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/network/connectivity_reachability_source.dart';
+import '../core/session/firebase_identity_teardown.dart';
 import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 
 abstract interface class InternalDeviceUnlocker {
@@ -63,16 +65,32 @@ abstract interface class InternalLocalDataClearer {
   Future<void> clear();
 }
 
+abstract interface class InternalDevToolCloser {
+  Future<void> close();
+}
+
+final class SystemNavigatorInternalDevToolCloser
+    implements InternalDevToolCloser {
+  const SystemNavigatorInternalDevToolCloser();
+
+  @override
+  Future<void> close() => SystemNavigator.pop();
+}
+
 final class PlatformInternalLocalDataClearer
     implements InternalLocalDataClearer {
   const PlatformInternalLocalDataClearer({
     FlutterSecureStorage secureStorage = const FlutterSecureStorage(),
-  }) : _secureStorage = secureStorage;
+    FirebaseIdentityTeardown firebaseSignOut = signOutFirebaseIdentity,
+  }) : _secureStorage = secureStorage,
+       _firebaseSignOut = firebaseSignOut;
 
   final FlutterSecureStorage _secureStorage;
+  final FirebaseIdentityTeardown _firebaseSignOut;
 
   @override
   Future<void> clear() async {
+    await _firebaseSignOut();
     await _secureStorage.deleteAll();
     await (await SharedPreferences.getInstance()).clear();
   }

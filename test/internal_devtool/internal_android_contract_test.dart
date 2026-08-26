@@ -72,20 +72,62 @@ void main() {
   });
 
   test('protected build profile and upload lane stay internal-only', () {
-    final workflow = _source(
+    final buildWorkflow = _source(
       '.github/workflows/trusted-android-internal-devtool-rc.yml',
+    );
+    final distributionWorkflow = _source(
+      '.github/workflows/distribute-android-internal-devtool.yml',
     );
     final fastfile = _source('android/fastlane/Fastfile');
     for (final marker in _workflowMarkers) {
-      expect(workflow, contains(marker));
+      expect(buildWorkflow, contains(marker));
     }
-    expect(workflow, isNot(contains('upload_to_play_store')));
-    expect(workflow, isNot(contains('pilot(')));
+    expect(buildWorkflow, isNot(contains('upload_to_play_store')));
+    expect(buildWorkflow, isNot(contains('pilot(')));
     expect(fastfile, contains('lane :internal_devtool'));
     expect(fastfile, contains("track: 'internal'"));
-    expect(fastfile, contains("'devtool' => true"));
-    expect(fastfile, contains("'super_login' => false"));
+    expect(
+      fastfile,
+      contains('require_devtool ? %w[internal]'),
+      reason: 'restricted code must never be inventoried into Production',
+    );
+    expect(fastfile, contains('validate_android_internal_devtool_artifact.sh'));
     expect(fastfile, isNot(contains('lane :production')));
+    for (final marker in _distributionWorkflowMarkers) {
+      expect(distributionWorkflow, contains(marker));
+    }
+    expect(
+      distributionWorkflow,
+      isNot(contains('fastlane android internal\n')),
+    );
+    expect(distributionWorkflow, isNot(contains('track: production')));
+  });
+
+  test(
+    'only the protected internal distribution workflow invokes the lane',
+    () {
+      final invokers = Directory('.github/workflows')
+          .listSync()
+          .whereType<File>()
+          .where(
+            (file) => file.readAsStringSync().contains(
+              'fastlane android internal_devtool',
+            ),
+          )
+          .map((file) => file.path)
+          .toList();
+      expect(invokers, <String>[
+        '.github/workflows/distribute-android-internal-devtool.yml',
+      ]);
+    },
+  );
+
+  test('artifact validator rejects mismatched bytes and metadata', () {
+    final result = Process.runSync('bash', <String>[
+      'tool/test_validate_android_internal_devtool_artifact.sh',
+    ]);
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(result.stdout, contains('artifact negative controls passed'));
   });
 }
 
@@ -110,5 +152,23 @@ const _workflowMarkers = <String>[
   '--dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false',
   'devtool:true',
   'super_login:false',
+  'metadata_sha256',
+  'source_run_id',
+  'source_run_attempt',
+  'source_workflow_ref',
   'store_uploaded:false',
+];
+
+const _distributionWorkflowMarkers = <String>[
+  'environment: mobile-internal-distribution',
+  '.path == ".github/workflows/trusted-android-internal-devtool-rc.yml"',
+  'artifact_archive_sha256',
+  'EXPECTED_AAB_SHA',
+  'EXPECTED_METADATA_SHA',
+  'EXPECTED_PROVENANCE_SHA',
+  'bundle exec fastlane android internal_devtool',
+  'destination:"google-play-internal"',
+  'devtool:true',
+  'super_login:false',
+  'clarity_enabled:false',
 ];

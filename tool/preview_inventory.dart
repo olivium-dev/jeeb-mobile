@@ -34,6 +34,10 @@ const List<String> excludedPrefixes = <String>[
   'lib/previews/', // the retired preview tree; must no longer exist
   'lib/core/previews/', // the annotation itself
   'lib/devtool/', // dev-only catalog + shell
+  // Restricted QA-only surface, reachable solely from the dedicated Android
+  // internalRelease Activity/engine. Source and payload contract tests prove
+  // this graph stays absent from the public Android and every iOS build.
+  'lib/internal_devtool/',
   'lib/l10n/', // generated localizations
   // Dev-only session-trace overlay. `kObsCompiledIn` is
   // `kDevToolEnabled && bool.fromEnvironment('JEEB_OBS_OVERLAY')`

@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter/services.dart';
 import 'package:omds/omds.dart';
 
 import '../core/config/internal_release_policy.dart';
@@ -17,6 +16,7 @@ class InternalDevToolApp extends StatelessWidget {
     this.unlocker,
     this.statusReader,
     this.localDataClearer,
+    this.closer,
     this.locale,
     this.localizationsDelegateOverride,
   });
@@ -24,6 +24,7 @@ class InternalDevToolApp extends StatelessWidget {
   final InternalDeviceUnlocker? unlocker;
   final InternalDevToolStatusReader? statusReader;
   final InternalLocalDataClearer? localDataClearer;
+  final InternalDevToolCloser? closer;
   final Locale? locale;
   final LocalizationsDelegate<AppLocalizations>? localizationsDelegateOverride;
 
@@ -36,6 +37,7 @@ class InternalDevToolApp extends StatelessWidget {
       statusReader: statusReader ?? const PlatformInternalDevToolStatusReader(),
       localDataClearer:
           localDataClearer ?? const PlatformInternalLocalDataClearer(),
+      closer: closer ?? const SystemNavigatorInternalDevToolCloser(),
     ),
   );
 }
@@ -90,22 +92,46 @@ class InternalDevToolUnlockGate extends StatefulWidget {
     required this.unlocker,
     required this.statusReader,
     required this.localDataClearer,
+    required this.closer,
     super.key,
   });
 
   final InternalDeviceUnlocker unlocker;
   final InternalDevToolStatusReader statusReader;
   final InternalLocalDataClearer localDataClearer;
+  final InternalDevToolCloser closer;
 
   @override
   State<InternalDevToolUnlockGate> createState() =>
       _InternalDevToolUnlockGateState();
 }
 
-class _InternalDevToolUnlockGateState extends State<InternalDevToolUnlockGate> {
+class _InternalDevToolUnlockGateState extends State<InternalDevToolUnlockGate>
+    with WidgetsBindingObserver {
   bool _unlocked = false;
   bool _unlocking = false;
   bool _denied = false;
+  bool _screenBuilt = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_mustRelock(state)) _relock();
+  }
+
+  bool _mustRelock(AppLifecycleState state) =>
+      state != AppLifecycleState.resumed;
 
   Future<void> _unlock() async {
     setState(() {
@@ -117,26 +143,53 @@ class _InternalDevToolUnlockGateState extends State<InternalDevToolUnlockGate> {
       reason: l10n.internalDevToolUnlockReason,
     );
     if (!mounted) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final resumed = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     setState(() {
       _unlocking = false;
-      _unlocked = granted;
+      _unlocked = granted && resumed;
+      _screenBuilt = _screenBuilt || _unlocked;
       _denied = !granted;
     });
   }
 
+  void _relock() {
+    if (!mounted || (!_unlocked && !_denied)) return;
+    setState(() {
+      _unlocked = false;
+      _denied = false;
+    });
+  }
+
+  Future<bool> _reauthenticate(String reason) =>
+      widget.unlocker.unlock(reason: reason);
+
+  Future<void> _relockAndClose() async {
+    _relock();
+    await widget.closer.close();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_unlocked) {
-      return InternalDevToolScreen(
-        unlocker: widget.unlocker,
-        statusReader: widget.statusReader,
-        localDataClearer: widget.localDataClearer,
-      );
-    }
-    return _InternalUnlockScreen(
-      unlocking: _unlocking,
-      denied: _denied,
-      onUnlock: _unlock,
+    return IndexedStack(
+      index: _unlocked ? 1 : 0,
+      children: [
+        _InternalUnlockScreen(
+          unlocking: _unlocking,
+          denied: _denied,
+          onUnlock: _unlock,
+          onClose: _relockAndClose,
+        ),
+        if (_screenBuilt)
+          InternalDevToolScreen(
+            reauthenticate: _reauthenticate,
+            statusReader: widget.statusReader,
+            localDataClearer: widget.localDataClearer,
+            onRelockAndClose: _relockAndClose,
+          )
+        else
+          const SizedBox.shrink(),
+      ],
     );
   }
 }
@@ -146,11 +199,13 @@ class _InternalUnlockScreen extends StatelessWidget {
     required this.unlocking,
     required this.denied,
     required this.onUnlock,
+    required this.onClose,
   });
 
   final bool unlocking;
   final bool denied;
   final VoidCallback onUnlock;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +215,7 @@ class _InternalUnlockScreen extends StatelessWidget {
       container: true,
       child: _InternalUnlockScaffold(
         title: l10n.internalDevToolTitle,
+        onClose: onClose,
         content: _InternalUnlockContent(
           unlocking: unlocking,
           denied: denied,
@@ -171,17 +227,22 @@ class _InternalUnlockScreen extends StatelessWidget {
 }
 
 class _InternalUnlockScaffold extends StatelessWidget {
-  const _InternalUnlockScaffold({required this.title, required this.content});
+  const _InternalUnlockScaffold({
+    required this.title,
+    required this.content,
+    required this.onClose,
+  });
 
   final String title;
   final Widget content;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) => Semantics(
     identifier: InternalDevToolSemantics.authGate,
     container: true,
     child: Scaffold(
-      appBar: _InternalAppBar(title: title),
+      appBar: _InternalAppBar(title: title, onClose: onClose),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
@@ -266,15 +327,17 @@ class _InternalUnlockButton extends StatelessWidget {
 
 class InternalDevToolScreen extends StatefulWidget {
   const InternalDevToolScreen({
-    required this.unlocker,
+    required this.reauthenticate,
     required this.statusReader,
     required this.localDataClearer,
+    required this.onRelockAndClose,
     super.key,
   });
 
-  final InternalDeviceUnlocker unlocker;
+  final Future<bool> Function(String reason) reauthenticate;
   final InternalDevToolStatusReader statusReader;
   final InternalLocalDataClearer localDataClearer;
+  final Future<void> Function() onRelockAndClose;
 
   @override
   State<InternalDevToolScreen> createState() => _InternalDevToolScreenState();
@@ -295,8 +358,8 @@ class _InternalDevToolScreenState extends State<InternalDevToolScreen> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await _confirmClear(l10n);
     if (!confirmed || !mounted) return;
-    final unlocked = await widget.unlocker.unlock(
-      reason: l10n.internalDevToolClearUnlockReason,
+    final unlocked = await widget.reauthenticate(
+      l10n.internalDevToolClearUnlockReason,
     );
     if (!unlocked || !mounted) return;
     await _performClear(l10n);
@@ -317,14 +380,14 @@ class _InternalDevToolScreenState extends State<InternalDevToolScreen> {
   Future<void> _performClear(AppLocalizations l10n) async {
     try {
       await widget.localDataClearer.clear();
-      if (mounted) {
-        setState(() => _clearResult = l10n.internalDevToolCleared);
-        showOmdsSnackbar(context, message: l10n.internalDevToolCleared);
-      }
+      if (!mounted) return;
+      setState(() => _clearResult = l10n.internalDevToolCleared);
     } on Object {
       if (!mounted) return;
       setState(() => _clearResult = l10n.internalDevToolClearFailed);
       showOmdsErrorSnackbar(context, message: l10n.internalDevToolClearFailed);
+    } finally {
+      if (mounted) await widget.onRelockAndClose();
     }
   }
 
@@ -335,7 +398,10 @@ class _InternalDevToolScreenState extends State<InternalDevToolScreen> {
       identifier: InternalDevToolSemantics.root,
       container: true,
       child: Scaffold(
-        appBar: _InternalAppBar(title: l10n.internalDevToolTitle),
+        appBar: _InternalAppBar(
+          title: l10n.internalDevToolTitle,
+          onClose: widget.onRelockAndClose,
+        ),
         body: SafeArea(
           child: FutureBuilder<InternalDevToolStatus>(
             future: _status,
@@ -693,9 +759,10 @@ class _InternalReleaseBlockedScreen extends StatelessWidget {
 }
 
 class _InternalAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _InternalAppBar({required this.title});
+  const _InternalAppBar({required this.title, required this.onClose});
 
   final String title;
+  final Future<void> Function() onClose;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -710,7 +777,7 @@ class _InternalAppBar extends StatelessWidget implements PreferredSizeWidget {
         variant: OmdsButtonVariant.text,
         width: Sizes.eightXLarge,
         height: Sizes.fourXLarge,
-        onTap: SystemNavigator.pop,
+        onTap: onClose,
       ),
     ],
   );

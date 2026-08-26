@@ -194,8 +194,19 @@ jobs:
           test ! -e android/app/google-services.json
           aab="$(find build/app/outputs/bundle/internalReleaseRelease \
             -type f -name '*.aab' -print -quit)"
+          metadata="$(find build/app/outputs/bundle/internalReleaseRelease \
+            -type f -name output-metadata.json -print -quit)"
           mapping='build/app/outputs/mapping/internalReleaseRelease/mapping.txt'
-          [[ -s "${aab}" && -s "${mapping}" ]]
+          [[ -s "${aab}" && -s "${metadata}" && -s "${mapping}" ]]
+          jq -e \
+            --arg name "${BUILD_NAME}" \
+            --argjson number "${BUILD_NUMBER}" '
+              .applicationId == "com.olivium.jeeb"
+              and .variantName == "internalReleaseRelease"
+              and (.elements | length) == 1
+              and .elements[0].versionName == $name
+              and .elements[0].versionCode == $number
+            ' "${metadata}" >/dev/null
           unzip -tqq "${aab}"
           jarsigner -verify -strict -verbose -certs "${aab}" \
             >"${tmp_dir}/jarsigner.txt" 2>&1
@@ -218,11 +229,13 @@ jobs:
               "${tmp_dir}/libapp.so" "${STAGING_GATEWAY_URL}" \
               "${STAGING_REALTIME_SOCKET_URL}"
           artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
+          metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
           retained='build/retained/android-internal-devtool'
           mkdir -p "${retained}"
           retained_aab="${retained}/jeeb-internal-${BUILD_NAME}+${BUILD_NUMBER}.aab"
           install -m 0600 "${aab}" "${retained_aab}"
+          install -m 0600 "${metadata}" "${retained}/output-metadata.json"
           install -m 0600 "${mapping}" "${retained}/mapping.txt"
           jq -n \
             --arg reviewed_sha "${REVIEWED_SHA}" \
@@ -230,16 +243,51 @@ jobs:
             --arg build_name "${BUILD_NAME}" \
             --arg build_number "${BUILD_NUMBER}" \
             --arg artifact_sha256 "${artifact_sha}" \
+            --arg metadata_sha256 "${metadata_sha}" \
             --arg mapping_sha256 "${mapping_sha}" \
-            '{platform:"android", flavor:"internalRelease", runtime:"staging",
-              native_id:"com.olivium.jeeb", reviewed_sha, dependency_sha,
-              build_name, build_number, artifact_sha256, mapping_sha256,
+            --arg source_run_id "${GITHUB_RUN_ID}" \
+            --arg source_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg source_head_sha "${GITHUB_SHA}" \
+            --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg source_event "${GITHUB_EVENT_NAME}" \
+            --arg source_ref "${GITHUB_REF}" \
+            --arg gateway_origin "${STAGING_GATEWAY_URL}" \
+            --arg realtime_socket "${STAGING_REALTIME_SOCKET_URL}" \
+            '{platform:"android", package_name:"com.olivium.jeeb",
+              native_id:"com.olivium.jeeb", flavor:"internalRelease",
+              build_profile:"release", release_profile:true,
+              runtime:"staging", version_name:$build_name,
+              version_code:$build_number, reviewed_sha, dependency_sha,
+              build_name, build_number, artifact_sha256, metadata_sha256,
+              mapping_sha256, source_run_id, source_run_attempt,
+              source_head_sha,
+              source_workflow_path:
+                ".github/workflows/trusted-android-internal-devtool-rc.yml",
+              source_workflow_ref, source_repository, source_event, source_ref,
+              gateway_origin, realtime_socket,
               devtool:true, super_login:false, clarity_enabled:false,
               clarity_privacy_approved:false, retained:true,
               store_uploaded:false}' >"${retained}/provenance.json"
           chmod 0600 "${retained}/provenance.json"
+          ANDROID_PACKAGE_NAME=com.olivium.jeeb \
+          MOBILE_BUILD_NAME="${BUILD_NAME}" \
+          MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
+          REVIEWED_SHA="${REVIEWED_SHA}" \
+          SOURCE_RUN_ID="${GITHUB_RUN_ID}" \
+          SOURCE_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT}" \
+          SOURCE_WORKFLOW_REF="${GITHUB_WORKFLOW_REF}" \
+          JEEB_DEVTOOL_BUILD=true \
+          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_RELEASE_PROFILE=release \
+            bash tool/validate_android_internal_devtool_artifact.sh \
+              "${retained_aab}" "${retained}/provenance.json" \
+              "${retained}/output-metadata.json" >/dev/null
           {
             printf 'artifact_path=%s\n' "${retained_aab}"
+            printf 'metadata_path=%s\n' "${retained}/output-metadata.json"
             printf 'mapping_path=%s\n' "${retained}/mapping.txt"
             printf 'provenance_path=%s\n' "${retained}/provenance.json"
           } >>"${GITHUB_OUTPUT}"
@@ -247,9 +295,10 @@ jobs:
       - name: Retain exact candidate without uploading
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: android-internal-devtool-${{ inputs.build_number }}-${{ needs.policy.outputs.reviewed_sha }}
+          name: android-internal-devtool-${{ inputs.build_number }}-${{ needs.policy.outputs.reviewed_sha }}-attempt-${{ github.run_attempt }}
           path: |
             ${{ steps.candidate.outputs.artifact_path }}
+            ${{ steps.candidate.outputs.metadata_path }}
             ${{ steps.candidate.outputs.mapping_path }}
             ${{ steps.candidate.outputs.provenance_path }}
           if-no-files-found: error

@@ -1,4 +1,3 @@
-require 'json'
 require_relative '../../fastlane/BuildNumberPolicy'
 
 opt_out_usage
@@ -16,24 +15,23 @@ def upload_internal_aab(require_devtool:)
   UI.user_error!('Retained AAB is missing') unless File.file?(aab_path)
 
   if require_devtool
-    devtool_build = required_env('JEEB_DEVTOOL_BUILD')
-    super_login_enabled = required_env('JEEB_SUPER_LOGIN_ENABLED')
-    UI.user_error!('JEEB_DEVTOOL_BUILD must be true') unless devtool_build == 'true'
-    UI.user_error!('JEEB_SUPER_LOGIN_ENABLED must be false') unless super_login_enabled == 'false'
-    provenance = JSON.parse(File.read(required_env('ANDROID_PROVENANCE_PATH')))
-    expected = {
-      'devtool' => true,
-      'super_login' => false,
-      'runtime' => 'staging',
-      'native_id' => 'com.olivium.jeeb',
-      'store_uploaded' => false,
-    }
-    UI.user_error!('Internal-devtool provenance is invalid') unless
-      expected.all? { |key, value| provenance[key] == value }
+    provenance_path = required_env('ANDROID_PROVENANCE_PATH')
+    metadata_path = required_env('ANDROID_METADATA_PATH')
+    %w[
+      ANDROID_PACKAGE_NAME MOBILE_BUILD_NAME REVIEWED_SHA SOURCE_RUN_ID
+      SOURCE_RUN_ATTEMPT SOURCE_WORKFLOW_REF JEEB_DEVTOOL_BUILD
+      JEEB_SUPER_LOGIN_ENABLED JEEB_CLARITY_ENABLED
+      JEEB_CLARITY_PRIVACY_APPROVED JEEB_RELEASE_PROFILE
+    ].each { |name| required_env(name) }
+    sh(
+      'bash', '../tool/validate_android_internal_devtool_artifact.sh',
+      aab_path, provenance_path, metadata_path,
+    )
   end
 
   json_key_data = required_env('GOOGLE_PLAY_JSON_KEY')
-  existing_codes = %w[internal alpha beta production].flat_map do |track|
+  inventory_tracks = require_devtool ? %w[internal] : %w[internal alpha beta production]
+  existing_codes = inventory_tracks.flat_map do |track|
     Array(
       google_play_track_version_codes(
         json_key_data: json_key_data,

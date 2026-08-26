@@ -90,7 +90,10 @@ void main() {
   ) async {
     final unlocker = _FakeUnlocker([true, true]);
     final clearer = _FakeClearer();
-    await tester.pumpWidget(_app(unlocker: unlocker, clearer: clearer));
+    final closer = _FakeCloser();
+    await tester.pumpWidget(
+      _app(unlocker: unlocker, clearer: clearer, closer: closer),
+    );
     await tester.pumpAndSettle();
     await tester.tap(
       find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
@@ -112,10 +115,78 @@ void main() {
 
     expect(unlocker.callCount, 2);
     expect(clearer.callCount, 1);
-    expect(find.text('Local data cleared.'), findsOne);
+    expect(closer.callCount, 1);
     expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.clearResult),
+      find.bySemanticsIdentifier(InternalDevToolSemantics.authGate),
       findsOne,
+    );
+    expect(
+      find.bySemanticsIdentifier(InternalDevToolSemantics.root),
+      findsNothing,
+    );
+  });
+
+  testWidgets('clear failure still relocks and closes the warm tool', (
+    tester,
+  ) async {
+    final unlocker = _FakeUnlocker([true, true]);
+    final clearer = _FakeClearer(throws: true);
+    final closer = _FakeCloser();
+    await tester.pumpWidget(
+      _app(unlocker: unlocker, clearer: clearer, closer: closer),
+    );
+    await tester.pumpAndSettle();
+    await _unlock(tester);
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.bySemanticsIdentifier(InternalDevToolSemantics.clearData),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.bySemanticsIdentifier(
+        '${InternalDevToolSemantics.clearConfirmation}_confirm_cta',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(unlocker.callCount, 2);
+    expect(clearer.callCount, 1);
+    expect(closer.callCount, 1);
+    _expectLocked();
+  });
+
+  testWidgets('warm launcher relocks for every background lifecycle state', (
+    tester,
+  ) async {
+    final unlocker = _FakeUnlocker([true, true, true, true]);
+    final reader = _FakeStatusReader(<bool>[true]);
+    await tester.pumpWidget(_app(unlocker: unlocker, reader: reader));
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await _unlock(tester);
+
+    for (final state in _relockingStates) {
+      final callsBeforeBackground = unlocker.callCount;
+      tester.binding.handleAppLifecycleStateChanged(state);
+      await tester.pump();
+      if (state == AppLifecycleState.inactive) _expectRelockedState(tester);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      _expectLocked();
+      expect(unlocker.callCount, callsBeforeBackground);
+
+      await _unlock(tester);
+      expect(unlocker.callCount, callsBeforeBackground + 1);
+    }
+
+    expect(
+      reader.readCount,
+      1,
+      reason: 'warm engine keeps one safe status view',
     );
   });
 
@@ -149,14 +220,49 @@ Widget _app({
   required _FakeUnlocker unlocker,
   _FakeStatusReader? reader,
   _FakeClearer? clearer,
+  _FakeCloser? closer,
   Locale? locale,
 }) => InternalDevToolApp(
   unlocker: unlocker,
   statusReader: reader ?? _FakeStatusReader(<bool>[true]),
   localDataClearer: clearer ?? _FakeClearer(),
+  closer: closer ?? _FakeCloser(),
   locale: locale,
   localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
 );
+
+const _relockingStates = <AppLifecycleState>[
+  AppLifecycleState.inactive,
+  AppLifecycleState.paused,
+  AppLifecycleState.detached,
+];
+
+Future<void> _unlock(WidgetTester tester) async {
+  await tester.tap(find.bySemanticsIdentifier(InternalDevToolSemantics.unlock));
+  await tester.pumpAndSettle();
+  expect(find.bySemanticsIdentifier(InternalDevToolSemantics.root), findsOne);
+}
+
+void _expectLocked() {
+  expect(
+    find.bySemanticsIdentifier(InternalDevToolSemantics.authGate),
+    findsOne,
+  );
+  expect(
+    find.bySemanticsIdentifier(InternalDevToolSemantics.root),
+    findsNothing,
+  );
+}
+
+void _expectRelockedState(WidgetTester tester) {
+  final stack = tester.widget<IndexedStack>(
+    find.descendant(
+      of: find.byType(InternalDevToolUnlockGate),
+      matching: find.byType(IndexedStack),
+    ),
+  );
+  expect(stack.index, 0);
+}
 
 final class _FakeUnlocker implements InternalDeviceUnlocker {
   _FakeUnlocker(this._results);
@@ -191,10 +297,23 @@ final class _FakeStatusReader implements InternalDevToolStatusReader {
 }
 
 final class _FakeClearer implements InternalLocalDataClearer {
+  _FakeClearer({this.throws = false});
+
+  final bool throws;
   int callCount = 0;
 
   @override
   Future<void> clear() async {
+    callCount++;
+    if (throws) throw StateError('clear failed');
+  }
+}
+
+final class _FakeCloser implements InternalDevToolCloser {
+  int callCount = 0;
+
+  @override
+  Future<void> close() async {
     callCount++;
   }
 }
