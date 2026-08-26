@@ -39,6 +39,10 @@ openssl req -x509 -newkey rsa:3072 -sha256 -days 3650 -nodes \
   -subj '/CN=Jeeb undersized custody test' \
   -keyout "${TMP_DIR}/undersized.key.pem" \
   -out "${TMP_DIR}/undersized.cert.pem" >/dev/null 2>&1
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
+  -sha256 -days 3650 -nodes -subj '/CN=Jeeb extra EC recipient test' \
+  -keyout "${TMP_DIR}/extra-ec.key.pem" \
+  -out "${TMP_DIR}/extra-ec.cert.pem" >/dev/null 2>&1
 
 printf '%s\n' 'CUSTODY-PLAINTEXT-SENTINEL signed-aab' \
   >"${TMP_DIR}/candidate.aab"
@@ -135,6 +139,14 @@ openssl cms -encrypt -binary -in "${TMP_DIR}/candidate.zip" \
   -keyopt rsa_mgf1_md:sha1 >/dev/null 2>&1
 expect_rejected wrong-mgf-digest bash "${CUSTODY}" inspect \
   "${TMP_DIR}/mgf1-sha1.cms"
+openssl cms -encrypt -binary -in "${TMP_DIR}/candidate.zip" \
+  -out "${TMP_DIR}/mixed-recipients.cms" -outform DER -aes-256-gcm \
+  -recip "${TMP_DIR}/approved.cert.pem" \
+  -keyopt rsa_padding_mode:oaep -keyopt rsa_oaep_md:sha256 \
+  -keyopt rsa_mgf1_md:sha256 -recip "${TMP_DIR}/extra-ec.cert.pem" \
+  >/dev/null 2>&1
+expect_rejected mixed-rsa-ec-recipients bash "${CUSTODY}" inspect \
+  "${TMP_DIR}/mixed-recipients.cms"
 
 python3 - "${TMP_DIR}/candidate.cms" "${TMP_DIR}" <<'PY'
 from pathlib import Path

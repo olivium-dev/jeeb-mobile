@@ -42,13 +42,19 @@ validate_recipient() {
 validate_profile() {
   local ciphertext="$1"
   local report="${TMP_DIR}/cms-profile.txt"
+  local recipient_count ktri_count
   require_regular_file "${ciphertext}" 'ciphertext candidate'
   LC_ALL=C "${OPENSSL_BIN}" cms -cmsout -inform DER -in "${ciphertext}" \
     -print >"${report}" 2>&1 || fail 'ciphertext CMS structure is invalid'
   [[ "$(grep -Ec 'contentType: id-smime-ct-authEnvelopedData' "${report}")" == 1 ]] ||
     fail 'ciphertext is not one authenticated envelope'
-  [[ "$(grep -Ec '^[[:space:]]*d\.ktri:' "${report}")" == 1 ]] ||
-    fail 'ciphertext must contain exactly one key-transport recipient'
+  recipient_count="$(awk \
+    '/^      d\.(ktri|kari|kekri|pwri|ori|other):/ {count++}
+      END {print count + 0}' "${report}")"
+  ktri_count="$(awk '/^      d\.ktri:/ {count++}
+    END {print count + 0}' "${report}")"
+  [[ "${recipient_count}" == 1 && "${ktri_count}" == 1 ]] ||
+    fail 'ciphertext must contain exactly one total recipient and it must be RSA key transport'
   [[ "$(grep -Ec 'algorithm: rsaesOaep' "${report}")" == 1 ]] ||
     fail 'ciphertext key transport is not RSA-OAEP'
   [[ "$(grep -Ec 'OBJECT[[:space:]]*:sha256' "${report}")" == 2 ]] ||
