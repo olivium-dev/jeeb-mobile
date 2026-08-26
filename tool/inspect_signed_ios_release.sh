@@ -52,6 +52,7 @@ main() {
   local expected_build_name="${IOS_BUILD_NAME:-}"
   local expected_build_number="${IOS_BUILD_NUMBER:-}"
   local tmp_dir
+  local cleanup_command
   local app_path
   local signed_entitlements
   local application_identifier
@@ -63,10 +64,8 @@ main() {
 
   umask 077
   tmp_dir="$(mktemp -d)"
-  cleanup() {
-    rm -rf -- "${tmp_dir}"
-  }
-  trap cleanup EXIT HUP INT TERM
+  printf -v cleanup_command 'rm -rf -- %q' "${tmp_dir}"
+  trap "${cleanup_command}" EXIT HUP INT TERM
 
   [[ -s "${ipa_path}" ]] || fail 'IPA is missing'
   [[ -s "${firebase_config}" ]] || fail 'Firebase evidence is missing'

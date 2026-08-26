@@ -278,6 +278,7 @@ void _registerIosContracts() {
       '987654',
       "'1.4' '1.4.0.1' 'release'",
       "validate_ios_versions \"\${INFO_PLIST}\" '' '987654'",
+      "grep -Fq 'unbound variable'",
     ]);
     final unsignedBuilder = _source(
       'tool/build_unsigned_ios_release_contract.sh',

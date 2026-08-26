@@ -45,4 +45,14 @@ if validate_ios_versions "${INFO_PLIST}" '7.8.9' '' >/dev/null 2>&1; then
   exit 1
 fi
 
+inspection_failure="$({
+  IOS_BUILD_NAME='7.8.9' IOS_BUILD_NUMBER='987654' \
+    bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh"
+} 2>&1 || true)"
+grep -Fq 'IPA is missing' <<<"${inspection_failure}"
+if grep -Fq 'unbound variable' <<<"${inspection_failure}"; then
+  printf '%s\n' 'Signed iOS inspector cleanup referenced expired local state.' >&2
+  exit 1
+fi
+
 printf '%s\n' 'Signed iOS inspector accepted and enforced nondefault versions.'
