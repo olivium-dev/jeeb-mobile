@@ -222,8 +222,11 @@ jobs:
           [[ "${signer_sha1}" =~ ^[0-9A-F]{40}$ ]]
           [[ "${signer_sha256}" =~ ^[0-9A-F]{64}$ ]]
           unset signer_result
-          unzip -p "${aab}" base/manifest/AndroidManifest.xml \
-            >"${tmp_dir}/manifest.pb"
+          manifest_entry="$(unzip -Z1 "${aab}" |
+            awk '$0 == "base/manifest/AndroidManifest.xml" {print}')"
+          [[ "${manifest_entry}" == base/manifest/AndroidManifest.xml ]] || {
+            printf '%s\n' 'Android internal candidate rejected: expected exactly one base manifest' >&2; exit 1; }
+          unzip -p "${aab}" "${manifest_entry}" >"${tmp_dir}/manifest.pb"
           unzip -p "${aab}" base/resources.pb >"${tmp_dir}/resources.pb"
           app_binary="$(unzip -Z1 "${aab}" |
             awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print}')"
