@@ -16,6 +16,20 @@ expect_rejected() {
   fi
 }
 
+select_manifest_from_listing() {
+  local manifest_entry
+  manifest_entry="$(printf '%s\n' "$@" |
+    awk '$0 == "base/manifest/AndroidManifest.xml" {print}')"
+  [[ "${manifest_entry}" == base/manifest/AndroidManifest.xml ]]
+}
+
+select_manifest_from_listing base/manifest/AndroidManifest.xml
+expect_rejected zero-manifest-entry select_manifest_from_listing
+expect_rejected duplicate-manifest-entry select_manifest_from_listing \
+  base/manifest/AndroidManifest.xml base/manifest/AndroidManifest.xml
+expect_rejected near-match-manifest-entry select_manifest_from_listing \
+  prefix/base/manifest/AndroidManifest.xml
+
 write_metadata() {
   local path="$1"
   local variant="$2"
