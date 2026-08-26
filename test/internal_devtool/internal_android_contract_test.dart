@@ -182,6 +182,7 @@ const _workflowMarkers = <String>[
   'signer_sha256',
   'android_internal_candidate_integrity.sh',
   'build/app/intermediates/merged_manifests/internalReleaseRelease',
+  r'grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/manifest.pb"',
   'source_run_id',
   'source_run_attempt',
   'source_workflow_ref',

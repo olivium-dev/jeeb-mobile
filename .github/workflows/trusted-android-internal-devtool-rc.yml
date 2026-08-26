@@ -234,7 +234,7 @@ jobs:
           unzip -p "${aab}" "${app_binary}" >"${tmp_dir}/libapp.so"
           LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
             "${tmp_dir}/resources.pb"
-          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/resources.pb"
+          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/manifest.pb"
           JEEB_INTERNAL_RELEASE=true \
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
