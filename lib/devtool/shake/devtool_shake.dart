@@ -20,6 +20,8 @@
 library;
 
 import 'package:flutter/material.dart';
+
+import '../../app/app_restarter.dart';
 import 'package:flutter/services.dart';
 import 'package:omds/omds.dart';
 
@@ -44,8 +46,11 @@ const MethodChannel kDevToolShakeChannel = MethodChannel(
 /// "already open" check).
 const Key kDevToolShakeLayerKey = ValueKey<String>('jeeb-devtool-shake-layer');
 
-/// Identifies the layer's close affordance.
+/// Identifies the layer's close affordance — dismiss WITHOUT restarting.
 const Key kDevToolShakeCloseKey = ValueKey<String>('jeeb-devtool-shake-close');
+
+/// Identifies the layer's apply affordance — dismiss AND restart the app.
+const Key kDevToolShakeApplyKey = ValueKey<String>('jeeb-devtool-shake-apply');
 
 /// A single physical shake can deliver `motionEnded` more than once, and the
 /// OS does not deduplicate it. Repeats inside this window are dropped.
@@ -191,9 +196,29 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
     setState(() => _open = true);
   }
 
+  /// Dismiss and leave the app exactly as it was.
+  ///
+  /// This is the cheap, reversible exit, and it is the one mapped to `X`
+  /// because the Dev Tool opens on a physical gesture that fires by accident.
+  /// An accidental open must cost nothing — restarting on `X` would turn a
+  /// stray shake in a pocket into a cold start and lost screen state.
   void _close() {
     if (!_open) return;
     setState(() => _open = false);
+  }
+
+  /// Dismiss AND restart, so settings edited in the Dev Tool take effect.
+  ///
+  /// Startup-scoped settings are inert without this: `configureDependencies`
+  /// registers `Dio` as a LAZY singleton over `DevBaseUrl.read(prefs)`, so once
+  /// resolved the base URL is fixed for the life of the process — which is why
+  /// `dev_settings_page` says "Restart the app to apply". A no-op when no
+  /// [AppRestarter] is above us (widget tests, and any build with the Dev Tool
+  /// compiled out).
+  void _apply() {
+    if (!_open) return;
+    setState(() => _open = false);
+    AppRestarter.restart(context);
   }
 
   @override
@@ -210,6 +235,7 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
           _DevToolShakeLayer(
             key: kDevToolShakeLayerKey,
             onClose: _close,
+            onApply: _apply,
             layerBuilder: widget.layerBuilder,
           ),
       ],
@@ -226,11 +252,13 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
 class _DevToolShakeLayer extends StatefulWidget {
   const _DevToolShakeLayer({
     required this.onClose,
+    required this.onApply,
     required this.layerBuilder,
     super.key,
   });
 
   final VoidCallback onClose;
+  final VoidCallback onApply;
   final WidgetBuilder layerBuilder;
 
   @override
@@ -269,6 +297,11 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
     widget.onClose();
   }
 
+  /// Unlike [_handleClose] this does NOT unwind the Dev Tool's own stack first:
+  /// the whole tree is about to be rebuilt, so popping back to the shell would
+  /// only add a frame of animation before it disappears.
+  void _handleApply() => widget.onApply();
+
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
@@ -287,24 +320,47 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
             Positioned(
               right: Spacing.medium,
               bottom: Spacing.xLarge,
-              // NO `tooltip:` HERE. `FloatingActionButton` wraps its child in a
-              // `Tooltip` iff `tooltip != null`
+              // NO `tooltip:` ON EITHER CONTROL. `FloatingActionButton` wraps
+              // its child in a `Tooltip` iff `tooltip != null`
               // (material/floating_action_button.dart:822-824), and
               // `RawTooltipState.build` asserts `debugCheckHasOverlay`
-              // (widgets/raw_tooltip.dart:865). This button is a SIBLING of the
-              // layer's Navigator, and the host sits above the app's Navigator
-              // — the app's only `Overlay` — so there is no `Overlay` ancestor
-              // and the assert would replace the only exit affordance with an
-              // `ErrorWidget` on a device that has no hardware back button.
-              // `semanticLabel` carries the accessible name instead.
-              child: FloatingActionButton.small(
-                key: kDevToolShakeCloseKey,
-                heroTag: null,
-                onPressed: _handleClose,
-                child: const Icon(
-                  Icons.close,
-                  semanticLabel: 'Close Dev Tool',
-                ),
+              // (widgets/raw_tooltip.dart:865). These buttons are SIBLINGS of
+              // the layer's Navigator, and the host sits above the app's
+              // Navigator — the app's only `Overlay` — so there is no `Overlay`
+              // ancestor and the assert would replace the only exit affordances
+              // with an `ErrorWidget` on a device that has no hardware back
+              // button. `semanticLabel` and the visible label carry the
+              // accessible names instead.
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Deliberately the LABELLED, wider control, and deliberately
+                  // NOT the one at the thumb's resting position: restarting is
+                  // the expensive, irreversible-feeling action and must be
+                  // chosen on purpose, never hit while reaching for "get me out
+                  // of here".
+                  FloatingActionButton.extended(
+                    key: kDevToolShakeApplyKey,
+                    heroTag: null,
+                    onPressed: _handleApply,
+                    icon: const Icon(Icons.restart_alt),
+                    label: const Text('Apply & Restart'),
+                  ),
+                  const SizedBox(height: Spacing.small),
+                  // `X` keeps its universal meaning — dismiss, change nothing —
+                  // and keeps the position the muscle memory already knows.
+                  // This is the exit for an accidental shake.
+                  FloatingActionButton.small(
+                    key: kDevToolShakeCloseKey,
+                    heroTag: null,
+                    onPressed: _handleClose,
+                    child: const Icon(
+                      Icons.close,
+                      semanticLabel: 'Close Dev Tool without restarting',
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

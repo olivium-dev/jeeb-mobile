@@ -24,9 +24,10 @@ natively and forwarded over a `MethodChannel`.
 ### Runtime
 | File | What |
 |---|---|
-| `ios/Runner/AppDelegate.swift` | `motionEnded(_:with:)` filters `.motionShake` and fires `invokeMethod("open")` on `com.olivium.jeeb/devtool_shake`. Sets `applicationSupportsShakeToEdit = false` so UIKit stops showing its "Undo Typing" alert. **Every added line is inside `#if JEEB_DEV`.** |
+| `ios/Runner/AppDelegate.swift` | `DevToolShakeDetector` (CoreMotion) is the PRIMARY path and fires `invokeMethod("open")` on `com.olivium.jeeb/devtool_shake`; `DevToolShakeCatcherView` supplies a first responder so UIKit's own `motionEnded` can also reach us as a fallback. Sets `applicationSupportsShakeToEdit = false` so UIKit stops showing its "Undo Typing" alert. **Every added line is inside `#if JEEB_DEV`.** See §11 for why the original delegate-only design did not work. |
 | `lib/core/dev_flags.dart` | Adds `kShakeToDevToolRequested` (`--dart-define=JEEB_DEVTOOL_SHAKE`, default `true`) and `kShakeToDevToolEnabled = kDevToolEnabled && kShakeToDevToolRequested`. |
 | `lib/devtool/shake/devtool_shake.dart` | **New.** Channel constants, `DevToolShakeGate` (debounce + already-open no-op), `DevToolShakeHost`, and the opaque layer with its own nested `Navigator`. |
+| `lib/app/app_restarter.dart` | **New.** Rebuilds the app in-process (`sl.reset()` + fresh `JeebBootstrap`) so settings edited in the Dev Tool take effect. Wrapped in `main.dart` behind `kDevToolEnabled`. |
 | `lib/app/app.dart` | Mounts `DevToolShakeHost` in `MaterialApp.router`'s `builder`, behind the const ternary, **below** `ClarityMask` so session recording never captures the tool. |
 | `lib/devtool/devtool_shell.dart` | Extracts `registerDevToolSuperLoginDependencies()` out of `_DevToolAppState` so both Dev Tool entry points (Android launcher and the iOS shake layer) can register `SuperLoginService` / `SuperLoginDemoUserService`. Idempotent. |
 
@@ -190,31 +191,47 @@ compared name-by-name.
 
 ## 7. What is NOT verified
 
-1. **No build of any kind was run. `BLOCKED_DISK.`** `df -h /Users/oudaykhaled`
-   reported **~950 MiB free**, far below the 6 GiB bar. Therefore:
-   - the Swift in `AppDelegate.swift` **has never been compiled**;
-   - the tree-shaking half of Gate 1 is **unproven against a real binary** —
-     `flutter build appbundle --flavor internalRelease --release --target
-     lib/main_android_internal.dart` and
-     `tool/build_unsigned_ios_release_contract.sh` were both skipped;
-   - the scanners now *name* `devtool_shake`, but no scanner has been run
-     against a real artifact built from this branch.
-2. **No simulator smoke. No physical-device smoke.** Nothing on this branch has
-   been observed running on iOS.
-3. **Does `motionEnded` actually reach `FlutterAppDelegate`?** This app is
-   UIScene-based (`ios/Runner/SceneDelegate.swift`). The responder chain
-   argument is sound and the pinned engine implements no motion callback
-   (`motionEnded:withEvent:` → 0 hits in the engine binary), but **whether the
-   event reaches the app delegate when no first responder exists cannot be
-   settled statically.** This is the single highest-risk unknown and it is
-   device-only.
-4. **The `Overlay`/`HeroController` fixes are proven in `flutter_test`, not on a
-   device.** The topology under test is now the production one, which is a large
-   improvement, but it is still the widget-test binding.
+Items 1–3 of the original list are now **SETTLED ON HARDWARE** — see §11 for the
+measurements. What remains open:
+
+1. **Release/tree-shake artifacts still unproven against a real binary.**
+   `flutter build appbundle --flavor internalRelease --release --target
+   lib/main_android_internal.dart` and
+   `tool/build_unsigned_ios_release_contract.sh` have still not been run. The
+   scanners *name* `devtool_shake`, but no scanner has been run against a real
+   release artifact built from this branch. Debug builds for both platforms are
+   now proven; release builds are not.
+2. **CoreMotion thresholds are tuned by feel, not measured.** `thresholdG = 1.6`,
+   `requiredCrossings = 2`, `crossingWindow = 1.0s` were validated by a human
+   shaking one iPhone 12 mini. No false-positive testing was done while walking,
+   driving, or with the phone in a pocket — which matters, because this app rides
+   with couriers. If the Dev Tool ever opens by itself, raise `thresholdG` or
+   `requiredCrossings` first.
+3. **`AppRestarter` is proven to remount the tree, not to rebind every service.**
+   `flutter test` asserts the subtree remounts and a human confirmed a Server URL
+   change taking effect. Services other than `Dio` that cache startup state have
+   not been individually audited across a restart.
+4. **Android was regression-checked, not feature-tested.** The A33 build installs,
+   cold-starts and routes (§11). The Android Dev Tool's own second launcher icon
+   was NOT exercised — it is opt-in via `-Pjeeb.devtool=true` and that build was
+   not made.
 
 ## 8. How a human should smoke it
 
 Free at least 6 GiB first — `df -h /Users/oudaykhaled`.
+
+A fresh worktree does NOT inherit three gitignored files, and each one fails the
+build in a different, non-obvious way. Copy all three from the main tree first:
+
+| file | symptom if missing |
+|---|---|
+| `../omds-flutter` sibling clone | `flutter pub get` cannot resolve `omds` |
+| `android/local.properties` (`MAPS_API_KEY=`) | `:app:verifyMapsApiKey` — *"Missing or malformed MAPS_API_KEY"* |
+| `android/app/google-services.json` **and** `android/app/src/dev/google-services.json` | `:app:processDevDebugGoogleServices` — *"File google-services.json is missing"* |
+
+Append the Maps key as its OWN line — the source file has no trailing newline, so
+a bare `>>` fuses the key onto the end of `flutter.sdk=` and the Flutter tool then
+discards it when it regenerates the file.
 
 ```bash
 cd /Users/oudaykhaled/jeeb-workspace/mob-wt-shake-devtool
@@ -246,8 +263,10 @@ fast — the second shake inside 1s must do nothing.
   --flavor dev --debug -d <device-id>
 ```
 
-Physically shake the phone. Same expectations. **This run is the only thing
-that can settle §7 item 3.**
+**Shake with ONE SHARP FLICK, then stop.** Do not shake hard and repeatedly:
+UIKit's own recognizer sends `motionCancelled` — never `motionEnded` — once the
+shaking runs past about a second, so a harder, longer shake is *less* likely to
+work through the fallback path. (The CoreMotion path has no such rule.)
 
 **Negative check (must show NO shake):** build the `Release` configuration
 without `--flavor dev` and confirm a shake does nothing at all.
@@ -285,3 +304,91 @@ rollback is only needed to remove the dev affordance itself.
   Firebase plist branch, so prefer the dart-define.
 - Reverting also removes the `devtool_shake` deny-list entries. That is correct:
   with the feature gone there is no marker to scan for.
+
+## 11. Device session 2026-08-27 — what hardware disproved
+
+Run on a physical **iPhone 12 mini / iOS 26.4.1** and a physical **Samsung A33
+(SM-A336B) / Android 16**, Flutter 3.44.2, `--flavor dev --debug` with
+`--dart-define=JEEB_DEVTOOL_ENABLED=true`.
+
+### 11.1 The original design never fired — for two independent reasons
+
+`AppDelegate.motionEnded` carried the claim that `FlutterAppDelegate` "is the
+terminal link of the responder chain and receives motion events nothing else
+handled". Instrumented with `NSLog` and read off the device syslog, that is false
+here in **two** separate ways, either of which alone is fatal:
+
+1. **UIKit delivers motion events to the FIRST RESPONDER**, then walks the chain.
+   A Flutter app has no first responder unless a text field is focused, so
+   nothing was delivered at all and the chain was never walked.
+2. **Even with a first responder, the chain does not reach the app delegate.**
+   After `DevToolShakeCatcherView` took first responder
+   (`becameFirstResponder=YES`) and called `super.motionEnded`, the counters were:
+
+   ```
+   CATCHER.motionEnded      1
+   catcher onShake          1
+   AppDelegate.motionEnded  0      <-- never once, across every shake
+   ```
+
+`AppDelegate.motionEnded` is retained only as a harmless backstop for a
+non-UIScene configuration. Double delivery is safe — the Dart side debounces on
+`kDevToolShakeDebounce`.
+
+### 11.2 A sustained shake is cancelled, not delivered
+
+Before the CoreMotion path existed, every shake produced this pair:
+
+```
+CATCHER.motionBegan     subtype=1
+CATCHER.motionCancelled subtype=1     ~0.9–1.2s later
+```
+
+UIKit cancels a shake that continues past roughly a second. Shaking *harder and
+longer* therefore made it strictly less likely to work — the opposite of every
+tester's instinct. This is why detection moved to CoreMotion, where sensitivity
+is ours to set and a long shake simply accumulates crossings.
+
+### 11.3 First responder is lost the first time the user types
+
+Reported symptom: the shake worked, then stopped permanently after a Super Login.
+Focusing a Flutter text field hands first responder to `FlutterTextInputView`,
+and the original code re-acquired it only on `UIScene.didActivateNotification` —
+which does not fire when a keyboard dismisses. `reassertShakeCatcher()` now runs
+on scene activation, app activation, `keyboardDidHide`, and window-key changes.
+It deliberately never runs while the keyboard is UP; taking first responder then
+would dismiss the keyboard under the user.
+
+### 11.4 Close vs Apply
+
+`X` closes and changes nothing. `Apply & Restart` closes and rebuilds the app.
+
+The split exists because the tool opens on a physical gesture that fires by
+accident: an accidental open must cost nothing, so the universally-understood
+dismiss control is the free one and sits at the thumb's resting position, while
+the expensive action is labelled, wider, and deliberately out of that position.
+
+`Apply` is required for any startup-scoped setting to take effect at all —
+`configureDependencies` registers `Dio` as a LAZY singleton over
+`DevBaseUrl.read(prefs)`, so once resolved the base URL is fixed for the life of
+the process. That is what `dev_settings_page`'s "Restart the app to apply" was
+asking for, and until now the app had no way to carry it out.
+
+### 11.5 Android is unaffected
+
+`git diff 4d3494e7..HEAD -- android/` is **empty** — the branch touches no Android
+file. Verified on the A33: `assembleDevDebug` succeeds, `app.jeeb.mobile.dev`
+`1.0.0-dev` (versionCode `26082601`) installs and cold-starts, and reaches the
+shell route (`[jeeb-diag] {"t":"nav","evt":"push","route":"shell"}`) with an empty
+crash buffer.
+
+Two Android observations that are **pre-existing, not regressions**:
+
+- **One launcher icon, not two.** Correct for a plain `--flavor dev` build: the
+  second icon is opt-in via `-Pjeeb.devtool=true`, because *"a normal dev build
+  must ship ONE launcher, or the launcher/monkey can open the Dev Tool alias"*
+  (`android/app/build.gradle`). The merged manifest does contain both activities;
+  the second is gated `android:enabled="@bool/jeeb_devtool_enabled"`.
+- **`FIS_AUTH_ERROR` / `getToken failed` spam.** The dev flavor ships a
+  placeholder `google-services.json`, so Firebase Installations cannot
+  authenticate. Unrelated to this branch.

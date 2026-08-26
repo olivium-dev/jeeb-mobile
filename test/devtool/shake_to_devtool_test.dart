@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/app/app_restarter.dart';
 import 'package:jeeb_mobile/core/dev_flags.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -61,6 +62,28 @@ Future<ByteData?> _deliverShake(
 // Navigator — which is the app's only `Overlay`. Mounting it under `home:`
 // instead (below the Navigator) hands the layer an `Overlay` ancestor that a
 // real build never has, and silently certifies a layer that throws on open.
+/// Counts how many times the product subtree has been mounted, so a test can
+/// tell a genuine remount (what a restart does) from merely hiding the layer.
+class _ProductProbe extends StatefulWidget {
+  const _ProductProbe();
+
+  static int generations = 0;
+
+  @override
+  State<_ProductProbe> createState() => _ProductProbeState();
+}
+
+class _ProductProbeState extends State<_ProductProbe> {
+  @override
+  void initState() {
+    super.initState();
+    _ProductProbe.generations++;
+  }
+
+  @override
+  Widget build(BuildContext context) => const Text('PRODUCT UI');
+}
+
 Widget _hostUnderTest(_FakeClock clock) => MaterialApp(
   theme: AppTheme.light(),
   builder: (context, child) => DevToolShakeHost(
@@ -70,7 +93,7 @@ Widget _hostUnderTest(_FakeClock clock) => MaterialApp(
     ),
     child: child!,
   ),
-  home: const Scaffold(body: Center(child: Text('PRODUCT UI'))),
+  home: const Scaffold(body: Center(child: _ProductProbe())),
 );
 
 void main() {
@@ -502,6 +525,87 @@ void main() {
       );
     });
 
+    testWidgets(
+      'Apply & Restart restarts the app so Dev Tool settings take effect',
+      (tester) async {
+        // The Server URL is saved to SharedPreferences but `Dio` is a LAZY
+        // singleton built over `DevBaseUrl.read(prefs)` — already resolved by
+        // the time the Dev Tool opens. Without a restart the new URL is inert,
+        // which is why `dev_settings_page` tells the user to restart. Closing
+        // must therefore rebuild the tree, not merely hide the layer.
+        final clock = _FakeClock();
+        await tester.pumpWidget(
+          AppRestarter(child: _hostUnderTest(clock)),
+        );
+        final int firstGeneration = _ProductProbe.generations;
+
+        await _deliverShake(tester);
+        expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+
+        await tester.tap(find.byKey(kDevToolShakeApplyKey));
+        // Three pumps: hide the layer, commit the teardown frame the restart
+        // awaits via `endOfFrame`, then mount the new generation.
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(
+          _ProductProbe.generations,
+          greaterThan(firstGeneration),
+          reason: 'Apply must remount the app subtree, not just hide the '
+              'Dev Tool — otherwise the already-resolved Dio keeps the old '
+              'base URL and the saved setting never applies',
+        );
+        expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Apply without an AppRestarter above is a harmless no-op',
+      (tester) async {
+        // Production compiles the wrap out (`kDevToolEnabled` is a const
+        // false), and widget tests do not install one. Close must still work
+        // rather than throwing at a user who just tapped it.
+        final clock = _FakeClock();
+        await tester.pumpWidget(_hostUnderTest(clock));
+
+        await _deliverShake(tester);
+        await tester.tap(find.byKey(kDevToolShakeApplyKey));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'X closes WITHOUT restarting, so an accidental shake costs nothing',
+      (tester) async {
+        // The Dev Tool opens on a physical gesture that fires by accident, so
+        // the universal "dismiss" control must be genuinely free: no cold
+        // start, no lost screen state.
+        final clock = _FakeClock();
+        await tester.pumpWidget(AppRestarter(child: _hostUnderTest(clock)));
+        final int firstGeneration = _ProductProbe.generations;
+
+        await _deliverShake(tester);
+        expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+
+        await tester.tap(find.byKey(kDevToolShakeCloseKey));
+        await tester.pump();
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+        expect(
+          _ProductProbe.generations,
+          firstGeneration,
+          reason: 'X must not remount the app — restarting on an accidental '
+              'open is exactly the cost this control exists to avoid',
+        );
+      },
+    );
+
     testWidgets('the close affordance really closes the layer', (tester) async {
       await tester.pumpWidget(_hostUnderTest(_FakeClock()));
       await _deliverShake(tester);
@@ -534,7 +638,7 @@ void main() {
       expect(
         tester.getSemantics(find.byKey(kDevToolShakeCloseKey)),
         matchesSemantics(
-          label: 'Close Dev Tool',
+          label: 'Close Dev Tool without restarting',
           isButton: true,
           isEnabled: true,
           hasEnabledState: true,
