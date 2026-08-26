@@ -424,7 +424,7 @@ void _registerCiContracts() {
       expect(workflow, isNot(contains('FLUTTER_VERSION:')));
       expect(workflow, isNot(contains('flutter-version: 3.44.2')));
     }
-    const omdsRevision = '6f9c16670c1c5c7a1d21e76a4006fb1aec0fc575';
+    const omdsRevision = '459b724ad267d3f83858b8309c3ea8a4079309a0';
     expect(_source('.omds-revision').trim(), omdsRevision);
     final omdsCheckout = _source('.github/actions/checkout-omds/action.yml');
     _expectContainsAll(omdsCheckout, [

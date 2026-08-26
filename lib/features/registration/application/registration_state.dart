@@ -1,13 +1,9 @@
 import 'package:equatable/equatable.dart';
 
-import '../domain/lebanon_phone.dart';
+import '../domain/international_phone.dart';
+import '../domain/registration_country_metadata.dart';
 
-enum RegistrationStep {
-  phone,
-  otp,
-  lockedOut,
-  verified,
-}
+enum RegistrationStep { phone, otp, lockedOut, verified }
 
 enum RegistrationPhoneError { invalid, networkError, rateLimited }
 
@@ -17,6 +13,7 @@ class RegistrationState extends Equatable {
   const RegistrationState({
     this.step = RegistrationStep.phone,
     this.phoneInput = '',
+    this.selectedCountryCode = RegistrationCountryCatalog.defaultCountryCode,
     this.phoneError,
     this.isSendingCode = false,
     this.isVerifying = false,
@@ -29,6 +26,8 @@ class RegistrationState extends Equatable {
   final RegistrationStep step;
 
   final String phoneInput;
+
+  final String selectedCountryCode;
 
   final RegistrationPhoneError? phoneError;
 
@@ -44,14 +43,19 @@ class RegistrationState extends Equatable {
 
   final int lockoutSecondsRemaining;
 
-  bool get isPhoneReady => LebanonPhone.tryParse(phoneInput) != null;
+  InternationalPhone? get parsedPhone => InternationalPhone.tryParse(
+    countryCode: selectedCountryCode,
+    raw: phoneInput,
+  );
 
-  String get displayPhone =>
-      LebanonPhone.tryParse(phoneInput)?.displayWithPrefix ?? phoneInput;
+  bool get isPhoneReady => parsedPhone != null;
+
+  String get displayPhone => parsedPhone?.displayWithPrefix ?? phoneInput;
 
   RegistrationState copyWith({
     RegistrationStep? step,
     String? phoneInput,
+    String? selectedCountryCode,
     Object? phoneError = _sentinel,
     bool? isSendingCode,
     bool? isVerifying,
@@ -63,6 +67,7 @@ class RegistrationState extends Equatable {
     return RegistrationState(
       step: step ?? this.step,
       phoneInput: phoneInput ?? this.phoneInput,
+      selectedCountryCode: selectedCountryCode ?? this.selectedCountryCode,
       phoneError: identical(phoneError, _sentinel)
           ? this.phoneError
           : phoneError as RegistrationPhoneError?,
@@ -81,16 +86,17 @@ class RegistrationState extends Equatable {
 
   @override
   List<Object?> get props => [
-        step,
-        phoneInput,
-        phoneError,
-        isSendingCode,
-        isVerifying,
-        otpError,
-        failedAttempts,
-        resendSecondsRemaining,
-        lockoutSecondsRemaining,
-      ];
+    step,
+    phoneInput,
+    selectedCountryCode,
+    phoneError,
+    isSendingCode,
+    isVerifying,
+    otpError,
+    failedAttempts,
+    resendSecondsRemaining,
+    lockoutSecondsRemaining,
+  ];
 }
 
 const Object _sentinel = Object();

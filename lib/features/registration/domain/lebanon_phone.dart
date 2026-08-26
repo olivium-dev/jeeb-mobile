@@ -14,15 +14,17 @@ class LebanonPhone {
   static const int minNationalDigitCount = 7;
 
   static String normalise(String raw) {
-    final digitsOnly = raw.replaceAll(RegExp(r'\D'), '');
+    final input = _transliterateDigits(raw).trim();
+    if (!_allowedCharacters.hasMatch(input)) return '';
+    if ('+'.allMatches(input).length > 1) return '';
+    if (input.contains('+') && !input.startsWith('+')) return '';
+    if (input.startsWith('+') && !input.startsWith(dialCode)) return '';
+    final digitsOnly = input.replaceAll(RegExp(r'\D'), '');
     var rest = digitsOnly;
     if (rest.startsWith('961')) {
       rest = rest.substring(3);
     } else if (rest.startsWith('0')) {
       rest = rest.substring(1);
-    }
-    if (rest.length > nationalDigitCount) {
-      rest = rest.substring(0, nationalDigitCount);
     }
     return rest;
   }
@@ -37,4 +39,21 @@ class LebanonPhone {
   }
 
   String get displayWithPrefix => '$dialCode $digits';
+}
+
+final RegExp _allowedCharacters = RegExp(r'^[+0-9٠-٩۰-۹\s\-()]*$');
+
+const String _arabicIndicDigits = '٠١٢٣٤٥٦٧٨٩';
+const String _persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+
+String _transliterateDigits(String raw) {
+  final buffer = StringBuffer();
+  for (final rune in raw.runes) {
+    final character = String.fromCharCode(rune);
+    final arabicIndex = _arabicIndicDigits.indexOf(character);
+    final persianIndex = _persianDigits.indexOf(character);
+    final digitIndex = arabicIndex >= 0 ? arabicIndex : persianIndex;
+    buffer.write(digitIndex >= 0 ? digitIndex : character);
+  }
+  return buffer.toString();
 }

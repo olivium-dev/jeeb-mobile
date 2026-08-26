@@ -56,6 +56,21 @@ void main() {
         ),
       ],
     );
+
+    blocTest<RegistrationCubit, RegistrationState>(
+      'retains the national input when the country changes',
+      build: build,
+      seed: () => const RegistrationState(phoneInput: '612345678'),
+      act: (cubit) => cubit.countryChanged('NL'),
+      expect: () => [
+        predicate<RegistrationState>(
+          (state) =>
+              state.selectedCountryCode == 'NL' &&
+              state.phoneInput == '612345678' &&
+              state.isPhoneReady,
+        ),
+      ],
+    );
   });
 
   group('sendCode', () {
@@ -75,8 +90,9 @@ void main() {
       'transitions to OTP step on success and starts the resend countdown',
       build: build,
       seed: () => const RegistrationState(phoneInput: '71123456'),
-      setUp: () => when(() => otp.sendCode(any()))
-          .thenAnswer((_) async => OtpSendOutcome.sent),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.sent),
       act: (c) async {
         await c.sendCode();
       },
@@ -100,8 +116,9 @@ void main() {
       'surfaces rate-limit as a phone error',
       build: build,
       seed: () => const RegistrationState(phoneInput: '71123456'),
-      setUp: () => when(() => otp.sendCode(any()))
-          .thenAnswer((_) async => OtpSendOutcome.rateLimited),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.rateLimited),
       act: (c) => c.sendCode(),
       skip: 1, // skip the optimistic "sending…" frame
       expect: () => [
@@ -113,6 +130,22 @@ void main() {
         ),
       ],
     );
+
+    blocTest<RegistrationCubit, RegistrationState>(
+      'sends the selected international number unchanged as E.164',
+      build: build,
+      seed: () => const RegistrationState(
+        selectedCountryCode: 'NL',
+        phoneInput: '612345678',
+      ),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.sent),
+      act: (cubit) => cubit.sendCode(),
+      verify: (_) {
+        verify(() => otp.sendCode('+31612345678')).called(1);
+      },
+    );
   });
 
   group('verifyCode', () {
@@ -123,10 +156,12 @@ void main() {
         phoneInput: '71123456',
         step: RegistrationStep.otp,
       ),
-      setUp: () => when(() => otp.verifyCode(
-            e164Phone: any(named: 'e164Phone'),
-            code: any(named: 'code'),
-          )).thenAnswer((_) async => OtpVerifyOutcome.verified),
+      setUp: () => when(
+        () => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        ),
+      ).thenAnswer((_) async => OtpVerifyOutcome.verified),
       act: (c) => c.verifyCode('123456'),
       skip: 1, // skip the "verifying…" frame
       expect: () => [
@@ -143,10 +178,12 @@ void main() {
         phoneInput: '71123456',
         step: RegistrationStep.otp,
       ),
-      setUp: () => when(() => otp.verifyCode(
-            e164Phone: any(named: 'e164Phone'),
-            code: any(named: 'code'),
-          )).thenAnswer((_) async => OtpVerifyOutcome.invalidCode),
+      setUp: () => when(
+        () => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        ),
+      ).thenAnswer((_) async => OtpVerifyOutcome.invalidCode),
       act: (c) => c.verifyCode('000000'),
       skip: 1,
       expect: () => [
@@ -167,10 +204,12 @@ void main() {
         step: RegistrationStep.otp,
         failedAttempts: 2,
       ),
-      setUp: () => when(() => otp.verifyCode(
-            e164Phone: any(named: 'e164Phone'),
-            code: any(named: 'code'),
-          )).thenAnswer((_) async => OtpVerifyOutcome.invalidCode),
+      setUp: () => when(
+        () => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        ),
+      ).thenAnswer((_) async => OtpVerifyOutcome.invalidCode),
       act: (c) => c.verifyCode('000000'),
       skip: 1,
       expect: () => [
@@ -182,12 +221,54 @@ void main() {
         ),
       ],
     );
+
+    blocTest<RegistrationCubit, RegistrationState>(
+      'verifies the same selected international E.164 identity',
+      build: build,
+      seed: () => const RegistrationState(
+        selectedCountryCode: 'NL',
+        phoneInput: '612345678',
+        step: RegistrationStep.otp,
+      ),
+      setUp: () => when(
+        () => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        ),
+      ).thenAnswer((_) async => OtpVerifyOutcome.verified),
+      act: (cubit) => cubit.verifyCode('1234'),
+      verify: (_) {
+        verify(
+          () => otp.verifyCode(e164Phone: '+31612345678', code: '1234'),
+        ).called(1);
+      },
+    );
+  });
+
+  group('resendCode', () {
+    blocTest<RegistrationCubit, RegistrationState>(
+      'resends the same selected international E.164 identity',
+      build: build,
+      seed: () => const RegistrationState(
+        selectedCountryCode: 'NL',
+        phoneInput: '612345678',
+        step: RegistrationStep.otp,
+      ),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.sent),
+      act: (cubit) => cubit.resendCode(),
+      verify: (_) {
+        verify(() => otp.sendCode('+31612345678')).called(1);
+      },
+    );
   });
 
   group('countdowns', () {
     test('resend countdown ticks down to 0 after each emit', () async {
-      when(() => otp.sendCode(any()))
-          .thenAnswer((_) async => OtpSendOutcome.sent);
+      when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.sent);
       final cubit = build(
         policy: const RegistrationAttemptPolicy(
           resendCooldown: Duration(seconds: 3),
@@ -212,39 +293,44 @@ void main() {
       await cubit.close();
     });
 
-    test('lockout expiry returns the user to phone entry with attempts reset',
-        () async {
-      when(() => otp.sendCode(any()))
-          .thenAnswer((_) async => OtpSendOutcome.sent);
-      when(() => otp.verifyCode(
+    test(
+      'lockout expiry returns the user to phone entry with attempts reset',
+      () async {
+        when(
+          () => otp.sendCode(any()),
+        ).thenAnswer((_) async => OtpSendOutcome.sent);
+        when(
+          () => otp.verifyCode(
             e164Phone: any(named: 'e164Phone'),
             code: any(named: 'code'),
-          )).thenAnswer((_) async => OtpVerifyOutcome.invalidCode);
-      final cubit = build(
-        policy: const RegistrationAttemptPolicy(
-          lockoutDuration: Duration(seconds: 2),
-        ),
-      );
-      cubit.phoneChanged('71123456');
-      await cubit.sendCode();
-      await cubit.verifyCode('000000');
-      await cubit.verifyCode('000000');
-      await cubit.verifyCode('000000'); // triggers lockout
-      expect(cubit.state.step, RegistrationStep.lockedOut);
-      expect(cubit.state.lockoutSecondsRemaining, 2);
+          ),
+        ).thenAnswer((_) async => OtpVerifyOutcome.invalidCode);
+        final cubit = build(
+          policy: const RegistrationAttemptPolicy(
+            lockoutDuration: Duration(seconds: 2),
+          ),
+        );
+        cubit.phoneChanged('71123456');
+        await cubit.sendCode();
+        await cubit.verifyCode('000000');
+        await cubit.verifyCode('000000');
+        await cubit.verifyCode('000000'); // triggers lockout
+        expect(cubit.state.step, RegistrationStep.lockedOut);
+        expect(cubit.state.lockoutSecondsRemaining, 2);
 
-      ticker.add(DateTime.now());
-      await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.lockoutSecondsRemaining, 1);
+        ticker.add(DateTime.now());
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.lockoutSecondsRemaining, 1);
 
-      ticker.add(DateTime.now());
-      await Future<void>.delayed(Duration.zero);
-      // Lockout reached 0 → step bounces back to phone and attempts reset.
-      expect(cubit.state.step, RegistrationStep.phone);
-      expect(cubit.state.failedAttempts, 0);
-      expect(cubit.state.lockoutSecondsRemaining, 0);
+        ticker.add(DateTime.now());
+        await Future<void>.delayed(Duration.zero);
+        // Lockout reached 0 → step bounces back to phone and attempts reset.
+        expect(cubit.state.step, RegistrationStep.phone);
+        expect(cubit.state.failedAttempts, 0);
+        expect(cubit.state.lockoutSecondsRemaining, 0);
 
-      await cubit.close();
-    });
+        await cubit.close();
+      },
+    );
   });
 }

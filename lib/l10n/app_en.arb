@@ -1124,9 +1124,37 @@
   "@registrationPhoneHint": {
     "description": "Hint inside the phone number text field"
   },
-  "registrationPhoneInvalid": "Enter a valid Lebanese phone number.",
+  "registrationPhoneInvalid": "Enter a valid phone number.",
   "@registrationPhoneInvalid": {
-    "description": "Inline error when phone digit count is wrong"
+    "description": "Inline error when the selected country's phone format is invalid"
+  },
+  "registrationCountryPickerTitle": "Select country",
+  "@registrationCountryPickerTitle": {
+    "description": "Title of the registration phone country picker"
+  },
+  "registrationCountrySearchHint": "Search countries",
+  "@registrationCountrySearchHint": {
+    "description": "Search hint in the registration phone country picker"
+  },
+  "registrationCountryNoResults": "No countries found",
+  "@registrationCountryNoResults": {
+    "description": "Empty result shown by the registration country search"
+  },
+  "registrationCountrySelectorA11y": "Select phone country",
+  "@registrationCountrySelectorA11y": {
+    "description": "Screen-reader label for the registration country selector"
+  },
+  "registrationCountrySearchA11y": "Search phone countries",
+  "@registrationCountrySearchA11y": {
+    "description": "Screen-reader label for the registration country search field"
+  },
+  "registrationCountryOptionA11y": "{country}, {dialCode}",
+  "@registrationCountryOptionA11y": {
+    "description": "Screen-reader label for one registration country option",
+    "placeholders": {
+      "country": {"type": "String"},
+      "dialCode": {"type": "String"}
+    }
   },
   "registrationSendCode": "Send code",
   "@registrationSendCode": {
@@ -4860,7 +4888,7 @@
   "@onboardingPageIndicator": {"description": "Screen-reader label for the onboarding page dots.", "placeholders": {"current": {}, "total": {}}},
   "registrationTagline": "Your errand, made easier · جيب، مشوارك أسهل",
   "@registrationTagline": {"description": "Bilingual brand tagline in the registration hero band; each locale leads with its own script."},
-  "registrationPhoneHelper": "8-digit Lebanese number — we text you a code.",
+  "registrationPhoneHelper": "Select a country, then enter the national number.",
   "@registrationPhoneHelper": {"description": "Resting helper line under the phone field on registration."},
   "registrationPhoneExample": "3 123 456",
   "@registrationPhoneExample": {"description": "In-field example hint for the phone number; digit grouping is display-only."},
