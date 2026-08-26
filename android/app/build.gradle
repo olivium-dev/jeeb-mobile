@@ -103,6 +103,10 @@ android {
     compileSdk 36
     ndkVersion = "28.2.13676358"
 
+    buildFeatures {
+        buildConfig true
+    }
+
     compileOptions {
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
@@ -153,6 +157,9 @@ android {
             // Opt-IN (-Pjeeb.devtool=true): a normal dev build must ship ONE
             // launcher, or the launcher/monkey can open the Dev Tool alias.
             resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
+            resValue "bool", "jeeb_internal_release", "false"
+            resValue "string", "devtool_name", "Jeeber Dev Tool"
+            buildConfigField "boolean", "JEEB_INTERNAL_RELEASE", "false"
             // Preserve the developer deep-link host while release candidates
             // verify against the canonical staging Cloudflare edge.
             manifestPlaceholders.APP_LINK_HOST = 'jeeb.app'
@@ -164,6 +171,22 @@ android {
             versionNameSuffix "-stg"
             resValue "string", "app_name", "Jeeb Staging"
             resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
+            resValue "bool", "jeeb_internal_release", "false"
+            resValue "string", "devtool_name", "Jeeber Dev Tool"
+            buildConfigField "boolean", "JEEB_INTERNAL_RELEASE", "false"
+            manifestPlaceholders.APP_LINK_HOST = 'app.jeeb.fds-1.com'
+        }
+        internalRelease {
+            dimension "environment"
+            // Play Internal Testing keeps the permanent store identity. The
+            // runtime remains staging and the dedicated QA activity is the
+            // only release-only developer surface.
+            applicationId "com.olivium.jeeb"
+            resValue "string", "app_name", "Jeeb Internal"
+            resValue "string", "devtool_name", "Jeeb Internal QA"
+            resValue "bool", "jeeb_devtool_enabled", "true"
+            resValue "bool", "jeeb_internal_release", "true"
+            buildConfigField "boolean", "JEEB_INTERNAL_RELEASE", "true"
             manifestPlaceholders.APP_LINK_HOST = 'app.jeeb.fds-1.com'
         }
         production {
@@ -172,6 +195,9 @@ android {
             // Production hides the Dev Tool launcher icon (defence-in-depth
             // alongside the compile-time kDevToolEnabled dart-define).
             resValue "bool", "jeeb_devtool_enabled", "false"
+            resValue "bool", "jeeb_internal_release", "false"
+            resValue "string", "devtool_name", "Jeeb"
+            buildConfigField "boolean", "JEEB_INTERNAL_RELEASE", "false"
             manifestPlaceholders.APP_LINK_HOST = 'app.jeeb.fds-1.com'
         }
     }
@@ -286,7 +312,8 @@ def verifyProductionReleaseSigning = tasks.register('verifyProductionReleaseSign
 
 tasks.configureEach { task ->
     if (task.name != verifyProductionReleaseSigning.name &&
-        task.name.toLowerCase().contains('productionrelease')) {
+        (task.name.toLowerCase().contains('productionrelease') ||
+            task.name.toLowerCase().contains('internalreleaserelease'))) {
         task.dependsOn(verifyProductionReleaseSigning)
     }
 }

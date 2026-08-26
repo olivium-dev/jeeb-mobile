@@ -10,39 +10,65 @@ def required_env(name)
   value
 end
 
+def upload_internal_aab(require_devtool:)
+  aab_path = required_env('ANDROID_AAB_PATH')
+  build_number = BuildNumberPolicy.parse!(required_env('MOBILE_BUILD_NUMBER'))
+  UI.user_error!('Retained AAB is missing') unless File.file?(aab_path)
+
+  if require_devtool
+    devtool_build = required_env('JEEB_DEVTOOL_BUILD')
+    super_login_enabled = required_env('JEEB_SUPER_LOGIN_ENABLED')
+    UI.user_error!('JEEB_DEVTOOL_BUILD must be true') unless devtool_build == 'true'
+    UI.user_error!('JEEB_SUPER_LOGIN_ENABLED must be false') unless super_login_enabled == 'false'
+    provenance = JSON.parse(File.read(required_env('ANDROID_PROVENANCE_PATH')))
+    expected = {
+      'devtool' => true,
+      'super_login' => false,
+      'runtime' => 'staging',
+      'native_id' => 'com.olivium.jeeb',
+      'store_uploaded' => false,
+    }
+    UI.user_error!('Internal-devtool provenance is invalid') unless
+      expected.all? { |key, value| provenance[key] == value }
+  end
+
+  json_key_data = required_env('GOOGLE_PLAY_JSON_KEY')
+  existing_codes = %w[internal alpha beta production].flat_map do |track|
+    Array(
+      google_play_track_version_codes(
+        json_key_data: json_key_data,
+        package_name: 'com.olivium.jeeb',
+        track: track,
+      ),
+    )
+  end.map(&:to_i)
+  BuildNumberPolicy.require_newer!(
+    candidate: build_number,
+    observed: existing_codes,
+    destination: 'Google Play',
+  )
+
+  upload_to_play_store(
+    json_key_data: json_key_data,
+    package_name: 'com.olivium.jeeb',
+    aab: aab_path,
+    track: 'internal',
+    release_status: 'completed',
+    skip_upload_metadata: true,
+    skip_upload_images: true,
+    skip_upload_screenshots: true,
+    skip_upload_changelogs: true,
+  )
+end
+
 platform :android do
   desc 'Upload the already-tested AAB to Google Play Internal Testing only'
   lane :internal do
-    aab_path = required_env('ANDROID_AAB_PATH')
-    build_number = BuildNumberPolicy.parse!(required_env('MOBILE_BUILD_NUMBER'))
-    UI.user_error!('Retained AAB is missing') unless File.file?(aab_path)
+    upload_internal_aab(require_devtool: false)
+  end
 
-    json_key_data = required_env('GOOGLE_PLAY_JSON_KEY')
-    existing_codes = %w[internal alpha beta production].flat_map do |track|
-      Array(
-        google_play_track_version_codes(
-          json_key_data: json_key_data,
-          package_name: 'com.olivium.jeeb',
-          track: track,
-        ),
-      )
-    end.map(&:to_i)
-    BuildNumberPolicy.require_newer!(
-      candidate: build_number,
-      observed: existing_codes,
-      destination: 'Google Play',
-    )
-
-    upload_to_play_store(
-      json_key_data: json_key_data,
-      package_name: 'com.olivium.jeeb',
-      aab: aab_path,
-      track: 'internal',
-      release_status: 'completed',
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true,
-      skip_upload_changelogs: true,
-    )
+  desc 'Upload a provenance-verified restricted Dev Tool AAB to Internal only'
+  lane :internal_devtool do
+    upload_internal_aab(require_devtool: true)
   end
 end

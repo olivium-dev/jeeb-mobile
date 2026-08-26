@@ -18,7 +18,7 @@ import java.io.File
 // throws `local_auth plugin requires activity to be a FragmentActivity` at
 // runtime. FlutterFragmentActivity is a drop-in replacement that keeps the same
 // configureFlutterEngine / getInitialRoute / onCreate seam wiring below intact.
-class MainActivity : FlutterFragmentActivity() {
+open class MainActivity : FlutterFragmentActivity() {
     private val seamChannelName = "com.olivium.jeeb/dev_seam"
 
     // Samsung app-sleep silently drops FCM while the app is battery-restricted.
@@ -70,6 +70,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        InternalReleasePolicyChannel.register(
+            context = this,
+            engine = flutterEngine,
+            dedicatedLauncher = false,
+        )
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, seamChannelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

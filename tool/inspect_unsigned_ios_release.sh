@@ -91,7 +91,7 @@ FIREBASE_VERIFY_ASSERTION_SOURCE="${REPO_ROOT}/build/ios/SourcePackages/checkout
 FIREBASE_VERIFY_ASSERTION_SHA256="36f46bb2b04544a15ffb339ce522c3a943e9b061567352f078663d7067b8bd83"
 
 if [[ -f "${APP_BINARY}" ]] && LC_ALL=C grep -aEq \
-    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|DevToolApp' \
+    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|Jeeb Internal QA|JEEB_INTERNAL_RELEASE=true' \
   "${APP_BINARY}"; then
   fail 'forbidden endpoint, developer auth, or wildcard token mint leaked from Jeeb-owned code'
 fi

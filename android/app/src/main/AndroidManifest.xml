@@ -195,35 +195,12 @@
             </intent-filter>
         </activity>
 
-        <!--
-            Jeeber Dev Tool second launcher icon. This activity-alias reuses the
-            SAME MainActivity (same process, DI, session, storage — full access),
-            but launching via this icon makes MainActivity.getInitialRoute()
-            return "/devtool", so lib/main.dart boots the Dev Tool shell instead
-            of the product app. Gated by @bool/jeeb_devtool_enabled (resValue in
-            build.gradle: true on dev/staging, false on production), so the icon
-            only appears on non-production builds — defence-in-depth alongside
-            the compile-time kDevToolEnabled dart-define.
-        -->
         <!-- F5: image_cropper (uCrop) needs its host activity registered;
              portrait-locked to match F4's app-wide lock. -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
-
-        <activity-alias
-            android:name=".DevToolLauncher"
-            android:targetActivity=".MainActivity"
-            android:exported="true"
-            android:enabled="@bool/jeeb_devtool_enabled"
-            android:label="Jeeber Dev Tool"
-            android:icon="@mipmap/ic_launcher">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-        </activity-alias>
 
         <!--
             S007-P1B: enable Flutter's built-in deep linking so the VIEW

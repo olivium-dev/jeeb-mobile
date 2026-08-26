@@ -1,7 +1,7 @@
 name: jeeb_mobile
 description: Jeeb mobile app — Flutter + Clean Architecture + flutter_bloc.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+26082601
 
 environment:
   sdk: ">=3.10.8 <4.0.0"
@@ -257,6 +257,10 @@ dependencies:
   # Exact pin: 7.1.0+ reads the iOS 26-only NWPath.isUltraConstrained API and
   # cannot compile with this repository's Xcode 15.4 toolchain.
   connectivity_plus: 7.0.0
+
+  # Internal Testing QA surface: reads the installed store version/build number
+  # without exposing device identifiers or package signing material.
+  package_info_plus: 9.0.1
 
 dev_dependencies:
   flutter_test:
