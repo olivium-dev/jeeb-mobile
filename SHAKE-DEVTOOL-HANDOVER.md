@@ -272,8 +272,10 @@ own ticket.
 The change is one commit and is inert in production by construction, so a
 rollback is only needed to remove the dev affordance itself.
 
-- **Whole feature:** `git revert <sha>` — no migration, no config, no server
-  state.
+- **Whole feature:** land a forward commit that deletes the shake wiring — no
+  migration, no config, no server state. (The repo enforces a forward-only
+  deployment policy via `tool/check_fail_closed_deployment.py`; removal ships as
+  a new commit, never as prior-state selection.)
 - **Keep the code, kill the gesture:** build with
   `--dart-define=JEEB_DEVTOOL_SHAKE=false`. `kShakeToDevToolRequested` becomes
   `false`, the const folds, and the wiring compiles out while the rest of the
