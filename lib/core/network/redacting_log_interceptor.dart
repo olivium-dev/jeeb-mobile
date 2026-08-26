@@ -9,23 +9,36 @@ class RedactingLogInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (kDebugMode) {
-      final headers = DiagRedaction.redactHeaders(options.headers);
-      debugPrint(
-        '[http→] ${options.method} ${DiagRedaction.scrubPath(options.uri.toString())}'
-        ' headers=$headers body=${_redactBody(options.data)}',
-      );
+      final path = DiagRedaction.scrubPath(options.path);
+      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+        debugPrint('[http→] ${options.method} $path');
+      } else {
+        final headers = DiagRedaction.redactHeaders(options.headers);
+        debugPrint(
+          '[http→] ${options.method} $path'
+          ' headers=$headers body=${_redactBody(options.data)}',
+        );
+      }
     }
     handler.next(options);
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     if (kDebugMode) {
-      debugPrint(
-        '[http←] ${response.statusCode} ${response.requestOptions.method} '
-        '${DiagRedaction.scrubPath(response.requestOptions.path)} '
-        'body=${_redactBody(response.data)}',
-      );
+      final options = response.requestOptions;
+      final path = DiagRedaction.scrubPath(options.path);
+      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+        debugPrint('[http←] ${response.statusCode} ${options.method} $path');
+      } else {
+        debugPrint(
+          '[http←] ${response.statusCode} ${options.method} '
+          '$path body=${_redactBody(response.data)}',
+        );
+      }
     }
     handler.next(response);
   }
@@ -33,11 +46,16 @@ class RedactingLogInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
-      debugPrint(
-        '[http✗] ${err.response?.statusCode} ${err.requestOptions.method} '
-        '${DiagRedaction.scrubPath(err.requestOptions.path)} '
-        'body=${_redactBody(err.response?.data)}',
-      );
+      final options = err.requestOptions;
+      final path = DiagRedaction.scrubPath(options.path);
+      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+        debugPrint('[http✗] ${options.method} $path');
+      } else {
+        debugPrint(
+          '[http✗] ${err.response?.statusCode} ${options.method} '
+          '$path body=${_redactBody(err.response?.data)}',
+        );
+      }
     }
     handler.next(err);
   }

@@ -72,6 +72,8 @@ final class ObsDioInterceptor extends Interceptor {
     Response<dynamic>? response,
     DioException? error,
   }) {
+    final suppressPayload = DiagRedaction.isBodySuppressedPath(options.path);
+    final correlationId = _correlationId(options, response);
     final seq = _seqFor(options);
     return ObsApiEvent(
       id: Observability.instance.newEventId(ObsEventType.api, seq),
@@ -82,14 +84,18 @@ final class ObsDioInterceptor extends Interceptor {
       path: DiagRedaction.scrubPath(options.path),
       statusCode: response?.statusCode,
       durationMs: _elapsedMs(options),
-      requestHeaders: _requestHeaders(options),
-      requestBody: _requestBody(options),
-      responseHeaders: _responseHeaders(response),
-      responseBody: _responseBody(response),
-      correlationId: _correlationId(options, response),
+      requestHeaders: suppressPayload
+          ? const <String, Object?>{}
+          : _requestHeaders(options),
+      requestBody: suppressPayload ? null : _requestBody(options),
+      responseHeaders: suppressPayload
+          ? const <String, Object?>{}
+          : _responseHeaders(response),
+      responseBody: suppressPayload ? null : _responseBody(response),
+      correlationId: correlationId,
       screen: _screenFor(options),
       errorType: error?.type.name,
-      errorMessage: _errorMessage(error),
+      errorMessage: suppressPayload ? null : _errorMessage(error),
     );
   }
 
@@ -242,8 +248,7 @@ final class ObsDioInterceptor extends Interceptor {
       final raw = response.headers.value(Headers.contentLengthHeader);
       final headerBytes = raw == null ? null : int.tryParse(raw);
       if (headerBytes != null) return headerBytes;
-    } catch (_) {
-    }
+    } catch (_) {}
     return _encodedLength(response.data);
   }
 }
