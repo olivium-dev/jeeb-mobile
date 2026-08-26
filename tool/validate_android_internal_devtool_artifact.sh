@@ -75,8 +75,11 @@ validate_metadata() {
     --arg package "${PACKAGE_NAME}" \
     --arg name "${BUILD_NAME}" \
     --argjson number "${BUILD_NUMBER}" '
-      .applicationId == $package
+      .artifactType.type == "MERGED_MANIFESTS"
+      and .artifactType.kind == "Directory"
+      and .applicationId == $package
       and .variantName == "internalReleaseRelease"
+      and .elementType == "File"
       and (.elements | length) == 1
       and .elements[0].versionName == $name
       and .elements[0].versionCode == $number
@@ -87,6 +90,8 @@ validate_metadata() {
 validate_provenance() {
   local aab_sha="$1"
   local metadata_sha="$2"
+  local signer_sha1="$3"
+  local signer_sha256="$4"
   jq -e \
     --arg aab "${aab_sha}" \
     --arg metadata "${metadata_sha}" \
@@ -96,7 +101,9 @@ validate_provenance() {
     --arg reviewed "${REVIEWED_SHA}" \
     --arg source_run "${SOURCE_RUN_ID}" \
     --arg source_attempt "${SOURCE_RUN_ATTEMPT}" \
-    --arg workflow_ref "${SOURCE_WORKFLOW_REF}" '
+    --arg workflow_ref "${SOURCE_WORKFLOW_REF}" \
+    --arg signer_sha1 "${signer_sha1}" \
+    --arg signer_sha256 "${signer_sha256}" '
       .platform == "android"
       and .package_name == $package
       and .native_id == $package
@@ -110,6 +117,9 @@ validate_provenance() {
       and .build_number == $number
       and .artifact_sha256 == $aab
       and .metadata_sha256 == $metadata
+      and .metadata_kind == "gradle-merged-manifest-v3"
+      and .signer_sha1 == $signer_sha1
+      and .signer_sha256 == $signer_sha256
       and .reviewed_sha == $reviewed
       and .source_run_id == $source_run
       and .source_run_attempt == $source_attempt
@@ -141,6 +151,20 @@ validate_archive
 validate_metadata
 aab_sha256="$(sha256_file "${AAB_PATH}")"
 metadata_sha256="$(sha256_file "${METADATA_PATH}")"
-validate_provenance "${aab_sha256}" "${metadata_sha256}"
+signer_result="$(
+  bash "$(dirname "${BASH_SOURCE[0]}")/android_internal_candidate_integrity.sh" \
+    extract-signer "${AAB_PATH}"
+)"
+signer_sha1="$(sed -n 's/^signer_sha1=//p' <<<"${signer_result}")"
+signer_sha256="$(sed -n 's/^signer_sha256=//p' <<<"${signer_result}")"
+[[ "${signer_sha1}" =~ ^[0-9A-F]{40}$ ]] ||
+  fail 'AAB SHA-1 signer fingerprint is malformed'
+[[ "${signer_sha256}" =~ ^[0-9A-F]{64}$ ]] ||
+  fail 'AAB SHA-256 signer fingerprint is malformed'
+validate_provenance \
+  "${aab_sha256}" "${metadata_sha256}" \
+  "${signer_sha1}" "${signer_sha256}"
 printf 'artifact_sha256=%s\n' "${aab_sha256}"
 printf 'metadata_sha256=%s\n' "${metadata_sha256}"
+printf 'signer_sha1=%s\n' "${signer_sha1}"
+printf 'signer_sha256=%s\n' "${signer_sha256}"

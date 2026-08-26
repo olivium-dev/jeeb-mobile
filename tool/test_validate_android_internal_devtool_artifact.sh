@@ -30,11 +30,27 @@ printf '%s\n' 'com.olivium.jeeb DevToolLauncher' \
   zip -qr "${aab_path}" base
 )
 
+store_password='artifact-validator-test-password'
+keystore="${TMP_DIR}/validator.p12"
+keytool -genkeypair -noprompt -storetype PKCS12 -keystore "${keystore}" \
+  -storepass "${store_password}" -keypass "${store_password}" \
+  -alias validator -keyalg RSA -keysize 2048 -validity 3650 \
+  -dname 'CN=Validator, OU=CI, O=Jeeb, C=LB' >/dev/null 2>&1
+jarsigner -keystore "${keystore}" -storepass "${store_password}" \
+  -keypass "${store_password}" "${aab_path}" validator >/dev/null 2>&1
+signer_result="$(bash \
+  "${REPO_ROOT}/tool/android_internal_candidate_integrity.sh" \
+  extract-signer "${aab_path}")"
+signer_sha1="$(sed -n 's/^signer_sha1=//p' <<<"${signer_result}")"
+signer_sha256="$(sed -n 's/^signer_sha256=//p' <<<"${signer_result}")"
+
 jq -n \
   --arg package "${ANDROID_PACKAGE_NAME}" \
   --arg name "${MOBILE_BUILD_NAME}" \
   --argjson number "${MOBILE_BUILD_NUMBER}" '
-    {applicationId: $package, variantName: "internalReleaseRelease",
+    {artifactType:{type:"MERGED_MANIFESTS", kind:"Directory"},
+      applicationId: $package, variantName: "internalReleaseRelease",
+      elementType:"File",
       elements: [{versionName: $name, versionCode: $number}]}
   ' >"${metadata_path}"
 
@@ -56,12 +72,16 @@ jq -n \
   --arg reviewed "${REVIEWED_SHA}" \
   --arg source_run "${SOURCE_RUN_ID}" \
   --arg source_attempt "${SOURCE_RUN_ATTEMPT}" \
-  --arg workflow_ref "${SOURCE_WORKFLOW_REF}" '
+  --arg workflow_ref "${SOURCE_WORKFLOW_REF}" \
+  --arg signer_sha1 "${signer_sha1}" \
+  --arg signer_sha256 "${signer_sha256}" '
     {platform:"android", package_name:"com.olivium.jeeb",
       native_id:"com.olivium.jeeb", flavor:"internalRelease",
       build_profile:"release", release_profile:true, runtime:"staging",
       version_name:$name, version_code:$number, build_name:$name,
       build_number:$number, artifact_sha256:$aab, metadata_sha256:$metadata,
+      metadata_kind:"gradle-merged-manifest-v3",
+      signer_sha1:$signer_sha1, signer_sha256:$signer_sha256,
       reviewed_sha:$reviewed, source_run_id:$source_run,
       source_run_attempt:$source_attempt, source_head_sha:$reviewed,
       source_workflow_path:
@@ -103,6 +123,9 @@ assert_rejected_provenance '.reviewed_sha = ("2" * 40)' wrong-reviewed-sha
 assert_rejected_provenance '.source_run_id = "654321"' wrong-run
 assert_rejected_provenance '.source_run_attempt = "9"' wrong-run-attempt
 assert_rejected_provenance '.source_workflow_ref = "refs/heads/main"' wrong-workflow
+assert_rejected_provenance '.signer_sha1 = ("0" * 40)' wrong-signer-sha1
+assert_rejected_provenance '.signer_sha256 = ("0" * 64)' wrong-signer-sha256
+assert_rejected_provenance '.metadata_kind = "bundle-output"' wrong-metadata-kind
 
 printf '%s\n' '{malformed' >"${TMP_DIR}/malformed.json"
 if bash "${validator}" "${aab_path}" "${TMP_DIR}/malformed.json" \

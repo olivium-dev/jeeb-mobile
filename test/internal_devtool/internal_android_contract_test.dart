@@ -129,6 +129,28 @@ void main() {
     expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
     expect(result.stdout, contains('artifact negative controls passed'));
   });
+
+  test('candidate metadata and strict signer helpers fail closed', () {
+    final helper = _source('tool/android_internal_candidate_integrity.sh');
+    for (final marker in <String>[
+      'select-aab',
+      'MERGED_MANIFESTS',
+      'jarsigner -verify -strict -verbose -certs',
+      '-storepass:env ANDROID_STORE_PASSWORD',
+      r'$0 == "jar verified."',
+      'exactly one SHA-1 and SHA-256 fingerprint',
+    ]) {
+      expect(helper, contains(marker));
+    }
+    expect(helper, isNot(contains('jarsigner -verify -verbose')));
+    expect(helper, isNot(contains('|| true')));
+
+    final result = Process.runSync('bash', <String>[
+      'tool/test_android_internal_candidate_integrity.sh',
+    ]);
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(result.stdout, contains('strict signer controls passed'));
+  });
 }
 
 String _source(String path) => File(path).readAsStringSync();
@@ -153,6 +175,11 @@ const _workflowMarkers = <String>[
   'devtool:true',
   'super_login:false',
   'metadata_sha256',
+  'metadata_kind:"gradle-merged-manifest-v3"',
+  'signer_sha1',
+  'signer_sha256',
+  'android_internal_candidate_integrity.sh',
+  'build/app/intermediates/merged_manifests/internalReleaseRelease',
   'source_run_id',
   'source_run_attempt',
   'source_workflow_ref',

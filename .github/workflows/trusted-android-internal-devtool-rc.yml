@@ -122,6 +122,7 @@ jobs:
         run: |
           flutter analyze
           flutter test test/internal_devtool --reporter expanded
+          bash tool/test_android_internal_candidate_integrity.sh
           bash tool/test_inspect_android_internal_release_payload.sh
           bash tool/test_inspect_android_release_payload.sh
 
@@ -192,25 +193,35 @@ jobs:
                 --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
                 --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
           test ! -e android/app/google-services.json
-          aab="$(find build/app/outputs/bundle/internalReleaseRelease \
-            -type f -name '*.aab' -print -quit)"
-          metadata="$(find build/app/outputs/bundle/internalReleaseRelease \
-            -type f -name output-metadata.json -print -quit)"
+          aab="$(bash tool/android_internal_candidate_integrity.sh \
+            select-aab build/app/outputs/bundle/internalReleaseRelease)"
+          metadata="${tmp_dir}/output-metadata.json"
+          ANDROID_PACKAGE_NAME=com.olivium.jeeb \
+          ANDROID_VARIANT_NAME=internalReleaseRelease \
+          MOBILE_BUILD_NAME="${BUILD_NAME}" \
+          MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
+            bash tool/android_internal_candidate_integrity.sh \
+              select-metadata \
+              build/app/intermediates/merged_manifests/internalReleaseRelease \
+              "${metadata}"
           mapping='build/app/outputs/mapping/internalReleaseRelease/mapping.txt'
-          [[ -s "${aab}" && -s "${metadata}" && -s "${mapping}" ]]
-          jq -e \
-            --arg name "${BUILD_NAME}" \
-            --argjson number "${BUILD_NUMBER}" '
-              .applicationId == "com.olivium.jeeb"
-              and .variantName == "internalReleaseRelease"
-              and (.elements | length) == 1
-              and .elements[0].versionName == $name
-              and .elements[0].versionCode == $number
-            ' "${metadata}" >/dev/null
+          [[ -s "${mapping}" ]] || {
+            printf '%s\n' 'Android internal candidate rejected: mapping is missing' >&2
+            exit 1
+          }
           unzip -tqq "${aab}"
-          jarsigner -verify -strict -verbose -certs "${aab}" \
-            >"${tmp_dir}/jarsigner.txt" 2>&1
-          grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt"
+          signer_result="$(
+            ANDROID_STORE_PASSWORD="${ANDROID_STORE_PASSWORD}" \
+            ANDROID_UPLOAD_CERT_SHA1="${ANDROID_UPLOAD_CERT_SHA1}" \
+            ANDROID_UPLOAD_CERT_SHA256="${ANDROID_UPLOAD_CERT_SHA256}" \
+              bash tool/android_internal_candidate_integrity.sh \
+                verify-signer "${aab}" "${keystore}" "${ANDROID_KEY_ALIAS}"
+          )"
+          signer_sha1="$(sed -n 's/^signer_sha1=//p' <<<"${signer_result}")"
+          signer_sha256="$(sed -n 's/^signer_sha256=//p' <<<"${signer_result}")"
+          [[ "${signer_sha1}" =~ ^[0-9A-F]{40}$ ]]
+          [[ "${signer_sha256}" =~ ^[0-9A-F]{64}$ ]]
+          unset signer_result
           unzip -p "${aab}" base/manifest/AndroidManifest.xml \
             >"${tmp_dir}/manifest.pb"
           unzip -p "${aab}" base/resources.pb >"${tmp_dir}/resources.pb"
@@ -245,6 +256,8 @@ jobs:
             --arg artifact_sha256 "${artifact_sha}" \
             --arg metadata_sha256 "${metadata_sha}" \
             --arg mapping_sha256 "${mapping_sha}" \
+            --arg signer_sha1 "${signer_sha1}" \
+            --arg signer_sha256 "${signer_sha256}" \
             --arg source_run_id "${GITHUB_RUN_ID}" \
             --arg source_run_attempt "${GITHUB_RUN_ATTEMPT}" \
             --arg source_head_sha "${GITHUB_SHA}" \
@@ -260,7 +273,8 @@ jobs:
               runtime:"staging", version_name:$build_name,
               version_code:$build_number, reviewed_sha, dependency_sha,
               build_name, build_number, artifact_sha256, metadata_sha256,
-              mapping_sha256, source_run_id, source_run_attempt,
+              metadata_kind:"gradle-merged-manifest-v3", mapping_sha256,
+              signer_sha1, signer_sha256, source_run_id, source_run_attempt,
               source_head_sha,
               source_workflow_path:
                 ".github/workflows/trusted-android-internal-devtool-rc.yml",
