@@ -34,10 +34,12 @@ assert_no_release_artifact() {
       \( -name '*production-release*.apk' -o \
          -name '*production-release*.aab' -o \
          -path '*/productionRelease/*.apk' -o \
-         -path '*/productionRelease/*.aab' \) \
+         -path '*/productionRelease/*.aab' -o \
+         -path '*/internalReleaseRelease/*.apk' -o \
+         -path '*/internalReleaseRelease/*.aab' \) \
       -print -quit 2>/dev/null || true
   )"
-  [[ -z "${artifact}" ]] || fail 'a production APK or AAB exists'
+  [[ -z "${artifact}" ]] || fail 'a production or internal-release artifact exists'
 }
 
 expect_gradle_failure() {
@@ -63,6 +65,10 @@ expect_gradle_failure missing-assemble \
 expect_gradle_failure missing-bundle \
   'Production release signing is unavailable.' \
   :app:bundleProductionRelease \
+  -Pjeeb.releaseSigningPropertiesFile="${MISSING_PROPERTIES}"
+expect_gradle_failure missing-internal-bundle \
+  'Production release signing is unavailable.' \
+  :app:bundleInternalReleaseRelease \
   -Pjeeb.releaseSigningPropertiesFile="${MISSING_PROPERTIES}"
 
 export JEEB_SYNTHETIC_KEYSTORE_PASSWORD="${SYNTHETIC_PASSWORD}"
@@ -145,4 +151,4 @@ expect_gradle_failure mismatched-sha256 \
 unset actual_sha1 actual_sha256
 
 printf '%s\n' \
-  'Android upload signer bindings and negatives passed; no production artifact exists.'
+  'Android upload signer bindings and negatives passed; no production or internal-release artifact exists.'

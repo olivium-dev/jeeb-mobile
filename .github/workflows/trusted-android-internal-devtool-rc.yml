@@ -1,0 +1,306 @@
+name: Trusted Android internal Dev Tool candidate
+
+run-name: Android Internal QA ${{ inputs.build_name }}+${{ inputs.build_number }} @ ${{ inputs.reviewed_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed commit on protected main
+        required: true
+        type: string
+      build_name:
+        description: Store version, for example 1.0.0
+        required: true
+        type: string
+      build_number:
+        description: Monotonic code, at least 26082601 and newer than both stores
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+concurrency:
+  group: android-internal-devtool-${{ inputs.reviewed_sha }}
+  cancel-in-progress: false
+
+env:
+  STAGING_GATEWAY_URL: https://app.jeeb.fds-1.com
+  STAGING_REALTIME_SOCKET_URL: wss://app.jeeb.fds-1.com/socket/websocket
+
+jobs:
+  policy:
+    name: Protected main and dual-store monotonic policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: mobile-rc
+    outputs:
+      reviewed_sha: ${{ steps.candidate.outputs.reviewed_sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate exact protected-main candidate
+        id: candidate
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]
+          [[ "${GITHUB_REF}" == refs/heads/main ]]
+          [[ "${GITHUB_REPOSITORY}" == olivium-dev/jeeb-mobile ]]
+          [[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
+          (( 10#${BUILD_NUMBER} >= 26082601 ))
+          (( 10#${BUILD_NUMBER} <= 2100000000 ))
+          [[ "$(git rev-parse "${REVIEWED_SHA}^{commit}")" == "${REVIEWED_SHA}" ]]
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ "${REVIEWED_SHA}" == "${GITHUB_SHA}" ]]
+          printf 'reviewed_sha=%s\n' "${REVIEWED_SHA}" >>"${GITHUB_OUTPUT}"
+
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+
+      - name: Re-read Play and App Store maxima
+        env:
+          MOBILE_BUILD_NAME: ${{ inputs.build_name }}
+          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_CONTENT_B64: ${{ secrets.APP_STORE_KEY_CONTENT_B64 }}
+        run: bundle exec fastlane preflight_internal
+
+  build:
+    name: Signed restricted internal AAB
+    needs: policy
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: mobile-rc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.policy.outputs.reviewed_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout repository-pinned OMDS
+        id: omds
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.ANDROID_OMDS_READ_TOKEN }}
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Resolve and generate locked source graph
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == '${{ needs.policy.outputs.reviewed_sha }}' ]]
+          flutter pub get --enforce-lockfile
+          bash tool/check_firebase_core_pin.sh
+
+      - uses: ./.github/actions/run-build-runner
+
+      - name: Test restricted policy and payload inspectors
+        run: |
+          flutter analyze
+          flutter test test/internal_devtool --reporter expanded
+          bash tool/test_inspect_android_internal_release_payload.sh
+          bash tool/test_inspect_android_release_payload.sh
+
+      - name: Build, inspect, and retain signed internal candidate
+        id: candidate
+        env:
+          BUILD_NAME: ${{ inputs.build_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          REVIEWED_SHA: ${{ needs.policy.outputs.reviewed_sha }}
+          OMDS_SHA: ${{ steps.omds.outputs.revision }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_CERT_SHA1: ${{ secrets.ANDROID_UPLOAD_CERT_SHA1 }}
+          ANDROID_UPLOAD_CERT_SHA256: ${{ secrets.ANDROID_UPLOAD_CERT_SHA256 }}
+          ANDROID_GOOGLE_SERVICES_JSON_B64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_B64 }}
+          ANDROID_FIREBASE_EXPECTED_APP_ID: ${{ secrets.ANDROID_FIREBASE_EXPECTED_APP_ID }}
+          ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
+          ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
+          MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          required=(
+            ANDROID_KEYSTORE_B64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+            ANDROID_STORE_PASSWORD ANDROID_UPLOAD_CERT_SHA1
+            ANDROID_UPLOAD_CERT_SHA256 ANDROID_GOOGLE_SERVICES_JSON_B64
+            ANDROID_FIREBASE_EXPECTED_APP_ID
+            ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID
+            ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID MAPS_API_KEY
+          )
+          for variable in "${required[@]}"; do
+            [[ -n "${!variable:-}" ]] || exit 1
+          done
+          tmp_dir="$(mktemp -d)"
+          keystore="${tmp_dir}/upload.p12"
+          properties="${GITHUB_WORKSPACE}/android/key.properties"
+          cleanup() {
+            rm -f -- "${properties}"
+            rm -rf -- "${tmp_dir}"
+          }
+          trap cleanup EXIT HUP INT TERM
+          printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode >"${keystore}"
+          unset ANDROID_KEYSTORE_B64
+          chmod 0600 "${keystore}"
+          printf '%s\n' \
+            "keyAlias=${ANDROID_KEY_ALIAS}" \
+            "keyPassword=${ANDROID_KEY_PASSWORD}" \
+            "storeFile=${keystore}" \
+            "storePassword=${ANDROID_STORE_PASSWORD}" >"${properties}"
+          chmod 0600 "${properties}"
+          rm -f -- build/app/outputs/bundle/internalReleaseRelease/*.aab
+          ANDROID_GOOGLE_SERVICES_JSON_B64="${ANDROID_GOOGLE_SERVICES_JSON_B64}" \
+            bash tool/run_with_android_firebase_config.sh \
+              flutter build appbundle \
+                --flavor internalRelease \
+                --release \
+                --no-pub \
+                --target lib/main_android_internal.dart \
+                --build-name="${BUILD_NAME}" \
+                --build-number="${BUILD_NUMBER}" \
+                --dart-define=APP_FLAVOR=staging \
+                --dart-define=JEEB_INTERNAL_RELEASE=true \
+                --dart-define=JEEB_CLARITY_ENABLED=false \
+                --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+                --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
+                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
+          test ! -e android/app/google-services.json
+          aab="$(find build/app/outputs/bundle/internalReleaseRelease \
+            -type f -name '*.aab' -print -quit)"
+          metadata="$(find build/app/outputs/bundle/internalReleaseRelease \
+            -type f -name output-metadata.json -print -quit)"
+          mapping='build/app/outputs/mapping/internalReleaseRelease/mapping.txt'
+          [[ -s "${aab}" && -s "${metadata}" && -s "${mapping}" ]]
+          jq -e \
+            --arg name "${BUILD_NAME}" \
+            --argjson number "${BUILD_NUMBER}" '
+              .applicationId == "com.olivium.jeeb"
+              and .variantName == "internalReleaseRelease"
+              and (.elements | length) == 1
+              and .elements[0].versionName == $name
+              and .elements[0].versionCode == $number
+            ' "${metadata}" >/dev/null
+          unzip -tqq "${aab}"
+          jarsigner -verify -strict -verbose -certs "${aab}" \
+            >"${tmp_dir}/jarsigner.txt" 2>&1
+          grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt"
+          unzip -p "${aab}" base/manifest/AndroidManifest.xml \
+            >"${tmp_dir}/manifest.pb"
+          unzip -p "${aab}" base/resources.pb >"${tmp_dir}/resources.pb"
+          app_binary="$(unzip -Z1 "${aab}" |
+            awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print; exit}')"
+          [[ -n "${app_binary}" ]]
+          unzip -p "${aab}" "${app_binary}" >"${tmp_dir}/libapp.so"
+          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
+            "${tmp_dir}/resources.pb"
+          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/resources.pb"
+          JEEB_INTERNAL_RELEASE=true \
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+            bash tool/inspect_android_internal_release_payload.sh \
+              "${tmp_dir}/manifest.pb" "${tmp_dir}/resources.pb" \
+              "${tmp_dir}/libapp.so" "${STAGING_GATEWAY_URL}" \
+              "${STAGING_REALTIME_SOCKET_URL}"
+          artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
+          metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
+          mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
+          retained='build/retained/android-internal-devtool'
+          mkdir -p "${retained}"
+          retained_aab="${retained}/jeeb-internal-${BUILD_NAME}+${BUILD_NUMBER}.aab"
+          install -m 0600 "${aab}" "${retained_aab}"
+          install -m 0600 "${metadata}" "${retained}/output-metadata.json"
+          install -m 0600 "${mapping}" "${retained}/mapping.txt"
+          jq -n \
+            --arg reviewed_sha "${REVIEWED_SHA}" \
+            --arg dependency_sha "${OMDS_SHA}" \
+            --arg build_name "${BUILD_NAME}" \
+            --arg build_number "${BUILD_NUMBER}" \
+            --arg artifact_sha256 "${artifact_sha}" \
+            --arg metadata_sha256 "${metadata_sha}" \
+            --arg mapping_sha256 "${mapping_sha}" \
+            --arg source_run_id "${GITHUB_RUN_ID}" \
+            --arg source_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg source_head_sha "${GITHUB_SHA}" \
+            --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg source_event "${GITHUB_EVENT_NAME}" \
+            --arg source_ref "${GITHUB_REF}" \
+            --arg gateway_origin "${STAGING_GATEWAY_URL}" \
+            --arg realtime_socket "${STAGING_REALTIME_SOCKET_URL}" \
+            '{platform:"android", package_name:"com.olivium.jeeb",
+              native_id:"com.olivium.jeeb", flavor:"internalRelease",
+              build_profile:"release", release_profile:true,
+              runtime:"staging", version_name:$build_name,
+              version_code:$build_number, reviewed_sha, dependency_sha,
+              build_name, build_number, artifact_sha256, metadata_sha256,
+              mapping_sha256, source_run_id, source_run_attempt,
+              source_head_sha,
+              source_workflow_path:
+                ".github/workflows/trusted-android-internal-devtool-rc.yml",
+              source_workflow_ref, source_repository, source_event, source_ref,
+              gateway_origin, realtime_socket,
+              devtool:true, super_login:false, clarity_enabled:false,
+              clarity_privacy_approved:false, retained:true,
+              store_uploaded:false}' >"${retained}/provenance.json"
+          chmod 0600 "${retained}/provenance.json"
+          ANDROID_PACKAGE_NAME=com.olivium.jeeb \
+          MOBILE_BUILD_NAME="${BUILD_NAME}" \
+          MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
+          REVIEWED_SHA="${REVIEWED_SHA}" \
+          SOURCE_RUN_ID="${GITHUB_RUN_ID}" \
+          SOURCE_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT}" \
+          SOURCE_WORKFLOW_REF="${GITHUB_WORKFLOW_REF}" \
+          JEEB_DEVTOOL_BUILD=true \
+          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_RELEASE_PROFILE=release \
+            bash tool/validate_android_internal_devtool_artifact.sh \
+              "${retained_aab}" "${retained}/provenance.json" \
+              "${retained}/output-metadata.json" >/dev/null
+          {
+            printf 'artifact_path=%s\n' "${retained_aab}"
+            printf 'metadata_path=%s\n' "${retained}/output-metadata.json"
+            printf 'mapping_path=%s\n' "${retained}/mapping.txt"
+            printf 'provenance_path=%s\n' "${retained}/provenance.json"
+          } >>"${GITHUB_OUTPUT}"
+
+      - name: Retain exact candidate without uploading
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-internal-devtool-${{ inputs.build_number }}-${{ needs.policy.outputs.reviewed_sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ steps.candidate.outputs.artifact_path }}
+            ${{ steps.candidate.outputs.metadata_path }}
+            ${{ steps.candidate.outputs.mapping_path }}
+            ${{ steps.candidate.outputs.provenance_path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

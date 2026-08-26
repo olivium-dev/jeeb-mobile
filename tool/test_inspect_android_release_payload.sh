@@ -41,7 +41,12 @@ for forbidden in \
   '/v1/matching/broadcast' \
   'devtool_shell.dart' \
   'main_devtool.dart' \
+  'main_android_internal.dart' \
   'DevToolApp' \
+  'InternalDevToolApp' \
+  'internal_devtool_root' \
+  'Jeeb Internal QA' \
+  'JEEB_INTERNAL_RELEASE=true' \
   'JEEB_DEVTOOL_ENABLED=true'; do
   printf ' %s' "${forbidden}" >>"${binary}"
   if run_inspector false false >/dev/null 2>&1; then

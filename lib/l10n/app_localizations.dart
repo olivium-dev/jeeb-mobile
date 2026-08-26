@@ -50,6 +50,55 @@ class AppLocalizations {
 
   String get appTitle => _get('appTitle');
 
+  String get internalDevToolTitle => _get('internalDevToolTitle');
+  String get internalDevToolBannerTitle => _get('internalDevToolBannerTitle');
+  String get internalDevToolBannerSubtitle =>
+      _get('internalDevToolBannerSubtitle');
+  String get internalDevToolUnlockTitle => _get('internalDevToolUnlockTitle');
+  String get internalDevToolUnlockBody => _get('internalDevToolUnlockBody');
+  String get internalDevToolUnlockReason => _get('internalDevToolUnlockReason');
+  String get internalDevToolUnlockAction => _get('internalDevToolUnlockAction');
+  String get internalDevToolUnlocking => _get('internalDevToolUnlocking');
+  String get internalDevToolUnlockDenied => _get('internalDevToolUnlockDenied');
+  String get internalDevToolStatusSection =>
+      _get('internalDevToolStatusSection');
+  String get internalDevToolRuntime => _get('internalDevToolRuntime');
+  String get internalDevToolStaging => _get('internalDevToolStaging');
+  String get internalDevToolGateway => _get('internalDevToolGateway');
+  String get internalDevToolRealtime => _get('internalDevToolRealtime');
+  String get internalDevToolBuild => _get('internalDevToolBuild');
+  String get internalDevToolClarity => _get('internalDevToolClarity');
+  String get internalDevToolOff => _get('internalDevToolOff');
+  String get internalDevToolAuth => _get('internalDevToolAuth');
+  String get internalDevToolNormalSmsOnly =>
+      _get('internalDevToolNormalSmsOnly');
+  String get internalDevToolConnectivity => _get('internalDevToolConnectivity');
+  String get internalDevToolNetworkAvailable =>
+      _get('internalDevToolNetworkAvailable');
+  String get internalDevToolNetworkUnavailable =>
+      _get('internalDevToolNetworkUnavailable');
+  String get internalDevToolNoGatewayProbe =>
+      _get('internalDevToolNoGatewayProbe');
+  String get internalDevToolRefreshConnectivity =>
+      _get('internalDevToolRefreshConnectivity');
+  String get internalDevToolLoadingStatus =>
+      _get('internalDevToolLoadingStatus');
+  String get internalDevToolClearSection => _get('internalDevToolClearSection');
+  String get internalDevToolClearBody => _get('internalDevToolClearBody');
+  String get internalDevToolClearAction => _get('internalDevToolClearAction');
+  String get internalDevToolClearConfirmTitle =>
+      _get('internalDevToolClearConfirmTitle');
+  String get internalDevToolClearConfirmBody =>
+      _get('internalDevToolClearConfirmBody');
+  String get internalDevToolClearConfirmAction =>
+      _get('internalDevToolClearConfirmAction');
+  String get internalDevToolClearUnlockReason =>
+      _get('internalDevToolClearUnlockReason');
+  String get internalDevToolCancel => _get('internalDevToolCancel');
+  String get internalDevToolCleared => _get('internalDevToolCleared');
+  String get internalDevToolClearFailed => _get('internalDevToolClearFailed');
+  String get internalDevToolBlockedTitle => _get('internalDevToolBlockedTitle');
+  String get internalDevToolBlockedBody => _get('internalDevToolBlockedBody');
 
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
@@ -565,8 +614,7 @@ class AppLocalizations {
   String get registrationOtpInvalid => _get('registrationOtpInvalid');
   String get registrationOtpAccountSuspended =>
       _get('registrationOtpAccountSuspended');
-  String get registrationOtpNetworkError =>
-      _get('registrationOtpNetworkError');
+  String get registrationOtpNetworkError => _get('registrationOtpNetworkError');
   String get registrationOtpResend => _get('registrationOtpResend');
   String registrationOtpResendIn(int seconds) =>
       _get('registrationOtpResendIn').replaceFirst('{seconds}', '$seconds');
@@ -1454,21 +1502,23 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get availabilityLoadRetry => _get('availabilityLoadRetry');
   String get availabilityToggleErrorBody => _get('availabilityToggleErrorBody');
 
-  String get availabilityLocationFixFailedBody => _get('availabilityLocationFixFailedBody');
+  String get availabilityLocationFixFailedBody =>
+      _get('availabilityLocationFixFailedBody');
 
-  String get availabilityLocationPermissionBody => _get('availabilityLocationPermissionBody');
+  String get availabilityLocationPermissionBody =>
+      _get('availabilityLocationPermissionBody');
 
   String get availabilityLocationRetry => _get('availabilityLocationRetry');
 
-  String get availabilityLocationOpenSettings => _get('availabilityLocationOpenSettings');
+  String get availabilityLocationOpenSettings =>
+      _get('availabilityLocationOpenSettings');
   String get chatActiveDeliverySubtitle => _get('chatActiveDeliverySubtitle');
   String get chatActiveDeliveryTitle => _get('chatActiveDeliveryTitle');
   String get chatAttachTooltip => _get('chatAttachTooltip');
   String get chatAttachmentCamera => _get('chatAttachmentCamera');
   String get chatAttachmentCancel => _get('chatAttachmentCancel');
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
-  String get chatAttachmentSheetSubtitle =>
-      _get('chatAttachmentSheetSubtitle');
+  String get chatAttachmentSheetSubtitle => _get('chatAttachmentSheetSubtitle');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
   String get chatComposerHint => _get('chatComposerHint');
   String get chatComposerHintPriceTime => _get('chatComposerHintPriceTime');
@@ -2302,10 +2352,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderChatFieldEta => _get('orderChatFieldEta');
   String get orderChatFieldTier => _get('orderChatFieldTier');
 
-  String orderChatFieldValueA11y(String field, String value) =>
-      _get('orderChatFieldValueA11y')
-          .replaceFirst('{field}', field)
-          .replaceFirst('{value}', value);
+  String orderChatFieldValueA11y(String field, String value) => _get(
+    'orderChatFieldValueA11y',
+  ).replaceFirst('{field}', field).replaceFirst('{value}', value);
   String get orderSummaryValuePending => _get('orderSummaryValuePending');
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
@@ -2358,12 +2407,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chargeInfoWhatsAppNote => _get('chargeInfoWhatsAppNote');
   String get chargeInfoWhatsAppCta => _get('chargeInfoWhatsAppCta');
   String get chargeInfoWhatsAppMessage => _get('chargeInfoWhatsAppMessage');
-  String chargeInfoWhatsAppMessagePhoneSentence(String phone) =>
-      _get('chargeInfoWhatsAppMessagePhoneSentence')
-          .replaceFirst('{phone}', phone);
-  String chargeInfoWhatsAppFallbackMessage(String number) =>
-      _get('chargeInfoWhatsAppFallbackMessage')
-          .replaceFirst('{number}', number);
+  String chargeInfoWhatsAppMessagePhoneSentence(String phone) => _get(
+    'chargeInfoWhatsAppMessagePhoneSentence',
+  ).replaceFirst('{phone}', phone);
+  String chargeInfoWhatsAppFallbackMessage(String number) => _get(
+    'chargeInfoWhatsAppFallbackMessage',
+  ).replaceFirst('{number}', number);
   String get chargeInfoWhatsAppCopyAction =>
       _get('chargeInfoWhatsAppCopyAction');
   String get chargeInfoWhatsAppNumberCopied =>
@@ -2513,10 +2562,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get onboardingPreviewOfferMeta => _get('onboardingPreviewOfferMeta');
   String get onboardingLanguageEnShort => _get('onboardingLanguageEnShort');
   String get onboardingLanguageArShort => _get('onboardingLanguageArShort');
-  String onboardingPageIndicator(int current, int total) =>
-      _get('onboardingPageIndicator')
-          .replaceFirst('{current}', '$current')
-          .replaceFirst('{total}', '$total');
+  String onboardingPageIndicator(int current, int total) => _get(
+    'onboardingPageIndicator',
+  ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
 
   // 02 · Registration
   String get registrationTagline => _get('registrationTagline');
@@ -2541,10 +2589,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('homeGreetingEyebrowAfternoon');
   String get homeGreetingEyebrowEvening => _get('homeGreetingEyebrowEvening');
   String get homeHeroSubtitle => _get('homeHeroSubtitle');
-  String homeRepliesOffersFloor(String offers, String amount) =>
-      _get('homeRepliesOffersFloor')
-          .replaceFirst('{offers}', offers)
-          .replaceFirst('{amount}', amount);
+  String homeRepliesOffersFloor(String offers, String amount) => _get(
+    'homeRepliesOffersFloor',
+  ).replaceFirst('{offers}', offers).replaceFirst('{amount}', amount);
   String homeRepliesFromFloor(String amount) =>
       _get('homeRepliesFromFloor').replaceAll('{amount}', amount);
 
@@ -2558,8 +2605,9 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // 06 · Transcription review
   String get transcriptionTapHint => _get('transcriptionTapHint');
-  String transcriptionLanguageDetected(String language) =>
-      _get('transcriptionLanguageDetected').replaceFirst('{language}', language);
+  String transcriptionLanguageDetected(String language) => _get(
+    'transcriptionLanguageDetected',
+  ).replaceFirst('{language}', language);
   String get transcriptionLanguageArabicLebanese =>
       _get('transcriptionLanguageArabicLebanese');
   String get transcriptionLanguageArabic => _get('transcriptionLanguageArabic');
@@ -2697,10 +2745,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('otpArrivalAtDoor').replaceFirst('{name}', name);
   String otpArrivalOnTheWay(String name) =>
       _get('otpArrivalOnTheWay').replaceFirst('{name}', name);
-  String otpArrivalSubtitle(String vehicle, String amount) =>
-      _get('otpArrivalSubtitle')
-          .replaceFirst('{vehicle}', vehicle)
-          .replaceFirst('{amount}', amount);
+  String otpArrivalSubtitle(String vehicle, String amount) => _get(
+    'otpArrivalSubtitle',
+  ).replaceFirst('{vehicle}', vehicle).replaceFirst('{amount}', amount);
   String get otpClientResendSmsPrompt => _get('otpClientResendSmsPrompt');
   String get otpClientResendSmsAction => _get('otpClientResendSmsAction');
   String get otpDisputeCta => _get('otpDisputeCta');
@@ -2740,9 +2787,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('jeeberGreetingAhlan').replaceFirst('{name}', name);
   String get availabilityStatusOnlineShort =>
       _get('availabilityStatusOnlineShort');
-  String availabilityStatusOnlineUntil(String remaining) =>
-      _get('availabilityStatusOnlineUntil')
-          .replaceFirst('{remaining}', remaining);
+  String availabilityStatusOnlineUntil(String remaining) => _get(
+    'availabilityStatusOnlineUntil',
+  ).replaceFirst('{remaining}', remaining);
   String availabilityZoneLine(String zone) =>
       _get('availabilityZoneLine').replaceFirst('{zone}', zone);
   String get jeeberFeedQuietStreetTitle => _get('jeeberFeedQuietStreetTitle');
@@ -2766,8 +2813,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get jeeberFeedFilterSheetTitle => _get('jeeberFeedFilterSheetTitle');
   String get jeeberFeedFilterSheetSubtitle =>
       _get('jeeberFeedFilterSheetSubtitle');
-  String get jeeberFeedFilterSearchGroup =>
-      _get('jeeberFeedFilterSearchGroup');
+  String get jeeberFeedFilterSearchGroup => _get('jeeberFeedFilterSearchGroup');
   String get jeeberFeedFilterTierGroup => _get('jeeberFeedFilterTierGroup');
   String jeeberFeedSearchPillLabel(String query) =>
       _get('jeeberFeedSearchPillLabel').replaceFirst('{query}', query);
@@ -2818,8 +2864,7 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryQuickActionCosts');
   String get activeDeliveryLoadingHeadline =>
       _get('activeDeliveryLoadingHeadline');
-  String get activeDeliveryErrorHeadline =>
-      _get('activeDeliveryErrorHeadline');
+  String get activeDeliveryErrorHeadline => _get('activeDeliveryErrorHeadline');
 
   // 19 · Earnings
   String get earningsTotalCashHint => _get('earningsTotalCashHint');
@@ -2828,21 +2873,19 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('earningsFeesPaidHint').replaceFirst('{percent}', '$percent');
   String get earningsWalletLink => _get('earningsWalletLink');
   String get earningsActivityLink => _get('earningsActivityLink');
-  String earningsDeliveryRowTitleDated(String id, String weekday) =>
-      _get('earningsDeliveryRowTitleDated')
-          .replaceFirst('{id}', id)
-          .replaceFirst('{weekday}', weekday);
+  String earningsDeliveryRowTitleDated(String id, String weekday) => _get(
+    'earningsDeliveryRowTitleDated',
+  ).replaceFirst('{id}', id).replaceFirst('{weekday}', weekday);
   String get earningsLoadingHeadline => _get('earningsLoadingHeadline');
-  String get earningsBreakdownEmptyTitle =>
-      _get('earningsBreakdownEmptyTitle');
+  String get earningsBreakdownEmptyTitle => _get('earningsBreakdownEmptyTitle');
 
   // 20 · Settings
   String settingsIdentitySubtitle({
     required String phone,
     required String action,
-  }) => _get('settingsIdentitySubtitle')
-      .replaceFirst('{phone}', phone)
-      .replaceFirst('{action}', action);
+  }) => _get(
+    'settingsIdentitySubtitle',
+  ).replaceFirst('{phone}', phone).replaceFirst('{action}', action);
   String get settingsBecomeJeeberSubtitle =>
       _get('settingsBecomeJeeberSubtitle');
   String get settingsBecomeJeeberCta => _get('settingsBecomeJeeberCta');
@@ -2857,10 +2900,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatQuickReplyCallAtDoor => _get('chatQuickReplyCallAtDoor');
   String get chatQuickReplyThanks => _get('chatQuickReplyThanks');
   String get chatQuickReplyRowA11y => _get('chatQuickReplyRowA11y');
-  String chatSystemChipWithTime(String event, String time) =>
-      _get('chatSystemChipWithTime')
-          .replaceFirst('{event}', event)
-          .replaceFirst('{time}', time);
+  String chatSystemChipWithTime(String event, String time) => _get(
+    'chatSystemChipWithTime',
+  ).replaceFirst('{event}', event).replaceFirst('{time}', time);
   String chatCounterpartRatingA11y(String value) =>
       _get('chatCounterpartRatingA11y').replaceFirst('{value}', value);
   String get chatComposerHintMessage => _get('chatComposerHintMessage');
@@ -2910,15 +2952,14 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get walletHubLiveOffers => _get('walletHubLiveOffers');
   String walletHubGiftBadge(String amount) =>
       _get('walletHubGiftBadge').replaceFirst('{amount}', amount);
-  String walletHubAffordabilityEnoughBody(int percent) =>
-      _get('walletHubAffordabilityEnoughBody')
-          .replaceFirst('{percent}', '$percent');
+  String walletHubAffordabilityEnoughBody(int percent) => _get(
+    'walletHubAffordabilityEnoughBody',
+  ).replaceFirst('{percent}', '$percent');
 
   // 24 · Order history
-  String orderHistoryFilterRange(String from, String to) =>
-      _get('orderHistoryFilterRange')
-          .replaceFirst('{from}', from)
-          .replaceFirst('{to}', to);
+  String orderHistoryFilterRange(String from, String to) => _get(
+    'orderHistoryFilterRange',
+  ).replaceFirst('{from}', from).replaceFirst('{to}', to);
   String orderHistoryFilterRangeFrom(String from) =>
       _get('orderHistoryFilterRangeFrom').replaceFirst('{from}', from);
   String orderHistoryFilterRangeTo(String to) =>
@@ -2928,8 +2969,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderHistoryRebroadcastCta => _get('orderHistoryRebroadcastCta');
   String get orderHistoryEmptyBody => _get('orderHistoryEmptyBody');
   String get orderHistoryEmptyCta => _get('orderHistoryEmptyCta');
-  String get orderHistoryLoadingHeadline =>
-      _get('orderHistoryLoadingHeadline');
+  String get orderHistoryLoadingHeadline => _get('orderHistoryLoadingHeadline');
 
   // MIDNIGHT R1 + E1 · client home
   String get homeHeroPromptMorning => _get('homeHeroPromptMorning');
@@ -2948,8 +2988,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeCreateHintExample6 => _get('homeCreateHintExample6');
   String get homeCreateHintExample7 => _get('homeCreateHintExample7');
   String get homeVoiceSlideToCancel => _get('homeVoiceSlideToCancel');
-  String get homeVoiceReleaseToCancel =>
-      _get('homeVoiceReleaseToCancel');
+  String get homeVoiceReleaseToCancel => _get('homeVoiceReleaseToCancel');
   String get homeVoiceTapToStop => _get('homeVoiceTapToStop');
   String get homeVoiceTierUnavailable => _get('homeVoiceTierUnavailable');
   String get homeVoiceTranscriptEmpty => _get('homeVoiceTranscriptEmpty');
@@ -3043,8 +3082,7 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('captureLocationPickupCallout');
   String get captureLocationConfirmPickupCta =>
       _get('captureLocationConfirmPickupCta');
-  String get captureLocationPlaceCallout =>
-      _get('captureLocationPlaceCallout');
+  String get captureLocationPlaceCallout => _get('captureLocationPlaceCallout');
   String get captureLocationConfirmPlaceCta =>
       _get('captureLocationConfirmPlaceCta');
   String get captureLocationSelectedPoint =>
@@ -3071,8 +3109,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get walkthroughTrustIdChip => _get('walkthroughTrustIdChip');
   String get walkthroughTrustRatedChip => _get('walkthroughTrustRatedChip');
   String get walkthroughTrustCodeChip => _get('walkthroughTrustCodeChip');
-  String get walkthroughTrackingCashChip =>
-      _get('walkthroughTrackingCashChip');
+  String get walkthroughTrackingCashChip => _get('walkthroughTrackingCashChip');
   String get onboardingPreviewOfferQuoteShort =>
       _get('onboardingPreviewOfferQuoteShort');
 
@@ -3101,8 +3138,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingErrorTitle => _get('waitingErrorTitle');
 
   // MIDNIGHT M3-04 · cancellation
-  String get cancellationTooLateHeadline =>
-      _get('cancellationTooLateHeadline');
+  String get cancellationTooLateHeadline => _get('cancellationTooLateHeadline');
   String get cancellationTooLateBody => _get('cancellationTooLateBody');
   String get cancellationErrorNote => _get('cancellationErrorNote');
 
@@ -3154,8 +3190,7 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('offerKycGateStatusUnavailable');
 
   // MIDNIGHT M3-21 · kyc rejected (final)
-  String get kycRejectedReasonOtherFinal =>
-      _get('kycRejectedReasonOtherFinal');
+  String get kycRejectedReasonOtherFinal => _get('kycRejectedReasonOtherFinal');
 
   // MIDNIGHT M3-22 · account status
   String get accountStatusLoadingHeadline =>
@@ -3163,14 +3198,12 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // MIDNIGHT M3-23/37 · profile edit + live settings
   String get profileEditLoadingHeadline => _get('profileEditLoadingHeadline');
-  String get liveSettingsLoadingHeadline =>
-      _get('liveSettingsLoadingHeadline');
+  String get liveSettingsLoadingHeadline => _get('liveSettingsLoadingHeadline');
 
   // MIDNIGHT M3-24 · notification preferences
   String get notificationPrefsLoadingHeadline =>
       _get('notificationPrefsLoadingHeadline');
-  String get notificationPrefsErrorTitle =>
-      _get('notificationPrefsErrorTitle');
+  String get notificationPrefsErrorTitle => _get('notificationPrefsErrorTitle');
 
   // MIDNIGHT M3-26 · password security
   String get passwordStrengthError => _get('passwordStrengthError');
@@ -3179,21 +3212,18 @@ extension AppLocalizationsRestored on AppLocalizations {
   // MIDNIGHT M3-28/29 · saved addresses + address detail form
   String get savedAddressesLoadingHeadline =>
       _get('savedAddressesLoadingHeadline');
-  String get savedAddressesErrorHeadline =>
-      _get('savedAddressesErrorHeadline');
+  String get savedAddressesErrorHeadline => _get('savedAddressesErrorHeadline');
   String get savedAddressesErrorBody => _get('savedAddressesErrorBody');
   String get addressFormLoadingHeadline => _get('addressFormLoadingHeadline');
 
   // MIDNIGHT M3-32 · dispute status
   String get disputeStatusLoading => _get('disputeStatusLoading');
-  String get disputeStatusEvidenceEmpty =>
-      _get('disputeStatusEvidenceEmpty');
+  String get disputeStatusEvidenceEmpty => _get('disputeStatusEvidenceEmpty');
 
   // F3 · unregister as jeeber
   String get settingsUnregisterJeeberTitle =>
       _get('settingsUnregisterJeeberTitle');
-  String get unregisterJeeberDialogTitle =>
-      _get('unregisterJeeberDialogTitle');
+  String get unregisterJeeberDialogTitle => _get('unregisterJeeberDialogTitle');
   String get unregisterJeeberDialogBody => _get('unregisterJeeberDialogBody');
   String get unregisterJeeberConfirmCta => _get('unregisterJeeberConfirmCta');
   String get jeeberUnregisterSuccess => _get('jeeberUnregisterSuccess');
@@ -3201,6 +3231,5 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('jeeberUnregisterActiveDelivery');
   String get jeeberUnregisterPositiveBalance =>
       _get('jeeberUnregisterPositiveBalance');
-  String get jeeberUnregisterUnavailable =>
-      _get('jeeberUnregisterUnavailable');
+  String get jeeberUnregisterUnavailable => _get('jeeberUnregisterUnavailable');
 }
