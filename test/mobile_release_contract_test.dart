@@ -516,6 +516,7 @@ void _registerCiContracts() {
         'Flutter CI + coverage (79%)',
         'Release security scans',
         'check-runs?filter=latest&per_page=100',
+        'REVIEWED_SHA: \${{ inputs.reviewed_sha }}',
         r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
         r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
         r'(( 10#${BUILD_NUMBER} <= 2100000000 ))',

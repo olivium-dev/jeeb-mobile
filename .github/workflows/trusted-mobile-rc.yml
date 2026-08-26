@@ -76,6 +76,7 @@ jobs:
       - name: Require successful release checks for the exact commit
         env:
           GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
         shell: bash
         run: |
           set -euo pipefail
