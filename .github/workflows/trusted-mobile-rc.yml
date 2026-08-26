@@ -276,13 +276,25 @@ jobs:
           aab_path="$(find build/app/outputs/bundle -type f -name '*.aab' \
             -print -quit)"
           test -s "${aab_path}"
-          metadata_path="$(find build/app/outputs/bundle -type f \
+          metadata_root='build/app/intermediates/merged_manifests/productionRelease'
+          metadata_count="$(find "${metadata_root}" -type f \
+            -name output-metadata.json | wc -l | tr -d '[:space:]')"
+          [[ "${metadata_count}" == 1 ]] || {
+            echo '::error::Expected exactly one production merged-manifest metadata file.'
+            exit 1
+          }
+          metadata_path="$(find "${metadata_root}" -type f \
             -name output-metadata.json -print -quit)"
-          test -s "${metadata_path}"
           jq -e \
             --arg build_name "${BUILD_NAME}" \
             --argjson build_number "${BUILD_NUMBER}" '
-              (.elements | length) == 1
+              .version == 3
+              and .artifactType.type == "MERGED_MANIFESTS"
+              and .artifactType.kind == "Directory"
+              and .applicationId == "com.olivium.jeeb"
+              and .variantName == "productionRelease"
+              and .elementType == "File"
+              and (.elements | length) == 1
               and .elements[0].versionName == $build_name
               and .elements[0].versionCode == $build_number
             ' "${metadata_path}" >/dev/null
