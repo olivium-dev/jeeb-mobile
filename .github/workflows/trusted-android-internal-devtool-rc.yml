@@ -226,8 +226,11 @@ jobs:
             >"${tmp_dir}/manifest.pb"
           unzip -p "${aab}" base/resources.pb >"${tmp_dir}/resources.pb"
           app_binary="$(unzip -Z1 "${aab}" |
-            awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print; exit}')"
-          [[ -n "${app_binary}" ]]
+            awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print}')"
+          [[ "${app_binary}" == base/lib/arm64-v8a/libapp.so ]] || {
+            printf '%s\n' 'Android internal candidate rejected: expected exactly one arm64 libapp.so' >&2
+            exit 1
+          }
           unzip -p "${aab}" "${app_binary}" >"${tmp_dir}/libapp.so"
           LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
             "${tmp_dir}/resources.pb"
