@@ -48,7 +48,8 @@ jq -n \
   --arg package "${ANDROID_PACKAGE_NAME}" \
   --arg name "${MOBILE_BUILD_NAME}" \
   --argjson number "${MOBILE_BUILD_NUMBER}" '
-    {artifactType:{type:"MERGED_MANIFESTS", kind:"Directory"},
+    {version:3,
+      artifactType:{type:"MERGED_MANIFESTS", kind:"Directory"},
       applicationId: $package, variantName: "internalReleaseRelease",
       elementType:"File",
       elements: [{versionName: $name, versionCode: $number}]}

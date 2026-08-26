@@ -22,7 +22,8 @@ write_metadata() {
   local code="$3"
   mkdir -p "$(dirname "${path}")"
   jq -n --arg variant "${variant}" --argjson code "${code}" '
-    {artifactType:{type:"MERGED_MANIFESTS", kind:"Directory"},
+    {version:3,
+      artifactType:{type:"MERGED_MANIFESTS", kind:"Directory"},
       applicationId:"com.olivium.jeeb", variantName:$variant,
       elementType:"File",
       elements:[{versionName:"1.0.0", versionCode:$code}]}
@@ -51,6 +52,22 @@ expect_rejected no-metadata bash "${HELPER}" select-metadata \
   "${metadata_root}" "${metadata_output}"
 write_metadata "${metadata_root}/one/output-metadata.json" wrongVariant 26082601
 expect_rejected wrong-variant bash "${HELPER}" select-metadata \
+  "${metadata_root}" "${metadata_output}"
+write_metadata "${metadata_root}/one/output-metadata.json" \
+  internalReleaseRelease 26082601
+jq 'del(.version)' "${metadata_root}/one/output-metadata.json" \
+  >"${TMP_DIR}/missing-version.json"
+mv "${TMP_DIR}/missing-version.json" \
+  "${metadata_root}/one/output-metadata.json"
+expect_rejected missing-metadata-version bash "${HELPER}" select-metadata \
+  "${metadata_root}" "${metadata_output}"
+write_metadata "${metadata_root}/one/output-metadata.json" \
+  internalReleaseRelease 26082601
+jq '.version = 2' "${metadata_root}/one/output-metadata.json" \
+  >"${TMP_DIR}/v2-metadata.json"
+mv "${TMP_DIR}/v2-metadata.json" \
+  "${metadata_root}/one/output-metadata.json"
+expect_rejected v2-metadata bash "${HELPER}" select-metadata \
   "${metadata_root}" "${metadata_output}"
 write_metadata "${metadata_root}/one/output-metadata.json" \
   internalReleaseRelease 26082601
@@ -93,6 +110,7 @@ alias_one=approved
 alias_two=other
 keystore_one="${TMP_DIR}/approved.p12"
 keystore_two="${TMP_DIR}/other.p12"
+jks_keystore="${TMP_DIR}/rejected.jks"
 for pair in "${keystore_one}:${alias_one}:Approved" \
   "${keystore_two}:${alias_two}:Other"; do
   IFS=: read -r keystore alias common_name <<<"${pair}"
@@ -101,6 +119,10 @@ for pair in "${keystore_one}:${alias_one}:Approved" \
     -alias "${alias}" -keyalg RSA -keysize 2048 -validity 3650 \
     -dname "CN=${common_name}, OU=CI, O=Jeeb, C=LB" >/dev/null 2>&1
 done
+keytool -genkeypair -noprompt -storetype JKS -keystore "${jks_keystore}" \
+  -storepass "${store_password}" -keypass "${store_password}" \
+  -alias rejected -keyalg RSA -keysize 2048 -validity 3650 \
+  -dname 'CN=Rejected, OU=CI, O=Jeeb, C=LB' >/dev/null 2>&1
 
 mkdir -p "${TMP_DIR}/archive/base/manifest"
 printf 'com.olivium.jeeb DevToolLauncher\n' \
@@ -157,6 +179,19 @@ expect_rejected multiple-signer bash "${HELPER}" verify-signer \
   "${multiple_signer_aab}" "${keystore_one}" "${alias_one}"
 expect_rejected wrong-keystore-alias bash "${HELPER}" verify-signer \
   "${signed_aab}" "${keystore_two}" "${alias_two}"
+
+jks_signed_aab="${TMP_DIR}/jks-signed.aab"
+cp "${unsigned_aab}" "${jks_signed_aab}"
+jarsigner -storetype JKS -keystore "${jks_keystore}" \
+  -storepass "${store_password}" -keypass "${store_password}" \
+  "${jks_signed_aab}" rejected >/dev/null 2>&1
+jks_fingerprints="$(bash "${HELPER}" extract-signer "${jks_signed_aab}")"
+export ANDROID_UPLOAD_CERT_SHA1="$(sed -n 's/^signer_sha1=//p' \
+  <<<"${jks_fingerprints}")"
+export ANDROID_UPLOAD_CERT_SHA256="$(sed -n 's/^signer_sha256=//p' \
+  <<<"${jks_fingerprints}")"
+expect_rejected jks-keystore bash "${HELPER}" verify-signer \
+  "${jks_signed_aab}" "${jks_keystore}" rejected
 
 printf '%s\n' \
   'Android internal candidate metadata and strict signer controls passed.'

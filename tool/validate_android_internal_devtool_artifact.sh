@@ -75,7 +75,8 @@ validate_metadata() {
     --arg package "${PACKAGE_NAME}" \
     --arg name "${BUILD_NAME}" \
     --argjson number "${BUILD_NUMBER}" '
-      .artifactType.type == "MERGED_MANIFESTS"
+      .version == 3
+      and .artifactType.type == "MERGED_MANIFESTS"
       and .artifactType.kind == "Directory"
       and .applicationId == $package
       and .variantName == "internalReleaseRelease"

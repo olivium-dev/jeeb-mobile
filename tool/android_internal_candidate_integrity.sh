@@ -90,7 +90,8 @@ select_metadata() {
     --arg variant "${ANDROID_VARIANT_NAME:-}" \
     --arg name "${MOBILE_BUILD_NAME:-}" \
     --argjson number "${MOBILE_BUILD_NUMBER}" '
-      .artifactType.type == "MERGED_MANIFESTS"
+      .version == 3
+      and .artifactType.type == "MERGED_MANIFESTS"
       and .artifactType.kind == "Directory"
       and .applicationId == $package
       and .variantName == $variant
@@ -116,8 +117,14 @@ verify_signer() {
   require_fingerprint "${expected_sha1}" 40
   require_fingerprint "${expected_sha256}" 64
 
+  command -v openssl >/dev/null 2>&1 ||
+    fail 'OpenSSL is required to validate PKCS12 custody'
+  report="${TMP_DIR}/pkcs12.txt"
+  openssl pkcs12 -in "${keystore}" -passin env:ANDROID_STORE_PASSWORD \
+    -noout >"${report}" 2>&1 || fail 'approved keystore is not PKCS12'
+
   report="${TMP_DIR}/keystore-certificate.txt"
-  LC_ALL=C keytool -list -v -keystore "${keystore}" \
+  LC_ALL=C keytool -list -v -storetype PKCS12 -keystore "${keystore}" \
     -storepass:env ANDROID_STORE_PASSWORD -alias "${alias}" \
     >"${report}" 2>&1 || fail 'approved keystore alias is unavailable'
   extract_fingerprints "${report}"
@@ -134,7 +141,8 @@ verify_signer() {
 
   report="${TMP_DIR}/jarsigner.txt"
   LC_ALL=C jarsigner -verify -strict -verbose -certs \
-    -keystore "${keystore}" -storepass:env ANDROID_STORE_PASSWORD \
+    -storetype PKCS12 -keystore "${keystore}" \
+    -storepass:env ANDROID_STORE_PASSWORD \
     "${aab}" "${alias}" >"${report}" 2>&1 ||
     fail 'strict AAB signature verification failed'
   marker_count="$(awk '$0 == "jar verified." {count++} END {print count + 0}' \

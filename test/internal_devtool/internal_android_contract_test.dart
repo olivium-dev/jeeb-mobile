@@ -135,7 +135,9 @@ void main() {
     for (final marker in <String>[
       'select-aab',
       'MERGED_MANIFESTS',
+      '.version == 3',
       'jarsigner -verify -strict -verbose -certs',
+      '-storetype PKCS12',
       '-storepass:env ANDROID_STORE_PASSWORD',
       r'$0 == "jar verified."',
       'exactly one SHA-1 and SHA-256 fingerprint',
