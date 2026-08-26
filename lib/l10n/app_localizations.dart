@@ -602,6 +602,19 @@ class AppLocalizations {
   String get registrationPhoneSubtitle => _get('registrationPhoneSubtitle');
   String get registrationPhoneHint => _get('registrationPhoneHint');
   String get registrationPhoneInvalid => _get('registrationPhoneInvalid');
+  String get registrationCountryPickerTitle =>
+      _get('registrationCountryPickerTitle');
+  String get registrationCountrySearchHint =>
+      _get('registrationCountrySearchHint');
+  String get registrationCountryNoResults =>
+      _get('registrationCountryNoResults');
+  String get registrationCountrySelectorA11y =>
+      _get('registrationCountrySelectorA11y');
+  String get registrationCountrySearchA11y =>
+      _get('registrationCountrySearchA11y');
+  String registrationCountryOptionA11y(String country, String dialCode) => _get(
+    'registrationCountryOptionA11y',
+  ).replaceFirst('{country}', country).replaceFirst('{dialCode}', dialCode);
   String get registrationSendCode => _get('registrationSendCode');
   String get registrationSending => _get('registrationSending');
 

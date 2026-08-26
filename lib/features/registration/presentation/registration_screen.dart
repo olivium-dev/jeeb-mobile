@@ -16,8 +16,6 @@ import '../../../core/session/session_cubit.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
-import '../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -31,15 +29,11 @@ import '../../auth/social/social_sign_in_section.dart';
 import '../../profile_name/presentation/display_name_setup_screen.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
-import '../domain/lebanon_phone.dart';
+import '../domain/international_phone.dart';
 import '../domain/otp_service.dart';
 import '../domain/registration_attempt_policy.dart';
 import 'otp_verification_screen.dart';
-
-/// Board-measured phone-field box: h60, r14, a 2px accent rim (R6 tile,
-/// y 319–385 / corner 14 at the 1.1 export scale).
-const double _kPhoneFieldHeight = 60;
-const double _kPhoneFieldStroke = 2;
+import 'registration_country_options.dart';
 
 /// Board gap from the wordmark block down to the "PHONE NUMBER" label (36).
 const double _kWelcomeToFormGap = 36;
@@ -89,7 +83,10 @@ class RegistrationScreen extends StatelessWidget {
 
     Widget withRegistration(Widget child) {
       if (cubit != null) {
-        return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
+        return BlocProvider<RegistrationCubit>.value(
+          value: cubit!,
+          child: child,
+        );
       }
       return BlocProvider<RegistrationCubit>(
         create: (_) => RegistrationCubit(
@@ -277,7 +274,9 @@ class _RegistrationViewState extends State<_RegistrationView> {
       // editing (Maestro real-backend P0 — see `_syncControllerText`). We still
       // re-seed the controller on a step transition so the field shows the right
       // digits when the user returns from the OTP step ("change number").
-      listenWhen: (prev, curr) => prev.step != curr.step,
+      listenWhen: (prev, curr) =>
+          prev.step != curr.step ||
+          prev.selectedCountryCode != curr.selectedCountryCode,
       listener: (context, state) async {
         _syncControllerText(state.phoneInput);
         if (state.step == RegistrationStep.otp && !_pushedOtp) {
@@ -308,8 +307,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
               body: JeebMidnightField(
                 variant: JeebFieldVariant.content,
                 // R6 declares .28 against the ratified single .24.
-                glowColor:
-                    context.jeebRoles.accent.withValues(alpha: 0.28),
+                glowColor: context.jeebRoles.accent.withValues(alpha: 0.28),
                 glowPlacement: JeebFieldGlowPlacement.topEnd,
                 animateDecor: false,
                 // `column → content → flex:1 → docked note` (plan R1). The
@@ -321,8 +319,9 @@ class _RegistrationViewState extends State<_RegistrationView> {
                   child: LayoutBuilder(
                     builder: (context, constraints) => SingleChildScrollView(
                       child: ConstrainedBox(
-                        constraints:
-                            BoxConstraints(minHeight: constraints.maxHeight),
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
                         child: IntrinsicHeight(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -400,14 +399,13 @@ class _PhoneEntryBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PhoneField(
+        _InternationalPhoneField(
+          state: state,
           controller: phoneController,
           errorText: state.phoneError == null
               ? null
               : _phoneErrorCopy(state.phoneError!, l10n),
           enabled: !state.isSendingCode,
-          onChanged: (raw) =>
-              context.read<RegistrationCubit>().phoneChanged(raw),
         ),
         const SizedBox(height: Spacing.medium),
         _SendCodeButton(state: state, phoneController: phoneController),
@@ -443,7 +441,11 @@ class _SendCodeButton extends StatelessWidget {
     // while emitting zero OTP requests. Enablement also reads the live text so
     // the CTA can't be wrongly disabled when the controller leads the cubit.
     final renderedReady =
-        LebanonPhone.tryParse(phoneController.text) != null || state.isPhoneReady;
+        InternationalPhone.tryParse(
+          countryCode: state.selectedCountryCode,
+          raw: phoneController.text,
+        ) !=
+        null;
     final canTap = renderedReady && !state.isSendingCode;
     return JeebCtaButton.accent(
       key: const Key('registration.sendCode'),
@@ -457,9 +459,9 @@ class _SendCodeButton extends StatelessWidget {
       // sees — never a stale cubit value that flipped the field red and emitted
       // zero OTP requests (also covers the run-2 on-device submit-path P0, since
       // the cubit re-commits the rendered text at submit before validating).
-      onTap: () => context
-          .read<RegistrationCubit>()
-          .sendCode(renderedPhone: phoneController.text),
+      onTap: () => context.read<RegistrationCubit>().sendCode(
+        renderedPhone: phoneController.text,
+      ),
     );
   }
 }
@@ -514,8 +516,9 @@ class _WelcomeBlock extends StatelessWidget {
             // Both runs are one periwinkle ink on the tile. The string is
             // authored per locale so each leads with its own script.
             l10n.registrationTagline,
-            style: context.jeebText.body
-                .copyWith(color: colorScheme.onSurfaceVariant),
+            style: context.jeebText.body.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -541,8 +544,9 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
           child: Text(
             label,
-            style: context.jeebText.bodySmall
-                .copyWith(color: colorScheme.onSurfaceVariant),
+            style: context.jeebText.bodySmall.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(child: Divider(color: colorScheme.outlineVariant)),
@@ -551,40 +555,26 @@ class _OrDivider extends StatelessWidget {
   }
 }
 
-/// Phone-number block: navy label → the +961 field row → helper/error line.
-///
-/// The Lebanese `+961` prefix is permanently pinned to the start of the row;
-/// the [TextField] only ever receives the national digits.
-///
-/// EXEMPT(flutter-omds-design-system-usage): raw [TextField] retained.
-/// - [OmdsPhoneInput] ships a country-picker UX; the product spec calls
-///   for a fixed +961 with no picker (JEEB-55).
-/// - [OmdsTextField] does not expose `prefixIconConstraints`, so a tight
-///   inline "+961" glyph would inflate to the default 48dp prefix gutter
-///   and break the digit-alignment design.
-/// MIDNIGHT R6: the box is glass, not a raised navy slab — `glassFill` behind a
-/// 2px `accent` rim at [JeebRadii.md], h60 (measured). Promotion to OMDS is
-/// tracked under JEEB-57.
-class _PhoneField extends StatefulWidget {
-  const _PhoneField({
+/// Registration phone entry delegates its complete picker/input UX to OMDS.
+class _InternationalPhoneField extends StatefulWidget {
+  const _InternationalPhoneField({
+    required this.state,
     required this.controller,
-    required this.onChanged,
     this.errorText,
     this.enabled = true,
   });
 
+  final RegistrationState state;
   final TextEditingController controller;
-  final ValueChanged<String> onChanged;
   final String? errorText;
   final bool enabled;
 
   @override
-  State<_PhoneField> createState() => _PhoneFieldState();
+  State<_InternationalPhoneField> createState() =>
+      _InternationalPhoneFieldState();
 }
 
-class _PhoneFieldState extends State<_PhoneField> {
-  /// Owned here so the container can paint the board's focus ring — once the
-  /// `InputDecoration` border is gone the field has no other focus feedback.
+class _InternationalPhoneFieldState extends State<_InternationalPhoneField> {
   final FocusNode _focusNode = FocusNode();
 
   @override
@@ -595,168 +585,140 @@ class _PhoneFieldState extends State<_PhoneField> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final locale = Localizations.localeOf(context);
+    final countries = RegistrationCountryOptions.forLocale(locale);
+    final selected = RegistrationCountryOptions.selectedFor(
+      locale: locale,
+      countryCode: widget.state.selectedCountryCode,
+    );
+    return _PhoneInputContent(
+      field: widget,
+      focusNode: _focusNode,
+      countries: countries,
+      selectedCountry: selected,
+    );
+  }
+}
+
+class _PhoneInputContent extends StatelessWidget {
+  const _PhoneInputContent({
+    required this.field,
+    required this.focusNode,
+    required this.countries,
+    required this.selectedCountry,
+  });
+
+  final _InternationalPhoneField field;
+  final FocusNode focusNode;
+  final List<OmdsCountry> countries;
+  final OmdsCountry selectedCountry;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final errorText = widget.errorText;
+    final cubit = context.read<RegistrationCubit>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The label doubles as a tap target for the field: Maestro's
-        // `jm-009` taps the text "Phone number" and then types, which only
-        // works while that string is attached to the input.
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.enabled ? _focusNode.requestFocus : null,
-          child: JeebSectionLabel(l10n.registrationPhoneHint),
-        ),
+        _PhoneInputLabel(focusNode: focusNode, enabled: field.enabled),
         const SizedBox(height: Spacing.xSmall),
-        ListenableBuilder(
-          listenable: _focusNode,
-          builder: (context, _) => Container(
-            key: const Key('registration.phoneFieldBox'),
-            height: _kPhoneFieldHeight,
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Spacing.medium,
-            ),
-            decoration: BoxDecoration(
-              color: semantics.glassFill,
-              borderRadius: BorderRadius.circular(JeebRadii.md),
-              border: Border.all(
-                color: errorText == null
-                    ? context.jeebRoles.accent
-                    : colorScheme.error,
-                width: _kPhoneFieldStroke,
-              ),
-              // The light-theme `focusRing` is retired (§7); a lit field is the
-              // board's own resting orange halo, and an errored one keeps none.
-              boxShadow: _focusNode.hasFocus && errorText == null
-                  ? JeebShadows.glowRest
-                  : null,
-            ),
-            child: Row(
-              children: [
-                Text(
-                  // Its own Text, never merged into the dial code: the prefix
-                  // test matches `find.text(LebanonPhone.dialCode)` exactly.
-                  '🇱🇧',
-                  style: context.jeebText.titleProminent,
-                ),
-                // The board draws the flag and the dial code as one span
-                // separated by a literal space, so this pair is tighter than
-                // the 12px rhythm of the rest of the row.
-                const SizedBox(width: Spacing.twoXSmall),
-                Text(
-                  LebanonPhone.dialCode,
-                  key: const Key('registration.phonePrefix'),
-                  // Pinned LTR so the `+` stays on the correct side under `ar`.
-                  textDirection: TextDirection.ltr,
-                  style: context.jeebText.titleProminent
-                      .copyWith(color: colorScheme.onSurface),
-                ),
-                const SizedBox(width: Spacing.small),
-                Container(
-                  width: 1,
-                  height: Sizes.xLarge,
-                  color: colorScheme.outlineVariant,
-                ),
-                const SizedBox(width: Spacing.small),
-                Expanded(
-                  child: Semantics(
-                    identifier: 'register_phone_field',
-                    textField: true,
-                    container: true,
-                    child: TextField(
-                      key: const Key('registration.phoneField'),
-                      controller: widget.controller,
-                      focusNode: _focusNode,
-                      enabled: widget.enabled,
-                      keyboardType: TextInputType.phone,
-                      textDirection: TextDirection.ltr,
-                      // Keep digits, the `+` (for users who paste a `+961…`
-                      // block), and common separators (space, dash, parens).
-                      // The cubit's `normalise` strips everything except the
-                      // trailing 8 national digits for validation/sending; the
-                      // field itself keeps what the user typed (we no longer
-                      // mirror the normalised form back per-keystroke — that
-                      // corrupted live editing, Maestro P0). No max-length here
-                      // so a pasted +961 block isn't truncated at the wrong end
-                      // before `normalise` sees it. No grouping formatter
-                      // either: the board's `3 123 456` is the hint, and three
-                      // regression tests exist because a controller rewrite once
-                      // made on-device login impossible.
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
-                      ],
-                      style: context.jeebText.titleProminent.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                      // doc-13 P1 box-in-a-box: `border` alone leaves the OMDS
-                      // input theme's injected fill AND its per-state borders,
-                      // which drew a second rounded box inside this one.
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        fillColor: Colors.transparent,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        hintText: l10n.registrationPhoneExample,
-                        hintStyle: context.jeebText.titleProminent.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      onChanged: widget.onChanged,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: Spacing.small),
-                // Controller-driven: regression tests set the text WITHOUT
-                // `onChanged`. M5 R6 is still, so `Opacity`, not a fade.
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: widget.controller,
-                  builder: (context, value, _) {
-                    final isValid = LebanonPhone.tryParse(value.text) != null;
-                    return Semantics(
-                      identifier: 'register_phone_valid_check',
-                      child: Opacity(
-                        opacity: isValid ? 1 : 0,
-                        child: Icon(
-                          Icons.check,
-                          size: Sizes.large,
-                          // The one sanctioned orange on this screen.
-                          color: context.jeebRoles.accent,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+        _ConfiguredOmdsPhoneInput(
+          countries: countries,
+          selectedCountry: selectedCountry,
+          controller: field.controller,
+          focusNode: focusNode,
+          enabled: field.enabled,
+          errorText: field.errorText,
+          l10n: l10n,
+          cubit: cubit,
         ),
-        const SizedBox(height: Spacing.xSmall),
-        Semantics(
-          identifier: 'register_phone_helper',
-          child: Text(
-            errorText ?? l10n.registrationPhoneHelper,
-            style: context.jeebText.bodySmall.copyWith(
-              fontWeight: FontWeight.w500,
-              color: errorText == null
-                  ? colorScheme.onSurfaceVariant
-                  : colorScheme.error,
-            ),
-          ),
-        ),
+        if (field.errorText == null) const _PhoneInputHelper(),
       ],
+    );
+  }
+}
+
+class _ConfiguredOmdsPhoneInput extends OmdsPhoneInput {
+  _ConfiguredOmdsPhoneInput({
+    required super.countries,
+    required OmdsCountry selectedCountry,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required super.enabled,
+    required super.errorText,
+    required AppLocalizations l10n,
+    required RegistrationCubit cubit,
+  }) : super(
+         selectedCountry: selectedCountry,
+         controller: controller,
+         focusNode: focusNode,
+         hintText: l10n.registrationPhoneHint,
+         pickerTitleText: l10n.registrationCountryPickerTitle,
+         searchHintText: l10n.registrationCountrySearchHint,
+         noResultsText: l10n.registrationCountryNoResults,
+         countrySelectorSemanticsLabel: l10n.registrationCountrySelectorA11y,
+         countrySearchSemanticsLabel: l10n.registrationCountrySearchA11y,
+         countrySemanticsLabelBuilder: (country) =>
+             l10n.registrationCountryOptionA11y(country.name, country.dialCode),
+         identifier: 'register_phone_field',
+         textFieldKey: const Key('registration.phoneField'),
+         countrySelectorKey: const Key('registration.phoneCountry'),
+         textDirection: TextDirection.ltr,
+         inputFormatters: _registrationPhoneFormatters,
+         onCountryChanged: (country) => cubit.countryChanged(country.code),
+         onPhoneChanged: (_, raw) => cubit.phoneChanged(raw),
+       );
+}
+
+final List<TextInputFormatter> _registrationPhoneFormatters =
+    <TextInputFormatter>[
+      FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹+\s\-()]')),
+    ];
+
+class _PhoneInputLabel extends StatelessWidget {
+  const _PhoneInputLabel({required this.focusNode, required this.enabled});
+
+  final FocusNode focusNode;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = AppLocalizations.of(context).registrationPhoneHint;
+    return Semantics(
+      identifier: 'register_phone_label',
+      label: label,
+      button: true,
+      enabled: enabled,
+      onTap: enabled ? focusNode.requestFocus : null,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? focusNode.requestFocus : null,
+        child: JeebSectionLabel(label),
+      ),
+    );
+  }
+}
+
+class _PhoneInputHelper extends StatelessWidget {
+  const _PhoneInputHelper();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
+      child: Semantics(
+        identifier: 'register_phone_helper',
+        child: Text(
+          l10n.registrationPhoneHelper,
+          style: context.jeebText.bodySmall.copyWith(
+            fontWeight: FontWeight.w500,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }
