@@ -227,11 +227,21 @@ void _registerIosContracts() {
       'APP_FLAVOR=staging',
       'https://app.jeeb.fds-1.com',
       'IOS_EXPORT_OPTIONS_PATH',
-      'IOS_PROVISIONING_PROFILE_SPECIFIER',
+      'APP_STORE_CONNECT_API_KEY_PATH',
+      'APP_STORE_CONNECT_API_KEY_ID',
+      'APP_STORE_CONNECT_API_ISSUER_ID',
       'EXPECTED_FIREBASE_CLIENT_ID',
       'EXPECTED_FIREBASE_REVERSED_CLIENT_ID',
-      'CODE_SIGN_STYLE=Manual',
+      'CODE_SIGN_STYLE=Automatic',
+      '-allowProvisioningUpdates',
+      '-authenticationKeyPath',
+      '-authenticationKeyID',
+      '-authenticationKeyIssuerID',
+      "stat -f '%Lp'",
+      'openssl pkey',
+      'export policy must use automatic signing',
       'export policy must remain local and must not upload',
+      'export policy must remain TestFlight-internal-only',
       'export policy must not mutate the App Store build number',
       'export policy must not upload symbols',
       r'IOS_BUILD_NAME="${BUILD_NAME}"',
@@ -240,8 +250,13 @@ void _registerIosContracts() {
       'IOS_BUILD_NUMBER must be explicit and valid',
       r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
     ]);
-    expect(signedBuilder, isNot(contains('-allowProvisioningUpdates')));
-    expect(signedBuilder, isNot(contains('APP_STORE_CONNECT_')));
+    expect(signedBuilder, isNot(contains('CODE_SIGN_STYLE=Manual')));
+    expect(
+      signedBuilder,
+      isNot(contains('IOS_PROVISIONING_PROFILE_SPECIFIER')),
+    );
+    expect(signedBuilder, isNot(contains('IOS_SIGNING_CERTIFICATE')));
+    expect('-allowProvisioningUpdates'.allMatches(signedBuilder).length, 2);
     expect(signedBuilder, isNot(contains(r'IOS_BUILD_NAME:-1.0.0')));
     expect(signedBuilder, isNot(contains(r'IOS_BUILD_NUMBER:-26082401')));
     expect(exportOptions, contains('<key>testFlightInternalTestingOnly</key>'));
@@ -494,17 +509,13 @@ void _registerCiContracts() {
       _expectContainsAll(workflow, [
         'workflow_dispatch:',
         'environment: mobile-rc',
-        'MOBILE_RC_MAIN_RULESET_ID',
         "api_get 'environments/mobile-rc'",
-        'required_reviewers',
-        'required_status_checks',
+        '.deployment_branch_policy.protected_branches == true',
+        '.deployment_branch_policy.custom_branch_policies == false',
         'checks: read',
         'Flutter CI + coverage (79%)',
         'Release security scans',
         'check-runs?filter=latest&per_page=100',
-        '.prevent_self_review == true',
-        'required_approving_review_count',
-        r'((.reviewers // []) | length) >= 1',
         r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
         r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
         r'(( 10#${BUILD_NUMBER} <= 2100000000 ))',
@@ -512,6 +523,15 @@ void _registerCiContracts() {
         'persist-credentials: false',
         'flutter build appbundle --flavor production --release --no-pub',
         'bash tool/build_signed_ios_internal_candidate.sh',
+        'environment: mobile-internal-distribution',
+        'secrets.OMDS_FLUTTER_PAT',
+        'secrets.APP_STORE_KEY_ID',
+        'secrets.APP_STORE_ISSUER_ID',
+        'secrets.APP_STORE_KEY_CONTENT_B64',
+        'APP_STORE_CONNECT_API_KEY_PATH',
+        'unset APP_STORE_KEY_CONTENT_B64',
+        r'chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"',
+        'trap cleanup EXIT HUP INT TERM',
         'jarsigner -verify -strict -verbose -certs',
         'keytool -printcert -jarfile',
         '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172',
@@ -538,6 +558,11 @@ void _registerCiContracts() {
         'compression-level: 0',
       ]);
       expect(workflow, isNot(contains('pull_request_target')));
+      expect(workflow, isNot(contains('MOBILE_RC_MAIN_RULESET_ID')));
+      expect(workflow, isNot(contains('rulesets/')));
+      expect(workflow, isNot(contains('required_reviewers')));
+      expect(workflow, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
+      expect(workflow, isNot(contains('IOS_PROVISIONING_PROFILE_B64')));
       expect(workflow, isNot(contains('upload-google-play')));
       expect(workflow, isNot(contains('fastlane')));
       expect(workflow, isNot(contains('macos-latest')));
@@ -563,28 +588,36 @@ void _registerCiContracts() {
     }
   });
 
-  test('trusted RC keeps Android and iOS secret references disjoint', () {
-    final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
-    final androidStart = workflow.indexOf('  android-candidate:');
-    final iosStart = workflow.indexOf('  ios-candidate:');
-    expect(androidStart, greaterThanOrEqualTo(0));
-    expect(iosStart, greaterThan(androidStart));
-    final android = workflow.substring(androidStart, iosStart);
-    final ios = workflow.substring(iosStart);
-    expect(android, contains('secrets.ANDROID_OMDS_READ_TOKEN'));
-    expect(android, contains('secrets.ANDROID_UPLOAD_KEYSTORE_B64'));
-    expect(android, contains('secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID'));
-    expect(android, isNot(contains('secrets.IOS_')));
-    expect(android, isNot(contains('secrets.APP_STORE_CONNECT_')));
-    expect(ios, contains('secrets.IOS_OMDS_READ_TOKEN'));
-    expect(ios, contains('secrets.IOS_DISTRIBUTION_CERT_P12_B64'));
-    expect(ios, contains('IOS_PROVISIONING_PROFILE_SPECIFIER'));
-    expect(ios, contains('signingStyle string manual'));
-    expect(ios, contains('uploadSymbols bool false'));
-    expect(ios, isNot(contains('-allowProvisioningUpdates')));
-    expect(ios, isNot(contains('secrets.APP_STORE_CONNECT_')));
-    expect(ios, isNot(contains('secrets.ANDROID_')));
-  });
+  test(
+    'trusted RC scopes platform secrets and reuses repository OMDS auth',
+    () {
+      final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
+      final androidStart = workflow.indexOf('  android-candidate:');
+      final iosStart = workflow.indexOf('  ios-candidate:');
+      expect(androidStart, greaterThanOrEqualTo(0));
+      expect(iosStart, greaterThan(androidStart));
+      final android = workflow.substring(androidStart, iosStart);
+      final ios = workflow.substring(iosStart);
+      expect(android, contains('secrets.OMDS_FLUTTER_PAT'));
+      expect(android, contains('secrets.ANDROID_UPLOAD_KEYSTORE_B64'));
+      expect(
+        android,
+        contains('secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID'),
+      );
+      expect(android, isNot(contains('secrets.IOS_')));
+      expect(android, isNot(contains('secrets.APP_STORE_CONNECT_')));
+      expect(ios, contains('secrets.OMDS_FLUTTER_PAT'));
+      expect(ios, contains('secrets.APP_STORE_KEY_ID'));
+      expect(ios, contains('secrets.APP_STORE_ISSUER_ID'));
+      expect(ios, contains('secrets.APP_STORE_KEY_CONTENT_B64'));
+      expect(ios, contains('APP_STORE_CONNECT_API_KEY_PATH'));
+      expect(ios, contains('signingStyle string automatic'));
+      expect(ios, contains('uploadSymbols bool false'));
+      expect(ios, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
+      expect(ios, isNot(contains('IOS_PROVISIONING_PROFILE_B64')));
+      expect(ios, isNot(contains('secrets.ANDROID_')));
+    },
+  );
 
   test('distribution consumes retained bytes and is internal-only', () {
     final workflow = _source(
@@ -593,17 +626,12 @@ void _registerCiContracts() {
     _expectContainsAll(workflow, [
       'environment: mobile-internal-distribution',
       'environments/mobile-internal-distribution',
-      'required_reviewers',
-      '.prevent_self_review == true',
-      'android_e2e_run_id:',
+      '.deployment_branch_policy.protected_branches == true',
+      '.deployment_branch_policy.custom_branch_policies == false',
       '.path == ".github/workflows/trusted-mobile-rc.yml"',
-      '.path == ".github/workflows/android-physical-e2e.yml"',
       'and .head_sha == \$reviewed',
       'source_run_attempt',
-      'e2e_run_attempt',
-      'android-physical-e2e-evidence-\${E2E_RUN_ID}-\${e2e_attempt}',
       '.digest | sub("^sha256:"; "")',
-      'bash tool/validate_android_e2e_manifest.sh',
       'bash tool/validate_ios_rc_artifact.sh',
       'rc_ios_artifact_id',
       'rc_ios_archive_sha256',
@@ -634,8 +662,30 @@ void _registerCiContracts() {
       'secrets.APP_STORE_KEY_ID',
       'secrets.APP_STORE_ISSUER_ID',
       'secrets.APP_STORE_KEY_CONTENT_B64',
+      'stage: "internal_distribution"',
+      'physical_device_verification: "pending"',
+      'final_release_go: false',
     ]);
-    expect(workflow, isNot(contains('android_e2e_evidence_sha256')));
+    for (final removedGate in [
+      'android_e2e_run_id',
+      'E2E_RUN_ID',
+      'android-physical-e2e.yml',
+      'android-physical-e2e-evidence',
+      'validate_android_e2e_manifest.sh',
+      'e2e_run_id',
+      'e2e_run_attempt',
+      'e2e_artifact_sha256',
+      'e2e_manifest_sha256',
+      'required_reviewers',
+      'prevent_self_review',
+    ]) {
+      expect(workflow, isNot(contains(removedGate)), reason: removedGate);
+    }
+    expect(
+      'physical_device_verification: "pending"'.allMatches(workflow).length,
+      2,
+    );
+    expect('final_release_go: false'.allMatches(workflow).length, 2);
     expect(
       workflow,
       contains(r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'),

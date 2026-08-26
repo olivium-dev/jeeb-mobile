@@ -28,8 +28,9 @@ EXPECTED_FIREBASE_REVERSED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID
 ARCHIVE_PATH="${REPO_ROOT}/build/ios/archive/Jeeb-${BUILD_NUMBER}.xcarchive"
 EXPORT_PATH="${REPO_ROOT}/build/ios/internal-${BUILD_NUMBER}"
 EXPORT_OPTIONS="${IOS_EXPORT_OPTIONS_PATH:-}"
-PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_SPECIFIER:-}"
-SIGNING_CERTIFICATE="${IOS_SIGNING_CERTIFICATE:-Apple Distribution}"
+AUTHENTICATION_KEY_PATH="${APP_STORE_CONNECT_API_KEY_PATH:-}"
+AUTHENTICATION_KEY_ID="${APP_STORE_CONNECT_API_KEY_ID:-}"
+AUTHENTICATION_KEY_ISSUER_ID="${APP_STORE_CONNECT_API_ISSUER_ID:-}"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
 
 fail() {
@@ -46,11 +47,16 @@ fail() {
 [[ -f "${MAPS_KEY_FILE}" && ! -L "${MAPS_KEY_FILE}" ]] ||
   fail 'protected Maps key file is missing'
 [[ -f "${EXPORT_OPTIONS}" && ! -L "${EXPORT_OPTIONS}" ]] ||
-  fail 'protected manual export policy is missing'
-[[ -n "${PROVISIONING_PROFILE_SPECIFIER}" ]] ||
-  fail 'manual provisioning profile specifier is missing'
-[[ -n "${SIGNING_CERTIFICATE}" ]] ||
-  fail 'manual signing certificate selector is missing'
+  fail 'protected automatic export policy is missing'
+[[ -f "${AUTHENTICATION_KEY_PATH}" && ! -L "${AUTHENTICATION_KEY_PATH}" ]] ||
+  fail 'App Store Connect authentication key is missing'
+[[ "$(stat -f '%Lp' "${AUTHENTICATION_KEY_PATH}")" == 600 ]] ||
+  fail 'App Store Connect authentication key must be owner-only'
+[[ "${AUTHENTICATION_KEY_ID}" =~ ^[A-Za-z0-9]{10}$ ]] ||
+  fail 'App Store Connect key ID is malformed'
+[[ "${AUTHENTICATION_KEY_ISSUER_ID}" =~ \
+  ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]] ||
+  fail 'App Store Connect issuer ID is malformed'
 [[ -n "${EXPECTED_FIREBASE_CLIENT_ID}" ]] ||
   fail 'protected approved Google Sign-In client identity is missing'
 [[ -n "${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" ]] ||
@@ -63,11 +69,17 @@ fail() {
 [[ ! -e "${EXPORT_PATH}" ]] || fail 'refusing to overwrite an IPA export'
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :signingStyle' \
-  "${EXPORT_OPTIONS}")" == manual ]] ||
-  fail 'export policy must use manual signing'
+  "${EXPORT_OPTIONS}")" == automatic ]] ||
+  fail 'export policy must use automatic signing'
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :destination' \
   "${EXPORT_OPTIONS}")" == export ]] ||
   fail 'export policy must remain local and must not upload'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :method' \
+  "${EXPORT_OPTIONS}")" == app-store-connect ]] ||
+  fail 'export policy must target App Store Connect packaging'
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :testFlightInternalTestingOnly' \
+  "${EXPORT_OPTIONS}")" == true ]] ||
+  fail 'export policy must remain TestFlight-internal-only'
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :manageAppVersionAndBuildNumber' \
   "${EXPORT_OPTIONS}")" == false ]] ||
   fail 'export policy must not mutate the App Store build number'
@@ -77,10 +89,8 @@ fail() {
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :teamID' \
   "${EXPORT_OPTIONS}")" == K5RDQ8J7AN ]] ||
   fail 'export policy team drifted'
-[[ "$(/usr/libexec/PlistBuddy -c \
-  'Print :provisioningProfiles:com.olivium.jeeb' \
-  "${EXPORT_OPTIONS}")" == "${PROVISIONING_PROFILE_SPECIFIER}" ]] ||
-  fail 'export policy provisioning profile drifted'
+openssl pkey -in "${AUTHENTICATION_KEY_PATH}" -noout >/dev/null 2>&1 ||
+  fail 'App Store Connect authentication key is invalid'
 
 flutter_version="$("${FLUTTER_BIN}" --version --machine | python3 -c \
   'import json,sys; print(json.load(sys.stdin)["frameworkVersion"])')"
@@ -113,6 +123,10 @@ run_release_build() {
     --dart-define="GATEWAY_BASE_URL=${GATEWAY_URL}"
 
   xcodebuild \
+    -allowProvisioningUpdates \
+    -authenticationKeyPath "${AUTHENTICATION_KEY_PATH}" \
+    -authenticationKeyID "${AUTHENTICATION_KEY_ID}" \
+    -authenticationKeyIssuerID "${AUTHENTICATION_KEY_ISSUER_ID}" \
     -workspace ios/Runner.xcworkspace \
     -scheme Runner \
     -configuration Release \
@@ -120,12 +134,14 @@ run_release_build() {
     -archivePath "${ARCHIVE_PATH}" \
     -hideShellScriptEnvironment \
     DEVELOPMENT_TEAM=K5RDQ8J7AN \
-    CODE_SIGN_STYLE=Manual \
-    CODE_SIGN_IDENTITY="${SIGNING_CERTIFICATE}" \
-    PROVISIONING_PROFILE_SPECIFIER="${PROVISIONING_PROFILE_SPECIFIER}" \
+    CODE_SIGN_STYLE=Automatic \
     archive
 
   xcodebuild \
+    -allowProvisioningUpdates \
+    -authenticationKeyPath "${AUTHENTICATION_KEY_PATH}" \
+    -authenticationKeyID "${AUTHENTICATION_KEY_ID}" \
+    -authenticationKeyIssuerID "${AUTHENTICATION_KEY_ISSUER_ID}" \
     -exportArchive \
     -archivePath "${ARCHIVE_PATH}" \
     -exportPath "${EXPORT_PATH}" \
@@ -136,7 +152,7 @@ run_release_build() {
 export -f run_release_build
 export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
-export PROVISIONING_PROFILE_SPECIFIER SIGNING_CERTIFICATE
+export AUTHENTICATION_KEY_PATH AUTHENTICATION_KEY_ID AUTHENTICATION_KEY_ISSUER_ID
 
 (
   cd "${REPO_ROOT}"

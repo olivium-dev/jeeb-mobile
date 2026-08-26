@@ -9,10 +9,6 @@ on:
         description: Successful trusted-mobile-rc workflow run ID
         required: true
         type: string
-      android_e2e_run_id:
-        description: Successful physical-Android pre-distribution E2E workflow run ID
-        required: true
-        type: string
       reviewed_sha:
         description: Exact reviewed commit embedded in both retained candidates
         required: true
@@ -36,16 +32,12 @@ concurrency:
 
 jobs:
   source-policy:
-    name: Verify retained RC and physical-Android E2E evidence
+    name: Verify retained RC provenance
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
       source_run_id: ${{ steps.policy.outputs.source_run_id }}
       source_run_attempt: ${{ steps.policy.outputs.source_run_attempt }}
-      e2e_run_id: ${{ steps.policy.outputs.e2e_run_id }}
-      e2e_run_attempt: ${{ steps.policy.outputs.e2e_run_attempt }}
-      e2e_artifact_sha256: ${{ steps.policy.outputs.e2e_artifact_sha256 }}
-      e2e_manifest_sha256: ${{ steps.policy.outputs.e2e_manifest_sha256 }}
       rc_aab_sha256: ${{ steps.policy.outputs.rc_aab_sha256 }}
       rc_android_provenance_sha256: ${{ steps.policy.outputs.rc_android_provenance_sha256 }}
       rc_ios_artifact_id: ${{ steps.policy.outputs.rc_ios_artifact_id }}
@@ -59,12 +51,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate immutable workflow runs, retained bytes, and evidence manifest
+      - name: Validate immutable RC run and retained bytes
         id: policy
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
-          E2E_RUN_ID: ${{ inputs.android_e2e_run_id }}
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
@@ -75,7 +66,6 @@ jobs:
           [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]
           [[ "${GITHUB_REF}" == refs/heads/main ]]
           [[ "${SOURCE_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
-          [[ "${E2E_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
           [[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
@@ -229,63 +219,20 @@ jobs:
           [[ "${ios_provenance_sha}" =~ ^[0-9a-f]{64}$ ]]
           [[ "${dsym_sha}" =~ ^[0-9a-f]{64}$ ]]
 
-          e2e_json="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/runs/${E2E_RUN_ID}")"
-          jq -e \
-            --arg reviewed "${REVIEWED_SHA}" '
-              .path == ".github/workflows/android-physical-e2e.yml"
-              and .event == "workflow_dispatch"
-              and .head_branch == "main"
-              and .head_sha == $reviewed
-              and .status == "completed"
-              and .conclusion == "success"
-              and (.run_attempt | type == "number" and . >= 1)
-            ' <<<"${e2e_json}" >/dev/null
-          e2e_attempt="$(jq -r '.run_attempt' <<<"${e2e_json}")"
-          e2e_artifacts="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/runs/${E2E_RUN_ID}/artifacts?per_page=100")"
-          e2e_name="android-physical-e2e-evidence-${E2E_RUN_ID}-${e2e_attempt}"
-          e2e_record="$(artifact_record "${e2e_artifacts}" "${e2e_name}")"
-          e2e_zip="${tmp_dir}/android-e2e.zip"
-          e2e_digest="$(download_verified_artifact "${e2e_record}" "${e2e_zip}")"
-          validate_zip_entries "${e2e_zip}"
-          mkdir "${tmp_dir}/android-e2e"
-          unzip -q "${e2e_zip}" -d "${tmp_dir}/android-e2e"
-          manifest="$(find "${tmp_dir}/android-e2e" -type f \
-            -name manifest.json -print -quit)"
-          test -s "${manifest}"
-          [[ "$(find "${tmp_dir}/android-e2e" -type f \
-            -name manifest.json | wc -l | tr -d ' ')" == 1 ]]
-          manifest_sha="$(sha256sum "${manifest}" | cut -d ' ' -f1)"
-          RC_RUN_ID="${SOURCE_RUN_ID}" \
-          RC_RUN_ATTEMPT="${source_attempt}" \
-          REVIEWED_SHA="${REVIEWED_SHA}" \
-          RC_AAB_SHA256="${aab_sha}" \
-          RC_PROVENANCE_SHA256="${provenance_sha}" \
-          BUILD_NAME="${BUILD_NAME}" \
-          BUILD_NUMBER="${BUILD_NUMBER}" \
-            bash tool/validate_android_e2e_manifest.sh "${manifest}"
-
           environment_json="$(gh api \
             "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
           jq -e '
             .name == "mobile-internal-distribution"
-            and any(.protection_rules[]?;
-              .type == "required_reviewers"
-              and ((.reviewers // []) | length) >= 1
-              and .prevent_self_review == true
-            )
             and .deployment_branch_policy.protected_branches == true
             and .deployment_branch_policy.custom_branch_policies == false
-          ' <<<"${environment_json}" >/dev/null
+          ' <<<"${environment_json}" >/dev/null || {
+            echo '::error::Internal distribution must remain limited to protected branches.'
+            exit 1
+          }
 
           {
             printf 'source_run_id=%s\n' "${SOURCE_RUN_ID}"
             printf 'source_run_attempt=%s\n' "${source_attempt}"
-            printf 'e2e_run_id=%s\n' "${E2E_RUN_ID}"
-            printf 'e2e_run_attempt=%s\n' "${e2e_attempt}"
-            printf 'e2e_artifact_sha256=%s\n' "${e2e_digest}"
-            printf 'e2e_manifest_sha256=%s\n' "${manifest_sha}"
             printf 'rc_aab_sha256=%s\n' "${aab_sha}"
             printf 'rc_android_provenance_sha256=%s\n' "${provenance_sha}"
             printf 'rc_ios_artifact_id=%s\n' "${ios_artifact_id}"
@@ -417,17 +364,13 @@ jobs:
             --arg artifact_sha256 "${SHA256}" \
             --arg source_run_id '${{ needs.source-policy.outputs.source_run_id }}' \
             --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
-            --arg e2e_run_id '${{ needs.source-policy.outputs.e2e_run_id }}' \
-            --arg e2e_run_attempt '${{ needs.source-policy.outputs.e2e_run_attempt }}' \
-            --arg e2e_artifact_sha256 '${{ needs.source-policy.outputs.e2e_artifact_sha256 }}' \
-            --arg e2e_manifest_sha256 '${{ needs.source-policy.outputs.e2e_manifest_sha256 }}' \
             --arg distribution_run_id "${GITHUB_RUN_ID}" \
             --arg build_number '${{ inputs.build_number }}' \
             '{platform, destination, artifact_sha256, source_run_id,
-              source_run_attempt, e2e_run_id, e2e_run_attempt,
-              e2e_artifact_sha256, e2e_manifest_sha256,
-              distribution_run_id, build_number,
-              stage: "pre_distribution_rc", final_release_go: false}' \
+              source_run_attempt, distribution_run_id, build_number,
+              stage: "internal_distribution",
+              physical_device_verification: "pending",
+              final_release_go: false}' \
             >build/distribution-receipts/android.json
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -567,18 +510,14 @@ jobs:
             --arg dsym_sha256 "${DSYM_SHA256}" \
             --arg source_run_id '${{ needs.source-policy.outputs.source_run_id }}' \
             --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
-            --arg e2e_run_id '${{ needs.source-policy.outputs.e2e_run_id }}' \
-            --arg e2e_run_attempt '${{ needs.source-policy.outputs.e2e_run_attempt }}' \
-            --arg e2e_artifact_sha256 '${{ needs.source-policy.outputs.e2e_artifact_sha256 }}' \
-            --arg e2e_manifest_sha256 '${{ needs.source-policy.outputs.e2e_manifest_sha256 }}' \
             --arg distribution_run_id "${GITHUB_RUN_ID}" \
             --arg build_number '${{ inputs.build_number }}' \
             '{platform, destination, artifact_sha256, archive_sha256,
               provenance_sha256, dsym_sha256, source_run_id,
-              source_run_attempt, e2e_run_id, e2e_run_attempt,
-              e2e_artifact_sha256, e2e_manifest_sha256,
-              distribution_run_id, build_number,
-              stage: "pre_distribution_rc", final_release_go: false}' \
+              source_run_attempt, distribution_run_id, build_number,
+              stage: "internal_distribution",
+              physical_device_verification: "pending",
+              final_release_go: false}' \
             >build/distribution-receipts/ios.json
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

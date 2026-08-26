@@ -155,19 +155,18 @@ both provenance manifests. The iOS contract and candidate jobs run on
 an `iphoneos26.*` SDK.
 
 Before signing, the RC policy gate verifies that the requested commit is the
-exact protected `main` head, that every named release check succeeded for that
-commit, and that the active ruleset requires those same contexts. The contexts
-include Flutter test/analysis, the blocking 79% coverage floor, native release
-contracts, localization parity, and `release-security.yml`. The latter scans
+exact protected `main` head and that every named release check succeeded for
+that commit. The contexts include Flutter test/analysis, the blocking 79%
+coverage floor, native release contracts, localization parity, and
+`release-security.yml`. The latter scans
 the complete commit range introduced by each pull request or `main` push with
 checksum-pinned Gitleaks 8.30.1 and blocks known Ruby release-tooling
 advisories with `bundler-audit` 0.9.3. The Gradle
 8.14.4 wrapper JAR and distribution are separately checksum-gated.
 
-After the retained Android candidate passes the physical-device staging E2E
-gate, an authorized operator may dispatch `distribute-mobile-internal.yml` with
-the source RC run ID, the Android physical-E2E run ID, reviewed commit, version,
-and build number. The workflow REST-downloads both exact retained artifacts,
+After the retained RC succeeds, an authorized operator may dispatch
+`distribute-mobile-internal.yml` with the source RC run ID, reviewed commit,
+version, and build number. The workflow REST-downloads both exact retained artifacts,
 verifies their GitHub ZIP digests, rejects unsafe entries, and independently
 rehashes the IPA, dSYMs, and provenance before the upload lane can run. It also
 verifies exact workflow paths, head SHA, run attempts, and same-byte hashes; it
@@ -179,55 +178,43 @@ Play Internal Testing and internal TestFlight. There is deliberately no
 production track, external
 TestFlight distribution, App Review submission, or automatic promotion lane.
 
-The physical-E2E owner must implement the real producer at
-`.github/workflows/android-physical-e2e.yml` only after the local
-selector-driven S24/A33 harness and sanitized evidence generator have been
-proved. Until that workflow exists and succeeds, internal distribution fails
-closed; a handwritten hash or manifest is not an allowed substitute. The
-producer must publish exactly one
-`manifest.json` in
-`android-physical-e2e-evidence-<run-id>-<run-attempt>`. Its versioned manifest
-must declare `verdict: PASS` and `stage: pre_distribution_rc`; bind the exact RC
-workflow/run/attempt, reviewed SHA, AAB and provenance hashes, package, version,
-build, staging origin, and signer reference; identify sanitized physical S24
-and A33 devices; and prove a bundletool-derived install from those same AAB
-bytes. `JMS-JHP-001`, `JMS-JHP-002`, and `JMS-JHP-003` must all pass without
-mocks. Raw device identifiers and phone, OTP, chat, location, password, token,
-or other secret data are forbidden from the manifest.
+Distribution receipts deliberately record
+`physical_device_verification: pending` and `final_release_go: false`; they do
+not claim pre-distribution E2E evidence. After upload, the Android happy paths
+`JMS-JHP-001`, `JMS-JHP-002`, and `JMS-JHP-003` must run without mocks on the
+Google Play-delivered Internal Testing build on real S24 and A33 devices. The
+TestFlight-delivered build must likewise be exercised on a physical iOS device.
+Only real, sanitized post-store results can clear the pending state and support
+a later release decision. Sideloaded, simulator, handwritten, or fabricated
+evidence does not satisfy this gate.
 
-That bundletool run is only the pre-distribution RC gate. It can never issue a
-final release GO. After upload, the required Android happy paths must be run
-again on the Google Play-delivered Internal Testing build. Sideloaded or
-bundletool-derived evidence does not satisfy the final store-delivered gate.
+The workflows use protected-branch-only GitHub environments for credential
+scoping; they do not depend on repository-ruleset or reviewer metadata APIs.
+Store binaries are uploaded only by `distribute-mobile-internal.yml`; manual
+store upload is unsupported. `OMDS_FLUTTER_PAT` is the repository-level,
+read-only credential used to fetch the exact `.omds-revision`:
 
-Both workflows require protected environments with required reviewers and
-protected-branch deployment rules. Each required-reviewer rule must have
-GitHub's `prevent_self_review` control enabled; this is an external repository
-governance control, not a YAML substitute:
-
-- `mobile-rc`: `ANDROID_OMDS_READ_TOKEN`, `ANDROID_UPLOAD_KEYSTORE_B64`,
+- `mobile-rc`: `ANDROID_UPLOAD_KEYSTORE_B64`,
   `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`,
   `ANDROID_UPLOAD_STORE_PASSWORD`, `ANDROID_UPLOAD_CERT_SHA1`,
   `ANDROID_UPLOAD_CERT_SHA256`, `ANDROID_GOOGLE_SERVICES_JSON_B64`,
   `ANDROID_FIREBASE_EXPECTED_APP_ID`,
   `ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID`,
   `ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID`, `ANDROID_MAPS_API_KEY`,
-  `IOS_OMDS_READ_TOKEN`, `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`,
-  `IOS_FIREBASE_EXPECTED_APP_ID`, `IOS_FIREBASE_EXPECTED_CLIENT_ID`,
-  `IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, `IOS_GOOGLE_MAPS_API_KEY`,
-  `IOS_DISTRIBUTION_CERT_P12_B64`,
-  `IOS_DISTRIBUTION_CERT_P12_PASSWORD`, `IOS_DISTRIBUTION_CERT_SHA256`, and
-  `IOS_PROVISIONING_PROFILE_B64`.
 - `mobile-internal-distribution`: `GOOGLE_PLAY_JSON_KEY`,
   `APP_STORE_KEY_ID`, `APP_STORE_ISSUER_ID`, and
-  `APP_STORE_KEY_CONTENT_B64`.
+  `APP_STORE_KEY_CONTENT_B64`, plus `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`,
+  `IOS_FIREBASE_EXPECTED_APP_ID`, `IOS_FIREBASE_EXPECTED_CLIENT_ID`,
+  `IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, and `IOS_GOOGLE_MAPS_API_KEY`.
 
-Release runs fail closed when environment protection, retained provenance,
-successful check contexts, physical E2E evidence, monotonic store build
-numbers, or any named credential is absent. Credentials remain GitHub
-environment secrets and must never be committed.
-`MOBILE_RC_MAIN_RULESET_ID` is a non-secret repository variable naming the
-active `main` ruleset approved for release governance.
+The iOS RC decodes the App Store Connect private key only into a mode-`0600`
+temporary file, validates it without printing it, and removes it on every exit.
+Xcode automatic signing uses that key to create or update Apple provisioning
+assets when necessary; the RC export remains local, preserves the requested
+version/build, sets `testFlightInternalTestingOnly`, and never uploads to App
+Store Connect. Release runs fail closed when protected-branch policy, retained
+provenance, successful check contexts, monotonic store build numbers, or any
+named credential is absent. Credentials must never be committed.
 
 ## License
 
