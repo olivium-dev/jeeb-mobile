@@ -7,6 +7,7 @@ import 'package:jeeb_mobile/core/network/redacting_log_interceptor.dart';
 
 const _phoneCanary = '+31600000000-PHONE-P7X9';
 const _otpCanary = 'OTP-CODE-739281-C4Q2';
+const _prohibitedSuppressionMarker = '<sensitive-body-suppressed>';
 
 class _SilentErrorHandler extends ErrorInterceptorHandler {
   _SilentErrorHandler() {
@@ -27,6 +28,7 @@ void _expectNoOtpCanaryMaterial(String output) {
     expect(output, isNot(contains(handle.split('~').first)));
     expect(output, isNot(contains(secret.substring(secret.length - 4))));
   }
+  expect(output, isNot(contains(_prohibitedSuppressionMarker)));
 }
 
 /// Security regression test for the dev-logging token leak: the debug HTTP
@@ -166,7 +168,7 @@ void main() {
     expect(all, contains('conversation-42'));
   });
 
-  group('P0 — OTP endpoint bodies are suppressed without derivation', () {
+  group('P0 — OTP endpoint logs are metadata-only', () {
     const paths = <String>[
       '/v1/auth/otp/request',
       '/v1/auth/otp/verify',
@@ -174,28 +176,32 @@ void main() {
       '/auth/otp/verify',
     ];
 
-    test('request logs use one constant for nested canary structures', () {
+    test('requests never inspect or log headers, bodies, or placeholders', () {
       for (final path in paths) {
         printed.clear();
-        final body = <String, Object?>{
-          'phone': _phoneCanary,
-          'otp': _otpCanary,
-          'nested': <Object?>[_phoneCanary, _otpCanary],
-        };
+        final body = _ExplosiveOtpBody();
         final options = RequestOptions(
           path: '$path?source=$_phoneCanary',
           method: 'POST',
+          headers: <String, dynamic>{
+            'x-arbitrary-phone': _phoneCanary,
+            'x-arbitrary-otp': _otpCanary,
+            'x-arbitrary-poison': _ExplosiveOtpBody(),
+            'Content-Length': '739281',
+          },
           data: body,
         );
 
         interceptor.onRequest(options, RequestInterceptorHandler());
 
-        final all = printed.join('\n');
-        expect(all, contains(path));
-        expect(all, contains(DiagRedaction.suppressedSensitiveBody));
-        expect(all, isNot(contains('nested')));
-        expect(all, isNot(contains('tok:')));
-        _expectNoOtpCanaryMaterial(all);
+        final line = printed.singleWhere((it) => it.startsWith('[http→]'));
+        expect(line, '[http→] POST $path');
+        expect(line, isNot(contains('headers=')));
+        expect(line, isNot(contains('body=')));
+        expect(line, isNot(contains('Content-Length')));
+        expect(line, isNot(contains('x-arbitrary')));
+        expect(line, isNot(contains('tok:')));
+        _expectNoOtpCanaryMaterial(line);
         expect(
           options.data,
           same(body),
@@ -204,17 +210,26 @@ void main() {
       }
     });
 
-    test('response and error logs suppress every body shape', () {
+    test('responses and errors omit headers, bodies, and error details', () {
       for (final path in paths) {
         printed.clear();
-        final options = RequestOptions(path: path, method: 'POST');
+        final options = RequestOptions(
+          path: path,
+          method: 'POST',
+          headers: <String, dynamic>{
+            'x-arbitrary-phone': _phoneCanary,
+            'x-arbitrary-otp': _otpCanary,
+          },
+          data: _ExplosiveOtpBody(),
+        );
         final response = Response<dynamic>(
           requestOptions: options,
           statusCode: 401,
-          data: <String, Object?>{
-            'phoneHash': DiagRedaction.redactToken(_phoneCanary),
-            'message': 'invalid $_otpCanary for $_phoneCanary',
-          },
+          headers: Headers()
+            ..add('x-arbitrary-phone', _phoneCanary)
+            ..add('x-arbitrary-otp', _otpCanary)
+            ..add('Content-Length', '739281'),
+          data: _ExplosiveOtpBody(),
         );
 
         interceptor.onResponse(response, ResponseInterceptorHandler());
@@ -223,50 +238,53 @@ void main() {
             requestOptions: options,
             response: response,
             type: DioExceptionType.badResponse,
+            message: 'invalid $_otpCanary for $_phoneCanary',
+            error: _ExplosiveOtpBody(),
           ),
           _SilentErrorHandler(),
         );
 
-        final all = printed
-            .where(
-              (line) =>
-                  line.startsWith('[http←]') || line.startsWith('[http✗]'),
-            )
-            .join('\n');
-        expect(DiagRedaction.suppressedSensitiveBody.allMatches(all).length, 2);
-        expect(all, isNot(contains('phoneHash')));
+        final lines = printed
+            .where((it) => it.startsWith('[http←]') || it.startsWith('[http✗]'))
+            .toList();
+        expect(lines, <String>['[http←] 401 POST $path', '[http✗] POST $path']);
+        final all = lines.join('\n');
+        expect(all, isNot(contains('headers=')));
+        expect(all, isNot(contains('body=')));
         expect(all, isNot(contains('invalid')));
+        expect(all, isNot(contains('badResponse')));
+        expect(all, isNot(contains('Content-Length')));
+        expect(all, isNot(contains('x-arbitrary')));
         expect(all, isNot(contains('tok:')));
         _expectNoOtpCanaryMaterial(all);
       }
     });
 
-    test('suppression is constant across distinct raw and binary bodies', () {
-      final outputs = <String>[];
-      for (final body in <Object?>[
-        _phoneCanary,
-        <String, Object?>{'otp': _otpCanary},
-        List<int>.filled(739281, 0x41),
-        _ExplosiveOtpBody(),
+    test('requested and otpx near-matches retain ordinary diagnostics', () {
+      for (final path in <String>[
+        '/v1/auth/otp/requested',
+        '/v1/auth/otpx/request',
+        '/auth/otp/requested',
+        '/auth/otpx/verify',
       ]) {
         printed.clear();
         interceptor.onRequest(
           RequestOptions(
-            path: '/v1/auth/otp/verify',
+            path: path,
             method: 'POST',
-            data: body,
+            headers: <String, dynamic>{'x-safe-control': 'visible'},
+            data: <String, Object?>{'note': 'safe-control'},
           ),
           RequestInterceptorHandler(),
         );
-        final httpLog = printed.singleWhere(
-          (line) => line.startsWith('[http→]'),
-        );
-        outputs.add(httpLog.split('body=').last);
-      }
 
-      expect(outputs, everyElement(DiagRedaction.suppressedSensitiveBody));
-      expect(outputs.toSet(), hasLength(1));
-      expect(outputs.first, isNot(contains('739281')));
+        final line = printed.singleWhere((it) => it.startsWith('[http→]'));
+        expect(DiagRedaction.isBodySuppressedPath(path), isFalse);
+        expect(line, contains('headers='));
+        expect(line, contains('x-safe-control'));
+        expect(line, contains('body='));
+        expect(line, contains('safe-control'));
+      }
     });
   });
 

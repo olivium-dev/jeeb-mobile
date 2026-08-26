@@ -168,9 +168,13 @@ void main() {
       for (final path in <String>[
         '/v1/auth/login',
         '/v1/auth/otp/request-status',
+        '/v1/auth/otp/requested',
         '/v1/auth/otp/verify/receipt',
+        '/v1/auth/otpx/request',
         '/auth/otp/request-status',
+        '/auth/otp/requested',
         '/auth/otp/verify/receipt',
+        '/auth/otpx/verify',
         '/v1/health?next=/v1/auth/otp/request',
       ]) {
         expect(DiagRedaction.isBodySuppressedPath(path), isFalse, reason: path);

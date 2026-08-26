@@ -22,6 +22,8 @@ final RegExp _secretPattern = RegExp(r'Bearer |eyJ[A-Za-z0-9_-]{10,}\.');
 
 const String _otpPhoneCanary = '+31600000000-OBS-P8R4';
 const String _otpCodeCanary = 'OTP-739281-OBS-C7S3';
+const String _otpHeaderCanary = 'HEADER-OTP-LEAK-884422-H9M5';
+const String _prohibitedSuppressionMarker = '<sensitive-body-suppressed>';
 
 final class _PoisonPayload {
   bool inspected = false;
@@ -40,7 +42,11 @@ final class _PoisonPayload {
 
 void _expectNoOtpCanaryMaterial(ObsApiEvent event) {
   final encoded = jsonEncode(event.toJson());
-  for (final secret in <String>[_otpPhoneCanary, _otpCodeCanary]) {
+  for (final secret in <String>[
+    _otpPhoneCanary,
+    _otpCodeCanary,
+    _otpHeaderCanary,
+  ]) {
     final handle = DiagRedaction.redactToken(secret);
     final hash = handle.substring(4).split('~').first;
     expect(encoded, isNot(contains(secret)));
@@ -53,6 +59,12 @@ void _expectNoOtpCanaryMaterial(ObsApiEvent event) {
   expect(lower, isNot(contains('x-obs-request-bytes')));
   expect(lower, isNot(contains('x-obs-response-bytes')));
   expect(lower, isNot(contains('tok:')));
+  expect(encoded, isNot(contains(_prohibitedSuppressionMarker)));
+  expect(event.requestHeaders, isEmpty);
+  expect(event.responseHeaders, isEmpty);
+  expect(event.requestBody, isNull);
+  expect(event.responseBody, isNull);
+  expect(event.errorMessage, isNull);
 }
 
 /// Test-only: [ErrorInterceptorHandler.next] completes its internal
@@ -356,16 +368,17 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    group('P0 OTP payload suppression', () {
+    group('P0 OTP event suppression', () {
       setUp(() {
         ObservabilityConfig.instance.captureApiBodies = true;
         ObservabilityConfig.instance.redactionEnabled = false;
       });
 
       test('success events suppress nested, raw, binary, and poison bodies '
-          'for versioned and unversioned aliases', () {
+          'plus arbitrary headers for versioned and unversioned aliases', () {
         final poisonRequest = _PoisonPayload();
         final poisonResponse = _PoisonPayload();
+        final poisonHeader = _PoisonPayload();
         final cases = <({String path, Object request, Object response})>[
           (
             path: '/v1/auth/otp/request?phone=$_otpPhoneCanary',
@@ -403,7 +416,10 @@ void main() {
             headers: <String, dynamic>{
               'Content-Length': _otpPhoneCanary.length.toString(),
               'X-Obs-Request-Bytes': '739281',
-              'content-type': 'application/json',
+              'x-arbitrary-phone': _otpPhoneCanary,
+              'x-arbitrary-otp': _otpCodeCanary,
+              'x-arbitrary-canary': _otpHeaderCanary,
+              'x-arbitrary-poison': poisonHeader,
               'x-correlation-id': 'corr-otp-safe',
             },
             data: testCase.request,
@@ -411,7 +427,9 @@ void main() {
           final responseHeaders = Headers()
             ..add('Content-Length', _otpCodeCanary.length.toString())
             ..add('X-Obs-Response-Bytes', '739281')
-            ..add('content-type', 'application/json');
+            ..add('x-arbitrary-phone', _otpPhoneCanary)
+            ..add('x-arbitrary-otp', _otpCodeCanary)
+            ..add('x-arbitrary-canary', _otpHeaderCanary);
 
           final event = _roundTrip(
             interceptor,
@@ -428,11 +446,6 @@ void main() {
           expect(event.seq, greaterThan(0));
           expect(event.correlationId, 'corr-otp-safe');
           expect(event.errorType, isNull);
-          expect(event.errorMessage, isNull);
-          expect(event.requestBody, DiagRedaction.suppressedSensitiveBody);
-          expect(event.responseBody, DiagRedaction.suppressedSensitiveBody);
-          expect(event.requestHeaders['content-type'], 'application/json');
-          expect(event.responseHeaders['content-type'], 'application/json');
           expect(options.headers['Content-Length'], isNotNull);
           expect(responseHeaders.value('Content-Length'), isNotNull);
           _expectNoOtpCanaryMaterial(event);
@@ -440,10 +453,11 @@ void main() {
 
         expect(poisonRequest.inspected, isFalse);
         expect(poisonResponse.inspected, isFalse);
+        expect(poisonHeader.inspected, isFalse);
       }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
-      test('bad-response events suppress both bodies, sizes, and the error '
-          'message while retaining status and error type', () {
+      test('bad-response events emit null bodies/error and empty headers '
+          'while retaining status, correlation, and error type', () {
         final requestPoison = _PoisonPayload();
         final responsePoison = _PoisonPayload();
         final errorPoison = _PoisonPayload();
@@ -452,6 +466,9 @@ void main() {
           path: '/v1/auth/otp/verify',
           headers: <String, dynamic>{
             'content-length': '739281',
+            'x-arbitrary-phone': _otpPhoneCanary,
+            'x-arbitrary-otp': _otpCodeCanary,
+            'x-arbitrary-canary': _otpHeaderCanary,
             'x-request-id': 'req-otp-safe',
           },
           data: requestPoison,
@@ -461,7 +478,9 @@ void main() {
           requestOptions: options,
           statusCode: 422,
           data: responsePoison,
-          headers: Headers()..add('content-length', '739281'),
+          headers: Headers()
+            ..add('content-length', '739281')
+            ..add('x-arbitrary-canary', _otpHeaderCanary),
         );
         interceptor.onError(
           DioException(
@@ -478,9 +497,6 @@ void main() {
         expect(event.statusCode, 422);
         expect(event.errorType, 'badResponse');
         expect(event.correlationId, 'req-otp-safe');
-        expect(event.requestBody, DiagRedaction.suppressedSensitiveBody);
-        expect(event.responseBody, DiagRedaction.suppressedSensitiveBody);
-        expect(event.errorMessage, DiagRedaction.suppressedSensitiveBody);
         _expectNoOtpCanaryMaterial(event);
         expect(requestPoison.inspected, isFalse);
         expect(responsePoison.inspected, isFalse);
@@ -495,7 +511,13 @@ void main() {
           final options = _options(
             method: 'POST',
             path: '/auth/otp/request?phone=$_otpPhoneCanary',
-            headers: <String, dynamic>{'Content-Length': '739281'},
+            headers: <String, dynamic>{
+              'Content-Length': '739281',
+              'x-arbitrary-phone': _otpPhoneCanary,
+              'x-arbitrary-otp': _otpCodeCanary,
+              'x-arbitrary-canary': _otpHeaderCanary,
+              'x-correlation-id': 'corr-timeout-safe',
+            },
             data: requestPoison,
           );
           interceptor.onRequest(options, RequestInterceptorHandler());
@@ -511,9 +533,7 @@ void main() {
           final event = sink.events.single as ObsApiEvent;
           expect(event.statusCode, isNull);
           expect(event.errorType, 'connectionTimeout');
-          expect(event.requestBody, DiagRedaction.suppressedSensitiveBody);
-          expect(event.responseBody, isNull);
-          expect(event.errorMessage, DiagRedaction.suppressedSensitiveBody);
+          expect(event.correlationId, 'corr-timeout-safe');
           _expectNoOtpCanaryMaterial(event);
           expect(requestPoison.inspected, isFalse);
           expect(errorPoison.inspected, isFalse);
@@ -522,33 +542,43 @@ void main() {
       );
 
       test(
-        'near-match paths retain ordinary observability unchanged',
+        'requested and otpx near-matches retain ordinary observability',
         () {
-          final event = _roundTrip(
-            interceptor,
-            sink,
-            _options(
-              method: 'POST',
-              path: '/v1/auth/otp/request-status',
-              headers: <String, dynamic>{
-                'Content-Length': '23',
-                'x-correlation-id': 'corr-safe-control',
-              },
-              data: <String, Object?>{'note': 'safe request'},
-            ),
-            responseData: <String, Object?>{'note': 'safe response'},
-            responseHeaders: Headers()..add('content-length', '31'),
-          )!;
+          for (final path in <String>[
+            '/v1/auth/otp/requested',
+            '/v1/auth/otpx/request',
+            '/auth/otp/requested',
+            '/auth/otpx/verify',
+          ]) {
+            final event = _roundTrip(
+              interceptor,
+              sink,
+              _options(
+                method: 'POST',
+                path: path,
+                headers: <String, dynamic>{
+                  'Content-Length': '23',
+                  'x-correlation-id': 'corr-safe-control',
+                },
+                data: <String, Object?>{'note': 'safe request'},
+              ),
+              responseData: <String, Object?>{'note': 'safe response'},
+              responseHeaders: Headers()..add('content-length', '31'),
+            )!;
 
-          expect(event.requestBody, <String, Object?>{'note': 'safe request'});
-          expect(event.responseBody, <String, Object?>{
-            'note': 'safe response',
-          });
-          expect(event.requestHeaders['Content-Length'], '23');
-          expect(event.requestHeaders['x-obs-request-bytes'], isA<int>());
-          expect(event.responseHeaders['content-length'], '31');
-          expect(event.responseHeaders['x-obs-response-bytes'], 31);
-          expect(event.correlationId, 'corr-safe-control');
+            expect(DiagRedaction.isBodySuppressedPath(path), isFalse);
+            expect(event.requestBody, <String, Object?>{
+              'note': 'safe request',
+            });
+            expect(event.responseBody, <String, Object?>{
+              'note': 'safe response',
+            });
+            expect(event.requestHeaders['Content-Length'], '23');
+            expect(event.requestHeaders['x-obs-request-bytes'], isA<int>());
+            expect(event.responseHeaders['content-length'], '31');
+            expect(event.responseHeaders['x-obs-response-bytes'], 31);
+            expect(event.correlationId, 'corr-safe-control');
+          }
         },
         skip: kObsCompiledIn ? false : _needsDevtoolDefine,
       );

@@ -35,8 +35,6 @@ const Set<String> kSensitiveDataKeys = {
 abstract final class DiagRedaction {
   static const String _nullHandle = 'tok:∅';
 
-  static const String suppressedSensitiveBody = '<sensitive-body-suppressed>';
-
   static const Set<String> _bodySuppressedPaths = {
     '/v1/auth/otp/request',
     '/v1/auth/otp/verify',
