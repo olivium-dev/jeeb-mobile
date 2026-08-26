@@ -146,11 +146,13 @@ expectation with a written reason; do not merge on red.
 
 `trusted-mobile-rc.yml` builds reviewed `main` with an explicit semantic build
 name containing exactly three numeric components and a monotonically
-increasing numeric build number. It retains the exact signed AAB and IPA,
-SHA-256 provenance, the Android R8 mapping, and iOS dSYMs
-for seven days. This workflow does not contact either store. Android and iOS
-use the same OMDS commit from `.omds-revision`; that revision is recorded in
-both provenance manifests. The iOS contract and candidate jobs run on
+increasing numeric build number. Its `platform` input defaults to `both`, but
+may select `android` or `ios` when one store is independently blocked. It
+retains the exact selected signed candidates, SHA-256 provenance, the Android
+R8 mapping, and iOS dSYMs for seven days. This workflow does not contact either
+store. Android and iOS use the same OMDS commit from `.omds-revision`; that
+revision is recorded in both provenance manifests. The iOS contract and
+candidate jobs run on
 `macos-26`, select `/Applications/Xcode_26.6.app`, and require Xcode 26.6 with
 an `iphoneos26.*` SDK.
 
@@ -166,9 +168,12 @@ advisories with `bundler-audit` 0.9.3. The Gradle
 
 After the retained RC succeeds, an authorized operator may dispatch
 `distribute-mobile-internal.yml` with the source RC run ID, reviewed commit,
-version, and build number. The workflow REST-downloads both exact retained artifacts,
-verifies their GitHub ZIP digests, rejects unsafe entries, and independently
-rehashes the IPA, dSYMs, and provenance before the upload lane can run. It also
+version, build number, and the matching `platform` selection. The source RC
+must have succeeded; a failed multi-platform run is never accepted as a
+platform-specific source. The workflow REST-downloads the exact selected
+retained artifacts, verifies their GitHub ZIP digests, rejects unsafe entries,
+and independently rehashes the IPA, dSYMs, and provenance before the upload
+lane can run. It also
 verifies exact workflow paths, head SHA, run attempts, and same-byte hashes; it
 does not rebuild either candidate. A single non-mutating preflight reads every
 Google Play track and pages every Jeeb iOS prerelease version and build in App
