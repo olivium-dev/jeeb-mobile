@@ -59,6 +59,28 @@ enum DevToolSection {
   final IconData icon;
 }
 
+/// Registers the services [SuperLoginPage] resolves out of [sl].
+///
+/// This is the ONLY registration site for [SuperLoginService] and
+/// [SuperLoginDemoUserService] in the app, and product DI does not perform it —
+/// so every path that can reach [DevToolShell] must call this first, or
+/// `super_login_sheet.dart`'s `sl<SuperLoginService>()` throws in GetIt. There
+/// are two such paths: [DevToolApp] (the Android launcher icon) and the iOS
+/// shake layer in `shake/devtool_shake.dart`. Idempotent by construction, so a
+/// second call from either path is harmless.
+void registerDevToolSuperLoginDependencies() {
+  if (!sl.isRegistered<SuperLoginService>()) {
+    sl.registerLazySingleton<SuperLoginService>(
+      () => DefaultSuperLoginService(dio: sl()),
+    );
+  }
+  if (!sl.isRegistered<SuperLoginDemoUserService>()) {
+    sl.registerLazySingleton<SuperLoginDemoUserService>(
+      () => DefaultSuperLoginDemoUserService(dio: sl()),
+    );
+  }
+}
+
 /// Root widget for the Jeeber Dev Tool (`/devtool` route via the `.DevToolLauncher`
 /// launcher icon). It runs the SAME [Bootstrap.minimal] the real app runs, so the
 class DevToolApp extends StatefulWidget {
@@ -73,21 +95,8 @@ class _DevToolAppState extends State<DevToolApp> {
 
   Future<BootstrapResult> _bootstrapDevTool() async {
     final result = await Bootstrap.minimal();
-    _registerSuperLoginDependencies();
+    registerDevToolSuperLoginDependencies();
     return result;
-  }
-
-  void _registerSuperLoginDependencies() {
-    if (!sl.isRegistered<SuperLoginService>()) {
-      sl.registerLazySingleton<SuperLoginService>(
-        () => DefaultSuperLoginService(dio: sl()),
-      );
-    }
-    if (!sl.isRegistered<SuperLoginDemoUserService>()) {
-      sl.registerLazySingleton<SuperLoginDemoUserService>(
-        () => DefaultSuperLoginDemoUserService(dio: sl()),
-      );
-    }
   }
 
   @override

@@ -32,7 +32,7 @@ for forbidden in \
   'super_login' 'unified_payment' '/v1/payments/' '/api/auth/token' \
   '/api/User/super-login/users' '/v1/matching/find-jeebers' \
   'devtool_shell.dart' 'main_devtool.dart' 'DevToolApp' 'DevGatewayClient' \
-  'ScenarioUsers' 'FullRoster' 'location_simulation' \
+  'ScenarioUsers' 'FullRoster' 'location_simulation' 'devtool_shake' \
   'JEEB_DEVTOOL_ENABLED=true' 'JEEB_MOCK_BASE_URL' 'USE_MOCK_GATEWAY=true'; do
   printf ' %s' "${forbidden}" >>"${binary}"
   if run_inspector true false false >/dev/null 2>&1; then

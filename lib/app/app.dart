@@ -67,6 +67,7 @@ import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
+import '../devtool/shake/devtool_shake.dart';
 import '../l10n/app_localizations.dart';
 
 /// Root widget. Owns the global cubits (locale, role, onboarding), wires the
@@ -812,9 +813,23 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                   // compile-time `false` in production, so this wrap (and
                   // `GestureLogListener` itself) is tree-shaken out and `observed`
                   // is returned byte-identically. Default OFF at runtime.
-                  final productUi = kDevAffordancesAllowed
-                      ? GestureLogListener(child: observed)
+                  // SHAKE-TO-DEVTOOL (iOS entry point): iOS has no second
+                  // launcher icon and no URL scheme, so a physical shake —
+                  // forwarded from `AppDelegate.motionEnded` over
+                  // `com.olivium.jeeb/devtool_shake` — is the only way in.
+                  // `kShakeToDevToolEnabled` is a compile-time `false` in
+                  // production, so this wrap, `DevToolShakeHost` itself and
+                  // its `devtool_shell.dart` import are tree-shaken out and
+                  // `observed` is returned unchanged. The native half is
+                  // gated independently by `#if JEEB_DEV`. Wrapped BELOW
+                  // `ClarityMask` on purpose: session recording must never
+                  // capture the Dev Tool.
+                  final shakeHosted = kShakeToDevToolEnabled
+                      ? DevToolShakeHost(child: observed)
                       : observed;
+                  final productUi = kDevAffordancesAllowed
+                      ? GestureLogListener(child: shakeHosted)
+                      : shakeHosted;
                   final maskedProduct = ClarityMask(child: productUi);
                   return ListenableBuilder(
                     listenable: _clarity,

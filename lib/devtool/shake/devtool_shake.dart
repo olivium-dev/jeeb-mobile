@@ -1,0 +1,315 @@
+// Shake-to-open for the Jeeber Dev Tool (iOS entry point).
+//
+// iOS has no second launcher icon and no URL scheme, so — unlike Android,
+// which reaches `/devtool` through a flavor-specific launcher Activity — a
+// physical shake is the only Dev Tool entry point on that platform. The
+// gesture is delivered natively by `ios/Runner/AppDelegate.swift`
+// (`motionEnded(_:with:)`, inside `#if JEEB_DEV`) over [kDevToolShakeChannel]
+// and handled here.
+//
+// TWO INDEPENDENT COMPILE-OUT GATES protect a store build:
+//   1. Dart  — everything in this file is only reachable through the
+//              `kShakeToDevToolEnabled` const ternary in `app/app.dart`, so a
+//              release/profile AOT snapshot tree-shakes the wiring AND the
+//              `../devtool_shell.dart` import below out entirely.
+//   2. Native — `#if JEEB_DEV` is defined on exactly three Runner
+//              configurations (Debug-dev / Profile-dev / Release-dev), never
+//              on the `Release` configuration a store build uses.
+// Neither gate depends on the other. `tool/inspect_unsigned_ios_release.sh`
+// scans both binaries for `devtool_shake` and fails the build on a hit.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:omds/omds.dart';
+
+import '../../core/dev_flags.dart';
+import '../devtool_shell.dart';
+
+/// Native → Dart channel carrying the shake gesture. Matches the
+/// `com.olivium.jeeb/<snake_name>` convention used by the dev-seam and power
+/// channels. The `devtool_shake` suffix is deliberately distinctive so the
+/// release binary scanners can grep for it.
+const String kDevToolShakeChannelName = 'com.olivium.jeeb/devtool_shake';
+
+/// The only method the native side sends.
+const String kDevToolShakeOpenMethod = 'open';
+
+/// The channel instance shared by the host and its tests.
+const MethodChannel kDevToolShakeChannel = MethodChannel(
+  kDevToolShakeChannelName,
+);
+
+/// Identifies the mounted Dev Tool layer (used by tests and by the no-op
+/// "already open" check).
+const Key kDevToolShakeLayerKey = ValueKey<String>('jeeb-devtool-shake-layer');
+
+/// Identifies the layer's close affordance.
+const Key kDevToolShakeCloseKey = ValueKey<String>('jeeb-devtool-shake-close');
+
+/// A single physical shake can deliver `motionEnded` more than once, and the
+/// OS does not deduplicate it. Repeats inside this window are dropped.
+const Duration kDevToolShakeDebounce = Duration(seconds: 1);
+
+DateTime _systemClock() => DateTime.now();
+
+/// Which host instance currently owns the method-call handler, keyed by
+/// channel name.
+///
+/// A handler is registered against the binary messenger by channel NAME, not
+/// by `MethodChannel` instance, so every host competes for a single slot —
+/// giving each host its own channel object would not separate them. Flutter
+/// runs the incoming element's `initState` BEFORE the outgoing element's
+/// `dispose` (`Element.updateChild` deactivates then inflates; `dispose` is
+/// deferred to `finalizeTree`), so on a same-frame host swap an unconditional
+/// `setMethodCallHandler(null)` in the old host's `dispose` would wipe the NEW
+/// host's handler and leave shake dead for the rest of the process. That swap
+/// is reachable in a dev build today: `app/app.dart` rebuilds the subtree from
+/// `ClarityMask` to `ClarityWidget` when Clarity consent is accepted, and any
+/// structural hot reload above the host does the same. Clearing only when this
+/// instance is still the recorded owner makes the teardown safe.
+final Map<String, _DevToolShakeHostState> _shakeHandlerOwners =
+    <String, _DevToolShakeHostState>{};
+
+/// Default content of the Dev Tool layer.
+///
+/// The reference to [DevToolShell] sits behind the same compile-time const as
+/// everything else here, so the shell (and its `Super Login` string literals)
+/// never enter a release snapshot. When the gate is off this is an empty box
+/// rather than a shell, because [DevToolShell] hard-asserts the gate.
+///
+/// [registerDevToolSuperLoginDependencies] must run before the shell is built:
+/// unlike [DevToolApp], this path never goes through `Bootstrap.minimal`, and
+/// product DI does not register `SuperLoginService` — without this call, Dev
+/// Tool → Super Login throws in GetIt. The call is idempotent, so repeating it
+/// on a rebuild is free, and it stays inside the gated branch so the gate-off
+/// branch keeps its zero-side-effect `SizedBox`.
+Widget defaultDevToolShakeLayer(BuildContext context) {
+  if (!kShakeToDevToolEnabled) return const SizedBox.shrink();
+  registerDevToolSuperLoginDependencies();
+  return const DevToolShell();
+}
+
+/// Pure trigger policy for the shake gesture: debounce plus the "already
+/// open" no-op. Kept free of Flutter state on purpose so it is directly
+/// testable without the compile-time gate being on.
+class DevToolShakeGate {
+  DevToolShakeGate({this.window = kDevToolShakeDebounce});
+
+  /// Repeat deliveries closer together than this are dropped.
+  final Duration window;
+
+  DateTime? _lastAccepted;
+
+  /// Whether this delivery should open the Dev Tool.
+  ///
+  /// Returns `false` when the tool is already on top (no-op) and when the
+  /// previous accepted trigger is less than [window] old (debounce). An
+  /// [alreadyOpen] rejection deliberately does NOT extend the window: the
+  /// window measures accepted opens, not delivered shakes.
+  bool shouldOpen({required bool alreadyOpen, required DateTime now}) {
+    if (alreadyOpen) return false;
+    final DateTime? last = _lastAccepted;
+    if (last != null && now.difference(last) < window) return false;
+    _lastAccepted = now;
+    return true;
+  }
+}
+
+/// Wraps the routed product UI and mounts the Dev Tool on top of it when the
+/// native side reports a shake.
+///
+/// This is a builder-chain wrap rather than a `Navigator.push`: an imperative
+/// push onto go_router's Navigator produces a pageless route anchored to the
+/// topmost page, and `app.dart`'s push-banner tap and empty-stack recovery
+/// both call `GoRouter.go` without user intent — either would silently tear
+/// the Dev Tool down mid-use. Wrapping also keeps the tool inside
+/// `ClarityMask`, so session recording never captures it.
+class DevToolShakeHost extends StatefulWidget {
+  const DevToolShakeHost({
+    required this.child,
+    super.key,
+    this.channel = kDevToolShakeChannel,
+    this.layerBuilder = defaultDevToolShakeLayer,
+    this.clock = _systemClock,
+    this.debounce = kDevToolShakeDebounce,
+  });
+
+  /// The routed product UI this host sits above.
+  final Widget child;
+
+  /// Channel the native shake arrives on.
+  final MethodChannel channel;
+
+  /// Builds the content of the Dev Tool layer.
+  final WidgetBuilder layerBuilder;
+
+  /// Wall clock, injectable so the debounce window is testable.
+  final DateTime Function() clock;
+
+  /// Repeat-shake suppression window.
+  final Duration debounce;
+
+  @override
+  State<DevToolShakeHost> createState() => _DevToolShakeHostState();
+}
+
+class _DevToolShakeHostState extends State<DevToolShakeHost> {
+  late final DevToolShakeGate _gate = DevToolShakeGate(
+    window: widget.debounce,
+  );
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Registered synchronously, not in a post-frame callback: a shake can
+    // arrive at any time and the handler is cheap. Claiming ownership here —
+    // before any outgoing host's deferred `dispose` runs — is what lets that
+    // teardown know it is no longer the owner. See [_shakeHandlerOwners].
+    _shakeHandlerOwners[widget.channel.name] = this;
+    widget.channel.setMethodCallHandler(_onNativeCall);
+  }
+
+  @override
+  void dispose() {
+    // Tear down ONLY the handler this instance still owns: a host that was
+    // already superseded in the same frame must leave its successor's handler
+    // alone. See [_shakeHandlerOwners].
+    final String name = widget.channel.name;
+    if (identical(_shakeHandlerOwners[name], this)) {
+      _shakeHandlerOwners.remove(name);
+      widget.channel.setMethodCallHandler(null);
+    }
+    super.dispose();
+  }
+
+  Future<void> _onNativeCall(MethodCall call) async {
+    if (call.method != kDevToolShakeOpenMethod) return;
+    if (!mounted) return;
+    if (!_gate.shouldOpen(alreadyOpen: _open, now: widget.clock())) return;
+    setState(() => _open = true);
+  }
+
+  void _close() {
+    if (!_open) return;
+    setState(() => _open = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The Stack is mounted unconditionally so `widget.child` keeps a stable
+    // slot in the element tree — moving it between "direct child" and
+    // "Stack.children[0]" would deactivate the whole routed subtree and lose
+    // its state every time the Dev Tool opens or closes.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        if (_open)
+          _DevToolShakeLayer(
+            key: kDevToolShakeLayerKey,
+            onClose: _close,
+            layerBuilder: widget.layerBuilder,
+          ),
+      ],
+    );
+  }
+}
+
+/// The opaque Dev Tool layer.
+///
+/// It carries its own [Navigator] because the host sits ABOVE go_router's
+/// Navigator in the tree — without one, `DevToolShell`'s section pushes would
+/// find no Navigator ancestor. The nested Navigator also keeps every Dev Tool
+/// push inside the layer instead of on the product route stack.
+class _DevToolShakeLayer extends StatefulWidget {
+  const _DevToolShakeLayer({
+    required this.onClose,
+    required this.layerBuilder,
+    super.key,
+  });
+
+  final VoidCallback onClose;
+  final WidgetBuilder layerBuilder;
+
+  @override
+  State<_DevToolShakeLayer> createState() => _DevToolShakeLayerState();
+}
+
+class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
+  final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+
+  /// The layer's own hero controller.
+  ///
+  /// `MaterialApp` publishes a single [HeroControllerScope] ABOVE its
+  /// `builder` (material/app.dart:1163), and the host is mounted inside that
+  /// `builder` — so without this scope the layer's [Navigator] would adopt the
+  /// SAME controller as the app's routed Navigator and trip
+  /// "A HeroController can not be shared by multiple Navigators" on every
+  /// open. Owning one keeps hero transitions working inside the Dev Tool
+  /// instead of disabling them with `HeroControllerScope.none`.
+  final HeroController _hero = MaterialApp.createMaterialHeroController();
+
+  @override
+  void dispose() {
+    _hero.dispose();
+    super.dispose();
+  }
+
+  /// Back out of the Dev Tool's own stack first, and close the layer only
+  /// once it is back at the shell. iOS has no system back button, so this is
+  /// reachable solely through the close affordance.
+  void _handleClose() {
+    final NavigatorState? navigator = _navigator.currentState;
+    if (navigator != null && navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    widget.onClose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: Stack(
+          children: [
+            HeroControllerScope(
+              controller: _hero,
+              child: Navigator(
+                key: _navigator,
+                onGenerateRoute: (settings) =>
+                    MaterialPageRoute<void>(builder: widget.layerBuilder),
+              ),
+            ),
+            Positioned(
+              right: Spacing.medium,
+              bottom: Spacing.xLarge,
+              // NO `tooltip:` HERE. `FloatingActionButton` wraps its child in a
+              // `Tooltip` iff `tooltip != null`
+              // (material/floating_action_button.dart:822-824), and
+              // `RawTooltipState.build` asserts `debugCheckHasOverlay`
+              // (widgets/raw_tooltip.dart:865). This button is a SIBLING of the
+              // layer's Navigator, and the host sits above the app's Navigator
+              // — the app's only `Overlay` — so there is no `Overlay` ancestor
+              // and the assert would replace the only exit affordance with an
+              // `ErrorWidget` on a device that has no hardware back button.
+              // `semanticLabel` carries the accessible name instead.
+              child: FloatingActionButton.small(
+                key: kDevToolShakeCloseKey,
+                heroTag: null,
+                onPressed: _handleClose,
+                child: const Icon(
+                  Icons.close,
+                  semanticLabel: 'Close Dev Tool',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
