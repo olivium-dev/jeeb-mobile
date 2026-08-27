@@ -35,6 +35,55 @@ ResponseBody _json(Object? body, {int status = 200}) => ResponseBody.fromString(
 );
 
 void main() {
+  test('fetches the super-login roster with roles intact', () async {
+    final adapter = _RosterAdapter((options) {
+      return _json(<String, Object?>{
+        'users': <Object?>[
+          <String, Object?>{
+            'userId': 'karim',
+            'name': 'Karim Driver',
+            'role': 'customer',
+            'roles': <String>['customer', 'driver'],
+          },
+        ],
+      });
+    });
+    final dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'))
+      ..httpClientAdapter = adapter;
+
+    final users = await DevGatewayClient(dio: dio).fetchSuperLoginRoster();
+
+    expect(users, hasLength(1));
+    expect(users.single.id, 'karim');
+    expect(users.single.username, 'Karim Driver');
+    expect(users.single.roles, <String>['customer', 'driver']);
+    expect(adapter.requests.single.path, '/api/User/super-login/users');
+  });
+
+  test('super-login roster 404 reports its actual feature gates', () async {
+    final adapter = _RosterAdapter(
+      (_) => _json(<String, Object?>{'title': 'Not Found'}, status: 404),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'))
+      ..httpClientAdapter = adapter;
+
+    await expectLater(
+      DevGatewayClient(dio: dio).fetchSuperLoginRoster(),
+      throwsA(
+        isA<DevGatewayException>()
+            .having((error) => error.statusCode, 'statusCode', 404)
+            .having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains('SuperLogin:OpenMode'),
+                isNot(contains('Features:DevEndpoints')),
+              ),
+            ),
+      ),
+    );
+  });
+
   test('merges the fuller roster and trusts roles[] over flat role', () async {
     final adapter = _RosterAdapter((options) {
       if (options.path == '/api/User/super-login/users') {

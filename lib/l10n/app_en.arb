@@ -41,6 +41,12 @@
   "internalDevToolClearFailed": "Local data could not be cleared.",
   "internalDevToolBlockedTitle": "Internal build blocked",
   "internalDevToolBlockedBody": "This build's signed internal-release policy does not match the approved staging contract.",
+  "internalDevToolRosterErrorUnreachable": "Could not reach the Dev Tool server. Check the Dev Tool Server URL.",
+  "internalDevToolRosterErrorDisabled": "The full user roster is turned off on this backend (Super-Login / demo-users flags are disabled here). This is not a Server URL problem.",
+  "internalDevToolRosterErrorRejected": "The gateway rejected the roster request (unauthorized).",
+  "internalDevToolRosterErrorUpstream": "The gateway's upstream user service failed while loading the roster.",
+  "internalDevToolRosterErrorGeneric": "The gateway returned an unexpected error ({status}) while loading the roster.",
+  "internalDevToolRosterErrorUnknown": "Something went wrong loading the user roster. Check the logs for details.",
   "navHome": "Home",
   "@navHome": {
     "description": "Client tab: Home"

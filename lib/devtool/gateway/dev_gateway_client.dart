@@ -72,6 +72,35 @@ class DevGatewayClient {
     return List<DevUser>.unmodifiable(merged);
   }
 
+  // JEB roster-diagnosis fix — the Super-Login+ "all users" picker needs ONLY
+  // the super-login roster (it needs `roles` to log in as a role; the
+  // `/dev/data/users` directory fallback used by listUsers() has no roles
+  // field, so merging it in would not help this specific screen). Calling it
+  // directly (rather than through listUsers()'s merge) also lets us give an
+  // ACCURATE 404 reason: this route's real gate is SuperLogin:OpenMode +
+  // DemoUsers:Enabled (see UserController.SuperLoginUsers), NOT
+  // Features:DevEndpoints — the default fromDio() 404 text names the wrong
+  // flag for this route, so it is overridden here.
+  Future<List<DevUser>> fetchSuperLoginRoster() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _superLoginRosterPath,
+      );
+      return _parseUsers(response.data);
+    } on DioException catch (error) {
+      throw DevGatewayException.fromDio(
+        error,
+        action: 'load the full user roster',
+        notFoundMessage:
+            'Could not load the full user roster: this environment has the '
+            'Super-Login+ roster turned off (404). SuperLogin:OpenMode and '
+            'DemoUsers:Enabled must both be true on the target gateway to '
+            'serve it — this is a deliberate security gate, not a Server URL '
+            'problem.',
+      );
+    }
+  }
+
   static List<DevUser> _parseUsers(Map<String, dynamic>? data) {
     final rawUsers = data?['users'];
     if (rawUsers is! List) return const <DevUser>[];

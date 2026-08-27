@@ -99,6 +99,19 @@ class AppLocalizations {
   String get internalDevToolClearFailed => _get('internalDevToolClearFailed');
   String get internalDevToolBlockedTitle => _get('internalDevToolBlockedTitle');
   String get internalDevToolBlockedBody => _get('internalDevToolBlockedBody');
+  String get internalDevToolRosterErrorUnreachable =>
+      _get('internalDevToolRosterErrorUnreachable');
+  String get internalDevToolRosterErrorDisabled =>
+      _get('internalDevToolRosterErrorDisabled');
+  String get internalDevToolRosterErrorRejected =>
+      _get('internalDevToolRosterErrorRejected');
+  String get internalDevToolRosterErrorUpstream =>
+      _get('internalDevToolRosterErrorUpstream');
+  String internalDevToolRosterErrorGeneric(int status) => _get(
+    'internalDevToolRosterErrorGeneric',
+  ).replaceFirst('{status}', '$status');
+  String get internalDevToolRosterErrorUnknown =>
+      _get('internalDevToolRosterErrorUnknown');
 
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
