@@ -10,6 +10,7 @@ project 'Runner', {
   'Profile' => :release,
   'Profile-dev' => :release,
   'Release' => :release,
+  'Release-staging' => :release,
   'Release-dev' => :release,
 }
 

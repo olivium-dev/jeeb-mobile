@@ -130,6 +130,30 @@ if [[ "${RELEASE_PROFILE}" == production ]]; then
   fi
 fi
 
+# POSITIVE CONTROL for the staging artifact.
+#
+# The permissive profile above only stops complaining about developer markers;
+# on its own it cannot tell "staging build with the Dev Tool" apart from
+# "staging build that silently lost it". That distinction is not theoretical:
+# `xcodebuild -configuration Release-staging` falls back to plain `Release`
+# WITHOUT failing if the configuration is missing from the PBXProject list, in
+# which case `JEEB_DEV` never applies and the native shake wiring vanishes while
+# every other check still passes.
+#
+# So a staging artifact must PROVE it carries the tool, in both halves.
+if [[ "${RELEASE_PROFILE}" == staging ]]; then
+  if [[ -f "${APP_BINARY}" ]]; then
+    LC_ALL=C grep -aFq 'devtool_shake' "${APP_BINARY}" ||
+      fail 'staging Dart snapshot is missing the Dev Tool: the staging '\
+'dart-defines did not reach the build'
+  fi
+  if [[ -f "${RUNNER_BINARY}" ]]; then
+    LC_ALL=C grep -aFq 'devtool_shake' "${RUNNER_BINARY}" ||
+      fail 'staging native binary is missing the Dev Tool: JEEB_DEV was not '\
+'applied, so xcodebuild almost certainly fell back to plain Release'
+  fi
+fi
+
 LC_ALL=C grep -aFq "${EXPECTED_GATEWAY_URL}" "${APP_BINARY}" ||
   fail 'expected gateway URL is absent from Jeeb-owned application code'
 LC_ALL=C grep -aFq "${EXPECTED_REALTIME_SOCKET_URL}" "${APP_BINARY}" ||
