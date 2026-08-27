@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/diagnostics/diag.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
@@ -46,6 +47,8 @@ Dio _dioError(DioExceptionType type, {int? status}) {
 }
 
 void main() {
+  tearDown(Diag.resetForTest);
+
   group('DioTierRepository — T-MOB-010 endpoint contract', () {
     test('parses mock :3055 items-wrapped response', () async {
       final dio = _dioWith({
@@ -87,6 +90,60 @@ void main() {
       expect(tiers[1].slaMinutes, 120);
       expect(tiers[2].id, TierId.standard);
       expect(tiers[2].slaMinutes, 480);
+    });
+
+    test('parses the gateway fallback tier catalog', () async {
+      final dio = _dioWith({
+        'items': [
+          {
+            'id': 'urgent',
+            'name': 'Urgent',
+            'slaHours': 1,
+            'priceHint': r'$$$',
+          },
+          {
+            'id': 'same-day',
+            'name': 'Same-Day',
+            'slaHours': 8,
+            'priceHint': r'$$',
+          },
+          {
+            'id': 'scheduled',
+            'name': 'Scheduled',
+            'slaHours': 24,
+            'priceHint': r'$',
+          },
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      final tiers = await repo.fetchTiers();
+
+      expect(tiers, hasLength(3));
+      expect(tiers.map((tier) => tier.id).toList(), const [
+        TierId.flash,
+        TierId.express,
+        TierId.standard,
+      ]);
+    });
+
+    test('normalizes the same_day fallback spelling', () async {
+      final dio = _dioWith({
+        'items': [
+          {
+            'id': 'fallback-tier-2',
+            'name': 'same_day',
+            'slaHours': 8,
+            'priceHint': r'$$',
+          },
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      final tiers = await repo.fetchTiers();
+
+      expect(tiers, hasLength(1));
+      expect(tiers.single.id, TierId.express);
     });
 
     // FIX-TIERS-FIVE — addressability/regression lock for the live mock
@@ -225,6 +282,44 @@ void main() {
 
       final tiers = await repo.fetchTiers();
       expect(tiers.length, 1);
+    });
+
+    test('drops and diagnoses an unrecognized tier name', () async {
+      final lines = <String>[];
+      Diag.enabledOverride = true;
+      Diag.sink = lines.add;
+      final dio = _dioWith({
+        'items': [
+          {
+            'id': 'warp-speed',
+            'name': 'Warp Speed',
+            'slaHours': 1,
+            'priceHint': r'$$$',
+          },
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      final tiers = await repo.fetchTiers();
+
+      expect(tiers, isEmpty);
+      expect(
+        lines.any(
+          (line) =>
+              line.contains('tier_name_unresolved') &&
+              line.contains('Warp Speed'),
+        ),
+        isTrue,
+      );
+      expect(
+        lines.any(
+          (line) =>
+              line.contains('tier_catalog_parsed') &&
+              line.contains('"items":1') &&
+              line.contains('"parsed":0'),
+        ),
+        isTrue,
+      );
     });
 
     test('uses /tiers path (verified against Mockoon :3055)', () async {
