@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../../../core/monitoring/crash_reporter.dart';
 import 'social_auth_error.dart';
 import 'social_auth_token.dart';
 import 'social_provider.dart';
@@ -84,10 +85,40 @@ class DefaultSocialAuthService implements SocialAuthService {
     } on _InvalidTokenException {
       return const SocialAuthFailure(SocialAuthError.invalidToken);
     } on SignInWithAppleAuthorizationException catch (e) {
-      if (e.code == AuthorizationErrorCode.canceled) {
-        return const SocialAuthFailure(SocialAuthError.cancelled);
+      switch (e.code) {
+        case AuthorizationErrorCode.canceled:
+          return const SocialAuthFailure(SocialAuthError.cancelled);
+        case AuthorizationErrorCode.failed:
+          CrashReporter.log(
+            '[apple-signin] authorization failed: '
+            'code=${e.code} message=${e.message}',
+          );
+          return const SocialAuthFailure(SocialAuthError.unknown);
+        case AuthorizationErrorCode.invalidResponse:
+          CrashReporter.log(
+            '[apple-signin] authorization failed: '
+            'code=${e.code} message=${e.message}',
+          );
+          return const SocialAuthFailure(SocialAuthError.unknown);
+        case AuthorizationErrorCode.notHandled:
+          CrashReporter.log(
+            '[apple-signin] authorization failed: '
+            'code=${e.code} message=${e.message}',
+          );
+          return const SocialAuthFailure(SocialAuthError.unknown);
+        case AuthorizationErrorCode.notInteractive:
+          CrashReporter.log(
+            '[apple-signin] authorization failed: '
+            'code=${e.code} message=${e.message}',
+          );
+          return const SocialAuthFailure(SocialAuthError.unknown);
+        case AuthorizationErrorCode.unknown:
+          CrashReporter.log(
+            '[apple-signin] authorization failed: '
+            'code=${e.code} message=${e.message}',
+          );
+          return const SocialAuthFailure(SocialAuthError.unknown);
       }
-      return const SocialAuthFailure(SocialAuthError.unknown);
     } on FirebaseAuthException catch (e) {
       return SocialAuthFailure(_mapFirebaseAuthError(e));
     } on FirebaseException {
