@@ -710,6 +710,8 @@ void _registerCiContracts() {
       2,
     );
     expect('final_release_go: false'.allMatches(workflow).length, 2);
+    expect(r'$ARGS.named +'.allMatches(workflow).length, 2);
+    expect(workflow, isNot(contains("'{platform, destination")));
     expect(
       workflow,
       contains(r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'),

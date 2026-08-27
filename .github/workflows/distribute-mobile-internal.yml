@@ -390,9 +390,7 @@ jobs:
             --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
             --arg distribution_run_id "${GITHUB_RUN_ID}" \
             --arg build_number '${{ inputs.build_number }}' \
-            '{platform, destination, artifact_sha256, source_run_id,
-              source_run_attempt, distribution_run_id, build_number,
-              stage: "internal_distribution",
+            '$ARGS.named + {stage: "internal_distribution",
               physical_device_verification: "pending",
               final_release_go: false}' \
             >build/distribution-receipts/android.json
@@ -539,10 +537,7 @@ jobs:
             --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
             --arg distribution_run_id "${GITHUB_RUN_ID}" \
             --arg build_number '${{ inputs.build_number }}' \
-            '{platform, destination, artifact_sha256, archive_sha256,
-              provenance_sha256, dsym_sha256, source_run_id,
-              source_run_attempt, distribution_run_id, build_number,
-              stage: "internal_distribution",
+            '$ARGS.named + {stage: "internal_distribution",
               physical_device_verification: "pending",
               final_release_go: false}' \
             >build/distribution-receipts/ios.json
