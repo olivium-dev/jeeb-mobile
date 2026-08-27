@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 String _source(String path) => File(path).readAsStringSync();
@@ -84,6 +85,27 @@ void main() {
               'for that target and fail pod install',
         );
       }
+    });
+
+    test('Podfile.lock checksum matches the Podfile', () {
+      // REGRESSION GUARD. CI runs `pod install --deployment`, which REFUSES any
+      // lockfile change and fails with:
+      //   "[!] There were changes to the lockfile in deployment mode:
+      //    PODFILE CHECKSUM: New ... / Old ..."
+      // Editing the Podfile without regenerating Podfile.lock therefore breaks
+      // the iOS job with a message that never mentions the Podfile edit that
+      // caused it. Cheap to assert here, expensive to rediscover in CI.
+      final podfile = File('ios/Podfile').readAsBytesSync();
+      final expected = sha1.convert(podfile).toString();
+      final lock = _source('ios/Podfile.lock');
+
+      expect(
+        lock,
+        contains('PODFILE CHECKSUM: $expected'),
+        reason: 'ios/Podfile.lock records a stale PODFILE CHECKSUM; run '
+            '`cd ios && pod install` and commit the lockfile, or CI\'s '
+            '`pod install --deployment` will reject the build',
+      );
     });
 
     test('CocoaPods maps Release-staging as a release configuration', () {
