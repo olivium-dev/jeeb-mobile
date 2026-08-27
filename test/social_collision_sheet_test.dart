@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -11,6 +12,7 @@ import 'package:jeeb_mobile/features/auth/social/social_auth_state.dart';
 import 'package:jeeb_mobile/features/auth/social/social_auth_token.dart';
 import 'package:jeeb_mobile/features/auth/social/social_auth_token_store.dart';
 import 'package:jeeb_mobile/features/auth/social/social_provider.dart';
+import 'package:jeeb_mobile/features/auth/social/social_sign_in_button.dart';
 import 'package:jeeb_mobile/features/auth/social/social_sign_in_section.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -57,6 +59,28 @@ Widget _host(SocialAuthCubit cubit, {Locale locale = const Locale('en')}) {
     ),
   );
 }
+
+Widget _buttonHost({Locale locale = const Locale('en')}) {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: locale,
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    home: const Scaffold(
+      body: SocialSignInButton(
+        provider: SocialProvider.google,
+        onTap: _noop,
+      ),
+    ),
+  );
+}
+
+void _noop() {}
 
 void main() {
   testWidgets(
@@ -112,5 +136,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('لديك حساب بالفعل'), findsOneWidget);
+  });
+
+  testWidgets('Google renders the vetted SVG asset, not a text placeholder',
+      (tester) async {
+    await tester.pumpWidget(_buttonHost());
+    await tester.pumpAndSettle();
+
+    final svgFinder = find.byType(SvgPicture);
+    expect(svgFinder, findsOneWidget);
+
+    final svg = tester.widget<SvgPicture>(svgFinder);
+    expect(
+      svg.bytesLoader.toString(),
+      contains('assets/brand/google_g_logo.svg'),
+    );
+    expect(
+      svg.colorFilter,
+      isNull,
+      reason: 'The multicolour mark must not tint.',
+    );
+    expect(find.text('G'), findsNothing);
+  });
+
+  testWidgets('Arabic mirrors the button layout but not the Google logo',
+      (tester) async {
+    await tester.pumpWidget(_buttonHost(locale: const Locale('ar')));
+    await tester.pumpAndSettle();
+
+    final buttonFinder = find.byType(SocialSignInButton);
+    final svgFinder = find.byType(SvgPicture);
+    final labelFinder = find.descendant(
+      of: buttonFinder,
+      matching: find.byType(Text),
+    );
+
+    expect(
+      Directionality.of(tester.element(buttonFinder)),
+      TextDirection.rtl,
+    );
+    expect(tester.widget<SvgPicture>(svgFinder).matchTextDirection, isFalse);
+    expect(
+      tester.getCenter(svgFinder).dx,
+      greaterThan(tester.getCenter(labelFinder).dx),
+    );
   });
 }

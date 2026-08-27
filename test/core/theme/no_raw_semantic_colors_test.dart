@@ -86,12 +86,11 @@ void main() {
   // belong to a declared exemption, so a new literal anywhere else fails here
   // rather than waiting for someone to add its file to `migratedFiles`.
   //
-  // Fable's M6 ruling: the gate asserts "≤5 hex outside theme, all in
-  // social_sign_in_button.dart" — NOT a plain zero. Those five are third-party
-  // identity brand marks (#4285F4 Google, #1877F2 Facebook, white ×3) required
-  // by Apple App Store review item 4.0 and the Google Identity branding
-  // guidelines; the file carries the rationale and JEEB-57. They are not
-  // themeable and re-pointing them would breach both platforms' review rules.
+  // The corrected M6 ruling is "≤2 hex outside theme, all in
+  // social_sign_in_button.dart" — NOT a plain zero. Those two remaining Dart
+  // literals are Facebook Brand Blue and the shared pure-white backing/glyph
+  // colour required by Facebook's guidelines and Apple HIG. Google's vetted
+  // four-colour mark now lives in an SVG asset rather than a raw Dart literal.
   group('raw hex outside lib/core/theme is exempt-only', () {
     /// path → the exact number of `Color(0x…)` literals sanctioned there.
     ///
@@ -99,8 +98,8 @@ void main() {
     /// (someone removed a literal — good), never above, and a file that is not
     /// a key here may have none at all. So the ledger can only tighten.
     const exemptions = <String, int>{
-      // Fable's named M6 exemption. Brand-locked, permanent (JEEB-57).
-      'lib/features/auth/social/social_sign_in_button.dart': 5,
+      // Fable's named M6 exemption. Remaining brand-locked Dart values (JEEB-57).
+      'lib/features/auth/social/social_sign_in_button.dart': 2,
       // `JeebStepper.washedInk` — white 35%, deliberately OFF the 7/10/14
       // glass ladder (wave-C ruling 11). Owned by the M6 core-kit lane, which
       // is re-homing it into the palette; declared so this gate does not go
@@ -159,23 +158,22 @@ void main() {
       }
     });
 
-    test('the social brand marks are exactly the 5 Fable sanctioned', () {
+    test('the social brand marks are exactly the 2 Fable sanctioned', () {
       const path = 'lib/features/auth/social/social_sign_in_button.dart';
       expect(
         found[path],
-        5,
-        reason: 'The M6 gate is "≤5 hex outside theme, all in '
+        2,
+        reason: 'The corrected M6 gate is "≤2 hex outside theme, all in '
             'social_sign_in_button.dart". A different count means either a new '
-            'literal crept in or the brand marks were "fixed" — re-read the '
-            'EXEMPT block in that file and JEEB-57 before changing this.',
+            'literal crept in or a remaining brand-locked value moved — re-read '
+            'the EXEMPT block in that file and JEEB-57 before changing this.',
       );
-      // Pins WHICH hexes, so swapping Google blue for an arbitrary value
-      // cannot pass a count-only check.
+      // Pins WHICH remaining Dart hexes, so changing a sanctioned Facebook or
+      // shared-white value cannot pass a count-only check.
       final source = File(path).readAsStringSync();
       for (final brand in const <String>[
-        '0xFF4285F4', // Google Blue 500
         '0xFF1877F2', // Facebook Brand Blue
-        '0xFFFFFFFF', // glyph foregrounds (Google / Facebook / Apple)
+        '0xFFFFFFFF', // Google backing / Facebook + Apple glyphs
       ]) {
         expect(source, contains(brand),
             reason: '$brand is brand-required and must not be re-pointed.');
