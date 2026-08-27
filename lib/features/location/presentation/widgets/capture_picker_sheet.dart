@@ -19,9 +19,9 @@ import 'map_capture_controller.dart';
 /// the "Pickup set / 2 · Drop-off" step chips, the search field and the
 /// saved-place pills. All three are refused in
 /// `per-screen-revised/09-location-picker.md` §3 — the create flow's location
-/// leg is a SINGLE point, there is no geocoding source in the app, and drawing
-/// either would fabricate state the backend does not have. (Two-leg vs
-/// one-coordinate remains owner question Q2.)
+/// leg is a SINGLE point, and drawing either would fabricate state the backend
+/// does not have. Reverse-geocoding only labels that one captured coordinate.
+/// (Two-leg vs one-coordinate remains owner question Q2.)
 class CapturePickerSheet extends StatelessWidget {
   const CapturePickerSheet({
     super.key,
@@ -174,13 +174,12 @@ class _ConfirmCta extends StatelessWidget {
   }
 }
 
-/// The pinned-point card: a red pin, the live coordinate, and the accuracy
+/// The pinned-point card: a red pin, the selected point, and the accuracy
 /// meta line the board draws under the address.
 ///
-/// The board draws a street address ("Rue Monot 42, Achrafieh"). We show the
-/// coordinate instead, because the app has no reverse-geocode source — the only
-/// implementation in the tree snaps to a hardcoded five-entry Beirut catalogue,
-/// and rendering that as "the address" is the JEBV4-176 class of fabrication.
+/// The value is a best-effort address from the device's OS geocoder. Until that
+/// lookup succeeds — or whenever it fails — the exact coordinate remains the
+/// honest fallback.
 class _PinnedPointCard extends StatelessWidget {
   const _PinnedPointCard({required this.controller});
 
@@ -202,11 +201,15 @@ class _PinnedPointCard extends StatelessWidget {
       explicitChildNodes: true,
       child: ListenableBuilder(
         listenable: controller,
-        // TODO(redesign-24): needs gateway reverse-geocode — omitted, not faked.
         builder: (context, _) {
           final centre = controller.center;
-          final label = '${centre.latitude.toStringAsFixed(_fractionDigits)}, '
-              '${centre.longitude.toStringAsFixed(_fractionDigits)}';
+          final candidate = centre.address?.trim();
+          final address = candidate == null || candidate.isEmpty
+              ? null
+              : candidate;
+          final label = address ??
+              '${centre.latitude.toStringAsFixed(_fractionDigits)}, '
+                  '${centre.longitude.toStringAsFixed(_fractionDigits)}';
           return JeebGlassCard(
             padding: const EdgeInsetsDirectional.symmetric(
               horizontal: Spacing.medium,
@@ -226,9 +229,12 @@ class _PinnedPointCard extends StatelessWidget {
                         style: context.jeebText.bodySmall
                             .copyWith(color: scheme.onSurfaceVariant),
                       ),
-                      // A lat/long pair reorders under RTL, so pin it to LTR.
+                      // A lat/long pair reorders under RTL; a resolved address
+                      // keeps the ambient locale's own direction instead.
                       Directionality(
-                        textDirection: TextDirection.ltr,
+                        textDirection: address == null
+                            ? TextDirection.ltr
+                            : Directionality.of(context),
                         child: Text(
                           label,
                           style: context.jeebText.cardTitle
@@ -240,7 +246,7 @@ class _PinnedPointCard extends StatelessWidget {
                   ),
                 ),
                 // TODO(midnight): omitted — the board's "GPS · accurate to 8 m"
-                // meta line has no wire value on this leg (no reverse-geocode).
+                // meta line has no accuracy wire value on this leg.
               ],
             ),
           );

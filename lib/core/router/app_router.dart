@@ -75,6 +75,7 @@ import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../features/location/domain/capture_pin_purpose.dart';
+import '../../features/location/domain/reverse_geocoder.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/data/location_repository.dart'
@@ -172,10 +173,20 @@ class CaptureLocationRoute extends StatefulWidget {
 }
 
 class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
-  final MapCaptureController _controller = MapCaptureController(
-    initial: CaptureLocationRoute.initialCentre,
-  );
+  late final MapCaptureController _controller;
   final GeolocatorGeocaptureGateway _gateway = GeolocatorGeocaptureGateway();
+
+  @override
+  void initState() {
+    super.initState();
+    final reverseGeocoder = sl.isRegistered<ReverseGeocoder>()
+        ? sl<ReverseGeocoder>()
+        : null;
+    _controller = MapCaptureController(
+      initial: CaptureLocationRoute.initialCentre,
+      reverseGeocoder: reverseGeocoder,
+    );
+  }
 
   @override
   void dispose() {

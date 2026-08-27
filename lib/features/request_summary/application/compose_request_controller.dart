@@ -114,8 +114,14 @@ class ComposeRequestController {
         RequestSubmissionFailure.invalidInput,
       );
     }
-    final address =
-        saved?.address ?? saved?.label ?? _currentLocationLabel(lat, lng);
+    final pinnedAddress = location.choiceKind == LocationChoiceKind.pinned
+        ? location.pinnedAddress?.trim()
+        : null;
+    final address = saved?.address ??
+        saved?.label ??
+        (pinnedAddress != null && pinnedAddress.isNotEmpty
+            ? pinnedAddress
+            : _currentLocationLabel(lat, lng));
 
     return RequestDraft(
       description: _description ?? 'Delivery request',

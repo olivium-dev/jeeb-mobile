@@ -112,6 +112,14 @@ dependencies:
   google_maps_flutter_android: ">=2.19.9 <2.19.11"
   geolocator: ^14.0.0
 
+  # Best-effort pin labels use Baseflow's OS-native geocoder: Android's
+  # `Geocoder` / iOS's `CLGeocoder`. This needs no Google Maps or Places API
+  # key, so it adds no client-side key, request cost, or key-abuse surface.
+  # Keep Android at 5.0.x: 5.1.0 raises its floor to Dart 3.12 / Flutter 3.44,
+  # above this app's declared Dart 3.10.8 / Flutter 3.32 compatibility floor.
+  geocoding: 5.0.0
+  geocoding_android: ">=5.0.0 <5.1.0"
+
   # Image capture/selection for proof-of-delivery + profile-avatar flows
   # (Sprint 1 Stream B). Intended to sit behind a port so the cubits/screens
   # stay platform-free.

@@ -121,13 +121,19 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
     ));
   }
 
-  void markPinned({double? latitude, double? longitude}) {
+  void markPinned({
+    double? latitude,
+    double? longitude,
+    String? address,
+  }) {
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.pinned,
       clearSelectedSaved: true,
       pinnedLat: latitude,
       pinnedLng: longitude,
+      pinnedAddress: address,
       clearPinned: latitude == null && longitude == null,
+      clearPinnedAddress: address == null,
     ));
   }
 }
