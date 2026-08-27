@@ -394,8 +394,8 @@ jobs:
             --arg native_id com.olivium.jeeb \
             --arg artifact_sha256 "${artifact_sha}" \
             --arg mapping_sha256 "${mapping_sha}" \
-            --arg upload_sha1 "${actual_sha1}" \
-            --arg upload_sha256 "${actual_sha256}" \
+            --arg upload_sha1 "$(normalize "${actual_sha1}")" \
+            --arg upload_sha256 "$(normalize "${actual_sha256}")" \
             --arg play_sha1 "${PLAY_APP_SIGNING_SHA1}" \
             --arg play_sha256 "${PLAY_APP_SIGNING_SHA256}" \
             --arg source_run_id "${GITHUB_RUN_ID}" \
