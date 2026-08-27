@@ -243,6 +243,11 @@ jobs:
             }
           done
           tmp_dir="$(mktemp -d)"
+          # Diagnosis trap: every verification command below redirects or
+          # suppresses its output, so a failure surfaces as a bare non-zero
+          # exit with nothing in the log (exit 4 once, exit 1 once — each a
+          # multi-hour round trip to identify). Name the dying command.
+          trap 'echo "::error::AAB verification failed at: ${BASH_COMMAND}"' ERR
           keystore="${tmp_dir}/upload.p12"
           properties="${GITHUB_WORKSPACE}/android/key.properties"
           [[ ! -e "${properties}" ]]
@@ -326,8 +331,10 @@ jobs:
             -storetype PKCS12 -keystore "${keystore}" \
             -storepass:env ANDROID_STORE_PASSWORD \
             "${aab_path}" "${ANDROID_KEY_ALIAS}" \
-            >"${tmp_dir}/jarsigner.txt" 2>&1
-          grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt"
+            >"${tmp_dir}/jarsigner.txt" 2>&1 ||
+            { tail -40 "${tmp_dir}/jarsigner.txt"; false; }
+          grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt" ||
+            { tail -40 "${tmp_dir}/jarsigner.txt"; false; }
           jar_cert="$(keytool -printcert -jarfile "${aab_path}")"
           artifact_sha1="$(printf '%s\n' "${jar_cert}" |
             sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
