@@ -375,13 +375,8 @@ jobs:
             --arg source_head_sha "${GITHUB_SHA}" \
             --arg source_workflow_path '.github/workflows/trusted-mobile-rc.yml' \
             --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
-            '{platform, reviewed_sha, dependency_sha, build_name, build_number,
-              runtime, native_id, artifact_sha256, mapping_sha256,
-              upload_sha1, upload_sha256, play_sha1, play_sha256,
-              source_run_id, source_run_attempt, source_head_sha,
-              source_workflow_path, source_workflow_ref,
-              clarity_enabled: false,
-              retained: true, store_uploaded: false}' \
+            '$ARGS.named + {clarity_enabled: false, retained: true,
+              store_uploaded: false}' \
             >build/provenance/android-rc.json
           chmod 0600 build/provenance/android-rc.json
           retained_dir='build/retained/android'
@@ -621,11 +616,8 @@ jobs:
             --arg source_head_sha "${GITHUB_SHA}" \
             --arg source_workflow_path '.github/workflows/trusted-mobile-rc.yml' \
             --arg source_workflow_ref "${GITHUB_WORKFLOW_REF}" \
-            '{platform, reviewed_sha, dependency_sha, build_name, build_number,
-              runtime, native_id, artifact_sha256, dsym_sha256, source_run_id,
-              source_run_attempt, source_head_sha, source_workflow_path,
-              source_workflow_ref, clarity_enabled: false,
-              retained: true, store_uploaded: false}' \
+            '$ARGS.named + {clarity_enabled: false, retained: true,
+              store_uploaded: false}' \
             >build/provenance/ios-rc.json
           chmod 0600 build/provenance/ios-rc.json
           retained_dir='build/retained/ios'
