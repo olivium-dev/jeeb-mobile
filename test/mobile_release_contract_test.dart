@@ -321,10 +321,42 @@ void _registerIosContracts() {
     // Dart AOT snapshot (App.framework/App) and the native Runner binary. The
     // two compile-out gates are independent, so one deny-list entry cannot
     // stand in for the other.
+    //
+    // This used to assert a bare count of 2. That was brittle: adding the
+    // staging POSITIVE control (which also names `devtool_shake`, to prove the
+    // staging artifact actually CONTAINS the Dev Tool) pushed the count to 4
+    // and reddened the contract without anything having weakened. Assert the
+    // STRUCTURE instead — it is both stricter and stable, because it pins
+    // where each occurrence must live rather than how many there are.
+    final denyList = 'devtool_shake'.allMatches(
+      inspector.split('== production ]]').last.split('== staging ]]').first,
+    );
     expect(
-      'devtool_shake'.allMatches(inspector).length,
+      denyList.length,
       2,
-      reason: 'the Dart and native deny-lists must each name devtool_shake',
+      reason: 'the production profile must forbid devtool_shake in BOTH the '
+          'Dart snapshot and the native Runner binary',
+    );
+    expect(
+      inspector,
+      contains(r'if [[ "${RELEASE_PROFILE}" == production ]]; then'),
+      reason: 'developer-surface markers must be scoped to a profile that '
+          'DEFAULTS to production, never unconditionally permitted',
+    );
+    expect(
+      inspector,
+      contains(r'RELEASE_PROFILE="${JEEB_IOS_RELEASE_PROFILE:-production}"'),
+      reason: 'an unset or misspelled profile must inspect as a store build',
+    );
+    // And the staging artifact must PROVE it carries the tool, so a silent
+    // fallback to plain `Release` cannot pass as a successful staging build.
+    expect(
+      'devtool_shake'.allMatches(
+        inspector.split('== staging ]]').last,
+      ).length,
+      2,
+      reason: 'the staging positive control must assert the Dev Tool is '
+          'present in BOTH binaries',
     );
     expect(inspector, contains(r'if [[ "${runner_localhost_count}" != 0 ]]'));
     expect(inspector, contains(r'[[ "${runner_localhost_count}" == 1 ]]'));

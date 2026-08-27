@@ -12,19 +12,72 @@ void main() {
         defaultValue: false,
       );
 
+      const staging = bool.fromEnvironment(
+        'JEEB_STAGING_DEVTOOL',
+        defaultValue: false,
+      );
+
       expect(kDevToolRequested, requested);
-      expect(kDevToolEnabled, kDebugMode && requested);
+      expect(kStagingDevToolRequested, staging);
+      expect(kDevToolEnabled, (kDebugMode || staging) && requested);
     });
 
-    test('hard-locks the compiled gate to debug mode', () {
+    test('hard-locks the compiled gate to debug OR the staging artifact', () {
+      // Owner directive 2026-08-27: the staging build must carry the Dev Tool,
+      // so the gate is no longer debug-only. What must NOT weaken is the rest:
+      // the request define is still mandatory, and a plain release build
+      // satisfies neither branch.
       final source = File('lib/core/dev_flags.dart').readAsStringSync();
 
       expect(
         source,
         contains(
-          'const bool kDevToolEnabled = kDebugMode && kDevToolRequested;',
+          'const bool kDevToolEnabled =\n'
+          '    (kDebugMode || kStagingDevToolRequested) && kDevToolRequested;',
         ),
-        reason: 'a release supplied with the define must remain locked',
+        reason: 'the gate shape is load-bearing: `kDevToolRequested` must stay '
+            'a mandatory conjunct, so a stray staging define alone can never '
+            'unlock the tool',
+      );
+    });
+
+    test('the staging unlock cannot fire on a store build', () {
+      // The two halves are supplied by DIFFERENT mechanisms on purpose. Dart
+      // needs `JEEB_STAGING_DEVTOOL`, which only
+      // `tool/build_signed_ios_internal_candidate.sh` passes; Swift needs
+      // `JEEB_DEV`, which only the `Release-staging` CONFIGURATION defines.
+      // A store build uses `-configuration Release` and passes no defines, so
+      // it satisfies neither. This test pins the Dart half of that claim.
+      final builder =
+          File('tool/build_signed_ios_internal_candidate.sh').readAsStringSync();
+
+      expect(
+        builder,
+        contains('--dart-define=JEEB_STAGING_DEVTOOL=true'),
+        reason: 'the staging builder is the ONLY sanctioned source of the '
+            'staging unlock',
+      );
+      expect(
+        builder,
+        contains('-configuration Release-staging'),
+        reason: 'the staging builder must archive the configuration that '
+            'defines JEEB_DEV, never plain Release',
+      );
+
+      final scanner =
+          File('tool/inspect_unsigned_ios_release.sh').readAsStringSync();
+
+      expect(
+        scanner,
+        contains(r'RELEASE_PROFILE="${JEEB_IOS_RELEASE_PROFILE:-production}"'),
+        reason: 'the release scanner must default to the STRICT profile, so an '
+            'unset or misspelled variable inspects as a store build',
+      );
+      expect(
+        scanner,
+        contains(r'if [[ "${RELEASE_PROFILE}" == production ]]; then'),
+        reason: 'developer-surface markers must still hard-fail a store-bound '
+            'artifact',
       );
     });
 

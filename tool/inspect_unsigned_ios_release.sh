@@ -8,6 +8,25 @@ CONFIG_PATH="${2:-}"
 MAPS_KEY_PATH="${3:-}"
 EXPECTED_GATEWAY_URL="${4:-}"
 EXPECTED_REALTIME_SOCKET_URL="${5:-}"
+# Which artifact is under inspection. Defaults to `production`, the FAIL-CLOSED
+# value: an unset, empty or misspelled variable is inspected as a store build and
+# keeps every developer-surface marker forbidden. Only
+# `tool/build_signed_ios_internal_candidate.sh` sets `staging`.
+#
+# Owner directive 2026-08-27: the staging build must carry the Dev Tool — iOS has
+# no launcher icon and no URL scheme, so without it a staging tester cannot reach
+# the tool at all. The guard therefore MOVED, from "no Dev Tool in any release
+# artifact" to "no Dev Tool in a store-bound artifact". It did not go away, and
+# the `production` profile below is byte-for-byte as strict as it was before.
+RELEASE_PROFILE="${JEEB_IOS_RELEASE_PROFILE:-production}"
+case "${RELEASE_PROFILE}" in
+  production|staging) ;;
+  *)
+    printf 'Unknown JEEB_IOS_RELEASE_PROFILE: %s\n' "${RELEASE_PROFILE}" >&2
+    exit 1
+    ;;
+esac
+
 INFO_PATH="${APP_PATH}/Info.plist"
 ENTITLEMENTS_PATH="${REPO_ROOT}/ios/Runner/Runner.Release.entitlements"
 LAUNCH_IMAGE_DIR="${REPO_ROOT}/ios/Runner/Assets.xcassets/LaunchImage.imageset"
@@ -91,10 +110,50 @@ FIREBASE_VERIFY_ASSERTION_SOURCE="${REPO_ROOT}/build/ios/SourcePackages/checkout
 FIREBASE_VERIFY_ASSERTION_SHA256="36f46bb2b04544a15ffb339ce522c3a943e9b061567352f078663d7067b8bd83"
 
 if [[ -f "${APP_BINARY}" ]] && LC_ALL=C grep -aEq \
-    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|Jeeb Internal QA|JEEB_INTERNAL_RELEASE=true' \
+    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://(localhost|127\.0\.0\.1)|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)' \
   "${APP_BINARY}"; then
   fail 'forbidden endpoint, developer auth, or wildcard token mint leaked from Jeeb-owned code'
 fi
+# Developer-surface markers. Forbidden outright in a store-bound artifact;
+# expected and permitted in the staging internal-QA artifact, which is never
+# distributed externally (`pilot(distribute_external: false)`).
+if [[ "${RELEASE_PROFILE}" == production ]]; then
+  if [[ -f "${APP_BINARY}" ]] && LC_ALL=C grep -aEq \
+      'jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|Jeeb Internal QA|JEEB_INTERNAL_RELEASE=true' \
+    "${APP_BINARY}"; then
+    fail 'developer surface leaked into a store-bound Dart snapshot'
+  fi
+  if [[ -f "${RUNNER_BINARY}" ]] && LC_ALL=C grep -aEq \
+      'jeeb\.seam\.super_login_|devtool_shake' \
+    "${RUNNER_BINARY}"; then
+    fail 'developer surface leaked into a store-bound native binary'
+  fi
+fi
+
+# POSITIVE CONTROL for the staging artifact.
+#
+# The permissive profile above only stops complaining about developer markers;
+# on its own it cannot tell "staging build with the Dev Tool" apart from
+# "staging build that silently lost it". That distinction is not theoretical:
+# `xcodebuild -configuration Release-staging` falls back to plain `Release`
+# WITHOUT failing if the configuration is missing from the PBXProject list, in
+# which case `JEEB_DEV` never applies and the native shake wiring vanishes while
+# every other check still passes.
+#
+# So a staging artifact must PROVE it carries the tool, in both halves.
+if [[ "${RELEASE_PROFILE}" == staging ]]; then
+  if [[ -f "${APP_BINARY}" ]]; then
+    LC_ALL=C grep -aFq 'devtool_shake' "${APP_BINARY}" ||
+      fail 'staging Dart snapshot is missing the Dev Tool: the staging '\
+'dart-defines did not reach the build'
+  fi
+  if [[ -f "${RUNNER_BINARY}" ]]; then
+    LC_ALL=C grep -aFq 'devtool_shake' "${RUNNER_BINARY}" ||
+      fail 'staging native binary is missing the Dev Tool: JEEB_DEV was not '\
+'applied, so xcodebuild almost certainly fell back to plain Release'
+  fi
+fi
+
 LC_ALL=C grep -aFq "${EXPECTED_GATEWAY_URL}" "${APP_BINARY}" ||
   fail 'expected gateway URL is absent from Jeeb-owned application code'
 LC_ALL=C grep -aFq "${EXPECTED_REALTIME_SOCKET_URL}" "${APP_BINARY}" ||
@@ -102,7 +161,7 @@ LC_ALL=C grep -aFq "${EXPECTED_REALTIME_SOCKET_URL}" "${APP_BINARY}" ||
 
 if [[ -f "${RUNNER_BINARY}" ]]; then
   if LC_ALL=C grep -aEq \
-    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://127\.0\.0\.1|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|devtool_shake' \
+    'api\.jeeb\.app|192\.168\.2\.(39|50)|10\.0\.2\.2|http://127\.0\.0\.1|/api/auth/token|/v1/matching/(find-jeebers|broadcast)|/api/User/(user-id-login|super-login/users)' \
     "${RUNNER_BINARY}"; then
     fail 'forbidden endpoint, developer auth, or wildcard token mint leaked into native code'
   fi

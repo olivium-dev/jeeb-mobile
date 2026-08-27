@@ -110,6 +110,18 @@ encoded_firebase="$(base64 <"${FIREBASE_CONFIG}" | tr -d '\n')"
 
 # Invoked through the protected wrapper in an exported child-shell function.
 # shellcheck disable=SC2329
+#
+# Builds the STAGING internal-QA artifact. Owner directive 2026-08-27: the
+# staging build must carry the Dev Tool — iOS has no launcher icon and no URL
+# scheme, so without it a staging tester has no way into the tool at all.
+#
+# Two halves must BOTH agree before the Dev Tool exists, and they are supplied
+# by different mechanisms on purpose:
+#   * Dart  — `JEEB_DEVTOOL_ENABLED` + `JEEB_STAGING_DEVTOOL` dart-defines below.
+#   * Swift — `JEEB_DEV`, which comes from the `Release-staging` CONFIGURATION,
+#             not from a define. Plain `Release` does not define it.
+# A store-bound build uses `-configuration Release` and passes neither define,
+# so neither half is satisfied and the Dev Tool cannot reach the App Store.
 run_release_build() {
   set -euo pipefail
 
@@ -117,6 +129,8 @@ run_release_build() {
     --build-name="${BUILD_NAME}" \
     --build-number="${BUILD_NUMBER}" \
     --dart-define=APP_FLAVOR=staging \
+    --dart-define=JEEB_DEVTOOL_ENABLED=true \
+    --dart-define=JEEB_STAGING_DEVTOOL=true \
     --dart-define=JEEB_CLARITY_ENABLED=false \
     --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
     --dart-define="JEEB_REALTIME_SOCKET_URL=${REALTIME_SOCKET_URL}" \
@@ -129,7 +143,7 @@ run_release_build() {
     -authenticationKeyIssuerID "${AUTHENTICATION_KEY_ISSUER_ID}" \
     -workspace ios/Runner.xcworkspace \
     -scheme Runner \
-    -configuration Release \
+    -configuration Release-staging \
     -destination generic/platform=iOS \
     -archivePath "${ARCHIVE_PATH}" \
     -hideShellScriptEnvironment \
@@ -165,6 +179,14 @@ export AUTHENTICATION_KEY_PATH AUTHENTICATION_KEY_ID AUTHENTICATION_KEY_ISSUER_I
 )
 unset encoded_firebase
 unset -f run_release_build
+
+# This builder produces the STAGING internal-QA artifact, which legitimately
+# carries the Dev Tool. Exported so it reaches the unsigned inspector too, which
+# the signed inspector invokes as a child process. Every OTHER caller —
+# `tool/build_unsigned_ios_release_contract.sh`, run by the "iOS release
+# contracts" CI job — leaves it unset and therefore inspects as `production`,
+# which still hard-fails on any developer-surface marker.
+export JEEB_IOS_RELEASE_PROFILE=staging
 
 ipa_path="$(find "${EXPORT_PATH}" -maxdepth 1 -type f -name '*.ipa' -print -quit)"
 [[ -n "${ipa_path}" && -s "${ipa_path}" ]] || fail 'exported IPA is missing'
