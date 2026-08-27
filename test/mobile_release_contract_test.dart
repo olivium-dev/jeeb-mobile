@@ -566,12 +566,14 @@ void _registerCiContracts() {
         '.elements[0].versionCode == \$build_number',
         'build/provenance/android-rc.json',
         'build/provenance/ios-rc.json',
-        'retained: true, store_uploaded: false',
+        r'$ARGS.named + {clarity_enabled: false, retained: true,',
         'uses: ./.github/actions/run-build-runner',
         'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
         'retention-days: 7',
         'compression-level: 0',
       ]);
+      expect(r'$ARGS.named +'.allMatches(workflow).length, 2);
+      expect(workflow, isNot(contains("'{platform, reviewed_sha")));
       expect(workflow, isNot(contains('pull_request_target')));
       expect(workflow, isNot(contains('MOBILE_RC_MAIN_RULESET_ID')));
       expect(workflow, isNot(contains('rulesets/')));
