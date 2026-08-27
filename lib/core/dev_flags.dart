@@ -6,13 +6,39 @@ const bool kDevToolRequested = bool.fromEnvironment(
   defaultValue: false,
 );
 
+/// Whether this build is the STAGING internal-QA artifact.
+///
+/// Passed only by `tool/build_signed_ios_internal_candidate.sh`, which archives
+/// the dedicated `Release-staging` configuration. It is deliberately a separate
+/// define from [kDevToolRequested]: a build must both request the Dev Tool AND
+/// declare itself a staging artifact, so a stray `JEEB_DEVTOOL_ENABLED=true` on
+/// a store build still resolves to `false`.
+///
+/// The native half is gated INDEPENDENTLY by `#if JEEB_DEV`, which the plain
+/// `Release` configuration does not define. Both halves must agree for the Dev
+/// Tool to exist, so neither define alone can put it in an App-Store-bound
+/// binary.
+const bool kStagingDevToolRequested = bool.fromEnvironment(
+  'JEEB_STAGING_DEVTOOL',
+  defaultValue: false,
+);
+
 /// Compile-time gate for the Jeeber Dev Tool.
 ///
-/// Release and profile builds stay locked even if their build command
-/// accidentally supplies the request define.
-const bool kDevToolEnabled = kDebugMode && kDevToolRequested;
+/// Owner directive 2026-08-27: **the staging build must carry the Dev Tool.**
+/// iOS has no launcher icon and no URL scheme, so without this a staging tester
+/// has no way into the tool at all — the reason a TestFlight build shipped
+/// without it and was useless for QA.
+///
+/// This is NOT a general release unlock. `kDebugMode` still covers local dev;
+/// [kStagingDevToolRequested] covers exactly one artifact, the internal-only
+/// staging IPA that is never distributed externally
+/// (`pilot(distribute_external: false)`). A plain `Release` build — the one a
+/// store submission would use — satisfies neither branch.
+const bool kDevToolEnabled =
+    (kDebugMode || kStagingDevToolRequested) && kDevToolRequested;
 
-/// True in debug or dev-tool-enabled builds; NEVER in production.
+/// True in debug or Dev-Tool-enabled builds; NEVER in a store build.
 const bool kDevAffordancesAllowed = kDevToolEnabled || kDebugMode;
 
 /// Whether this build requested the shake-to-open affordance for the Dev Tool.
