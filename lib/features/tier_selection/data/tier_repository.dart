@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../domain/tier.dart';
 
 enum TierLoadFailure { network, server }
@@ -19,6 +20,7 @@ class DioTierRepository implements TierRepository {
   final Dio _dio;
 
   static const String _path = '/tiers';
+  static final RegExp _labelSeparators = RegExp(r'[-_\s]+');
 
   @override
   Future<List<Tier>> fetchTiers() async {
@@ -39,11 +41,20 @@ class DioTierRepository implements TierRepository {
     } else {
       throw const TierLoadException(TierLoadFailure.server);
     }
-    return items
+    final tiers = items
         .whereType<Map<String, dynamic>>()
         .map(_parseTier)
         .whereType<Tier>()
         .toList(growable: false);
+    // Keep the existing localized unavailable copy for both empty and
+    // unparseable catalogs because retry is the same customer action. These
+    // counts distinguish the causes internally without inventing new copy that
+    // cannot offer a different recovery path.
+    Diag.event('tier_catalog_parsed', <String, Object?>{
+      'items': items.length,
+      'parsed': tiers.length,
+    });
+    return tiers;
   }
 
   Tier? _parseTier(Map<String, dynamic> json) {
@@ -73,21 +84,28 @@ class DioTierRepository implements TierRepository {
 
   TierId? _tierIdFromLabel(Object? raw) {
     if (raw is! String) return null;
-    switch (raw.trim().toLowerCase()) {
+    final normalized = raw.trim().toLowerCase().replaceAll(
+      _labelSeparators,
+      '_',
+    );
+    switch (normalized) {
       case 'flash':
+      case 'urgent':
         return TierId.flash;
       case 'express':
+      case 'same_day':
+      case 'sameday':
         return TierId.express;
       case 'standard':
+      case 'scheduled':
         return TierId.standard;
       case 'on_the_way':
       case 'ontheway':
-      case 'on-the-way':
-      case 'on the way':
         return TierId.onTheWay;
       case 'eco':
         return TierId.eco;
     }
+    Diag.event('tier_name_unresolved', <String, Object?>{'raw': raw});
     return null;
   }
 
