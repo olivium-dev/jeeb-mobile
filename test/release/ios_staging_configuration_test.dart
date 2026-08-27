@@ -136,6 +136,50 @@ void main() {
       );
     });
 
+    test('Super Login endpoints are production-forbidden, staging-tolerated', () {
+      // Owner ruling 2026-08-27: the Dev Tool ships in STAGING and never in
+      // production. Super Login is the Dev Tool's main feature and its client
+      // hardcodes /api/User/user-id-login and /api/User/super-login/users, so
+      // a staging IPA necessarily CONTAINS those strings — the first both-
+      // platform RC proved it by rejecting the artifact when the endpoints
+      // still sat in the unconditional deny-list.
+      //
+      // The invariant is therefore positional: the endpoint pattern must live
+      // in the profile-gated blocks (forbidden when RELEASE_PROFILE=production,
+      // which is the fail-closed default) and must NOT appear in the
+      // always-forbidden infrastructure lines.
+      final scanner = _source('tool/inspect_unsigned_ios_release.sh');
+      const endpoints = r'/api/User/(user-id-login|super-login/users)';
+
+      final alwaysLines = scanner
+          .split('\n')
+          .where((l) => l.contains(r'api\.jeeb\.app|192'))
+          .toList();
+      expect(alwaysLines, hasLength(2),
+          reason: 'expected exactly the Dart and native always-forbidden lines');
+      for (final line in alwaysLines) {
+        expect(
+          line.contains(endpoints),
+          isFalse,
+          reason: 'Super Login endpoints in the ALWAYS-forbidden list would '
+              'reject every staging IPA that carries the Dev Tool — the exact '
+              'RC failure this ruling resolved',
+        );
+      }
+
+      final productionBlock = scanner
+          .split('== production ]]')
+          .last
+          .split(r'LC_ALL=C grep -aFq "${EXPECTED_GATEWAY_URL}"')
+          .first;
+      expect(
+        endpoints.allMatches(productionBlock).length,
+        2,
+        reason: 'a store-bound artifact must still hard-fail on the Super '
+            'Login endpoints in BOTH the Dart snapshot and the native binary',
+      );
+    });
+
     test('plain Release stays the clean store configuration', () {
       final pbxproj = _source('ios/Runner.xcodeproj/project.pbxproj');
       final blocks = RegExp(
