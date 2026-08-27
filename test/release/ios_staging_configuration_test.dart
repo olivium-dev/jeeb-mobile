@@ -62,6 +62,30 @@ void main() {
       );
     });
 
+    test('EVERY target has Release-staging, not just Runner', () {
+      // REGRESSION GUARD. Mapping `Release-staging` in the Podfile makes
+      // CocoaPods evaluate that configuration for EVERY target. A target that
+      // lacks it resolves to an empty SWIFT_VERSION, and `pod install` then
+      // aborts the whole build with:
+      //   "There may only be up to 1 unique SWIFT_VERSION per target.
+      //    RunnerTests: Swift / RunnerTests: Swift 5.0"
+      // That is a hard CI failure with a message that names Swift versions and
+      // says nothing about configurations, so it is worth pinning explicitly.
+      final lists = _configurationLists(
+        _source('ios/Runner.xcodeproj/project.pbxproj'),
+      );
+
+      for (final entry in lists.entries) {
+        expect(
+          entry.value,
+          contains('Release-staging'),
+          reason: 'configuration list "${entry.key}" is missing '
+              'Release-staging; CocoaPods will resolve an empty SWIFT_VERSION '
+              'for that target and fail pod install',
+        );
+      }
+    });
+
     test('CocoaPods maps Release-staging as a release configuration', () {
       expect(
         _source('ios/Podfile'),

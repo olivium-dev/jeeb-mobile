@@ -579,6 +579,22 @@
 			};
 			name = Release;
 		};
+		00DE7005A6E3000000000000 /* Release-staging */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7D8A86A0AAC7CC4D4A024556 /* Pods-RunnerTests.release.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.olivium.jeeb.RunnerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
+			};
+			name = "Release-staging";
+		};
 		331C808A294A63A400263BE5 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 94F82F841785C1A95715E481 /* Pods-RunnerTests.profile.xcconfig */;
@@ -1129,6 +1145,7 @@
 				331C8088294A63A400263BE5 /* Debug */,
 				D30300000000000000000001 /* Debug-dev */,
 				331C8089294A63A400263BE5 /* Release */,
+				00DE7005A6E3000000000000 /* Release-staging */,
 				D30300000000000000000003 /* Release-dev */,
 				331C808A294A63A400263BE5 /* Profile */,
 				D30300000000000000000002 /* Profile-dev */,
