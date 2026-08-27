@@ -756,11 +756,9 @@ String _phoneErrorCopy(RegistrationPhoneError error, AppLocalizations l10n) {
   switch (error) {
     case RegistrationPhoneError.invalid:
       return l10n.registrationPhoneInvalid;
-    case RegistrationPhoneError.networkError:
     case RegistrationPhoneError.rateLimited:
-      // The ARB file ships an invalid-only copy today; reuse it for these
-      // adjacent errors to avoid surfacing an English fallback to RTL
-      // users until product copies the strings (tracked under JEEB-56).
-      return l10n.registrationPhoneInvalid;
+      return l10n.registrationPhoneRateLimited;
+    case RegistrationPhoneError.networkError:
+      return l10n.registrationPhoneNetworkError;
   }
 }

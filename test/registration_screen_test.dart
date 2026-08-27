@@ -16,6 +16,7 @@ import 'package:jeeb_mobile/features/registration/application/registration_cubit
 import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -434,6 +435,48 @@ void main() {
       find.text('Select a country, then enter the national number.'),
       findsNothing,
     );
+  });
+
+  testWidgets('rate-limit phone error renders its distinct localized copy', (
+    tester,
+  ) async {
+    when(
+      () => otp.sendCode(any()),
+    ).thenAnswer((_) async => OtpSendOutcome.rateLimited);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: cubit)));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(RegistrationScreen)),
+    );
+
+    cubit.phoneChanged('71123456');
+    await cubit.sendCode();
+    await tester.pump();
+
+    expect(cubit.state.phoneError, RegistrationPhoneError.rateLimited);
+    expect(find.text(l10n.registrationPhoneRateLimited), findsOneWidget);
+    expect(find.text(l10n.registrationPhoneInvalid), findsNothing);
+  });
+
+  testWidgets('network phone error renders its distinct localized copy', (
+    tester,
+  ) async {
+    when(
+      () => otp.sendCode(any()),
+    ).thenAnswer((_) async => OtpSendOutcome.networkError);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: cubit)));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(RegistrationScreen)),
+    );
+
+    cubit.phoneChanged('71123456');
+    await cubit.sendCode();
+    await tester.pump();
+
+    expect(cubit.state.phoneError, RegistrationPhoneError.networkError);
+    expect(find.text(l10n.registrationPhoneNetworkError), findsOneWidget);
+    expect(find.text(l10n.registrationPhoneInvalid), findsNothing);
   });
 
   testWidgets('D4: exactly ONE "or" divider renders (no duplicate between Google '

@@ -602,6 +602,10 @@ class AppLocalizations {
   String get registrationPhoneSubtitle => _get('registrationPhoneSubtitle');
   String get registrationPhoneHint => _get('registrationPhoneHint');
   String get registrationPhoneInvalid => _get('registrationPhoneInvalid');
+  String get registrationPhoneNetworkError =>
+      _get('registrationPhoneNetworkError');
+  String get registrationPhoneRateLimited =>
+      _get('registrationPhoneRateLimited');
   String get registrationCountryPickerTitle =>
       _get('registrationCountryPickerTitle');
   String get registrationCountrySearchHint =>

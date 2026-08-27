@@ -82,6 +82,46 @@ void main() {
 
       expect(outcome, OtpSendOutcome.rateLimited);
     });
+
+    test('returns invalidPhone on 400', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 400,
+        ),
+      );
+
+      final outcome = await sut.sendCode('+96170000001');
+
+      expect(outcome, OtpSendOutcome.invalidPhone);
+    });
+
+    test('returns serverError on 502', () async {
+      // 502 is representative of any 5xx or other unexpected response status.
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 502,
+        ),
+      );
+
+      final outcome = await sut.sendCode('+96170000001');
+
+      expect(outcome, OtpSendOutcome.serverError);
+    });
+
+    test('returns networkError when no response is received', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.connectionTimeout,
+      );
+
+      final outcome = await sut.sendCode('+96170000001');
+
+      expect(outcome, OtpSendOutcome.networkError);
+    });
   });
 
   group('verifyCode — endpoint contract (T-MOB-004)', () {

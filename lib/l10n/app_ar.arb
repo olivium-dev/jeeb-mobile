@@ -438,6 +438,8 @@
   "registrationPhoneSubtitle": "سنرسل رمزًا من 4 أرقام للتحقق من هويتك.",
   "registrationPhoneHint": "رقم الهاتف",
   "registrationPhoneInvalid": "أدخل رقم هاتف صالحًا.",
+  "registrationPhoneNetworkError": "تعذّر الاتصال بجيب. تحقق من اتصالك وحاول مرة أخرى.",
+  "registrationPhoneRateLimited": "محاولات كثيرة جدًا. يرجى الانتظار قليلاً والمحاولة مرة أخرى.",
   "registrationCountryPickerTitle": "اختر البلد",
   "registrationCountrySearchHint": "ابحث عن بلد",
   "registrationCountryNoResults": "لم يتم العثور على بلدان",
