@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/onboarding/onboarding_cubit.dart';
+import '../../l10n/app_localizations.dart';
+import '../gateway/dev_gateway_client.dart';
 
 class RosterUser {
   const RosterUser({
@@ -14,17 +16,12 @@ class RosterUser {
     required this.roles,
   });
 
-  factory RosterUser.fromJson(Map<String, dynamic> json) {
-    final rawRoles = json['roles'];
-    return RosterUser(
-      userId: (json['userId'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
-      role: (json['role'] ?? '').toString(),
-      roles: rawRoles is List
-          ? rawRoles.map((e) => e.toString()).toList(growable: false)
-          : const <String>[],
-    );
-  }
+  factory RosterUser.fromDevUser(DevUser user) => RosterUser(
+    userId: user.id,
+    name: user.username,
+    role: user.role ?? '',
+    roles: user.roles,
+  );
 
   final String userId;
   final String name;
@@ -33,7 +30,9 @@ class RosterUser {
 }
 
 class FullRosterLoginPage extends StatefulWidget {
-  const FullRosterLoginPage({super.key});
+  const FullRosterLoginPage({super.key, this.client});
+
+  final DevGatewayClient? client;
 
   @override
   State<FullRosterLoginPage> createState() => _FullRosterLoginPageState();
@@ -43,19 +42,22 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
   final Dio _dio = sl<Dio>();
   final AuthTokenStore _tokenStore = sl<AuthTokenStore>();
   final TextEditingController _search = TextEditingController();
+  late final DevGatewayClient _client;
 
   late Future<List<RosterUser>> _roster = _fetchRoster();
   String _query = '';
   String? _busyUserId;
 
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.client ?? DevGatewayClient();
+  }
+
   Future<List<RosterUser>> _fetchRoster() async {
-    final res =
-        await _dio.get<Map<String, dynamic>>('/api/User/super-login/users');
-    final raw = res.data?['users'];
-    if (raw is! List) return const <RosterUser>[];
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map(RosterUser.fromJson)
+    final users = await _client.fetchSuperLoginRoster();
+    return users
+        .map(RosterUser.fromDevUser)
         .where((u) => u.userId.isNotEmpty)
         .toList(growable: false);
   }
@@ -137,9 +139,11 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
+                  final described = _describeRosterError(context, snap.error!);
                   return _RosterError(
-                    onRetry: () =>
-                        setState(() => _roster = _fetchRoster()),
+                    message: described.message,
+                    detail: described.detail,
+                    onRetry: () => setState(() => _roster = _fetchRoster()),
                   );
                 }
                 final all = snap.data ?? const <RosterUser>[];
@@ -187,8 +191,55 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
   }
 }
 
+({String message, String? detail}) _describeRosterError(
+  BuildContext context,
+  Object error,
+) {
+  final l10n = AppLocalizations.of(context);
+  if (error is DevGatewayException) {
+    final status = error.statusCode;
+    switch (status) {
+      case null:
+        return (
+          message: l10n.internalDevToolRosterErrorUnreachable,
+          detail: error.message,
+        );
+      case 404:
+        return (
+          message: l10n.internalDevToolRosterErrorDisabled,
+          detail: error.message,
+        );
+      case 401:
+      case 403:
+        return (
+          message: l10n.internalDevToolRosterErrorRejected,
+          detail: error.message,
+        );
+      case 502:
+      case 503:
+        return (
+          message: l10n.internalDevToolRosterErrorUpstream,
+          detail: error.message,
+        );
+      default:
+        return (
+          message: l10n.internalDevToolRosterErrorGeneric(status),
+          detail: error.message,
+        );
+    }
+  }
+  return (message: l10n.internalDevToolRosterErrorUnknown, detail: '$error');
+}
+
 class _RosterError extends StatelessWidget {
-  const _RosterError({required this.onRetry});
+  const _RosterError({
+    required this.message,
+    required this.onRetry,
+    this.detail,
+  });
+
+  final String message;
+  final String? detail;
   final VoidCallback onRetry;
 
   @override
@@ -197,13 +248,20 @@ class _RosterError extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Could not load the user roster. Check the Dev Tool Server URL.',
-              textAlign: TextAlign.center,
-            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(message, textAlign: TextAlign.center),
           ),
+          if (detail != null && detail!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                detail!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          const SizedBox(height: 12),
           OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
