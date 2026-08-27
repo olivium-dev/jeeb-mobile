@@ -253,6 +253,7 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
       cubit.markPinned(
         latitude: pickup.latitude,
         longitude: pickup.longitude,
+        address: pickup.address,
       );
     }
     return cubit..load();
@@ -613,6 +614,7 @@ class _Body extends StatelessWidget {
     cubit.markPinned(
       latitude: point?.latitude,
       longitude: point?.longitude,
+      address: point?.address,
     );
   }
 

@@ -480,8 +480,8 @@ class _LocationSection extends StatelessWidget {
     );
   }
 
-  /// The picker pops coordinates, not a resolved street line — show exactly
-  /// what the capture sheet showed rather than invent an address.
+  /// Use the picker's best-effort street line when available; otherwise show
+  /// exactly the coordinate fallback from the capture sheet.
   String _pickedLabel(LocationPoint point) =>
       point.address ??
       '${point.latitude.toStringAsFixed(4)}, '

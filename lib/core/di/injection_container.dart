@@ -116,8 +116,10 @@ import '../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
+import '../../features/location/data/geocoding_reverse_geocoder.dart';
 import '../../features/location/data/geolocator_current_location_resolver.dart';
 import '../../features/location/domain/current_location_resolver.dart';
+import '../../features/location/domain/reverse_geocoder.dart';
 import '../../features/location/domain/saved_location_repository.dart';
 import '../../features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
@@ -369,6 +371,8 @@ void configureDependencies({
   sl.registerLazySingleton<CurrentLocationResolver>(
     GeolocatorCurrentLocationResolver.new,
   );
+
+  sl.registerLazySingleton<ReverseGeocoder>(GeocodingReverseGeocoder.new);
 
   sl.registerLazySingleton<CancellationRepository>(
     () => DioCancellationRepository(sl<Dio>()),

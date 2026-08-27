@@ -39,7 +39,8 @@ class CaptureLocationScreen extends StatelessWidget {
   /// placeholder is rendered (dev seam / offline).
   final WidgetBuilder? mapBuilder;
 
-  /// When true the CTA shows a busy state (reverse-geocode / save in flight).
+  /// When true the CTA shows a busy state while the caller hands the pin back.
+  /// Best-effort reverse-geocoding never controls this flag.
   final bool isConfirming;
 
   /// The live map centre, when one exists. Supplied together with [mapBuilder]

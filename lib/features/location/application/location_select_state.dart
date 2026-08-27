@@ -50,6 +50,7 @@ class LocationSelectState extends Equatable {
     this.selectedSavedId,
     this.pinnedLat,
     this.pinnedLng,
+    this.pinnedAddress,
     this.currentGpsStatus = CurrentGpsStatus.idle,
     this.gpsLat,
     this.gpsLng,
@@ -71,6 +72,10 @@ class LocationSelectState extends Equatable {
   /// create draft as the REAL pickup coordinate (S0-REQ-03); null otherwise.
   final double? pinnedLat;
   final double? pinnedLng;
+
+  /// Best-effort OS-resolved label for [pinnedLat]/[pinnedLng]. Null means the
+  /// request uses its existing coordinate-format address fallback.
+  final String? pinnedAddress;
 
   /// Lifecycle of the device-GPS acquisition for the "Current Location" option.
   final CurrentGpsStatus currentGpsStatus;
@@ -152,7 +157,9 @@ class LocationSelectState extends Equatable {
     bool clearSelectedSaved = false,
     double? pinnedLat,
     double? pinnedLng,
+    String? pinnedAddress,
     bool clearPinned = false,
+    bool clearPinnedAddress = false,
     CurrentGpsStatus? currentGpsStatus,
     double? gpsLat,
     double? gpsLng,
@@ -169,6 +176,9 @@ class LocationSelectState extends Equatable {
           clearSelectedSaved ? null : (selectedSavedId ?? this.selectedSavedId),
       pinnedLat: clearPinned ? null : (pinnedLat ?? this.pinnedLat),
       pinnedLng: clearPinned ? null : (pinnedLng ?? this.pinnedLng),
+      pinnedAddress: clearPinned || clearPinnedAddress
+          ? null
+          : (pinnedAddress ?? this.pinnedAddress),
       currentGpsStatus: currentGpsStatus ?? this.currentGpsStatus,
       gpsLat: clearGps ? null : (gpsLat ?? this.gpsLat),
       gpsLng: clearGps ? null : (gpsLng ?? this.gpsLng),
@@ -186,6 +196,7 @@ class LocationSelectState extends Equatable {
         selectedSavedId,
         pinnedLat,
         pinnedLng,
+        pinnedAddress,
         currentGpsStatus,
         gpsLat,
         gpsLng,
