@@ -565,6 +565,7 @@ class AppLocalizations {
   String get transcriptionFailedNetwork => _get('transcriptionFailedNetwork');
   String get transcriptionFailedPayloadTooLarge =>
       _get('transcriptionFailedPayloadTooLarge');
+  String get transcriptionFailedTimedOut => _get('transcriptionFailedTimedOut');
   String get transcriptionFailedGeneric => _get('transcriptionFailedGeneric');
   String get transcriptionEdit => _get('transcriptionEdit');
   String get transcriptionSaveEdit => _get('transcriptionSaveEdit');

@@ -6,13 +6,22 @@ import 'package:equatable/equatable.dart';
 import '../domain/voice_clip.dart';
 
 class TranscriptionResult extends Equatable {
-  const TranscriptionResult({required this.id, this.transcript});
+  const TranscriptionResult({
+    required this.id,
+    this.transcript,
+    this.status,
+    this.language,
+    this.reason,
+  });
 
   final String id;
   final String? transcript;
+  final String? status;
+  final String? language;
+  final String? reason;
 
   @override
-  List<Object?> get props => [id, transcript];
+  List<Object?> get props => [id, transcript, status, language, reason];
 }
 
 enum VoiceUploadFailure { network, server, unknown }
@@ -29,11 +38,21 @@ abstract class VoiceRecordingRepository {
 }
 
 class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
-  HttpVoiceRecordingRepository({required Dio dio}) : _dio = dio;
+  HttpVoiceRecordingRepository({
+    required Dio dio,
+    Duration transcribeTimeout = defaultTranscribeTimeout,
+  }) : _dio = dio,
+       _transcribeTimeout = transcribeTimeout;
 
   static const String endpoint = '/transcribe';
 
+  /// Sized to exceed the gateway's ~30s+ retry budget against
+  /// voice-transcription-service. See root cause 5 in
+  /// `docs/issues/04-voice-transcript-error.md`.
+  static const Duration defaultTranscribeTimeout = Duration(seconds: 40);
+
   final Dio _dio;
+  final Duration _transcribeTimeout;
 
   @override
   Future<TranscriptionResult> upload(VoiceClip clip) async {
@@ -45,7 +64,11 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
           'contentType': clip.mimeType,
           'audioBase64': base64Encode(clip.bytes),
         },
-        options: Options(contentType: 'application/json'),
+        options: Options(
+          contentType: 'application/json',
+          sendTimeout: _transcribeTimeout,
+          receiveTimeout: _transcribeTimeout,
+        ),
       );
       final body = response.data ?? const <String, dynamic>{};
 
@@ -56,6 +79,9 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
       return TranscriptionResult(
         id: id,
         transcript: body['transcription'] as String?,
+        status: body['status'] as String?,
+        language: body['language'] as String?,
+        reason: body['reason'] as String?,
       );
     } on DioException catch (e) {
       throw VoiceUploadException(_mapDio(e));
@@ -85,11 +111,20 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
 }
 
 class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
-  FakeVoiceRecordingRepository({this.failure, this.transcript});
+  FakeVoiceRecordingRepository({
+    this.failure,
+    this.transcript,
+    this.status,
+    this.language,
+    this.reason,
+  });
 
   VoiceUploadFailure? failure;
 
   final String? transcript;
+  final String? status;
+  final String? language;
+  final String? reason;
 
   int uploadCalls = 0;
   VoiceClip? lastClip;
@@ -104,6 +139,9 @@ class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
     return TranscriptionResult(
       id: 'fake-${clip.duration.inMilliseconds}-$uploadCalls',
       transcript: transcript,
+      status: status,
+      language: language,
+      reason: reason,
     );
   }
 }

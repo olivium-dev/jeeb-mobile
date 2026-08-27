@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show TextRange;
 
 import 'package:equatable/equatable.dart';
@@ -10,12 +11,13 @@ import '../domain/voice_clip.dart';
 ///
 /// `none` is the happy path (we have transcribed text). `queued` means the
 /// upload succeeded but the transcription is still pending — the user can type
-/// their request to keep moving. `failed` means the transcription call errored;
-/// the screen offers a retry plus a manual-entry fallback.
+/// their request to keep moving. `failed` means transcription errored or stayed
+/// queued past its bounded processing window; the screen offers a retry plus a
+/// manual-entry fallback.
 enum TranscriptionStatus { ready, queued, failed }
 
 /// Failure reason for the `failed` status, used to pick the banner copy.
-enum TranscriptionFailure { none, network, payloadTooLarge, generic }
+enum TranscriptionFailure { none, network, payloadTooLarge, generic, timedOut }
 
 /// State for the transcription-review screen.
 ///
@@ -34,6 +36,7 @@ class TranscriptionState extends Equatable {
     this.isPlaying = false,
     this.playbackPosition = Duration.zero,
     this.language,
+    this.queuedReason,
     this.editRange,
     this.appliedQuickAdds = const <String>{},
   });
@@ -56,6 +59,12 @@ class TranscriptionState extends Equatable {
   /// [VoiceClip.language]. Null until the voice_request lane forwards it — the
   /// chip then renders nothing rather than guessing from the UI locale.
   final String? language;
+
+  /// The gateway's queued reason (e.g. `circuit_open`, `exhausted_retries`,
+  /// `queued_by_owner`) surfaced from the clip instead of being silently
+  /// dropped; informational — never rendered as raw untranslated server text
+  /// to the user.
+  final String? queuedReason;
 
   /// Which slice of [text] the editor should pre-select when edit mode opens.
   /// Set by the tap-a-word affordance; null for the "Edit all" entry point.
@@ -90,6 +99,7 @@ class TranscriptionState extends Equatable {
     bool? isPlaying,
     Duration? playbackPosition,
     String? language,
+    String? queuedReason,
     TextRange? editRange,
     Set<String>? appliedQuickAdds,
     bool clearEditRange = false,
@@ -105,6 +115,7 @@ class TranscriptionState extends Equatable {
       isPlaying: isPlaying ?? this.isPlaying,
       playbackPosition: playbackPosition ?? this.playbackPosition,
       language: language ?? this.language,
+      queuedReason: queuedReason ?? this.queuedReason,
       // `?? this.editRange` can never null it out, so the reset is explicit.
       editRange: clearEditRange ? null : (editRange ?? this.editRange),
       appliedQuickAdds: appliedQuickAdds ?? this.appliedQuickAdds,
@@ -123,6 +134,7 @@ class TranscriptionState extends Equatable {
         isPlaying,
         playbackPosition,
         language,
+        queuedReason,
         editRange,
         appliedQuickAdds,
       ];
@@ -134,34 +146,53 @@ class TranscriptionState extends Equatable {
 /// failed/queued states. Pure presentation logic — navigation is owned by the
 /// screen's `onConfirm` callback so the cubit stays widget- and router-free.
 class TranscriptionCubit extends Cubit<TranscriptionState> {
-  TranscriptionCubit({TranscriptAudioPlayer? player})
-      : _player = player ?? const NoopTranscriptAudioPlayer(),
+  TranscriptionCubit({
+    TranscriptAudioPlayer? player,
+    Duration queuedTimeout = const Duration(seconds: 45),
+  })  : _player = player ?? const NoopTranscriptAudioPlayer(),
+        _queuedTimeout = queuedTimeout,
         super(const TranscriptionState());
 
   final TranscriptAudioPlayer _player;
+  final Duration _queuedTimeout;
+  Timer? _queuedTimer;
 
   /// Seeds the cubit from the clip handed over by the voice composer. A
   /// non-empty [VoiceClip.transcript] is the happy path; a null/empty
   /// transcript lands on the `queued` status so the user can type instead.
   void seedFromClip(VoiceClip clip) {
+    _queuedTimer?.cancel();
     final transcript = clip.transcript?.trim() ?? '';
+    final status = transcript.isEmpty
+        ? TranscriptionStatus.queued
+        : TranscriptionStatus.ready;
     emit(
       TranscriptionState(
         text: transcript,
-        status: transcript.isEmpty
-            ? TranscriptionStatus.queued
-            : TranscriptionStatus.ready,
+        status: status,
         audioPath: clip.audioPath,
         localAudioPath: clip.localAudioPath,
         audioDuration: Duration(milliseconds: clip.durationMs),
         language: clip.language,
+        queuedReason: clip.reason,
       ),
     );
+    if (status == TranscriptionStatus.queued) {
+      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
+    }
   }
 
-  /// Marks the transcription as failed with [failure]; keeps any audio so the
-  /// user can still replay and type a manual description.
+  void _onQueuedTimeout() {
+    if (isClosed) return;
+    if (state.status != TranscriptionStatus.queued) return;
+    markFailed(TranscriptionFailure.timedOut);
+  }
+
+  /// Marks the transcription as failed with [failure], including from the
+  /// production queued-timeout path; keeps any audio so the user can still
+  /// replay and type a manual description.
   void markFailed(TranscriptionFailure failure) {
+    _queuedTimer?.cancel();
     emit(state.copyWith(
       status: TranscriptionStatus.failed,
       failure: failure,
@@ -182,15 +213,20 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
   void applyQuickAdd(String id, String fragment) {
     if (state.appliedQuickAdds.contains(id)) return;
     final newText = state.text.isEmpty ? fragment : '${state.text}\n$fragment';
+    final status = newText.trim().isEmpty
+        ? TranscriptionStatus.queued
+        : TranscriptionStatus.ready;
+    _queuedTimer?.cancel();
     emit(state.copyWith(
       text: newText,
       isEditing: true,
       editRange: TextRange.collapsed(newText.length),
       appliedQuickAdds: <String>{...state.appliedQuickAdds, id},
-      status: newText.trim().isEmpty
-          ? TranscriptionStatus.queued
-          : TranscriptionStatus.ready,
+      status: status,
     ));
+    if (status == TranscriptionStatus.queued) {
+      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
+    }
   }
 
   void updateText(String text) => emit(state.copyWith(text: text));
@@ -199,14 +235,19 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
   /// the `queued` status so the empty-state hint reappears.
   void confirmEdit(String text) {
     final trimmed = text.trim();
+    final status = trimmed.isEmpty
+        ? TranscriptionStatus.queued
+        : TranscriptionStatus.ready;
+    _queuedTimer?.cancel();
     emit(state.copyWith(
       text: trimmed,
       isEditing: false,
       clearEditRange: true,
-      status: trimmed.isEmpty
-          ? TranscriptionStatus.queued
-          : TranscriptionStatus.ready,
+      status: status,
     ));
+    if (status == TranscriptionStatus.queued) {
+      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
+    }
   }
 
   /// Toggles playback of the original recording. No-op when there is no audio.
@@ -271,6 +312,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
 
   @override
   Future<void> close() async {
+    _queuedTimer?.cancel();
     await _player.stop();
     await _player.dispose();
     return super.close();

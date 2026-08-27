@@ -415,6 +415,7 @@
   "transcriptionFailedTitle": "تعذّر التحويل",
   "transcriptionFailedNetwork": "تعذّر الاتصال بالخادم. اكتب طلبك أدناه أو حاول مرة أخرى.",
   "transcriptionFailedPayloadTooLarge": "التسجيل طويل جدًا. اكتب طلبك أدناه أو سجّل مقطعًا أقصر.",
+  "transcriptionFailedTimedOut": "يستغرق هذا وقتًا أطول من المتوقع. اكتب طلبك أدناه أو حاول التسجيل مرة أخرى.",
   "transcriptionFailedGeneric": "حدث خطأ ما. اكتب طلبك أدناه أو حاول مرة أخرى.",
   "transcriptionEdit": "تعديل الكل",
   "transcriptionSaveEdit": "تم",

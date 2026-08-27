@@ -11,6 +11,7 @@ class VoiceClip {
     this.transcript,
     this.localAudioPath,
     this.language,
+    this.reason,
   });
 
   final String audioPath;
@@ -18,11 +19,16 @@ class VoiceClip {
   final String? transcript;
 
   /// The gateway's documented `TranscribeResponse.language` (e.g. `ar-LB`),
-  /// which drives 06's detected-language chip. Null until the voice_request
-  /// lane parses it and the router threads it through (see
+  /// which drives 06's detected-language chip. The voice_request lane parses
+  /// it and the router threads it through when present (see
   /// `docs/redesign-2026-08/wiring/06-transcription-review.md`); the chip
   /// deliberately renders nothing rather than guessing from the UI locale.
   final String? language;
+
+  /// The gateway's queued reason (for example `circuit_open`,
+  /// `exhausted_retries`, or `queued_by_owner`). It is retained as
+  /// informational state and is never shown to users as raw server text.
+  final String? reason;
 
   /// JEBV4-13 (dead transcription-play CTA): absolute path of the ON-DEVICE
   /// file the recorder wrote, when the handoff came from the in-app voice
