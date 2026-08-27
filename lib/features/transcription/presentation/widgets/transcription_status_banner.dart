@@ -42,6 +42,8 @@ class TranscriptionStatusBanner extends StatelessWidget {
         return l10n.transcriptionFailedNetwork;
       case TranscriptionFailure.payloadTooLarge:
         return l10n.transcriptionFailedPayloadTooLarge;
+      case TranscriptionFailure.timedOut:
+        return l10n.transcriptionFailedTimedOut;
       case TranscriptionFailure.generic:
       case TranscriptionFailure.none:
         return l10n.transcriptionFailedGeneric;

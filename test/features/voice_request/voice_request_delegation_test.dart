@@ -143,6 +143,8 @@ void main() {
       String? transcript, {
       String? localAudioPath,
       Duration duration = Duration.zero,
+      String? language,
+      String? reason,
     }) {}
     void onSwitchToTyping() {}
 

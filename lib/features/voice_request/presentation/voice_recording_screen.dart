@@ -51,16 +51,18 @@ class VoiceRecordingKeys {
 }
 
 /// Signature of the sent handoff. Carries the gateway upload id, the optional
-/// machine transcript, and (JEBV4-13) the recorder's on-device file path +
-/// clip duration — the upload id is a gateway `audioId`, NOT a locally
-/// playable path, so without [localAudioPath] the transcription review's
-/// replay control had nothing real to play.
+/// machine transcript, detected language, queued reason, and (JEBV4-13) the
+/// recorder's on-device file path + clip duration — the upload id is a gateway
+/// `audioId`, NOT a locally playable path, so without [localAudioPath] the
+/// transcription review's replay control had nothing real to play.
 typedef VoiceSentCallback =
     void Function(
       String id,
       String? transcript, {
       String? localAudioPath,
       Duration duration,
+      String? language,
+      String? reason,
     });
 
 /// Screen that lets the user record a voice request, preview it, and send it
@@ -176,6 +178,8 @@ class _VoiceRecordingView extends StatelessWidget {
                 state.result!.transcript,
                 localAudioPath: state.clip?.sourcePath,
                 duration: state.clip?.duration ?? Duration.zero,
+                language: state.result!.language,
+                reason: state.result!.reason,
               );
             }
             final error = state.error;

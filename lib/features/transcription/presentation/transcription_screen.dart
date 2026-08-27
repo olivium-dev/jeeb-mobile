@@ -190,7 +190,12 @@ class _TranscriptionBody extends StatelessWidget {
                   const SizedBox(height: Spacing.small),
                 ],
                 if (state.status != TranscriptionStatus.ready) ...[
-                  TranscriptionStatusBanner(state: state),
+                  TranscriptionStatusBanner(
+                    state: state,
+                    onRetry: state.status == TranscriptionStatus.failed
+                        ? onReRecord
+                        : null,
+                  ),
                   const SizedBox(height: Spacing.medium),
                 ],
                 TranscriptionTextPanel(state: state),

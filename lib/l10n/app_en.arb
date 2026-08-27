@@ -1018,6 +1018,10 @@
   "@transcriptionFailedPayloadTooLarge": {
     "description": "Banner body for the 413 payload-too-large branch"
   },
+  "transcriptionFailedTimedOut": "This is taking longer than expected. Type your request below or try recording again.",
+  "@transcriptionFailedTimedOut": {
+    "description": "Banner body shown when a queued transcription exceeds the expected processing window"
+  },
   "transcriptionFailedGeneric": "Something went wrong. Type your request below or retry.",
   "@transcriptionFailedGeneric": {
     "description": "Banner body for the generic-failure branch"

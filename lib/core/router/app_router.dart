@@ -1170,6 +1170,8 @@ class AppRouter {
                   transcript, {
                   String? localAudioPath,
                   Duration duration = Duration.zero,
+                  String? language,
+                  String? reason,
                 }) => context.push(
                   '/voice-request/transcription',
                   extra: VoiceClip(
@@ -1177,6 +1179,8 @@ class AppRouter {
                     durationMs: duration.inMilliseconds,
                     transcript: transcript,
                     localAudioPath: localAudioPath,
+                    language: language,
+                    reason: reason,
                   ),
                 ),
             // Redesign 05 "Type" satellite: the transcription route already
@@ -1280,6 +1284,8 @@ class AppRouter {
                   transcript, {
                   String? localAudioPath,
                   Duration duration = Duration.zero,
+                  String? language,
+                  String? reason,
                 }) async {
                   // Review step: same TranscriptionScreen, dictation-result wiring.
                   // JEBV4-13: local path + duration make the replay control real.
@@ -1290,6 +1296,8 @@ class AppRouter {
                       durationMs: duration.inMilliseconds,
                       transcript: transcript,
                       localAudioPath: localAudioPath,
+                      language: language,
+                      reason: reason,
                     ),
                   );
                   // Confirmed → cascade the result back to the compose field.
