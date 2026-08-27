@@ -316,7 +316,16 @@ jobs:
             ' "${metadata_path}" >/dev/null
           test ! -e android/app/google-services.json
           unzip -tqq "${aab_path}"
-          jarsigner -verify -strict -verbose -certs "${aab_path}" \
+          # Anchor strict verification to the upload keystore, exactly as
+          # tool/android_internal_candidate_integrity.sh does. Without the
+          # keystore, jarsigner -strict cannot validate the self-signed upload
+          # certificate's chain and exits 4 ("chain not validated") with all
+          # output redirected to the report file — so under `set -e` the step
+          # died silently BEFORE the grep below could interpret the result.
+          LC_ALL=C jarsigner -verify -strict -verbose -certs \
+            -storetype PKCS12 -keystore "${keystore}" \
+            -storepass:env ANDROID_STORE_PASSWORD \
+            "${aab_path}" "${ANDROID_KEY_ALIAS}" \
             >"${tmp_dir}/jarsigner.txt" 2>&1
           grep -Fq 'jar verified.' "${tmp_dir}/jarsigner.txt"
           jar_cert="$(keytool -printcert -jarfile "${aab_path}")"
