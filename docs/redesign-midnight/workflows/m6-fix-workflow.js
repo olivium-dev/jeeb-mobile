@@ -74,7 +74,7 @@ const LANES = [
 { label: 'settings + auth + location + receipt', dirs: 'lib/features/settings/, lib/features/cancel_request/, lib/features/auth/, lib/features/location/, lib/features/delivery_receipt/', body: `
 - **L8 sheet scrim** (pale periwinkle) in settings/, cancel_request/, auth/. **L11** \`delivery_receipt/\` opaque-black lightbox barrier. **L9** \`OmdsSearchBar\` orange focus ring in location/. **L10** light-default map flash in location/.
 - **Class 3b:** \`cancel_request_sheet.dart:143\` (6XL help glyph), \`:243\` (**drag handle** — a sibling lane is deciding the shared drag-handle treatment for two others; match it) · \`auth/social/social_collision_sheet.dart:46\` (\`person_off_outlined\` — arguably wants \`error\`).
-- **\`auth/social/social_sign_in_button.dart\` — DO NOT "fix" the 5 raw hex.** They are third-party identity brand marks (\`#4285F4\` Google, \`#1877F2\` Facebook, white) required by Apple App Store review item 4.0 and Google Identity branding; the file carries the rationale and JEEB-57. **My ruling: record them as a NAMED EXEMPTION** so the M6 gate asserts "≤5 hex outside theme, all in social_sign_in_button.dart" instead of a plain zero. Add the exemption to the guard test and say exactly how you expressed it.` },
+- **\`auth/social/social_sign_in_button.dart\` — retain the corrected 2-literal exemption.** JEEB-57's Google slice now renders a vetted four-colour SVG asset; the remaining raw Dart literals are \`#1877F2\` Facebook Brand Blue and one shared white backing/glyph value for Google, Facebook, and Apple. **My ruling: keep them as a NAMED EXEMPTION** so the M6 gate asserts "≤2 hex outside theme, all in social_sign_in_button.dart" instead of a plain zero.` },
 ]
 
 phase('Fix')

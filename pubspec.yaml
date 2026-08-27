@@ -299,6 +299,9 @@ flutter:
     # Jeeb brand wordmark (Figma node 56572:1821 "Group 68"). Exported once
     # from the Figma Dev Mode MCP; rendered on the splash via SvgPicture.asset.
     - assets/brand/jeeb_logo.svg
+    # Google's official "G" logomark, used per the Google Identity Branding
+    # Guidelines (JEEB-57).
+    - assets/brand/google_g_logo.svg
     # MIDNIGHT M5 — deleted here: empty_orders.png and the three 300x300
     # onboarding_*.svg walkthrough vectors. All four had zero importers (M2-21
     # drew the walkthrough art, M1's JeebEmptyState replaced the PNG) and all
