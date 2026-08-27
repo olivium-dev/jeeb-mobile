@@ -7,10 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/dev_flags.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/theme/app_theme.dart';
 import '../l10n/app_localizations.dart';
 import 'app.dart';
+import 'app_restarter.dart';
 import 'bootstrap.dart';
 import 'branded_splash.dart';
 
@@ -23,6 +25,27 @@ bool get _holdSplash => kDebugMode && DevSeam.current.holdSplash;
 String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
 const Duration _startupTransitionDuration = Duration(milliseconds: 350);
+
+/// What `lib/main.dart` runs.
+///
+/// This indirection exists so the product entrypoint names no Dev Tool symbol —
+/// `test/release/store_entrypoint_auth_surface_test.dart` greps `lib/main.dart`'s
+/// own bytes for `core/dev_flags.dart` and friends, and a store build's
+/// entrypoint must stay clean of them. The dev-only wrap therefore lives here,
+/// one hop in, alongside the other const-gated dev affordances.
+///
+/// [AppRestarter] must sit ABOVE [JeebBootstrap] rather than inside it: it works
+/// by remounting that subtree with a fresh key, which it cannot do to its own
+/// ancestor. `kDevToolEnabled` is a compile-time `false` in production, so the
+/// whole ternary folds and `AppRestarter` tree-shakes out.
+class JeebRoot extends StatelessWidget {
+  const JeebRoot({super.key});
+
+  @override
+  Widget build(BuildContext context) => kDevToolEnabled
+      ? const AppRestarter(child: JeebBootstrap())
+      : const JeebBootstrap();
+}
 
 class JeebBootstrap extends StatefulWidget {
   const JeebBootstrap({
@@ -333,3 +356,14 @@ Widget jeebBootstrapFailedVerbose() =>
 )
 Widget jeebBootstrapFailedArabicPayload() =>
     _jeebBootstrapFailed(jeebBootstrapArabicError);
+
+/// [JeebRoot] in its production shape: the dev-only wrap folds away and the
+/// root is exactly [JeebBootstrap]. Worth a preview because the whole
+/// compile-out guarantee rests on this widget rendering identically with the
+/// Dev Tool off.
+@JeebPreview(
+  group: 'app',
+  name: 'Root · production shape',
+  size: jeebBootstrapPreviewBox,
+)
+Widget jeebRootProductionShape() => const JeebRoot();

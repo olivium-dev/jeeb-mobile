@@ -45,6 +45,7 @@ for forbidden in \
   'DevToolApp' \
   'InternalDevToolApp' \
   'internal_devtool_root' \
+  'devtool_shake' \
   'Jeeb Internal QA' \
   'JEEB_INTERNAL_RELEASE=true' \
   'JEEB_DEVTOOL_ENABLED=true'; do

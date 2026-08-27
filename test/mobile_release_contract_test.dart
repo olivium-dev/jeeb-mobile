@@ -317,6 +317,15 @@ void _registerIosContracts() {
       'shasum -a 256',
       '36f46bb2b04544a15ffb339ce522c3a943e9b061567352f078663d7067b8bd83',
     ]);
+    // Shake-to-DevTool residue must be caught in BOTH scanned binaries: the
+    // Dart AOT snapshot (App.framework/App) and the native Runner binary. The
+    // two compile-out gates are independent, so one deny-list entry cannot
+    // stand in for the other.
+    expect(
+      'devtool_shake'.allMatches(inspector).length,
+      2,
+      reason: 'the Dart and native deny-lists must each name devtool_shake',
+    );
     expect(inspector, contains(r'if [[ "${runner_localhost_count}" != 0 ]]'));
     expect(inspector, contains(r'[[ "${runner_localhost_count}" == 1 ]]'));
     expect(inspector, contains(r'[[ "${source_localhost_count}" == 1 ]]'));
@@ -779,6 +788,7 @@ void _registerCiContracts() {
       'devtool_shell\\.dart',
       'main_android_internal\\.dart',
       'DevToolApp',
+      'devtool_shake',
       'InternalDevToolApp',
       'internal_devtool_root',
       'Jeeb Internal QA',
@@ -798,6 +808,7 @@ void _registerCiContracts() {
       'devtool_shell.dart',
       'main_android_internal.dart',
       'InternalDevToolApp',
+      'devtool_shake',
       'internal_devtool_root',
       'JEEB_INTERNAL_RELEASE=true',
       'JEEB_DEVTOOL_ENABLED=true',

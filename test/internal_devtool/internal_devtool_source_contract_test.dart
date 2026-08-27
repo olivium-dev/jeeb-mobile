@@ -3,8 +3,15 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  // NOTE: scope is `lib/main_android_internal.dart`'s own bytes plus the files
+  // under `lib/internal_devtool/`. It does NOT walk the transitive graph, so
+  // it cannot see that the internal-release BUILD graph reaches
+  // `lib/devtool/devtool_shell.dart` through `lib/app/app.dart` (behind the
+  // `kShakeToDevToolEnabled` compile-time const). That crossing is pinned by
+  // `test/release/devtool_import_closure_test.dart`, and the binary is
+  // guarded by `tool/inspect_android_internal_release_payload.sh`.
   test(
-    'internal release graph stays isolated from the legacy developer tool',
+    'the internal tool source tree names no legacy developer-tool capability',
     () {
       final entrypoint = File(
         'lib/main_android_internal.dart',

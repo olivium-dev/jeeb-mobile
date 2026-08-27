@@ -178,7 +178,10 @@ void configureDependencies({
 
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
-  sl.registerLazySingleton<PushRefreshSignals>(() => PushRefreshSignals());
+  sl.registerLazySingleton<PushRefreshSignals>(
+    () => PushRefreshSignals(),
+    dispose: (signals) => signals.dispose(),
+  );
 
   sl.registerLazySingleton<ProfileRefreshSignals>(
     () => ProfileRefreshSignals(),
@@ -419,11 +422,21 @@ void configureDependencies({
   );
 
   // JEBV4-269 P1: was registerFactory (screen-scoped). On route pop, cubit closed → GPS uploader
+  //
+  // `dispose` matters beyond tidiness. This cubit holds a geolocation
+  // subscription and an uploader bound to the CURRENT `Dio`. `sl.reset()` only
+  // drops references, so without an explicit disposer a reset would leave the
+  // old cubit alive and still uploading coordinates through the OLD base URL.
+  // That is reachable today: the Dev Tool's `Apply & Restart` resets the
+  // locator after a Server URL change, so a Jeeber mid-delivery would keep
+  // posting positions to the previous environment while the restarted app
+  // talks to the new one.
   sl.registerLazySingleton<BackgroundGpsCubit>(
     () => BackgroundGpsCubit(
       gateway: GeolocatorGeocaptureGateway(),
       uploader: HttpLocationUploader(dio: sl<Dio>()),
     ),
+    dispose: (cubit) => cubit.close(),
   );
 
   sl.registerLazySingleton<OrderSummaryRepository>(

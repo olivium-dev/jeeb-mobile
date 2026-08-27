@@ -6,7 +6,12 @@ String _source(String path) => File(path).readAsStringSync();
 
 void main() {
   group('store entrypoint auth surface', () {
-    test('the product entrypoint has no Dev Tool dependency graph', () {
+    // NOTE: this greps `lib/main.dart`'s OWN bytes only. It does NOT establish
+    // that the entrypoint's transitive graph avoids `lib/devtool/` — it never
+    // did, and since shake-to-Dev-Tool the graph reaches `devtool_shell.dart`
+    // one hop away via `lib/app/app.dart`. The transitive property is asserted
+    // in `test/release/devtool_import_closure_test.dart`.
+    test('the product entrypoint file itself names no Dev Tool symbol', () {
       final productMain = _source('lib/main.dart');
 
       expect(productMain, isNot(contains('devtool/')));

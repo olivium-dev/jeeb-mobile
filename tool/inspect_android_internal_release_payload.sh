@@ -47,7 +47,7 @@ done
 
 for payload in "${MANIFEST_PAYLOAD}" "${RESOURCES_PAYLOAD}" "${APP_BINARY}"; do
   if LC_ALL=C grep -aEiq \
-    '192\.168\.2\.(39|50)|10\.0\.2\.2|emulator-|http://(localhost|127\.0\.0\.1)|api\.jeeb\.app|:[[:digit:]]*10069|unified[_-]?payment|/v1/payments/|/v1/matching/(find-jeebers|broadcast)|/api/auth/token|/api/User/(user-id-login|super-login/users)|super[_-]?login|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_devtool\.dart|DevToolApp|DevGatewayClient|ScenarioUsers|FullRoster|location_simulation|JEEB_DEVTOOL_ENABLED=true|JEEB_MOCK_BASE_URL|USE_MOCK_GATEWAY=true' \
+    '192\.168\.2\.(39|50)|10\.0\.2\.2|emulator-|http://(localhost|127\.0\.0\.1)|api\.jeeb\.app|:[[:digit:]]*10069|unified[_-]?payment|/v1/payments/|/v1/matching/(find-jeebers|broadcast)|/api/auth/token|/api/User/(user-id-login|super-login/users)|super[_-]?login|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_devtool\.dart|DevToolApp|DevGatewayClient|ScenarioUsers|FullRoster|location_simulation|devtool_shake|JEEB_DEVTOOL_ENABLED=true|JEEB_MOCK_BASE_URL|USE_MOCK_GATEWAY=true' \
     "${payload}"; then
     fail "unsafe endpoint, mutation, auth, payment, or legacy developer material reached ${payload}"
   fi
