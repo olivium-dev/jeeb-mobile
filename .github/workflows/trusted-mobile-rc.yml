@@ -354,7 +354,19 @@ jobs:
           unzip -p "${aab_path}" base/resources.pb >"${tmp_dir}/resources.pb"
           LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
             "${tmp_dir}/resources.pb"
-          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/resources.pb"
+          # The Maps key is a MANIFEST PLACEHOLDER (build.gradle
+          # `manifestPlaceholders += [MAPS_API_KEY: ...]`), landing as the
+          # com.google.android.geo.API_KEY meta-data in AndroidManifest.xml.
+          # Nothing emits it as a resource — no resValue, nothing in strings.xml
+          # — so grepping resources.pb for it could never match and failed every
+          # Android RC. Assert it where it actually lives, and assert the
+          # build.gradle sentinel never shipped.
+          LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/AndroidManifest.pb"
+          if LC_ALL=C grep -aFq 'MISSING_MAPS_API_KEY' \
+            "${tmp_dir}/AndroidManifest.pb"; then
+            echo '::error::AAB shipped the MISSING_MAPS_API_KEY sentinel'
+            exit 1
+          fi
           app_binary="$(unzip -Z1 "${aab_path}" |
             awk '/base\/lib\/arm64-v8a\/libapp\.so$/ {print; exit}')"
           [[ -n "${app_binary}" ]]
