@@ -220,14 +220,26 @@ measurements. What remains open:
 
 Free at least 6 GiB first — `df -h /Users/oudaykhaled`.
 
-A fresh worktree does NOT inherit three gitignored files, and each one fails the
-build in a different, non-obvious way. Copy all three from the main tree first:
+A fresh worktree does NOT inherit these gitignored inputs, and each one fails the
+build in a different, non-obvious way.
 
-| file | symptom if missing |
-|---|---|
-| `../omds-flutter` sibling clone | `flutter pub get` cannot resolve `omds` |
-| `android/local.properties` (`MAPS_API_KEY=`) | `:app:verifyMapsApiKey` — *"Missing or malformed MAPS_API_KEY"* |
-| `android/app/google-services.json` **and** `android/app/src/dev/google-services.json` | `:app:processDevDebugGoogleServices` — *"File google-services.json is missing"* |
+| missing input | symptom | how to supply it |
+|---|---|---|
+| `../omds-flutter` sibling clone | `flutter pub get` cannot resolve `omds` | clone/copy it beside the worktree |
+| `android/local.properties` (`MAPS_API_KEY=`) | `:app:verifyMapsApiKey` — *"Missing or malformed MAPS_API_KEY"* | copy the key line from the main tree |
+| `google-services.json` | `:app:processDevDebugGoogleServices` — *"File google-services.json is missing"* | **run the build through `tool/run_with_dev_firebase_config.sh`** |
+
+**Do NOT copy `google-services.json` into the worktree.** It is not merely
+gitignored, it is a *protected, transient* build input:
+`test/firebase_config_integrity_test.dart` asserts it
+*"remains an absent, untracked, ignored build input"* and fails if the file
+survives a build. `tool/run_with_dev_firebase_config.sh` (and its
+`run_with_android_firebase_config.sh` / `run_with_ios_firebase_config.sh` peers)
+validates the expected project number/id/app id from protected env, writes the
+file for the duration of the wrapped command, and always removes it afterwards —
+it even refuses to run if a local copy already exists. Copying the file by hand
+bypasses that identity validation and leaves real Firebase config sitting in the
+tree; it also reds the integrity test, which is how this footgun was found.
 
 Append the Maps key as its OWN line — the source file has no trailing newline, so
 a bare `>>` fuses the key onto the end of `flutter.sdk=` and the Flutter tool then
