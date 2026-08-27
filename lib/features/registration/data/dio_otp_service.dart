@@ -28,8 +28,12 @@ class DioOtpService implements OtpService {
       if (status == 200 || status == 201) return OtpSendOutcome.sent;
       return OtpSendOutcome.networkError;
     } on DioException catch (e) {
-      if (e.response?.statusCode == 429) return OtpSendOutcome.rateLimited;
-      return OtpSendOutcome.networkError;
+      final response = e.response;
+      if (response == null) return OtpSendOutcome.networkError;
+      final status = response.statusCode;
+      if (status == 429) return OtpSendOutcome.rateLimited;
+      if (status == 400) return OtpSendOutcome.invalidPhone;
+      return OtpSendOutcome.serverError;
     }
   }
 

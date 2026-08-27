@@ -1132,6 +1132,14 @@
   "@registrationPhoneInvalid": {
     "description": "Inline error when the selected country's phone format is invalid"
   },
+  "registrationPhoneNetworkError": "Couldn't reach Jeeb. Check your connection and try again.",
+  "@registrationPhoneNetworkError": {
+    "description": "Inline phone-entry error when the OTP request failed to reach the server or the server faulted — not a bad phone number"
+  },
+  "registrationPhoneRateLimited": "Too many attempts. Please wait a moment and try again.",
+  "@registrationPhoneRateLimited": {
+    "description": "Inline phone-entry error when the OTP request was rate-limited (HTTP 429) — not a bad phone number"
+  },
   "registrationCountryPickerTitle": "Select country",
   "@registrationCountryPickerTitle": {
     "description": "Title of the registration phone country picker"

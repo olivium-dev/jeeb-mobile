@@ -113,6 +113,25 @@ void main() {
     );
 
     blocTest<RegistrationCubit, RegistrationState>(
+      'surfaces a gateway-rejected phone as invalid',
+      build: build,
+      seed: () => const RegistrationState(phoneInput: '71123456'),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.invalidPhone),
+      act: (c) => c.sendCode(),
+      skip: 1, // skip the optimistic "sending…" frame
+      expect: () => [
+        predicate<RegistrationState>(
+          (s) =>
+              !s.isSendingCode &&
+              s.phoneError == RegistrationPhoneError.invalid &&
+              s.step == RegistrationStep.phone,
+        ),
+      ],
+    );
+
+    blocTest<RegistrationCubit, RegistrationState>(
       'surfaces rate-limit as a phone error',
       build: build,
       seed: () => const RegistrationState(phoneInput: '71123456'),
@@ -126,6 +145,44 @@ void main() {
           (s) =>
               !s.isSendingCode &&
               s.phoneError == RegistrationPhoneError.rateLimited &&
+              s.step == RegistrationStep.phone,
+        ),
+      ],
+    );
+
+    blocTest<RegistrationCubit, RegistrationState>(
+      'surfaces a gateway fault as a network phone error',
+      build: build,
+      seed: () => const RegistrationState(phoneInput: '71123456'),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.serverError),
+      act: (c) => c.sendCode(),
+      skip: 1, // skip the optimistic "sending…" frame
+      expect: () => [
+        predicate<RegistrationState>(
+          (s) =>
+              !s.isSendingCode &&
+              s.phoneError == RegistrationPhoneError.networkError &&
+              s.step == RegistrationStep.phone,
+        ),
+      ],
+    );
+
+    blocTest<RegistrationCubit, RegistrationState>(
+      'surfaces a transport failure as a network phone error',
+      build: build,
+      seed: () => const RegistrationState(phoneInput: '71123456'),
+      setUp: () => when(
+        () => otp.sendCode(any()),
+      ).thenAnswer((_) async => OtpSendOutcome.networkError),
+      act: (c) => c.sendCode(),
+      skip: 1, // skip the optimistic "sending…" frame
+      expect: () => [
+        predicate<RegistrationState>(
+          (s) =>
+              !s.isSendingCode &&
+              s.phoneError == RegistrationPhoneError.networkError &&
               s.step == RegistrationStep.phone,
         ),
       ],

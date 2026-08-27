@@ -87,11 +87,25 @@ class RegistrationCubit extends Cubit<RegistrationState> {
           ),
         );
         _startResendCountdown();
+      case OtpSendOutcome.invalidPhone:
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            phoneError: RegistrationPhoneError.invalid,
+          ),
+        );
       case OtpSendOutcome.rateLimited:
         emit(
           state.copyWith(
             isSendingCode: false,
             phoneError: RegistrationPhoneError.rateLimited,
+          ),
+        );
+      case OtpSendOutcome.serverError:
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            phoneError: RegistrationPhoneError.networkError,
           ),
         );
       case OtpSendOutcome.networkError:
@@ -118,7 +132,9 @@ class RegistrationCubit extends Cubit<RegistrationState> {
           ),
         );
         _startResendCountdown();
+      case OtpSendOutcome.invalidPhone:
       case OtpSendOutcome.rateLimited:
+      case OtpSendOutcome.serverError:
       case OtpSendOutcome.networkError:
         emit(state.copyWith(otpError: RegistrationOtpError.networkError));
     }
