@@ -11,23 +11,26 @@ class NotificationsListCubit extends Cubit<NotificationsListState> {
   final NotificationsRepository _repository;
 
   Future<void> load() async {
-    if (state.status != NotificationsListStatus.initial) return;
+    if (isClosed || state.status != NotificationsListStatus.initial) return;
     emit(state.copyWith(
       status: NotificationsListStatus.loading,
       clearError: true,
     ));
     try {
       final items = await _repository.fetchNotifications();
+      if (isClosed) return;
       emit(state.copyWith(
         status: NotificationsListStatus.loaded,
         items: _sorted(items),
       ));
     } on NotificationsRepositoryException catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         status: NotificationsListStatus.failed,
         error: e.failure,
       ));
     } catch (_) {
+      if (isClosed) return;
       emit(state.copyWith(
         status: NotificationsListStatus.failed,
         error: NotificationsFailure.unknown,
@@ -36,16 +39,20 @@ class NotificationsListCubit extends Cubit<NotificationsListState> {
   }
 
   Future<void> refresh() async {
+    if (isClosed) return;
     try {
       final items = await _repository.fetchNotifications();
+      if (isClosed) return;
       emit(state.copyWith(
         status: NotificationsListStatus.loaded,
         items: _sorted(items),
         clearError: true,
       ));
     } on NotificationsRepositoryException catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(error: e.failure));
     } catch (_) {
+      if (isClosed) return;
       emit(state.copyWith(error: NotificationsFailure.unknown));
     }
   }
