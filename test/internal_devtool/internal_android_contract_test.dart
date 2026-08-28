@@ -82,6 +82,13 @@ void main() {
     for (final marker in _workflowMarkers) {
       expect(buildWorkflow, contains(marker));
     }
+    for (final binding in _provenanceVariableBindings) {
+      expect(
+        buildWorkflow,
+        contains(binding),
+        reason: 'provenance must bind jq variables instead of writing null',
+      );
+    }
     expect(
       buildWorkflow,
       isNot(contains('ANDROID_CANDIDATE_DECRYPT_KEY_B64')),
@@ -112,6 +119,13 @@ void main() {
     expect(fastfile, isNot(contains('lane :production')));
     for (final marker in _distributionWorkflowMarkers) {
       expect(distributionWorkflow, contains(marker));
+    }
+    for (final binding in _distributionReceiptVariableBindings) {
+      expect(
+        distributionWorkflow,
+        contains(binding),
+        reason: 'distribution receipt must bind jq variables',
+      );
     }
     expect(
       distributionWorkflow,
@@ -249,6 +263,27 @@ const _workflowMarkers = <String>[
   'Retain exact ciphertext-only candidate',
 ];
 
+const _provenanceVariableBindings = <String>[
+  r'reviewed_sha:$reviewed_sha',
+  r'dependency_sha:$dependency_sha',
+  r'build_name:$build_name',
+  r'build_number:$build_number',
+  r'artifact_sha256:$artifact_sha256',
+  r'metadata_sha256:$metadata_sha256',
+  r'mapping_sha256:$mapping_sha256',
+  r'signer_sha1:$signer_sha1',
+  r'signer_sha256:$signer_sha256',
+  r'source_run_id:$source_run_id',
+  r'source_run_attempt:$source_run_attempt',
+  r'source_head_sha:$source_head_sha',
+  r'source_workflow_ref:$source_workflow_ref',
+  r'source_repository:$source_repository',
+  r'source_event:$source_event',
+  r'source_ref:$source_ref',
+  r'gateway_origin:$gateway_origin',
+  r'realtime_socket:$realtime_socket',
+];
+
 const _distributionWorkflowMarkers = <String>[
   'environment: mobile-internal-distribution',
   '.path == ".github/workflows/trusted-android-internal-devtool-rc.yml"',
@@ -268,4 +303,13 @@ const _distributionWorkflowMarkers = <String>[
   'devtool:true',
   'super_login:false',
   'clarity_enabled:false',
+];
+
+const _distributionReceiptVariableBindings = <String>[
+  r'artifact_sha256:$artifact_sha256',
+  r'source_run_id:$source_run_id',
+  r'source_run_attempt:$source_run_attempt',
+  r'reviewed_sha:$reviewed_sha',
+  r'version_name:$version_name',
+  r'version_code:$version_code',
 ];

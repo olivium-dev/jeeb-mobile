@@ -351,8 +351,11 @@ jobs:
             --arg version_name '${{ inputs.build_name }}' \
             --arg version_code '${{ inputs.build_number }}' \
             '{platform:"android", destination:"google-play-internal",
-              artifact_sha256, source_run_id, source_run_attempt, reviewed_sha,
-              version_name, version_code, devtool:true, super_login:false,
+              artifact_sha256:$artifact_sha256,
+              source_run_id:$source_run_id,
+              source_run_attempt:$source_run_attempt,
+              reviewed_sha:$reviewed_sha, version_name:$version_name,
+              version_code:$version_code, devtool:true, super_login:false,
               clarity_enabled:false, release_profile:true}' \
             >build/distribution-receipts/android-internal-devtool.json
       - name: Retain internal distribution receipt
