@@ -244,6 +244,15 @@ jobs:
             exit 1
           }
           unzip -p "${aab}" "${app_binary}" >"${tmp_dir}/libapp.so"
+          english_arb_entry="$(unzip -Z1 "${aab}" |
+            awk '$0 == "base/assets/flutter_assets/lib/l10n/app_en.arb" {print}')"
+          [[ "${english_arb_entry}" == \
+            base/assets/flutter_assets/lib/l10n/app_en.arb ]] || {
+            printf '%s\n' \
+              'Android internal candidate rejected: expected exactly one English ARB asset' >&2
+            exit 1
+          }
+          unzip -p "${aab}" "${english_arb_entry}" >"${tmp_dir}/app_en.arb"
           LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
             "${tmp_dir}/resources.pb"
           LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/manifest.pb"
@@ -252,8 +261,8 @@ jobs:
           JEEB_CLARITY_PRIVACY_APPROVED=false \
             bash tool/inspect_android_internal_release_payload.sh \
               "${tmp_dir}/manifest.pb" "${tmp_dir}/resources.pb" \
-              "${tmp_dir}/libapp.so" "${STAGING_GATEWAY_URL}" \
-              "${STAGING_REALTIME_SOCKET_URL}"
+              "${tmp_dir}/libapp.so" "${tmp_dir}/app_en.arb" \
+              "${STAGING_GATEWAY_URL}" "${STAGING_REALTIME_SOCKET_URL}"
           artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
           metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
