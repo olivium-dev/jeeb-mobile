@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+name: Dev Tool launcher opens Dev Tool
+tags:
+  - critical
+  - devtool-launcher
+---
+- extendedWaitUntil:
+    visible:
+      text: "Jeeber Dev Tool"
+    timeout: 30000
+- assertVisible:
+    text: "Jeeber Dev Tool"
+- takeScreenshot: devtool_launcher_root

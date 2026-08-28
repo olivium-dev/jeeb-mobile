@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 // ("internal release graph stays isolated from the legacy developer tool") —
 // each grep a SINGLE file's own bytes. Neither can see an edge that arrives
 // one hop away, so both pass unchanged while the graph beneath them changes.
-// Shake-to-Dev-Tool added exactly such an edge
+// The in-context Dev Tool host added exactly such an edge
 // (`lib/app/app.dart` -> `lib/devtool/shake/devtool_shake.dart` ->
 // `lib/devtool/devtool_shell.dart`, i.e. Super Login + location sim +
 // scenario users), and both of those tests stayed green through it.
@@ -147,14 +147,15 @@ void main() {
       );
     });
 
-    test('the only non-catalog crossing into lib/devtool/ is the shake edge', () {
+    test('the only non-catalog crossing is the in-context host edge', () {
       for (final MapEntry<String, Set<String>> entry in entrypoints.entries) {
-        final List<String> crossings = _devToolEdges(entry.value)
-            .where((edge) => !edge.first.startsWith('lib/devtool/'))
-            .where((edge) => !edge.last.startsWith('lib/devtool/catalog/'))
-            .map((edge) => '${edge.first} -> ${edge.last}')
-            .toList()
-          ..sort();
+        final List<String> crossings =
+            _devToolEdges(entry.value)
+                .where((edge) => !edge.first.startsWith('lib/devtool/'))
+                .where((edge) => !edge.last.startsWith('lib/devtool/catalog/'))
+                .map((edge) => '${edge.first} -> ${edge.last}')
+                .toList()
+              ..sort();
 
         expect(
           crossings,
@@ -188,26 +189,26 @@ void main() {
       }
     });
 
-    test('the shake edge is used only behind the compile-time const', () {
+    test('the host edge is used only behind the compile-time const', () {
       final String app = _codeOnly(File('lib/app/app.dart').readAsStringSync());
 
       expect(
         'DevToolShakeHost'.allMatches(app).length,
         1,
-        reason: 'app.dart must have exactly one DevToolShakeHost use site '
+        reason:
+            'app.dart must have exactly one DevToolShakeHost use site '
             'outside comments',
       );
       expect(
         app,
-        contains('kShakeToDevToolEnabled'),
+        contains('kDevToolEnabled'),
         reason: 'that use site must be guarded by the const',
       );
       expect(
-        RegExp(
-          r'kShakeToDevToolEnabled\s*\?\s*DevToolShakeHost\(',
-        ).hasMatch(app),
+        RegExp(r'kDevToolEnabled\s*\?\s*DevToolShakeHost\(').hasMatch(app),
         isTrue,
-        reason: 'the only use site must be the const-false ternary, so a '
+        reason:
+            'the only use site must be the const-false ternary, so a '
             'release AOT snapshot drops the whole subgraph',
       );
     });

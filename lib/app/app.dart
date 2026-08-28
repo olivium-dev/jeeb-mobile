@@ -99,6 +99,7 @@ class JeebApp extends StatefulWidget {
     this.localizationsDelegateOverride,
     this.sessionGate,
     this.clarityController,
+    this.consumeDevToolInitialOpen,
   });
 
   final SharedPreferences preferences;
@@ -162,6 +163,9 @@ class JeebApp extends StatefulWidget {
 
   /// Test seam. Production owns a release/config/consent-gated controller.
   final ClarityController? clarityController;
+
+  /// Consumes the root-selected Android launcher decision at most once.
+  final bool Function()? consumeDevToolInitialOpen;
 
   @override
   State<JeebApp> createState() => _JeebAppState();
@@ -634,8 +638,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   void _logPushDegraded(String reason, String stage) {
     if (!kDebugMode) return;
     final deviceId = widget.preferences.getString(_pushDeviceIdPrefsKey);
-    debugPrint('JEEB-PUSH-DEGRADED reason=$reason stage=$stage '
-        'deviceId=${deviceId ?? 'unknown'}');
+    debugPrint(
+      'JEEB-PUSH-DEGRADED reason=$reason stage=$stage '
+      'deviceId=${deviceId ?? 'unknown'}',
+    );
   }
 
   /// Classifies the failed step for [_logPushDegraded]; stage 'token' means
@@ -813,19 +819,25 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                   // compile-time `false` in production, so this wrap (and
                   // `GestureLogListener` itself) is tree-shaken out and `observed`
                   // is returned byte-identically. Default OFF at runtime.
-                  // SHAKE-TO-DEVTOOL (iOS entry point): iOS has no second
-                  // launcher icon and no URL scheme, so a physical shake —
-                  // forwarded from `AppDelegate.motionEnded` over
-                  // `com.olivium.jeeb/devtool_shake` — is the only way in.
-                  // `kShakeToDevToolEnabled` is a compile-time `false` in
+                  // DEVTOOL HOST: Android's second launcher supplies the exact
+                  // `/devtool` default route; iOS has no second icon or URL
+                  // scheme, so a physical shake forwarded from
+                  // `AppDelegate.motionEnded` over
+                  // `com.olivium.jeeb/devtool_shake` is its entry point.
+                  // `kDevToolEnabled` is a compile-time `false` in
                   // production, so this wrap, `DevToolShakeHost` itself and
                   // its `devtool_shell.dart` import are tree-shaken out and
                   // `observed` is returned unchanged. The native half is
                   // gated independently by `#if JEEB_DEV`. Wrapped BELOW
                   // `ClarityMask` on purpose: session recording must never
                   // capture the Dev Tool.
-                  final shakeHosted = kShakeToDevToolEnabled
-                      ? DevToolShakeHost(child: observed)
+                  final shakeHosted = kDevToolEnabled
+                      ? DevToolShakeHost(
+                          initiallyOpen:
+                              widget.consumeDevToolInitialOpen?.call() ?? false,
+                          shakeEnabled: kShakeToDevToolEnabled,
+                          child: observed,
+                        )
                       : observed;
                   final productUi = kDevAffordancesAllowed
                       ? GestureLogListener(child: shakeHosted)

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/app/jeeb_bootstrap.dart';
 import 'package:jeeb_mobile/app/app_restarter.dart';
 import 'package:jeeb_mobile/core/dev_flags.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
@@ -84,9 +85,15 @@ class _ProductProbeState extends State<_ProductProbe> {
   Widget build(BuildContext context) => const Text('PRODUCT UI');
 }
 
-Widget _hostUnderTest(_FakeClock clock) => MaterialApp(
+Widget _hostUnderTest(
+  _FakeClock clock, {
+  bool initiallyOpen = false,
+  bool shakeEnabled = true,
+}) => MaterialApp(
   theme: AppTheme.light(),
   builder: (context, child) => DevToolShakeHost(
+    initiallyOpen: initiallyOpen,
+    shakeEnabled: shakeEnabled,
     clock: clock.call,
     layerBuilder: (_) => const Scaffold(
       body: Center(child: Text('DEV TOOL', key: _layerContentKey)),
@@ -147,28 +154,42 @@ void main() {
         ),
       );
 
-      if (kShakeToDevToolEnabled) {
+      if (kDevToolEnabled) {
         expect(layer, isNot(isA<SizedBox>()));
       } else {
         expect(layer, isA<SizedBox>());
       }
     });
 
-    test('the product app mounts the host behind that same const', () {
-      final source = File('lib/app/app.dart').readAsStringSync();
+    test(
+      'the product app keeps the host in context behind the strict gate',
+      () {
+        final source = File('lib/app/app.dart').readAsStringSync();
+        final guardedHost = RegExp(
+          r"kDevToolEnabled\s*\?\s*DevToolShakeHost\(\s*"
+          r"initiallyOpen:\s*widget\.consumeDevToolInitialOpen\?\.call\(\)\s*"
+          r"\?\?\s*false,\s*shakeEnabled:\s*kShakeToDevToolEnabled,",
+        );
 
-      expect(
-        source,
-        contains("import '../devtool/shake/devtool_shake.dart';"),
-      );
-      expect(source, contains('kShakeToDevToolEnabled'));
-      expect(source, contains('DevToolShakeHost(child: observed)'));
-      expect(
-        source,
-        contains('final maskedProduct = ClarityMask(child: productUi);'),
-        reason: 'the Dev Tool must stay inside the Clarity privacy mask',
-      );
-    });
+        expect(
+          source,
+          contains("import '../devtool/shake/devtool_shake.dart';"),
+        );
+        expect(
+          guardedHost.hasMatch(source),
+          isTrue,
+          reason:
+              'initial launch must remain independent of the optional shake '
+              'channel while the whole host stays behind the strict gate',
+        );
+        expect(source, isNot(contains('PlatformDispatcher.instance')));
+        expect(
+          source,
+          contains('final maskedProduct = ClarityMask(child: productUi);'),
+          reason: 'the Dev Tool must stay inside the Clarity privacy mask',
+        );
+      },
+    );
 
     test('the native half is gated independently of the Dart half', () {
       final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
@@ -191,27 +212,93 @@ void main() {
     });
   });
 
+  group('pre-bootstrap launcher selection', () {
+    test(
+      'the neutral main entrypoint passes the route to the root factory',
+      () {
+        final source = File('lib/main.dart').readAsStringSync();
+
+        expect(
+          RegExp(
+            r'runApp\(\s*buildJeebRootForInitialRoute\(\s*'
+            r'WidgetsBinding\.instance\.platformDispatcher\.defaultRouteName,?'
+            r'\s*\),?\s*\)',
+          ).hasMatch(source),
+          isTrue,
+        );
+        expect(source.toLowerCase(), isNot(contains('devtool')));
+        expect(source, isNot(contains("'/devtool'")));
+      },
+    );
+
+    test('the factory selects before constructing JeebRoot', () {
+      final source = File('lib/app/jeeb_bootstrap.dart').readAsStringSync();
+      final factoryStart = source.indexOf('buildJeebRootForInitialRoute');
+      final selection = source.indexOf('shouldLaunchDevTool(', factoryStart);
+      final rootConstruction = source.indexOf('return JeebRoot(', factoryStart);
+
+      expect(factoryStart, greaterThanOrEqualTo(0));
+      expect(selection, greaterThan(factoryStart));
+      expect(rootConstruction, greaterThan(selection));
+      expect(
+        source.indexOf('GoRouter', factoryStart),
+        anyOf(-1, greaterThan(rootConstruction)),
+      );
+    });
+
+    test('the factory preserves exact matching and the compile gate', () {
+      final exact = buildJeebRootForInitialRoute('/devtool') as JeebRoot;
+      expect(exact.devToolInitiallyPending, kDevToolEnabled);
+
+      for (final route in <String>[
+        '/',
+        '',
+        '/devtool/',
+        '/devtool?source=launcher',
+        '/devtools',
+        '/DevTool',
+        'devtool',
+      ]) {
+        final root = buildJeebRootForInitialRoute(route) as JeebRoot;
+        expect(root.devToolInitiallyPending, isFalse, reason: route);
+      }
+    });
+
+    test('the product router keeps its exact fail-closed fallback', () {
+      final source = File('lib/core/router/app_router.dart').readAsStringSync();
+
+      expect(
+        source,
+        contains("if (state.matchedLocation == '/devtool') return '/';"),
+      );
+    });
+  });
+
   group('Dev Tool Super Login dependencies', () {
     tearDown(sl.reset);
 
-    test('registration covers exactly what the sheet resolves out of GetIt', () {
-      expect(sl.isRegistered<SuperLoginService>(), isFalse);
-      expect(sl.isRegistered<SuperLoginDemoUserService>(), isFalse);
+    test(
+      'registration covers exactly what the sheet resolves out of GetIt',
+      () {
+        expect(sl.isRegistered<SuperLoginService>(), isFalse);
+        expect(sl.isRegistered<SuperLoginDemoUserService>(), isFalse);
 
-      registerDevToolSuperLoginDependencies();
+        registerDevToolSuperLoginDependencies();
 
-      expect(
-        sl.isRegistered<SuperLoginService>(),
-        isTrue,
-        reason: 'super_login_sheet.dart resolves sl<SuperLoginService>()',
-      );
-      expect(
-        sl.isRegistered<SuperLoginDemoUserService>(),
-        isTrue,
-        reason: 'super_login_picker.dart resolves '
-            'sl<SuperLoginDemoUserService>()',
-      );
-    });
+        expect(
+          sl.isRegistered<SuperLoginService>(),
+          isTrue,
+          reason: 'super_login_sheet.dart resolves sl<SuperLoginService>()',
+        );
+        expect(
+          sl.isRegistered<SuperLoginDemoUserService>(),
+          isTrue,
+          reason:
+              'super_login_picker.dart resolves '
+              'sl<SuperLoginDemoUserService>()',
+        );
+      },
+    );
 
     test('is idempotent, so both Dev Tool entry points may call it', () {
       // GetIt has `allowReassignment` off (never set anywhere in lib/), so a
@@ -250,15 +337,12 @@ void main() {
 
       expect(
         sl.isRegistered<SuperLoginService>(),
-        kShakeToDevToolEnabled,
-        reason: kShakeToDevToolEnabled
+        kDevToolEnabled,
+        reason: kDevToolEnabled
             ? 'Dev Tool > Super Login resolves sl<SuperLoginService>()'
             : 'the gate-off branch must register nothing',
       );
-      expect(
-        sl.isRegistered<SuperLoginDemoUserService>(),
-        kShakeToDevToolEnabled,
-      );
+      expect(sl.isRegistered<SuperLoginDemoUserService>(), kDevToolEnabled);
     });
 
     test('the shake layer registers them before it builds the shell', () {
@@ -287,10 +371,7 @@ void main() {
     test('opens on the first delivery', () {
       final gate = DevToolShakeGate();
 
-      expect(
-        gate.shouldOpen(alreadyOpen: false, now: DateTime(2026)),
-        isTrue,
-      );
+      expect(gate.shouldOpen(alreadyOpen: false, now: DateTime(2026)), isTrue);
     });
 
     test('suppresses a repeat delivery inside the debounce window', () {
@@ -336,6 +417,55 @@ void main() {
   });
 
   group('DevToolShakeHost', () {
+    testWidgets('initiallyOpen mounts the Dev Tool over the product UI', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _hostUnderTest(_FakeClock(), initiallyOpen: true),
+      );
+
+      expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+      expect(find.byKey(_layerContentKey), findsOneWidget);
+      expect(find.text('PRODUCT UI'), findsOneWidget);
+    });
+
+    testWidgets('initiallyOpen defaults false and keeps only product UI', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_hostUnderTest(_FakeClock()));
+
+      expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+      expect(find.byKey(_layerContentKey), findsNothing);
+      expect(find.text('PRODUCT UI'), findsOneWidget);
+    });
+
+    testWidgets('updating initiallyOpen does not close an open host', (
+      tester,
+    ) async {
+      final clock = _FakeClock();
+      await tester.pumpWidget(_hostUnderTest(clock, initiallyOpen: true));
+      expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+
+      await tester.pumpWidget(_hostUnderTest(clock));
+
+      expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+      expect(find.text('PRODUCT UI'), findsOneWidget);
+    });
+
+    testWidgets('initial launch works with the shake channel disabled', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _hostUnderTest(_FakeClock(), initiallyOpen: true, shakeEnabled: false),
+      );
+
+      expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+      await tester.tap(find.byKey(kDevToolShakeCloseKey));
+      await tester.pumpAndSettle();
+      expect(await _deliverShake(tester), isNull);
+      expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+    });
+
     testWidgets('a native shake mounts the Dev Tool over the product UI', (
       tester,
     ) async {
@@ -451,7 +581,8 @@ void main() {
       expect(
         find.byKey(kDevToolShakeLayerKey),
         findsOneWidget,
-        reason: "the old host's teardown must not clear its successor's "
+        reason:
+            "the old host's teardown must not clear its successor's "
             'handler',
       );
     });
@@ -495,13 +626,15 @@ void main() {
         expect(
           hostContext.findAncestorWidgetOfExactType<Overlay>(),
           isNull,
-          reason: 'production mounts the host above the app Navigator, which '
+          reason:
+              'production mounts the host above the app Navigator, which '
               'is the app\'s only Overlay',
         );
         expect(
           HeroControllerScope.of(hostContext),
           isNotNull,
-          reason: "MaterialApp publishes its hero controller above `builder`, "
+          reason:
+              "MaterialApp publishes its hero controller above `builder`, "
               'so a nested Navigator would adopt the app\'s controller',
         );
       },
@@ -520,7 +653,8 @@ void main() {
       expect(
         find.byType(ErrorWidget),
         findsNothing,
-        reason: 'a thrown assert would replace the close button with a red '
+        reason:
+            'a thrown assert would replace the close button with a red '
             'ErrorWidget',
       );
     });
@@ -534,9 +668,7 @@ void main() {
         // which is why `dev_settings_page` tells the user to restart. Closing
         // must therefore rebuild the tree, not merely hide the layer.
         final clock = _FakeClock();
-        await tester.pumpWidget(
-          AppRestarter(child: _hostUnderTest(clock)),
-        );
+        await tester.pumpWidget(AppRestarter(child: _hostUnderTest(clock)));
         final int firstGeneration = _ProductProbe.generations;
 
         await _deliverShake(tester);
@@ -552,7 +684,8 @@ void main() {
         expect(
           _ProductProbe.generations,
           greaterThan(firstGeneration),
-          reason: 'Apply must remount the app subtree, not just hide the '
+          reason:
+              'Apply must remount the app subtree, not just hide the '
               'Dev Tool — otherwise the already-resolved Dio keeps the old '
               'base URL and the saved setting never applies',
         );
@@ -560,23 +693,22 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Apply without an AppRestarter above is a harmless no-op',
-      (tester) async {
-        // Production compiles the wrap out (`kDevToolEnabled` is a const
-        // false), and widget tests do not install one. Close must still work
-        // rather than throwing at a user who just tapped it.
-        final clock = _FakeClock();
-        await tester.pumpWidget(_hostUnderTest(clock));
+    testWidgets('Apply without an AppRestarter above is a harmless no-op', (
+      tester,
+    ) async {
+      // Production compiles the wrap out (`kDevToolEnabled` is a const
+      // false), and widget tests do not install one. Close must still work
+      // rather than throwing at a user who just tapped it.
+      final clock = _FakeClock();
+      await tester.pumpWidget(_hostUnderTest(clock));
 
-        await _deliverShake(tester);
-        await tester.tap(find.byKey(kDevToolShakeApplyKey));
-        await tester.pumpAndSettle();
+      await _deliverShake(tester);
+      await tester.tap(find.byKey(kDevToolShakeApplyKey));
+      await tester.pumpAndSettle();
 
-        expect(tester.takeException(), isNull);
-        expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
-      },
-    );
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+    });
 
     testWidgets(
       'X closes from a pushed Dev Tool page, it is not a Back button',
@@ -623,7 +755,8 @@ void main() {
         expect(
           find.byKey(kDevToolShakeLayerKey),
           findsNothing,
-          reason: 'ONE tap on X must leave the Dev Tool entirely, however deep '
+          reason:
+              'ONE tap on X must leave the Dev Tool entirely, however deep '
               'the user has navigated inside it',
         );
         expect(find.text('PRODUCT UI'), findsOneWidget);
@@ -652,7 +785,8 @@ void main() {
         expect(
           _ProductProbe.generations,
           firstGeneration,
-          reason: 'X must not remount the app — restarting on an accidental '
+          reason:
+              'X must not remount the app — restarting on an accidental '
               'open is exactly the cost this control exists to avoid',
         );
       },

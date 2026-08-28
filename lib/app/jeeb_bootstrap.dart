@@ -26,6 +26,15 @@ String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
 const Duration _startupTransitionDuration = Duration(milliseconds: 350);
 
+/// Selects the product root before bootstrap or router construction begins.
+Widget buildJeebRootForInitialRoute(String initialRoute) {
+  final bool devToolInitiallyPending = shouldLaunchDevTool(
+    enabled: kDevToolEnabled,
+    initialRoute: initialRoute,
+  );
+  return JeebRoot(devToolInitiallyPending: devToolInitiallyPending);
+}
+
 /// What `lib/main.dart` runs.
 ///
 /// This indirection exists so the product entrypoint names no Dev Tool symbol —
@@ -38,13 +47,50 @@ const Duration _startupTransitionDuration = Duration(milliseconds: 350);
 /// by remounting that subtree with a fresh key, which it cannot do to its own
 /// ancestor. `kDevToolEnabled` is a compile-time `false` in production, so the
 /// whole ternary folds and `AppRestarter` tree-shakes out.
-class JeebRoot extends StatelessWidget {
-  const JeebRoot({super.key});
+class JeebRoot extends StatefulWidget {
+  const JeebRoot({
+    super.key,
+    this.devToolInitiallyPending = false,
+    this.bootstrapFuture,
+  });
+
+  /// The already-selected, exact-route launch decision.
+  final bool devToolInitiallyPending;
+
+  /// Test-only bootstrap override forwarded without changing root selection.
+  final Future<BootstrapResult>? bootstrapFuture;
+
+  @override
+  State<JeebRoot> createState() => _JeebRootState();
+}
+
+class _JeebRootState extends State<JeebRoot> {
+  late bool _devToolPending = widget.devToolInitiallyPending;
+  bool _devToolConsumed = false;
+  bool _clearScheduled = false;
+
+  bool _consumeDevToolInitialOpen() {
+    if (!_devToolPending || _devToolConsumed) return false;
+    _devToolConsumed = true;
+    if (!_clearScheduled) {
+      _clearScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_devToolPending) return;
+        setState(() => _devToolPending = false);
+      });
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) => kDevToolEnabled
-      ? const AppRestarter(child: JeebBootstrap())
-      : const JeebBootstrap();
+      ? AppRestarter(
+          child: JeebBootstrap(
+            bootstrapFuture: widget.bootstrapFuture,
+            consumeDevToolInitialOpen: _consumeDevToolInitialOpen,
+          ),
+        )
+      : JeebBootstrap(bootstrapFuture: widget.bootstrapFuture);
 }
 
 class JeebBootstrap extends StatefulWidget {
@@ -52,12 +98,16 @@ class JeebBootstrap extends StatefulWidget {
     super.key,
     Future<BootstrapResult>? bootstrapFuture,
     Duration? minSplashHold,
+    this.consumeDevToolInitialOpen,
   }) : _override = bootstrapFuture,
        _minSplashHold = minSplashHold;
 
   final Future<BootstrapResult>? _override;
 
   final Duration? _minSplashHold;
+
+  /// Threads the root's one-shot launcher decision to the in-context host.
+  final bool Function()? consumeDevToolInitialOpen;
 
   @override
   State<JeebBootstrap> createState() => _JeebBootstrapState();
@@ -169,6 +219,8 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
                     child: JeebApp(
                       preferences: result.preferences,
                       crashReporter: result.crashReporter,
+                      consumeDevToolInitialOpen:
+                          widget.consumeDevToolInitialOpen,
                     ),
                   ),
                 ),
