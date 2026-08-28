@@ -677,11 +677,12 @@ void _registerCiContracts() {
     },
   );
 
-  test('distribution consumes retained bytes and is internal-only', () {
+  test('iOS distribution consumes retained bytes and is internal-only', () {
     final workflow = _source(
       '.github/workflows/distribute-mobile-internal.yml',
     );
     _expectContainsAll(workflow, [
+      'name: Distribute retained iOS RC internally',
       'environment: mobile-internal-distribution',
       'environments/mobile-internal-distribution',
       '.deployment_branch_policy.protected_branches == true',
@@ -689,12 +690,6 @@ void _registerCiContracts() {
       '.path == ".github/workflows/trusted-mobile-rc.yml"',
       'and .head_sha == \$reviewed',
       'and .conclusion == "success"',
-      'DISTRIBUTION_PLATFORM: \${{ inputs.platform }}',
-      r'"${DISTRIBUTION_PLATFORM}" == both',
-      r'if [[ "${DISTRIBUTION_PLATFORM}" != ios ]]',
-      r'if [[ "${DISTRIBUTION_PLATFORM}" != android ]]',
-      "inputs.platform != 'ios'",
-      "inputs.platform != 'android'",
       'source_run_attempt',
       '.digest | sub("^sha256:"; "")',
       'bash tool/validate_ios_rc_artifact.sh',
@@ -709,19 +704,14 @@ void _registerCiContracts() {
       'EXPECTED_IPA_SHA256',
       'EXPECTED_PROVENANCE_SHA256',
       'EXPECTED_DSYM_SHA256',
-      'actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0',
       'source_run_id',
       'artifact_sha256',
-      'mapping.txt',
       '*-dSYMs.zip',
-      'store_uploaded == false',
       'Dual-store monotonic build-number preflight',
       'bundle exec fastlane preflight_internal',
       'needs: [source-policy, store-build-number-preflight]',
       'uses: ./.github/actions/setup-ruby',
-      'working-directory: android',
       'working-directory: ios',
-      'bundle exec fastlane android internal',
       'bundle exec fastlane ios internal',
       'secrets.GOOGLE_PLAY_JSON_KEY',
       'secrets.APP_STORE_KEY_ID',
@@ -743,15 +733,23 @@ void _registerCiContracts() {
       'e2e_manifest_sha256',
       'required_reviewers',
       'prevent_self_review',
+      'inputs.platform',
+      'DISTRIBUTION_PLATFORM',
+      'rc_aab_sha256',
+      'rc_android_provenance_sha256',
+      'working-directory: android',
+      'bundle exec fastlane android internal',
+      'actions/download-artifact',
+      'mapping.txt',
     ]) {
       expect(workflow, isNot(contains(removedGate)), reason: removedGate);
     }
     expect(
       'physical_device_verification: "pending"'.allMatches(workflow).length,
-      2,
+      1,
     );
-    expect('final_release_go: false'.allMatches(workflow).length, 2);
-    expect(r'$ARGS.named +'.allMatches(workflow).length, 2);
+    expect('final_release_go: false'.allMatches(workflow).length, 1);
+    expect(r'$ARGS.named +'.allMatches(workflow).length, 1);
     expect(workflow, isNot(contains("'{platform, destination")));
     expect(
       workflow,
