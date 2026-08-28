@@ -1,5 +1,7 @@
 // Unit tests for NotificationsListCubit (JM-057). Proves the 4-state machine
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/notifications/application/notifications_list_cubit.dart';
 import 'package:jeeb_mobile/features/notifications/application/notifications_list_state.dart';
@@ -33,6 +35,21 @@ class _ScriptedRepository implements NotificationsRepository {
     }
     markedRead.add(id);
   }
+}
+
+class _PendingRepository implements NotificationsRepository {
+  final Completer<List<NotificationItem>> _fetch =
+      Completer<List<NotificationItem>>();
+
+  void complete(List<NotificationItem> items) => _fetch.complete(items);
+
+  void completeError(Object error) => _fetch.completeError(error);
+
+  @override
+  Future<List<NotificationItem>> fetchNotifications() => _fetch.future;
+
+  @override
+  Future<void> markRead(String id) async {}
 }
 
 NotificationItem _item(
@@ -103,6 +120,30 @@ void main() {
       expect(cubit.state.items.map((i) => i.id).toList(), ['a']);
       await cubit.close();
     });
+
+    test('does not emit when a successful fetch completes after close',
+        () async {
+      final repo = _PendingRepository();
+      final cubit = NotificationsListCubit(repository: repo);
+
+      final load = cubit.load();
+      expect(cubit.state.status, NotificationsListStatus.loading);
+      await cubit.close();
+      repo.complete([_item('late')]);
+
+      await expectLater(load, completes);
+    });
+
+    test('does not emit when a failed fetch completes after close', () async {
+      final repo = _PendingRepository();
+      final cubit = NotificationsListCubit(repository: repo);
+
+      final load = cubit.load();
+      await cubit.close();
+      repo.completeError(StateError('late failure'));
+
+      await expectLater(load, completes);
+    });
   });
 
   group('NotificationsListCubit.refresh', () {
@@ -115,6 +156,43 @@ void main() {
       expect(cubit.state.status, NotificationsListStatus.loaded);
       expect(cubit.state.items.map((i) => i.id).toList(), ['b', 'a']);
       await cubit.close();
+    });
+
+    test('does not emit when a refresh completes after close', () async {
+      final repo = _PendingRepository();
+      final cubit = NotificationsListCubit(repository: repo);
+
+      final refresh = cubit.refresh();
+      await cubit.close();
+      repo.complete([_item('late')]);
+
+      await expectLater(refresh, completes);
+    });
+
+    test('does not emit when a refresh repository error arrives after close',
+        () async {
+      final repo = _PendingRepository();
+      final cubit = NotificationsListCubit(repository: repo);
+
+      final refresh = cubit.refresh();
+      await cubit.close();
+      repo.completeError(const NotificationsRepositoryException(
+        NotificationsFailure.network,
+      ));
+
+      await expectLater(refresh, completes);
+    });
+
+    test('does not emit when an unexpected refresh error arrives after close',
+        () async {
+      final repo = _PendingRepository();
+      final cubit = NotificationsListCubit(repository: repo);
+
+      final refresh = cubit.refresh();
+      await cubit.close();
+      repo.completeError(StateError('late failure'));
+
+      await expectLater(refresh, completes);
     });
   });
 
