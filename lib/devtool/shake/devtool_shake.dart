@@ -9,7 +9,7 @@
 //
 // TWO INDEPENDENT COMPILE-OUT GATES protect a store build:
 //   1. Dart  — everything in this file is only reachable through the
-//              `kShakeToDevToolEnabled` const ternary in `app/app.dart`, so a
+//              `kDevToolEnabled` const ternary in `app/app.dart`, so a
 //              release/profile AOT snapshot tree-shakes the wiring AND the
 //              `../devtool_shell.dart` import below out entirely.
 //   2. Native — `#if JEEB_DEV` is defined on exactly three Runner
@@ -90,7 +90,7 @@ final Map<String, _DevToolShakeHostState> _shakeHandlerOwners =
 /// on a rebuild is free, and it stays inside the gated branch so the gate-off
 /// branch keeps its zero-side-effect `SizedBox`.
 Widget defaultDevToolShakeLayer(BuildContext context) {
-  if (!kShakeToDevToolEnabled) return const SizedBox.shrink();
+  if (!kDevToolEnabled) return const SizedBox.shrink();
   registerDevToolSuperLoginDependencies();
   return const DevToolShell();
 }
@@ -122,7 +122,7 @@ class DevToolShakeGate {
 }
 
 /// Wraps the routed product UI and mounts the Dev Tool on top of it when the
-/// native side reports a shake.
+/// native side reports a shake or the Android launcher supplies `/devtool`.
 ///
 /// This is a builder-chain wrap rather than a `Navigator.push`: an imperative
 /// push onto go_router's Navigator produces a pageless route anchored to the
@@ -134,6 +134,8 @@ class DevToolShakeHost extends StatefulWidget {
   const DevToolShakeHost({
     required this.child,
     super.key,
+    this.initiallyOpen = false,
+    this.shakeEnabled = true,
     this.channel = kDevToolShakeChannel,
     this.layerBuilder = defaultDevToolShakeLayer,
     this.clock = _systemClock,
@@ -142,6 +144,12 @@ class DevToolShakeHost extends StatefulWidget {
 
   /// The routed product UI this host sits above.
   final Widget child;
+
+  /// Whether the Dev Tool layer is visible on the host's first frame.
+  final bool initiallyOpen;
+
+  /// Whether this host owns the native shake channel.
+  final bool shakeEnabled;
 
   /// Channel the native shake arrives on.
   final MethodChannel channel;
@@ -160,14 +168,18 @@ class DevToolShakeHost extends StatefulWidget {
 }
 
 class _DevToolShakeHostState extends State<DevToolShakeHost> {
-  late final DevToolShakeGate _gate = DevToolShakeGate(
-    window: widget.debounce,
-  );
-  bool _open = false;
+  late final DevToolShakeGate _gate = DevToolShakeGate(window: widget.debounce);
+  late bool _open;
 
   @override
   void initState() {
     super.initState();
+    _open = widget.initiallyOpen;
+    if (!widget.shakeEnabled) return;
+    _claimShakeHandler();
+  }
+
+  void _claimShakeHandler() {
     // Registered synchronously, not in a post-frame callback: a shake can
     // arrive at any time and the handler is cheap. Claiming ownership here —
     // before any outgoing host's deferred `dispose` runs — is what lets that
@@ -176,16 +188,30 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
     widget.channel.setMethodCallHandler(_onNativeCall);
   }
 
+  void _releaseShakeHandler(MethodChannel channel) {
+    final String name = channel.name;
+    if (!identical(_shakeHandlerOwners[name], this)) return;
+    _shakeHandlerOwners.remove(name);
+    channel.setMethodCallHandler(null);
+  }
+
+  @override
+  void didUpdateWidget(covariant DevToolShakeHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shakeEnabled == widget.shakeEnabled &&
+        oldWidget.channel.name == widget.channel.name) {
+      return;
+    }
+    _releaseShakeHandler(oldWidget.channel);
+    if (widget.shakeEnabled) _claimShakeHandler();
+  }
+
   @override
   void dispose() {
     // Tear down ONLY the handler this instance still owns: a host that was
     // already superseded in the same frame must leave its successor's handler
     // alone. See [_shakeHandlerOwners].
-    final String name = widget.channel.name;
-    if (identical(_shakeHandlerOwners[name], this)) {
-      _shakeHandlerOwners.remove(name);
-      widget.channel.setMethodCallHandler(null);
-    }
+    _releaseShakeHandler(widget.channel);
     super.dispose();
   }
 

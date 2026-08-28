@@ -116,7 +116,8 @@ main() {
     || { echo "  MSI gateway unreachable — abort"; exit 1; }
 
   echo "[run_msi_dual] building dev-debug APK (MSI-targeted, real FCM)…"
-  flutter build apk --flavor dev --debug "${DEFINES[@]}"
+  flutter build apk --flavor dev --debug \
+    --android-project-arg=jeeb.devtool=true "${DEFINES[@]}"
   APK="build/app/outputs/flutter-apk/app-dev-debug.apk"
   [ -f "${APK}" ] || { echo "APK not found at ${APK}"; exit 1; }
 

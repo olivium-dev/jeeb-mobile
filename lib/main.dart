@@ -17,5 +17,9 @@ void main() async {
   // Also set in `appBarTheme`; this one covers the first frame, before any
   // AppBar exists.
   SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlayStyle);
-  runApp(const JeebRoot());
+  runApp(
+    buildJeebRootForInitialRoute(
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+    ),
+  );
 }

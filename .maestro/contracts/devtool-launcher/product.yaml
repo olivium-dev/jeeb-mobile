@@ -1,0 +1,16 @@
+appId: ${APP_ID}
+name: Normal launcher opens product
+tags:
+  - critical
+  - devtool-launcher
+---
+- tapOn:
+    text: "Allow"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding_root|registration_root|phone_otp_root|biometric_unlock_prompt|biometric_prompt_root|shell_tab_(requests|dashboard|earnings|profile)|account_status_root|setpw_root|tier_selection_root|profile_name_root"
+    timeout: 30000
+- assertNotVisible:
+    text: "Jeeber Dev Tool"
+- takeScreenshot: normal_launcher_product
