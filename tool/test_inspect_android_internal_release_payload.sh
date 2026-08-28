@@ -9,22 +9,66 @@ trap 'rm -rf -- "${TMP_DIR}"' EXIT HUP INT TERM
 manifest="${TMP_DIR}/manifest.pb"
 resources="${TMP_DIR}/resources.pb"
 binary="${TMP_DIR}/libapp.so"
-safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket internal_devtool_root internal_devtool_environment internal_devtool_auth_mode internal_devtool_close Normal SMS only'
+english_arb="${TMP_DIR}/app_en.arb"
+safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket internal_devtool_root internal_devtool_environment internal_devtool_auth_mode internal_devtool_close'
+safe_arb='{"internalDevToolNormalSmsOnly":"Normal SMS only"}'
 printf '%s' 'com.olivium.jeeb com.olivium.jeeb.DevToolLauncher' >"${manifest}"
 printf '%s' 'Jeeb Internal QA firebase maps' >"${resources}"
 printf '%s' "${safe_binary}" >"${binary}"
+printf '%s' "${safe_arb}" >"${english_arb}"
 
 run_inspector() {
   JEEB_INTERNAL_RELEASE="${1}" \
   JEEB_CLARITY_ENABLED="${2}" \
   JEEB_CLARITY_PRIVACY_APPROVED="${3}" \
     bash "${REPO_ROOT}/tool/inspect_android_internal_release_payload.sh" \
-      "${manifest}" "${resources}" "${binary}" \
+      "${manifest}" "${resources}" "${binary}" "${english_arb}" \
       https://app.jeeb.fds-1.com \
       wss://app.jeeb.fds-1.com/socket/websocket
 }
 
 run_inspector true false false >/dev/null
+
+for missing_mode in empty absent; do
+  if [[ "${missing_mode}" == empty ]]; then
+    : >"${english_arb}"
+  else
+    rm -f -- "${english_arb}"
+  fi
+  if run_inspector true false false >/dev/null 2>&1; then
+    printf 'Internal inspector accepted %s English ARB payload\n' \
+      "${missing_mode}" >&2
+    exit 1
+  fi
+done
+printf '%s' "${safe_arb}" >"${english_arb}"
+
+for invalid_arb in \
+  '{}' \
+  '{"internalDevToolNormalSmsOnly":"Super Login"}' \
+  'not-json'; do
+  printf '%s' "${invalid_arb}" >"${english_arb}"
+  if run_inspector true false false >/dev/null 2>&1; then
+    printf 'Internal inspector accepted invalid English ARB: %s\n' \
+      "${invalid_arb}" >&2
+    exit 1
+  fi
+done
+printf '%s' "${safe_arb}" >"${english_arb}"
+
+for forbidden_arb in \
+  '192.168.2.50' \
+  '/api/User/super-login/users' \
+  'unified_payment'; do
+  jq --arg forbidden "${forbidden_arb}" \
+    '.forbiddenTestValue = $forbidden' <<<"${safe_arb}" >"${english_arb}"
+  if run_inspector true false false >/dev/null 2>&1; then
+    printf 'Internal inspector accepted forbidden ARB marker: %s\n' \
+      "${forbidden_arb}" >&2
+    exit 1
+  fi
+done
+printf '%s' "${safe_arb}" >"${english_arb}"
 
 for forbidden in \
   '192.168.2.39' '192.168.2.50' '10.0.2.2' 'emulator-5554' \
