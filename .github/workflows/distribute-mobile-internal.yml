@@ -1,6 +1,6 @@
-name: Distribute retained mobile RC internally
+name: Distribute retained iOS RC internally
 
-run-name: Internal distribution ${{ inputs.platform }} ${{ inputs.build_name }}+${{ inputs.build_number }} from RC ${{ inputs.source_run_id }}
+run-name: TestFlight Internal ${{ inputs.build_name }}+${{ inputs.build_number }} from RC ${{ inputs.source_run_id }}
 
 on:
   workflow_dispatch:
@@ -21,15 +21,6 @@ on:
         description: Exact monotonic build number embedded in the candidates
         required: true
         type: string
-      platform:
-        description: Retained candidate platform set to distribute
-        required: true
-        default: both
-        type: choice
-        options:
-          - both
-          - android
-          - ios
 
 permissions:
   actions: read
@@ -47,8 +38,6 @@ jobs:
     outputs:
       source_run_id: ${{ steps.policy.outputs.source_run_id }}
       source_run_attempt: ${{ steps.policy.outputs.source_run_attempt }}
-      rc_aab_sha256: ${{ steps.policy.outputs.rc_aab_sha256 }}
-      rc_android_provenance_sha256: ${{ steps.policy.outputs.rc_android_provenance_sha256 }}
       rc_ios_artifact_id: ${{ steps.policy.outputs.rc_ios_artifact_id }}
       rc_ios_archive_sha256: ${{ steps.policy.outputs.rc_ios_archive_sha256 }}
       rc_ipa_sha256: ${{ steps.policy.outputs.rc_ipa_sha256 }}
@@ -68,7 +57,6 @@ jobs:
           REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           BUILD_NAME: ${{ inputs.build_name }}
           BUILD_NUMBER: ${{ inputs.build_number }}
-          DISTRIBUTION_PLATFORM: ${{ inputs.platform }}
         shell: bash
         run: |
           set -euo pipefail
@@ -80,9 +68,6 @@ jobs:
           [[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "${BUILD_NUMBER}" =~ ^[1-9][0-9]{0,9}$ ]]
           (( 10#${BUILD_NUMBER} <= 2100000000 ))
-          [[ "${DISTRIBUTION_PLATFORM}" == both || \
-            "${DISTRIBUTION_PLATFORM}" == android || \
-            "${DISTRIBUTION_PLATFORM}" == ios ]]
           git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD
           omds_sha="$(tr -d '[:space:]' <.omds-revision)"
           [[ "${omds_sha}" =~ ^[0-9a-f]{40}$ ]]
@@ -143,57 +128,6 @@ jobs:
             fi
           }
 
-          if [[ "${DISTRIBUTION_PLATFORM}" != ios ]]; then
-          android_name="mobile-rc-android-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
-          android_record="$(artifact_record "${source_artifacts}" "${android_name}")"
-          android_zip="${tmp_dir}/android-rc.zip"
-          download_verified_artifact "${android_record}" "${android_zip}" >/dev/null
-          validate_zip_entries "${android_zip}"
-          mkdir "${tmp_dir}/android-rc"
-          unzip -q "${android_zip}" -d "${tmp_dir}/android-rc"
-          aab="$(find "${tmp_dir}/android-rc" -type f -name '*.aab' -print -quit)"
-          provenance="$(find "${tmp_dir}/android-rc" -type f \
-            -name provenance.json -print -quit)"
-          mapping="$(find "${tmp_dir}/android-rc" -type f \
-            -name mapping.txt -print -quit)"
-          [[ -s "${aab}" && -s "${provenance}" && -s "${mapping}" ]]
-          [[ "$(find "${tmp_dir}/android-rc" -type f -name '*.aab' | wc -l | tr -d ' ')" == 1 ]]
-          aab_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
-          provenance_sha="$(sha256sum "${provenance}" | cut -d ' ' -f1)"
-          mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
-          jq -e \
-            --arg sha "${aab_sha}" \
-            --arg mapping "${mapping_sha}" \
-            --arg reviewed "${REVIEWED_SHA}" \
-            --arg name "${BUILD_NAME}" \
-            --arg number "${BUILD_NUMBER}" \
-            --arg source_run "${SOURCE_RUN_ID}" \
-            --arg source_attempt "${source_attempt}" \
-            --arg workflow_ref "${GITHUB_REPOSITORY}/.github/workflows/trusted-mobile-rc.yml@refs/heads/main" \
-            --arg omds "${omds_sha}" '
-              .platform == "android"
-              and .native_id == "com.olivium.jeeb"
-              and .runtime == "staging"
-              and .artifact_sha256 == $sha
-              and .mapping_sha256 == $mapping
-              and .reviewed_sha == $reviewed
-              and .build_name == $name
-              and .build_number == $number
-              and .dependency_sha == $omds
-              and .source_run_id == $source_run
-              and .source_run_attempt == $source_attempt
-              and .source_head_sha == $reviewed
-              and .source_workflow_path == ".github/workflows/trusted-mobile-rc.yml"
-              and .source_workflow_ref == $workflow_ref
-              and (.upload_sha256
-                    | test("^[0-9A-F]{64}$|^([0-9A-F]{2}:){31}[0-9A-F]{2}$"))
-              and .clarity_enabled == false
-              and .retained == true
-              and .store_uploaded == false
-            ' "${provenance}" >/dev/null
-          fi
-
-          if [[ "${DISTRIBUTION_PLATFORM}" != android ]]; then
           ios_name="mobile-rc-ios-${BUILD_NUMBER}-${REVIEWED_SHA}-attempt-${source_attempt}"
           ios_record="$(artifact_record "${source_artifacts}" "${ios_name}")"
           ios_artifact_id="$(jq -r '.id' <<<"${ios_record}")"
@@ -235,8 +169,6 @@ jobs:
           [[ "${ipa_sha}" =~ ^[0-9a-f]{64}$ ]]
           [[ "${ios_provenance_sha}" =~ ^[0-9a-f]{64}$ ]]
           [[ "${dsym_sha}" =~ ^[0-9a-f]{64}$ ]]
-          fi
-
           environment_json="$(gh api \
             "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
           jq -e '
@@ -251,17 +183,11 @@ jobs:
           {
             printf 'source_run_id=%s\n' "${SOURCE_RUN_ID}"
             printf 'source_run_attempt=%s\n' "${source_attempt}"
-            if [[ "${DISTRIBUTION_PLATFORM}" != ios ]]; then
-            printf 'rc_aab_sha256=%s\n' "${aab_sha}"
-            printf 'rc_android_provenance_sha256=%s\n' "${provenance_sha}"
-            fi
-            if [[ "${DISTRIBUTION_PLATFORM}" != android ]]; then
             printf 'rc_ios_artifact_id=%s\n' "${ios_artifact_id}"
             printf 'rc_ios_archive_sha256=%s\n' "${ios_archive_sha}"
             printf 'rc_ipa_sha256=%s\n' "${ipa_sha}"
             printf 'rc_ios_provenance_sha256=%s\n' "${ios_provenance_sha}"
             printf 'rc_dsym_sha256=%s\n' "${dsym_sha}"
-            fi
           } >>"${GITHUB_OUTPUT}"
 
   store-build-number-preflight:
@@ -289,127 +215,12 @@ jobs:
           APP_STORE_KEY_CONTENT_B64: ${{ secrets.APP_STORE_KEY_CONTENT_B64 }}
         run: bundle exec fastlane preflight_internal
 
-  android-internal:
-    name: Google Play Internal Testing — same retained AAB
-    needs: [source-policy, store-build-number-preflight]
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main' &&
-      inputs.platform != 'ios'
-    environment: mobile-internal-distribution
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ inputs.reviewed_sha }}
-          persist-credentials: false
-
-      - name: Download exact retained Android candidate
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: mobile-rc-android-${{ inputs.build_number }}-${{ inputs.reviewed_sha }}-attempt-${{ needs.source-policy.outputs.source_run_attempt }}
-          path: ${{ runner.temp }}/android-rc
-          run-id: ${{ needs.source-policy.outputs.source_run_id }}
-          github-token: ${{ github.token }}
-
-      - name: Reverify AAB, R8 mapping, and provenance
-        id: verify_android
-        env:
-          SOURCE_RUN_ID: ${{ needs.source-policy.outputs.source_run_id }}
-          SOURCE_RUN_ATTEMPT: ${{ needs.source-policy.outputs.source_run_attempt }}
-          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
-          BUILD_NAME: ${{ inputs.build_name }}
-          BUILD_NUMBER: ${{ inputs.build_number }}
-          EXPECTED_AAB_SHA: ${{ needs.source-policy.outputs.rc_aab_sha256 }}
-          EXPECTED_PROVENANCE_SHA: ${{ needs.source-policy.outputs.rc_android_provenance_sha256 }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          root='${{ runner.temp }}/android-rc'
-          aab="$(find "${root}" -type f -name '*.aab' -print -quit)"
-          provenance="$(find "${root}" -type f -name provenance.json -print -quit)"
-          mapping="$(find "${root}" -type f -name mapping.txt -print -quit)"
-          [[ -s "${aab}" && -s "${provenance}" && -s "${mapping}" ]]
-          [[ "$(find "${root}" -type f -name '*.aab' | wc -l | tr -d ' ')" == 1 ]]
-          artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
-          provenance_sha="$(sha256sum "${provenance}" | cut -d ' ' -f1)"
-          mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
-          omds_sha="$(tr -d '[:space:]' <.omds-revision)"
-          [[ "${artifact_sha}" == "${EXPECTED_AAB_SHA}" ]]
-          [[ "${provenance_sha}" == "${EXPECTED_PROVENANCE_SHA}" ]]
-          jq -e \
-            --arg sha "${artifact_sha}" \
-            --arg mapping "${mapping_sha}" \
-            --arg reviewed "${REVIEWED_SHA}" \
-            --arg name "${BUILD_NAME}" \
-            --arg number "${BUILD_NUMBER}" \
-            --arg source_run "${SOURCE_RUN_ID}" \
-            --arg source_attempt "${SOURCE_RUN_ATTEMPT}" \
-            --arg workflow_ref "${GITHUB_REPOSITORY}/.github/workflows/trusted-mobile-rc.yml@refs/heads/main" \
-            --arg omds "${omds_sha}" '
-              .platform == "android"
-              and .artifact_sha256 == $sha
-              and .mapping_sha256 == $mapping
-              and .reviewed_sha == $reviewed
-              and .build_name == $name
-              and .build_number == $number
-              and .dependency_sha == $omds
-              and .source_run_id == $source_run
-              and .source_run_attempt == $source_attempt
-              and .source_head_sha == $reviewed
-              and .source_workflow_path == ".github/workflows/trusted-mobile-rc.yml"
-              and .source_workflow_ref == $workflow_ref
-              and .clarity_enabled == false
-              and .retained == true
-              and .store_uploaded == false
-            ' "${provenance}" >/dev/null
-          printf 'artifact_path=%s\n' "${aab}" >>"${GITHUB_OUTPUT}"
-          printf 'artifact_sha256=%s\n' "${artifact_sha}" >>"${GITHUB_OUTPUT}"
-
-      - name: Set up repository Ruby
-        uses: ./.github/actions/setup-ruby
-
-      - name: Upload same AAB to Internal Testing only
-        working-directory: android
-        env:
-          ANDROID_AAB_PATH: ${{ steps.verify_android.outputs.artifact_path }}
-          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
-          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
-        run: bundle exec fastlane android internal
-
-      - name: Record Android internal distribution receipt
-        env:
-          SHA256: ${{ steps.verify_android.outputs.artifact_sha256 }}
-        run: |
-          mkdir -p build/distribution-receipts
-          jq -n \
-            --arg platform android \
-            --arg destination google-play-internal \
-            --arg artifact_sha256 "${SHA256}" \
-            --arg source_run_id '${{ needs.source-policy.outputs.source_run_id }}' \
-            --arg source_run_attempt '${{ needs.source-policy.outputs.source_run_attempt }}' \
-            --arg distribution_run_id "${GITHUB_RUN_ID}" \
-            --arg build_number '${{ inputs.build_number }}' \
-            '$ARGS.named + {stage: "internal_distribution",
-              physical_device_verification: "pending",
-              final_release_go: false}' \
-            >build/distribution-receipts/android.json
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: internal-distribution-android-${{ inputs.build_number }}
-          path: build/distribution-receipts/android.json
-          if-no-files-found: error
-          retention-days: 30
-
   ios-internal:
     name: TestFlight Internal Testing — same retained IPA
     needs: [source-policy, store-build-number-preflight]
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main' &&
-      inputs.platform != 'android'
+      github.ref == 'refs/heads/main'
     environment: mobile-internal-distribution
     runs-on: macos-14
     timeout-minutes: 45

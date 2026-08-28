@@ -64,10 +64,14 @@ validate_archive() {
   local manifest="${VALIDATION_TMP}/AndroidManifest.pb"
   unzip -p "${AAB_PATH}" base/manifest/AndroidManifest.xml >"${manifest}" ||
     fail 'AAB manifest is missing'
-  LC_ALL=C grep -aFq 'com.olivium.jeeb' "${manifest}" ||
-    fail 'AAB manifest package is not canonical'
-  LC_ALL=C grep -aFq 'DevToolLauncher' "${manifest}" ||
-    fail 'dedicated internal launcher is missing'
+  for launcher_marker in \
+    'com.olivium.jeeb.MainActivity' \
+    'com.olivium.jeeb.DevToolLauncher' \
+    'android.intent.action.MAIN' \
+    'android.intent.category.LAUNCHER'; do
+    LC_ALL=C grep -aFq "${launcher_marker}" "${manifest}" ||
+      fail "required launcher marker is missing: ${launcher_marker}"
+  done
 }
 
 validate_metadata() {

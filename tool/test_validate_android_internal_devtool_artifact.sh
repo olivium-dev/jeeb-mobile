@@ -24,7 +24,10 @@ metadata_path="${TMP_DIR}/output-metadata.json"
 provenance_path="${TMP_DIR}/provenance.json"
 mapping_path="${TMP_DIR}/mapping.txt"
 mkdir -p "${TMP_DIR}/aab/base/manifest"
-printf '%s\n' 'com.olivium.jeeb DevToolLauncher' \
+printf '%s\n' \
+  'com.olivium.jeeb com.olivium.jeeb.MainActivity' \
+  'com.olivium.jeeb.DevToolLauncher android.intent.action.MAIN' \
+  'android.intent.category.LAUNCHER' \
   >"${TMP_DIR}/aab/base/manifest/AndroidManifest.xml"
 (
   cd "${TMP_DIR}/aab"

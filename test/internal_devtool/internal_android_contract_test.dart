@@ -19,27 +19,30 @@ void main() {
     expect(gradle, contains("contains('internalreleaserelease')"));
   });
 
-  test(
-    'dedicated internal Activity is absent from production manifest graph',
-    () {
-      final mainManifest = _source('android/app/src/main/AndroidManifest.xml');
-      final internalManifest = _source(
-        'android/app/src/internalRelease/AndroidManifest.xml',
-      );
-      final debugManifest = _source(
-        'android/app/src/debug/AndroidManifest.xml',
-      );
-      expect(mainManifest, isNot(contains('.DevToolLauncher')));
-      expect(internalManifest, contains('android:name=".DevToolLauncher"'));
-      expect(
-        internalManifest,
-        contains('android:taskAffinity="com.olivium.jeeb.internalqa"'),
-      );
-      expect(internalManifest, isNot(contains('activity-alias')));
-      expect(debugManifest, contains('.LegacyDevToolLauncher'));
-      expect(debugManifest, isNot(contains('.DevToolLauncher"')));
-    },
-  );
+  test('internal package exposes normal and Dev Tool launcher activities', () {
+    final mainManifest = _source('android/app/src/main/AndroidManifest.xml');
+    final internalManifest = _source(
+      'android/app/src/internalRelease/AndroidManifest.xml',
+    );
+    final debugManifest = _source('android/app/src/debug/AndroidManifest.xml');
+    expect(mainManifest, isNot(contains('.DevToolLauncher')));
+    expect(internalManifest, contains('android:name=".DevToolLauncher"'));
+    for (final activity in <String>[
+      _activityBlock(mainManifest, '.MainActivity'),
+      _activityBlock(internalManifest, '.DevToolLauncher'),
+    ]) {
+      expect(activity, contains('android:exported="true"'));
+      expect(activity, contains('android.intent.action.MAIN'));
+      expect(activity, contains('android.intent.category.LAUNCHER'));
+    }
+    expect(
+      internalManifest,
+      contains('android:taskAffinity="com.olivium.jeeb.internalqa"'),
+    );
+    expect(internalManifest, isNot(contains('activity-alias')));
+    expect(debugManifest, contains('.LegacyDevToolLauncher'));
+    expect(debugManifest, isNot(contains('.DevToolLauncher"')));
+  });
 
   test('native and Dart launchers independently fail closed', () {
     final nativeLauncher = _source(
@@ -77,6 +80,9 @@ void main() {
     );
     final distributionWorkflow = _source(
       '.github/workflows/distribute-android-internal-devtool.yml',
+    );
+    final iosDistributionWorkflow = _source(
+      '.github/workflows/distribute-mobile-internal.yml',
     );
     final fastfile = _source('android/fastlane/Fastfile');
     for (final marker in _workflowMarkers) {
@@ -143,18 +149,22 @@ void main() {
     );
     expect(distributionWorkflow, isNot(contains('set -x')));
     expect(distributionWorkflow, isNot(contains(r'echo "${ANDROID_CANDIDATE')));
+    expect(
+      iosDistributionWorkflow,
+      isNot(contains('android')),
+      reason: 'the generic retained-RC lane must be incapable of Play upload',
+    );
   });
 
   test(
-    'only the protected internal distribution workflow invokes the lane',
+    'only the protected Dev Tool workflow can upload Android internally',
     () {
       final invokers = Directory('.github/workflows')
           .listSync()
           .whereType<File>()
           .where(
-            (file) => file.readAsStringSync().contains(
-              'fastlane android internal_devtool',
-            ),
+            (file) =>
+                file.readAsStringSync().contains('fastlane android internal'),
           )
           .map((file) => file.path)
           .toList();
@@ -219,6 +229,16 @@ void main() {
 }
 
 String _source(String path) => File(path).readAsStringSync();
+
+String _activityBlock(String manifest, String activityName) {
+  final nameOffset = manifest.indexOf('android:name="$activityName"');
+  expect(nameOffset, isNonNegative, reason: '$activityName is absent');
+  final start = manifest.lastIndexOf('<activity', nameOffset);
+  final end = manifest.indexOf('</activity>', nameOffset);
+  expect(start, isNonNegative, reason: '$activityName has no activity start');
+  expect(end, isNonNegative, reason: '$activityName has no activity end');
+  return manifest.substring(start, end + '</activity>'.length);
+}
 
 const _internalMarkers = <String>[
   r'main_android_internal\.dart',
