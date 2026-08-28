@@ -10,9 +10,10 @@ manifest="${TMP_DIR}/manifest.pb"
 resources="${TMP_DIR}/resources.pb"
 binary="${TMP_DIR}/libapp.so"
 english_arb="${TMP_DIR}/app_en.arb"
+safe_manifest='com.olivium.jeeb com.olivium.jeeb.MainActivity com.olivium.jeeb.DevToolLauncher android.intent.action.MAIN android.intent.category.LAUNCHER'
 safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket internal_devtool_root internal_devtool_environment internal_devtool_auth_mode internal_devtool_close InternalDevToolApp'
 safe_arb='{"internalDevToolNormalSmsOnly":"Normal SMS only"}'
-printf '%s' 'com.olivium.jeeb com.olivium.jeeb.DevToolLauncher' >"${manifest}"
+printf '%s' "${safe_manifest}" >"${manifest}"
 printf '%s' 'Jeeb Internal QA firebase maps' >"${resources}"
 printf '%s' "${safe_binary}" >"${binary}"
 printf '%s' "${safe_arb}" >"${english_arb}"
@@ -28,6 +29,20 @@ run_inspector() {
 }
 
 run_inspector true false false >/dev/null
+
+for missing_launcher_marker in \
+  'com.olivium.jeeb.MainActivity' \
+  'com.olivium.jeeb.DevToolLauncher' \
+  'android.intent.action.MAIN' \
+  'android.intent.category.LAUNCHER'; do
+  printf '%s' "${safe_manifest/${missing_launcher_marker}/}" >"${manifest}"
+  if run_inspector true false false >/dev/null 2>&1; then
+    printf 'Internal inspector accepted missing launcher marker: %s\n' \
+      "${missing_launcher_marker}" >&2
+    exit 1
+  fi
+done
+printf '%s' "${safe_manifest}" >"${manifest}"
 
 for missing_mode in empty absent; do
   if [[ "${missing_mode}" == empty ]]; then

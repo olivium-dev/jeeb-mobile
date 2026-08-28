@@ -34,8 +34,14 @@ done
 [[ "${INTERNAL_RELEASE}" == true ]] ||
   fail 'JEEB_INTERNAL_RELEASE must be explicitly true'
 
-LC_ALL=C grep -aFq 'com.olivium.jeeb.DevToolLauncher' "${MANIFEST_PAYLOAD}" ||
-  fail 'dedicated DevToolLauncher Activity is absent'
+for launcher_marker in \
+  'com.olivium.jeeb.MainActivity' \
+  'com.olivium.jeeb.DevToolLauncher' \
+  'android.intent.action.MAIN' \
+  'android.intent.category.LAUNCHER'; do
+  LC_ALL=C grep -aFq "${launcher_marker}" "${MANIFEST_PAYLOAD}" ||
+    fail "required launcher marker is absent: ${launcher_marker}"
+done
 LC_ALL=C grep -aFq 'Jeeb Internal QA' "${RESOURCES_PAYLOAD}" ||
   fail 'internal launcher label is absent'
 for required in \
