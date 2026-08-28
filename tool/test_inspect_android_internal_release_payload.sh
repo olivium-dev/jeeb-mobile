@@ -10,7 +10,7 @@ manifest="${TMP_DIR}/manifest.pb"
 resources="${TMP_DIR}/resources.pb"
 binary="${TMP_DIR}/libapp.so"
 english_arb="${TMP_DIR}/app_en.arb"
-safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket internal_devtool_root internal_devtool_environment internal_devtool_auth_mode internal_devtool_close'
+safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket internal_devtool_root internal_devtool_environment internal_devtool_auth_mode internal_devtool_close InternalDevToolApp'
 safe_arb='{"internalDevToolNormalSmsOnly":"Normal SMS only"}'
 printf '%s' 'com.olivium.jeeb com.olivium.jeeb.DevToolLauncher' >"${manifest}"
 printf '%s' 'Jeeb Internal QA firebase maps' >"${resources}"
