@@ -46,6 +46,26 @@ void main() {
       expect(sources, isNot(contains(pattern)), reason: pattern);
     }
   });
+
+  test('internal demo tool opens directly without an authentication gate', () {
+    final app = File(
+      'lib/internal_devtool/internal_devtool_app.dart',
+    ).readAsStringSync();
+    final services = File(
+      'lib/internal_devtool/internal_devtool_services.dart',
+    ).readAsStringSync();
+    final semantics = File(
+      'lib/internal_devtool/internal_devtool_semantics.dart',
+    ).readAsStringSync();
+
+    expect(app, contains('home: InternalDevToolScreen('));
+    expect(app, isNot(contains('InternalDevToolUnlockGate')));
+    expect(app, isNot(contains('reauthenticate')));
+    expect(services, isNot(contains('InternalDeviceUnlocker')));
+    expect(services, isNot(contains('LocalAuthBiometricGateway')));
+    expect(semantics, isNot(contains('internal_devtool_auth_gate')));
+    expect(semantics, isNot(contains('internal_devtool_unlock')));
+  });
 }
 
 const _prohibitedCapabilities = <String>[
