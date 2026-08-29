@@ -87,6 +87,16 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
+    test('named routes remain useful for the initial session snapshot', () {
+      observer.didPush(route('shell'), route('login'));
+
+      final event = sink.events.single as ObsScreenEvent;
+      expect(event.route, 'shell');
+      expect(event.name, 'shell');
+      expect(event.previousRoute, 'login');
+      expect(Observability.instance.currentScreen, 'shell');
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+
     test(
       'didReplace emits action=replace for the new route',
       () {

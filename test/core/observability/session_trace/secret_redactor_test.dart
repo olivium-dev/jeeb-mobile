@@ -355,6 +355,36 @@ void main() {
   });
 
   group('redactPath', () {
+    test('retains safe named routes for screen events', () {
+      expect(SecretRedactor.redactRoute('shell'), 'shell');
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'route': 'shell',
+                'screen': 'shell',
+                'prev': 'login',
+              })!
+              as Map<String, Object?>;
+
+      expect(out, <String, Object?>{
+        'route': 'shell',
+        'screen': 'shell',
+        'prev': 'login',
+      });
+    });
+
+    test('named routes stay default-deny and paths remain slash-only', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'route': 'Karim profile',
+                'screen': 'otp_482913',
+                'path': 'orders',
+                'deeplink': 'delivery',
+              })!
+              as Map<String, Object?>;
+
+      expect(out.values, everyElement(SecretRedactor.redacted));
+    });
+
     test('retains stable paths and rejects OTP-shaped path segments', () {
       expect(SecretRedactor.redactPath('/orders/d-1'), '/orders/d-1');
       expect(

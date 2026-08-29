@@ -405,6 +405,13 @@ abstract final class SecretRedactor {
     return _redactStringField('path', path);
   }
 
+  /// Redacts app routes while retaining audited named routes such as `shell`.
+  /// Network paths and deep links remain slash-only via [redactPath].
+  static String? redactRoute(String? route) {
+    if (route == null || route.isEmpty) return route;
+    return _redactStringField('route', route);
+  }
+
   /// Produces a diagnostic route template without retaining network
   /// capabilities or user-controlled path segments.
   ///
@@ -495,7 +502,14 @@ abstract final class SecretRedactor {
     final scanned = redactString(value);
     if (scanned != value) return redacted;
     return switch (normalized) {
-      'route' || 'prev' || 'path' || 'screen' || 'deeplink' =>
+      'route' || 'prev' || 'screen' =>
+        ((_safeCodePattern.hasMatch(value) || value.startsWith('/')) &&
+                !value.contains('?') &&
+                !value.contains('#') &&
+                !_otpDigitRun.hasMatch(value))
+            ? value
+            : redacted,
+      'path' || 'deeplink' =>
         value.startsWith('/') &&
                 !value.contains('?') &&
                 !value.contains('#') &&

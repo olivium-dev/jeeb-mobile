@@ -42,13 +42,13 @@ final class ObsNavObserver extends NavigatorObserver {
   static String? _routePattern(RouteSettings settings) {
     final name = settings.name;
     if (name == null || name.isEmpty) return null;
-    return SecretRedactor.redactPath(DiagRedaction.scrubPath(name));
+    return SecretRedactor.redactRoute(DiagRedaction.scrubPath(name));
   }
 
   static String? _routeName(RouteSettings settings) {
     final name = settings.name;
     if (name == null || name.isEmpty) return null;
-    return SecretRedactor.redactPath(DiagRedaction.scrubPath(name));
+    return SecretRedactor.redactRoute(DiagRedaction.scrubPath(name));
   }
 
   static Map<String, Object?> _redactedPathParams(RouteSettings settings) {
