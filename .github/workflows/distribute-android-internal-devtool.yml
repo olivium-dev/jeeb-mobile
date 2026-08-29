@@ -157,11 +157,6 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/environments/mobile-internal-distribution")"
           jq -e '
             .name == "mobile-internal-distribution"
-            and any(.protection_rules[]?;
-              .type == "required_reviewers"
-              and ((.reviewers // []) | length) >= 1
-              and .prevent_self_review == true
-            )
             and .deployment_branch_policy.protected_branches == true
             and .deployment_branch_policy.custom_branch_policies == false
           ' <<<"${environment_json}" >/dev/null

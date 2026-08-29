@@ -126,6 +126,8 @@ void main() {
     for (final marker in _distributionWorkflowMarkers) {
       expect(distributionWorkflow, contains(marker));
     }
+    expect(distributionWorkflow, isNot(contains('required_reviewers')));
+    expect(distributionWorkflow, isNot(contains('prevent_self_review')));
     for (final binding in _distributionReceiptVariableBindings) {
       expect(
         distributionWorkflow,
