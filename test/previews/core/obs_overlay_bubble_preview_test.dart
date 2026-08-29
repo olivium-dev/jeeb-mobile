@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/presentation/widgets/obs_overlay_bubble.dart';
 
@@ -23,14 +22,13 @@ Rect _stageRect(WidgetTester tester) =>
 
 /// The red badge dot `_BubbleIcon` adds while recording. It is a private class,
 Finder _recordingDot() => find.descendant(
-      of: find.byType(ObsOverlayBubble),
-      matching: find.byWidgetPredicate((Widget widget) {
-        if (widget is! Container) return false;
-        final Decoration? decoration = widget.decoration;
-        return decoration is BoxDecoration &&
-            decoration.shape == BoxShape.circle;
-      }),
-    );
+  of: find.byType(ObsOverlayBubble),
+  matching: find.byWidgetPredicate((Widget widget) {
+    if (widget is! Container) return false;
+    final Decoration? decoration = widget.decoration;
+    return decoration is BoxDecoration && decoration.shape == BoxShape.circle;
+  }),
+);
 
 void main() {
   setUpAll(loadPreviewArbs);
@@ -61,11 +59,15 @@ void main() {
       expect(
         bubble.size,
         const Size(obsOverlayBubbleDiameter, obsOverlayBubbleDiameter),
-        reason: '24pt icon box + 12pt padding each side. Exactly the 48pt '
+        reason:
+            '24pt icon box + 12pt padding each side. Exactly the 48pt '
             'minimum tap target, with no margin above it — and it does NOT '
             'grow with textScaler, so the 200% rendering is this same circle.',
       );
-      expect(stage.right - bubble.right, closeTo(obsOverlayBubbleEndInset, 0.01));
+      expect(
+        stage.right - bubble.right,
+        closeTo(obsOverlayBubbleEndInset, 0.01),
+      );
       expect(
         stage.bottom - bubble.bottom,
         closeTo(obsOverlayBubbleBottomInset, 0.01),
@@ -94,42 +96,44 @@ void main() {
       );
     });
 
-    testWidgets('covers a bottom-nav destination — a different one per locale',
-        (WidgetTester tester) async {
-      await pumpPreview(tester, obsOverlayBubbleOverBottomNav);
-      final Rect bubbleEn = _bubbleRect(tester);
-      final Rect lastEn = tester.getRect(
-        find.byKey(obsOverlayBubbleLastDestinationKey),
-      );
-      final Rect firstEn = tester.getRect(
-        find.byKey(obsOverlayBubbleFirstDestinationKey),
-      );
+    testWidgets(
+      'covers a bottom-nav destination — a different one per locale',
+      (WidgetTester tester) async {
+        await pumpPreview(tester, obsOverlayBubbleOverBottomNav);
+        final Rect bubbleEn = _bubbleRect(tester);
+        final Rect lastEn = tester.getRect(
+          find.byKey(obsOverlayBubbleLastDestinationKey),
+        );
+        final Rect firstEn = tester.getRect(
+          find.byKey(obsOverlayBubbleFirstDestinationKey),
+        );
 
-      expect(
-        bubbleEn.overlaps(lastEn),
-        isTrue,
-        reason: 'in English the bubble sits on top of the trailing tab',
-      );
-      expect(bubbleEn.overlaps(firstEn), isFalse);
+        expect(
+          bubbleEn.overlaps(lastEn),
+          isTrue,
+          reason: 'in English the bubble sits on top of the trailing tab',
+        );
+        expect(bubbleEn.overlaps(firstEn), isFalse);
 
-      expect(bubbleEn.bottom - lastEn.top, closeTo(40, 0.01));
+        expect(bubbleEn.bottom - lastEn.top, closeTo(40, 0.01));
 
-      await pumpPreview(
-        tester,
-        obsOverlayBubbleOverBottomNav,
-        locale: const Locale('ar'),
-      );
-      final Rect bubbleAr = _bubbleRect(tester);
-      final Rect lastAr = tester.getRect(
-        find.byKey(obsOverlayBubbleLastDestinationKey),
-      );
-      final Rect firstAr = tester.getRect(
-        find.byKey(obsOverlayBubbleFirstDestinationKey),
-      );
+        await pumpPreview(
+          tester,
+          obsOverlayBubbleOverBottomNav,
+          locale: const Locale('ar'),
+        );
+        final Rect bubbleAr = _bubbleRect(tester);
+        final Rect lastAr = tester.getRect(
+          find.byKey(obsOverlayBubbleLastDestinationKey),
+        );
+        final Rect firstAr = tester.getRect(
+          find.byKey(obsOverlayBubbleFirstDestinationKey),
+        );
 
-      expect(bubbleAr.overlaps(lastAr), isFalse);
-      expect(bubbleAr.overlaps(firstAr), isTrue);
-    });
+        expect(bubbleAr.overlaps(lastAr), isFalse);
+        expect(bubbleAr.overlaps(firstAr), isTrue);
+      },
+    );
 
     testWidgets('covers the trailing 48pt of a docked primary action', (
       WidgetTester tester,
@@ -137,21 +141,25 @@ void main() {
       await pumpPreview(tester, obsOverlayBubbleOverPrimaryCta);
 
       final Rect bubble = _bubbleRect(tester);
-      final Rect cta = tester.getRect(find.byKey(obsOverlayBubblePrimaryCtaKey));
+      final Rect cta = tester.getRect(
+        find.byKey(obsOverlayBubblePrimaryCtaKey),
+      );
       final Rect covered = bubble.intersect(cta);
 
       expect(bubble.overlaps(cta), isTrue);
       expect(
         covered.width,
         closeTo(obsOverlayBubbleDiameter, 0.01),
-        reason: 'the whole width of the bubble is over the button: the button '
+        reason:
+            'the whole width of the bubble is over the button: the button '
             'runs to a 16pt gutter and so does the bubble',
       );
       expect(covered.height, closeTo(40, 0.01));
       expect(
         find.text('Place order').hitTestable(),
         findsOneWidget,
-        reason: 'the label itself is centred and stays reachable — it is the '
+        reason:
+            'the label itself is centred and stays reachable — it is the '
             'trailing end of the tap area that is lost',
       );
     });
@@ -169,33 +177,33 @@ void main() {
       expect(
         bubble.overlaps(band),
         isTrue,
-        reason: 'the 24pt anchor is raw — `ObsOverlayHost` is mounted from '
+        reason:
+            'the 24pt anchor is raw — `ObsOverlayHost` is mounted from '
             '`MaterialApp.builder`, outside any SafeArea, so nothing subtracts '
             'MediaQuery.padding.bottom from it',
       );
       expect(
         bubble.bottom - band.top,
-        closeTo(obsOverlayBubbleGestureBandHeight - obsOverlayBubbleBottomInset,
-            0.01),
+        closeTo(
+          obsOverlayBubbleGestureBandHeight - obsOverlayBubbleBottomInset,
+          0.01,
+        ),
       );
     });
 
-    testWidgets('the recording dot appears iff Observability is recording', (
-      WidgetTester tester,
-    ) async {
-      await pumpPreview(tester, obsOverlayBubbleDocked);
-      expect(ObservabilityConfig.instance.enabled, isFalse);
-      expect(_recordingDot(), findsNothing);
+    testWidgets(
+      'the recording preview shows a dot without mutating recording',
+      (WidgetTester tester) async {
+        await pumpPreview(tester, obsOverlayBubbleDocked);
+        expect(ObservabilityConfig.instance.enabled, isFalse);
+        expect(_recordingDot(), findsNothing);
 
-      await pumpPreview(tester, obsOverlayBubbleRecordingRequested);
+        await pumpPreview(tester, obsOverlayBubbleRecordingRequested);
 
-      expect(ObservabilityConfig.instance.enabled, isTrue);
-      expect(
-        _recordingDot(),
-        Observability.instance.recording ? findsOneWidget : findsNothing,
-        reason: 'the badge dot must track Observability.instance.recording',
-      );
-    });
+        expect(ObservabilityConfig.instance.enabled, isFalse);
+        expect(_recordingDot(), findsOneWidget);
+      },
+    );
 
     testWidgets('each preview stages something different under the bubble', (
       WidgetTester tester,

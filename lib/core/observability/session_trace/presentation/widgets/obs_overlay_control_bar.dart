@@ -16,6 +16,16 @@ class ObsOverlayControlBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _RecordingSwitch(controller: controller),
+        if (controller.lastErrorMessage != null) ...[
+          const SizedBox(height: Spacing.twoXSmall),
+          Text(
+            controller.lastErrorMessage!,
+            key: const Key('obs-overlay-recording-error'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ],
         const SizedBox(height: Spacing.xSmall),
         _ClearRow(controller: controller),
       ],
@@ -32,7 +42,7 @@ class _RecordingSwitch extends StatelessWidget {
     if (value) {
       unawaited(controller.start());
     } else {
-      controller.stop();
+      unawaited(controller.stop());
     }
   }
 
@@ -68,14 +78,13 @@ class _ClearRow extends StatelessWidget {
       children: [
         Text(
           '$count buffered',
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: colorScheme.onSurfaceVariant),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
         ),
         OMDSOutlinedButton(
           key: const Key('obs-overlay-clear'),
-          text: 'Clear',
+          text: 'Clear view',
           icon: const Icon(Icons.delete_outline, size: Sizes.small),
           onTap: controller.clear,
         ),

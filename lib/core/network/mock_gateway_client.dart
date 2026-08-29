@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 import '../diagnostics/diag_dio_interceptor.dart';
+import '../observability/session_trace/capture/obs_dio_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
@@ -140,6 +141,8 @@ class MockGatewayClient {
     dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
 
     dio.interceptors.add(const DiagDioInterceptor());
+
+    ObsDioInterceptor.attachTo(dio);
 
     if (kDebugMode) {
       dio.interceptors.add(const RedactingLogInterceptor());

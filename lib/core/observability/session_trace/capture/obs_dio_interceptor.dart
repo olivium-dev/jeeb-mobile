@@ -11,9 +11,18 @@ import '../secret_redactor.dart';
 final class ObsDioInterceptor extends Interceptor {
   const ObsDioInterceptor();
 
+  static final RegExp _authRecoveryPath = RegExp(
+    r'^/(?:v1/)?auth/recovery/(?:request|verify)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _deliveryCredentialPath = RegExp(
+    r'^/(?:v1/)?(?:delivery|deliveries)/[^/]+/(?:otp(?:/verify)?|handover(?:-code)?(?:/verify)?)$',
+    caseSensitive: false,
+  );
+
   static const String _startedAtKey = 'jeeb.obs.startedAtMicros';
-  static const String _seqKey = 'jeeb.obs.seq';
-  static const String _screenKey = 'jeeb.obs.screen';
+  static const String _captureKey = 'jeeb.obs.capture';
 
   static const List<String> _correlationHeaderNames = [
     'x-correlation-id',
@@ -25,15 +34,27 @@ final class ObsDioInterceptor extends Interceptor {
   static const String _requestBytesKey = 'x-obs-request-bytes';
   static const String _responseBytesKey = 'x-obs-response-bytes';
 
-  static const String _unknownSessionId = 'unknown-session';
+  static const List<String> _localServicePrefixes = <String>[
+    '/auth-service',
+    '/delivery-service',
+  ];
+
+  static void attachTo(Dio dio) {
+    if (!kObsCompiledIn ||
+        dio.interceptors.whereType<ObsDioInterceptor>().isNotEmpty) {
+      return;
+    }
+    dio.interceptors.add(const ObsDioInterceptor());
+  }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    options.extra[_startedAtKey] = DateTime.now().microsecondsSinceEpoch;
-    if (Observability.instance.recording) {
-      options.extra[_seqKey] = Observability.instance.nextSeq();
-      final screen = Observability.instance.currentScreen;
-      if (screen != null) options.extra[_screenKey] = screen;
+    options.extra[_startedAtKey] ??= DateTime.now().microsecondsSinceEpoch;
+    if (options.extra[_captureKey] is! ObsApiCapture) {
+      final capture = Observability.instance.beginApiCapture();
+      if (capture != null) {
+        options.extra[_captureKey] = capture;
+      }
     }
     handler.next(options);
   }
@@ -58,30 +79,41 @@ final class ObsDioInterceptor extends Interceptor {
     Response<dynamic>? response,
     DioException? error,
   }) {
-    if (!Observability.instance.recording ||
-        !ObservabilityConfig.instance.signalEnabled(ObsEventType.api)) {
-      return;
+    final capture = options.extra.remove(_captureKey);
+    if (capture is! ObsApiCapture) return;
+    try {
+      final event = _buildEvent(
+        options,
+        capture: capture,
+        response: response,
+        error: error,
+      );
+      Observability.instance.completeApiCapture(capture, event);
+    } catch (_) {
+      Observability.instance.abandonApiCapture(capture);
     }
-    Observability.instance.record(
-      _buildEvent(options, response: response, error: error),
-    );
   }
 
   static ObsApiEvent _buildEvent(
     RequestOptions options, {
+    required ObsApiCapture capture,
     Response<dynamic>? response,
     DioException? error,
   }) {
-    final suppressPayload = DiagRedaction.isBodySuppressedPath(options.path);
+    final suppressPayload = _isMetadataOnlyPath(options.path);
     final correlationId = _correlationId(options, response);
-    final seq = _seqFor(options);
     return ObsApiEvent(
-      id: Observability.instance.newEventId(ObsEventType.api, seq),
-      sessionId: Observability.instance.sessionId ?? _unknownSessionId,
+      id: Observability.instance.newEventId(ObsEventType.api, capture.seq),
+      sessionId: capture.sessionId,
       timestampUtc: DateTime.now().toUtc(),
-      seq: seq,
+      seq: capture.seq,
       method: options.method.toUpperCase(),
-      path: DiagRedaction.scrubPath(options.path),
+      path:
+          SecretRedactor.redactNetworkPath(
+            options.path,
+            baseUrl: options.baseUrl,
+          ) ??
+          SecretRedactor.redacted,
       statusCode: response?.statusCode,
       durationMs: _elapsedMs(options),
       requestHeaders: suppressPayload
@@ -92,8 +124,8 @@ final class ObsDioInterceptor extends Interceptor {
           ? const <String, Object?>{}
           : _responseHeaders(response),
       responseBody: suppressPayload ? null : _responseBody(response),
-      correlationId: correlationId,
-      screen: _screenFor(options),
+      correlationId: suppressPayload ? null : correlationId,
+      screen: capture.screen,
       errorType: error?.type.name,
       errorMessage: suppressPayload ? null : _errorMessage(error),
     );
@@ -113,7 +145,6 @@ final class ObsDioInterceptor extends Interceptor {
     if (!config.captureApiBodies) return null;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(options.data),
-      full: config.redactionEnabled,
       maxBytes: config.maxBodyBytes,
     );
   }
@@ -133,7 +164,6 @@ final class ObsDioInterceptor extends Interceptor {
     if (response == null || !config.captureApiBodies) return null;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(response.data),
-      full: config.redactionEnabled,
       maxBytes: config.maxBodyBytes,
     );
   }
@@ -144,18 +174,24 @@ final class ObsDioInterceptor extends Interceptor {
     final capped = raw.length > _maxErrorMessageChars
         ? '${raw.substring(0, _maxErrorMessageChars)}…'
         : raw;
-    return SecretRedactor.redactString(capped);
+    return SecretRedactor.redactLabel(capped);
   }
 
-  static int _seqFor(RequestOptions options) {
-    final stashed = options.extra[_seqKey];
-    if (stashed is int) return stashed;
-    return Observability.instance.nextSeq();
-  }
-
-  static String? _screenFor(RequestOptions options) {
-    final screen = options.extra[_screenKey];
-    return screen is String ? screen : null;
+  static bool _isMetadataOnlyPath(String path) {
+    if (DiagRedaction.isBodySuppressedPath(path)) return true;
+    var scrubbed = DiagRedaction.scrubPath(path).toLowerCase();
+    for (final prefix in _localServicePrefixes) {
+      if (scrubbed == prefix || scrubbed.startsWith('$prefix/')) {
+        scrubbed = scrubbed.substring(prefix.length);
+        break;
+      }
+    }
+    if (DiagRedaction.isBodySuppressedPath(scrubbed)) return true;
+    final normalized = scrubbed.length > 1 && scrubbed.endsWith('/')
+        ? scrubbed.substring(0, scrubbed.length - 1)
+        : scrubbed;
+    return _authRecoveryPath.hasMatch(normalized) ||
+        _deliveryCredentialPath.hasMatch(normalized);
   }
 
   static int _elapsedMs(RequestOptions options) {
@@ -171,12 +207,16 @@ final class ObsDioInterceptor extends Interceptor {
   ) {
     for (final name in _correlationHeaderNames) {
       final fromRequest = _headerIgnoreCase(options.headers, name);
-      if (fromRequest != null && fromRequest.isNotEmpty) return fromRequest;
+      if (fromRequest != null && fromRequest.isNotEmpty) {
+        return SecretRedactor.redactIdentifier(fromRequest);
+      }
     }
     if (response == null) return null;
     for (final name in _correlationHeaderNames) {
       final values = response.headers[name];
-      if (values != null && values.isNotEmpty) return values.first;
+      if (values != null && values.isNotEmpty) {
+        return SecretRedactor.redactIdentifier(values.first);
+      }
     }
     return null;
   }
@@ -211,7 +251,7 @@ final class ObsDioInterceptor extends Interceptor {
           raw is bool) {
         return raw;
       }
-      return '<non-serializable body: ${raw.runtimeType}>';
+      return '<non-serializable body>';
     } catch (_) {
       return '<non-serializable body>';
     }

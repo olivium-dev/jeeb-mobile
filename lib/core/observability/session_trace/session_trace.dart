@@ -5,6 +5,7 @@ export 'observability.dart';
 export 'observability_config.dart';
 export 'secret_redactor.dart';
 export 'obs_file_writer.dart';
+export 'obs_export_bundle.dart';
 
 export 'capture/obs_nav_observer.dart'; // Module 1 — screen
 export 'capture/obs_dio_interceptor.dart'; // Module 2 — api

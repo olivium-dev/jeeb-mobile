@@ -18,6 +18,7 @@ void main() {
       expect(script, contains('--flavor dev'));
       expect(script, contains('--debug'));
       expect(script, contains('--dart-define=JEEB_DEVTOOL_ENABLED=true'));
+      expect(script, contains('--dart-define=JEEB_OBS_OVERLAY=true'));
       expect(
         script,
         contains(r'--dart-define=JEEB_MOCK_BASE_URL="${base_url}"'),

@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_notification_recorder.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — `kObsCompiledIn` is a hard
@@ -67,10 +70,7 @@ void main() {
 
         ObsNotificationRecorder.recordReceived(_message(), mode: 'foreground');
         ObsNotificationRecorder.recordShown(_message());
-        ObsNotificationRecorder.recordOpened(
-          _message(),
-          deepLink: '/orders/1',
-        );
+        ObsNotificationRecorder.recordOpened(_message(), deepLink: '/orders/1');
 
         expect(fake.events, isEmpty);
       },
@@ -136,14 +136,14 @@ void main() {
     );
 
     test(
-      'recordOpened emits an opened event carrying the resolved deep link',
+      'recordOpened emits an opened event with query and fragment removed',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
 
         ObsNotificationRecorder.recordOpened(
           _message(id: 'm-9', category: NotificationCategory.delivery),
-          deepLink: '/orders/d-1',
+          deepLink: '/orders/d-1?token=SECRET#private-fragment',
         );
 
         expect(fake.events, hasLength(1));
@@ -156,41 +156,51 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
+    test('recordOpened records a null deepLink when the payload had no '
+        'actionable destination', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+
+      ObsNotificationRecorder.recordOpened(_message());
+
+      final event = fake.events.single as ObsNotificationEvent;
+      expect(event.deepLink, isNull);
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+
     test(
-      'recordOpened records a null deepLink when the payload had no '
-      'actionable destination',
+      'recordOpened redacts an OTP-shaped path segment at capture time',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
 
-        ObsNotificationRecorder.recordOpened(_message());
+        ObsNotificationRecorder.recordOpened(
+          _message(),
+          deepLink: '/recover/482913',
+        );
 
         final event = fake.events.single as ObsNotificationEvent;
-        expect(event.deepLink, isNull);
+        expect(event.deepLink, SecretRedactor.redacted);
+        expect(jsonEncode(event.toJson()), isNot(contains('482913')));
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'seq/id/sessionId/timestamp are stamped by the shared Observability '
-      'facade, not re-implemented here',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        Observability.instance.clock = () => DateTime.utc(2026, 7, 18, 9);
+    test('seq/id/sessionId/timestamp are stamped by the shared Observability '
+        'facade, not re-implemented here', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+      Observability.instance.clock = () => DateTime.utc(2026, 7, 18, 9);
 
-        ObsNotificationRecorder.recordReceived(_message(), mode: 'foreground');
+      ObsNotificationRecorder.recordReceived(_message(), mode: 'foreground');
 
-        final event = fake.events.single as ObsNotificationEvent;
-        expect(event.id, '1-notification');
-        expect(event.seq, 1);
-        expect(event.timestampUtc, DateTime.utc(2026, 7, 18, 9));
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      final event = fake.events.single as ObsNotificationEvent;
+      expect(event.id, '1-notification');
+      expect(event.seq, 1);
+      expect(event.timestampUtc, DateTime.utc(2026, 7, 18, 9));
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
-      'title/body pass through untouched when they carry no secret shape',
+      'title/body are redacted even when they carry ordinary free text',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
@@ -201,133 +211,120 @@ void main() {
         );
 
         final event = fake.events.single as ObsNotificationEvent;
-        expect(event.title, 'Order update');
-        expect(event.body, 'On the way');
+        expect(event.title, SecretRedactor.redacted);
+        expect(event.body, SecretRedactor.redacted);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
+    test('title/body are redacted at capture time (hard floor over a '
+        'secret-shaped pattern embedded in free text)', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+
+      ObsNotificationRecorder.recordReceived(
+        _message(
+          title: 'Auth via Bearer $_fakeJwt',
+          body: 'token=$_fakeJwt failed',
+        ),
+        mode: 'foreground',
+      );
+
+      final event = fake.events.single as ObsNotificationEvent;
+      expect(event.title, isNot(contains(_fakeJwt)));
+      expect(event.body, isNot(contains(_fakeJwt)));
+      expect(event.title, isNot(contains('Bearer ')));
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+
     test(
-      'title/body are redacted at capture time (hard floor over a '
-      'secret-shaped pattern embedded in free text)',
+      'the FCM data map redacts known-sensitive and unknown string keys',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
 
         ObsNotificationRecorder.recordReceived(
           _message(
-            title: 'Auth via Bearer $_fakeJwt',
-            body: 'token=$_fakeJwt failed',
+            data: const <String, String>{
+              'fcmToken': 'fcm-registration-abcdef123456',
+              'requestId': 'req-1',
+            },
           ),
           mode: 'foreground',
         );
 
         final event = fake.events.single as ObsNotificationEvent;
-        expect(event.title, isNot(contains(_fakeJwt)));
-        expect(event.body, isNot(contains(_fakeJwt)));
-        expect(event.title, isNot(contains('Bearer ')));
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
-
-    test(
-      'the FCM data map redacts known-sensitive keys to a correlation '
-      'handle while passing non-sensitive keys through verbatim',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-
-        ObsNotificationRecorder.recordReceived(
-          _message(data: const <String, String>{
-            'fcmToken': 'fcm-registration-abcdef123456',
-            'requestId': 'req-1',
-          }),
-          mode: 'foreground',
-        );
-
-        final event = fake.events.single as ObsNotificationEvent;
-        expect(event.data['fcmToken'], startsWith('tok:'));
+        expect(event.data['fcmToken'], SecretRedactor.redacted);
         expect(event.data['fcmToken'], isNot(contains('abcdef123456')));
-        expect(event.data['requestId'], 'req-1');
+        expect(event.data['requestId'], SecretRedactor.redacted);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
+    test('a bearer/JWT-shaped value nested in a non-sensitive data key is '
+        'still caught by the pattern floor', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+
+      ObsNotificationRecorder.recordReceived(
+        _message(data: <String, String>{'note': 'Bearer $_fakeJwt'}),
+        mode: 'foreground',
+      );
+
+      final event = fake.events.single as ObsNotificationEvent;
+      expect(event.data['note'], isNot(contains(_fakeJwt)));
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+
     test(
-      'a bearer/JWT-shaped value nested in a non-sensitive data key is '
-      'still caught by the pattern floor',
+      'the redaction hard floor has no runtime off switch',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
-
         ObsNotificationRecorder.recordReceived(
-          _message(data: <String, String>{'note': 'Bearer $_fakeJwt'}),
+          _message(
+            data: const <String, String>{
+              'deviceToken': 'raw-device-token-value',
+            },
+          ),
           mode: 'foreground',
         );
 
         final event = fake.events.single as ObsNotificationEvent;
-        expect(event.data['note'], isNot(contains(_fakeJwt)));
+        expect(event.data['deviceToken'], SecretRedactor.redacted);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'redactionEnabled=false still never exposes a sensitive-keyed data '
-      'value (the hard floor cannot be lowered by the toggle)',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        ObservabilityConfig.instance.redactionEnabled = false;
+    test('a per-signal toggle OFF (captureNotifications=false) suppresses '
+        'emission even though the master switch is on', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+      ObservabilityConfig.instance.captureNotifications = false;
 
-        ObsNotificationRecorder.recordReceived(
-          _message(data: const <String, String>{'deviceToken': 'raw-device-token-value'}),
-          mode: 'foreground',
-        );
+      ObsNotificationRecorder.recordReceived(_message(), mode: 'foreground');
 
-        final event = fake.events.single as ObsNotificationEvent;
-        expect(event.data['deviceToken'], startsWith('tok:'));
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      expect(fake.events, isEmpty);
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
-    test(
-      'a per-signal toggle OFF (captureNotifications=false) suppresses '
-      'emission even though the master switch is on',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        ObservabilityConfig.instance.captureNotifications = false;
+    test('received -> shown -> opened for the same message share one '
+        'monotonic seq order and the same messageId', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+      final message = _message(id: 'm-100');
 
-        ObsNotificationRecorder.recordReceived(_message(), mode: 'foreground');
+      ObsNotificationRecorder.recordReceived(message, mode: 'foreground');
+      ObsNotificationRecorder.recordShown(message);
+      ObsNotificationRecorder.recordOpened(message, deepLink: '/orders/1');
 
-        expect(fake.events, isEmpty);
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
-
-    test(
-      'received -> shown -> opened for the same message share one '
-      'monotonic seq order and the same messageId',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        final message = _message(id: 'm-100');
-
-        ObsNotificationRecorder.recordReceived(message, mode: 'foreground');
-        ObsNotificationRecorder.recordShown(message);
-        ObsNotificationRecorder.recordOpened(message, deepLink: '/orders/1');
-
-        expect(fake.events, hasLength(3));
-        expect(fake.events.map((e) => e.seq), [1, 2, 3]);
-        final notifications = fake.events.cast<ObsNotificationEvent>();
-        expect(notifications.every((e) => e.messageId == 'm-100'), isTrue);
-        expect(notifications.map((e) => e.channel), ['fcm', 'local', 'fcm']);
-        expect(
-          notifications.map((e) => e.mode),
-          ['foreground', 'foreground', 'opened'],
-        );
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      expect(fake.events, hasLength(3));
+      expect(fake.events.map((e) => e.seq), [1, 2, 3]);
+      final notifications = fake.events.cast<ObsNotificationEvent>();
+      expect(notifications.every((e) => e.messageId == 'm-100'), isTrue);
+      expect(notifications.map((e) => e.channel), ['fcm', 'local', 'fcm']);
+      expect(notifications.map((e) => e.mode), [
+        'foreground',
+        'foreground',
+        'opened',
+      ]);
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
   });
 }

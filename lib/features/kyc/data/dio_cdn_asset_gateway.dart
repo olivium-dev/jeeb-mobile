@@ -2,12 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import '../domain/cdn_asset_gateway.dart';
 
 /// Dio-backed [CdnAssetGateway].
 class DioCdnAssetGateway implements CdnAssetGateway {
   DioCdnAssetGateway(this._brokerDio, {Dio? uploadDio})
-    : _uploadDio = uploadDio ?? _bareUploadDio();
+    : _uploadDio = uploadDio ?? _bareUploadDio() {
+    ObsDioInterceptor.attachTo(_uploadDio);
+  }
 
   final Dio _brokerDio;
 

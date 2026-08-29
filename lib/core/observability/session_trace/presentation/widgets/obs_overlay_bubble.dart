@@ -4,13 +4,17 @@ import 'package:omds/omds.dart';
 import '../obs_overlay_controller.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
-import '../../observability_config.dart';
 import '../../../../previews/jeeb_preview.dart';
 
 class ObsOverlayBubble extends StatelessWidget {
-  const ObsOverlayBubble({super.key, required this.controller});
+  const ObsOverlayBubble({
+    super.key,
+    required this.controller,
+    this.recordingOverride,
+  });
 
   final ObsOverlayController controller;
+  final bool? recordingOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -21,16 +25,20 @@ class ObsOverlayBubble extends StatelessWidget {
         identifier: 'obs_overlay_bubble',
         button: true,
         label: 'Session trace overlay',
-        child: _BubbleButton(controller: controller),
+        child: _BubbleButton(
+          controller: controller,
+          recording: recordingOverride ?? controller.recording,
+        ),
       ),
     );
   }
 }
 
 class _BubbleButton extends StatelessWidget {
-  const _BubbleButton({required this.controller});
+  const _BubbleButton({required this.controller, required this.recording});
 
   final ObsOverlayController controller;
+  final bool recording;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +55,7 @@ class _BubbleButton extends StatelessWidget {
         onTap: controller.toggleExpanded,
         child: Padding(
           padding: const EdgeInsets.all(Spacing.small),
-          child: _BubbleIcon(controller: controller),
+          child: _BubbleIcon(recording: recording),
         ),
       ),
     );
@@ -55,9 +63,9 @@ class _BubbleButton extends StatelessWidget {
 }
 
 class _BubbleIcon extends StatelessWidget {
-  const _BubbleIcon({required this.controller});
+  const _BubbleIcon({required this.recording});
 
-  final ObsOverlayController controller;
+  final bool recording;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +77,7 @@ class _BubbleIcon extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Icon(Icons.data_object, color: colorScheme.onSecondary),
-          if (controller.recording)
+          if (recording)
             Positioned(
               right: -Spacing.twoXSmall,
               top: -Spacing.twoXSmall,
@@ -89,6 +97,7 @@ class _RecordingDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const Key('obs-overlay-recording-dot'),
       width: Sizes.xSmall,
       height: Sizes.xSmall,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
@@ -149,7 +158,8 @@ const Size _obsOverlayBubbleBottomEdgeCanvas = Size(390, 310);
 
 /// One inert controller, shared by every preview.
 /// `ObsOverlayController()` is pure until `attach()` — no timer, no sink
-final ObsOverlayController _obsOverlayBubbleInertController = ObsOverlayController();
+final ObsOverlayController _obsOverlayBubbleInertController =
+    ObsOverlayController();
 
 /// Hosts the bubble the way production does — inside a full-viewport [Stack],
 /// over routed content — and captions the state.
@@ -168,9 +178,6 @@ class _ObsOverlayBubbleStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The bubble's recording state has NO per-instance seam: `_BubbleIcon`
-    ObservabilityConfig.instance.enabled = recordingRequested;
-
     final ColorScheme colors = Theme.of(context).colorScheme;
     return Center(
       child: Column(
@@ -186,7 +193,10 @@ class _ObsOverlayBubbleStage extends StatelessWidget {
                 key: obsOverlayBubbleStageKey,
                 children: <Widget>[
                   Positioned.fill(child: content),
-                  ObsOverlayBubble(controller: _obsOverlayBubbleInertController),
+                  ObsOverlayBubble(
+                    controller: _obsOverlayBubbleInertController,
+                    recordingOverride: recordingRequested,
+                  ),
                 ],
               ),
             ),
@@ -206,7 +216,11 @@ class _ObsOverlayBubbleStage extends StatelessWidget {
 /// Stand-in for the routed content the overlay floats above: a header, a list,
 /// and optionally whatever the screen docks to its own bottom edge.
 class _ObsOverlayBubbleFakeScreen extends StatelessWidget {
-  const _ObsOverlayBubbleFakeScreen({required this.title, required this.rows, this.bottom});
+  const _ObsOverlayBubbleFakeScreen({
+    required this.title,
+    required this.rows,
+    this.bottom,
+  });
 
   final String title;
   final List<String> rows;
@@ -239,7 +253,11 @@ class _ObsOverlayBubbleFakeScreen extends StatelessWidget {
               for (final String row in rows)
                 ListTile(
                   dense: true,
-                  title: Text(row, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  title: Text(
+                    row,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
             ],
           ),
@@ -297,7 +315,11 @@ class _ObsOverlayBubbleFakeBottomNav extends StatelessWidget {
 }
 
 class _ObsOverlayBubbleNavDestination extends StatelessWidget {
-  const _ObsOverlayBubbleNavDestination({required this.icon, required this.label, super.key});
+  const _ObsOverlayBubbleNavDestination({
+    required this.icon,
+    required this.label,
+    super.key,
+  });
 
   final IconData icon;
   final String label;
@@ -364,7 +386,9 @@ class _ObsOverlayBubbleFakeGestureBand extends StatelessWidget {
         height: 5,
         decoration: BoxDecoration(
           color: colors.onSurface,
-          borderRadius: const BorderRadius.all(Radius.circular(Sizes.threeXSmall)),
+          borderRadius: const BorderRadius.all(
+            Radius.circular(Sizes.threeXSmall),
+          ),
         ),
       ),
     );
@@ -373,68 +397,88 @@ class _ObsOverlayBubbleFakeGestureBand extends StatelessWidget {
 
 /// The production geometry, with nothing underneath to argue with: the bubble
 /// docked 16pt from the physical right edge and 24pt up from the bottom, at a
-@JeebPreview(group: 'core', name: 'Docked (production geometry)', size: _obsOverlayBubblePhoneCanvas)
+@JeebPreview(
+  group: 'core',
+  name: 'Docked (production geometry)',
+  size: _obsOverlayBubblePhoneCanvas,
+)
 Widget obsOverlayBubbleDocked() => const _ObsOverlayBubbleStage(
-      caption: 'Docked · 16/24pt bottom-right',
-      viewport: _obsOverlayBubblePhoneViewport,
-      content: _ObsOverlayBubbleFakeScreen(
-        title: 'My orders',
-        rows: <String>[
-          'Order #4821 · In transit',
-          'Order #4820 · Delivered',
-          'Order #4819 · Cancelled',
-        ],
-      ),
-    );
+  caption: 'Docked · 16/24pt bottom-right',
+  viewport: _obsOverlayBubblePhoneViewport,
+  content: _ObsOverlayBubbleFakeScreen(
+    title: 'My orders',
+    rows: <String>[
+      'Order #4821 · In transit',
+      'Order #4820 · Delivered',
+      'Order #4819 · Cancelled',
+    ],
+  ),
+);
 
 /// The bubble over the app's own bottom navigation bar — the layout most Jeeb
 /// screens actually have underneath it.
-@JeebPreview(group: 'core', name: 'Over the bottom nav bar', size: _obsOverlayBubblePhoneCanvas)
+@JeebPreview(
+  group: 'core',
+  name: 'Over the bottom nav bar',
+  size: _obsOverlayBubblePhoneCanvas,
+)
 Widget obsOverlayBubbleOverBottomNav() => const _ObsOverlayBubbleStage(
-      caption: 'Bottom nav · covers a tab',
-      viewport: _obsOverlayBubblePhoneViewport,
-      content: _ObsOverlayBubbleFakeScreen(
-        title: 'My orders',
-        rows: <String>['Order #4821 · In transit', 'Order #4820 · Delivered'],
-        bottom: _ObsOverlayBubbleFakeBottomNav(),
-      ),
-    );
+  caption: 'Bottom nav · covers a tab',
+  viewport: _obsOverlayBubblePhoneViewport,
+  content: _ObsOverlayBubbleFakeScreen(
+    title: 'My orders',
+    rows: <String>['Order #4821 · In transit', 'Order #4820 · Delivered'],
+    bottom: _ObsOverlayBubbleFakeBottomNav(),
+  ),
+);
 
 /// The bubble over a docked full-width primary action.
 /// The button spans the width minus 16pt gutters and sits 16pt off the bottom;
-@JeebPreview(group: 'core', name: 'Over a docked primary CTA', size: _obsOverlayBubblePhoneCanvas)
+@JeebPreview(
+  group: 'core',
+  name: 'Over a docked primary CTA',
+  size: _obsOverlayBubblePhoneCanvas,
+)
 Widget obsOverlayBubbleOverPrimaryCta() => const _ObsOverlayBubbleStage(
-      caption: 'Primary CTA · covers 48pt',
-      viewport: _obsOverlayBubblePhoneViewport,
-      content: _ObsOverlayBubbleFakeScreen(
-        title: 'Review your order',
-        rows: <String>['2 items · 14,000 LBP', 'Deliver to: Hamra, Beirut'],
-        bottom: _ObsOverlayBubbleFakePrimaryCta(),
-      ),
-    );
+  caption: 'Primary CTA · covers 48pt',
+  viewport: _obsOverlayBubblePhoneViewport,
+  content: _ObsOverlayBubbleFakeScreen(
+    title: 'Review your order',
+    rows: <String>['2 items · 14,000 LBP', 'Deliver to: Hamra, Beirut'],
+    bottom: _ObsOverlayBubbleFakePrimaryCta(),
+  ),
+);
 
 /// Recording requested — and the state that proves the recording dot is
 /// currently **unreachable**.
-@JeebPreview(group: 'core', name: 'Recording requested (dot is gated)', size: _obsOverlayBubblePhoneCanvas)
+@JeebPreview(
+  group: 'core',
+  name: 'Recording requested (dot is gated)',
+  size: _obsOverlayBubblePhoneCanvas,
+)
 Widget obsOverlayBubbleRecordingRequested() => const _ObsOverlayBubbleStage(
-      caption: 'Recording on · dot is gated',
-      viewport: _obsOverlayBubblePhoneViewport,
-      recordingRequested: true,
-      content: _ObsOverlayBubbleFakeScreen(
-        title: 'Live tracking',
-        rows: <String>['Jeeber en route · 4 min', 'Handover code: 1234'],
-      ),
-    );
+  caption: 'Recording on · dot is gated',
+  viewport: _obsOverlayBubblePhoneViewport,
+  recordingRequested: true,
+  content: _ObsOverlayBubbleFakeScreen(
+    title: 'Live tracking',
+    rows: <String>['Jeeber en route · 4 min', 'Handover code: 1234'],
+  ),
+);
 
 /// The bottom edge, cropped — a short stage that also stands in for
 /// split-screen and landscape.
-@JeebPreview(group: 'core', name: 'Over the home indicator', size: _obsOverlayBubbleBottomEdgeCanvas)
+@JeebPreview(
+  group: 'core',
+  name: 'Over the home indicator',
+  size: _obsOverlayBubbleBottomEdgeCanvas,
+)
 Widget obsOverlayBubbleOverGestureInset() => const _ObsOverlayBubbleStage(
-      caption: 'Home indicator · 24pt vs 34pt',
-      viewport: _obsOverlayBubbleBottomEdgeViewport,
-      content: _ObsOverlayBubbleFakeScreen(
-        title: 'Chat',
-        rows: <String>['Ali: on my way', 'You: thanks!'],
-        bottom: _ObsOverlayBubbleFakeGestureBand(),
-      ),
-    );
+  caption: 'Home indicator · 24pt vs 34pt',
+  viewport: _obsOverlayBubbleBottomEdgeViewport,
+  content: _ObsOverlayBubbleFakeScreen(
+    title: 'Chat',
+    rows: <String>['Ali: on my way', 'You: thanks!'],
+    bottom: _ObsOverlayBubbleFakeGestureBand(),
+  ),
+);

@@ -67,6 +67,7 @@ exit 0
       contains('--android-project-arg=jeeb.devtool=true'),
       reason: 'the Android Dev Tool launcher activity must be enabled',
     );
+    expect(script, contains('--dart-define=JEEB_OBS_OVERLAY=true'));
     expect(script, contains('--dart-define=JEEB_REALTIME_TRACKING=true'));
     expect(script, isNot(contains('--dart-define=GATEWAY_BASE_URL=')));
     expect(script, isNot(contains('MAPS_API_KEY')));

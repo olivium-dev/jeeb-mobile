@@ -4,6 +4,7 @@ import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_nav_obs
 import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded group below — [kObsCompiledIn] is a hard
@@ -51,6 +52,9 @@ void main() {
   test('emits nothing when the tool is not recording (zero-cost no-op)', () {
     observer.didPush(route('/orders/:id'), null);
     expect(sink.events, isEmpty);
+    if (kObsCompiledIn) {
+      expect(Observability.instance.currentScreen, '/orders/:id');
+    }
   });
 
   test('a null new-route (didReplace with nothing to report) is a no-op', () {
@@ -78,7 +82,7 @@ void main() {
         expect(event.route, '/orders/:id');
         expect(event.name, '/orders/:id');
         expect(event.previousRoute, '/home');
-        expect(event.params, {'id': 'd-42'});
+        expect(event.params, {'id': SecretRedactor.redacted});
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
@@ -115,22 +119,24 @@ void main() {
       expect(event.name, '/set-password');
     }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
-    test('a sensitive key in path params is redacted to a correlation handle, '
-        'never logged raw', () {
-      observer.didPush(
-        route('/x', arguments: <String, Object?>{'token': 'raw-token-9999'}),
-        null,
-      );
+    test(
+      'a sensitive key in path params is fully redacted, never logged raw',
+      () {
+        observer.didPush(
+          route('/x', arguments: <String, Object?>{'token': 'raw-token-9999'}),
+          null,
+        );
 
-      final event = sink.events.single as ObsScreenEvent;
-      final token = event.params['token'] as String;
-      expect(token, isNot(contains('raw-token-9999')));
-      expect(token, startsWith('tok:'));
-    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+        final event = sink.events.single as ObsScreenEvent;
+        final token = event.params['token'] as String;
+        expect(token, isNot(contains('raw-token-9999')));
+        expect(token, SecretRedactor.redacted);
+      },
+      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
+    );
 
     test('a long bare digit run in a non-sensitive-keyed path param is still '
-        'redacted — full:true is hardcoded, not tied to the live toggle', () {
-      ObservabilityConfig.instance.redactionEnabled = false;
+        'redacted by the non-disableable policy', () {
       observer.didPush(
         route('/x', arguments: <String, Object?>{'phone': '5551234567'}),
         null,

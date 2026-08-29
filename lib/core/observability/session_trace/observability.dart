@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,21 @@ abstract interface class ObservabilitySink {
   String? get sessionFilePath;
 }
 
+final class ObsApiCapture {
+  ObsApiCapture({
+    required this.sessionId,
+    required this.seq,
+    required this.screen,
+    required this.sink,
+  });
+
+  final String sessionId;
+  final int seq;
+  final String? screen;
+  final ObservabilitySink sink;
+  final Completer<void> completed = Completer<void>();
+}
+
 final class Observability {
   Observability._();
 
@@ -25,6 +41,8 @@ final class Observability {
 
   String? _sessionId;
   int _seq = 0;
+  final Set<ObsApiCapture> _outstandingApi = <ObsApiCapture>{};
+  Future<bool>? _installing;
 
   ObservabilityConfig get config => ObservabilityConfig.instance;
 
@@ -34,11 +52,16 @@ final class Observability {
 
   String? currentScreen;
 
+  int get outstandingApiCount => _outstandingApi.length;
+
   @visibleForTesting
   DateTime Function() clock = DateTime.now;
 
   @visibleForTesting
   ObservabilitySink? sink;
+
+  @visibleForTesting
+  void setSessionForTest(String value) => _sessionId = value;
 
   int nextSeq() => ++_seq;
 
@@ -46,11 +69,67 @@ final class Observability {
 
   void record(ObsEvent event) {
     if (!recording || !config.signalEnabled(event.type)) return;
+    _write(event);
+  }
+
+  void _write(ObsEvent event) {
     final activeSink = sink;
     if (activeSink == null) return;
+    _writeTo(activeSink, event);
+  }
+
+  void _writeTo(ObservabilitySink target, ObsEvent event) {
     try {
-      activeSink.add(event, flushNow: _isFailureEvent(event));
-    } catch (_) {
+      target.add(event, flushNow: _isFailureEvent(event));
+    } catch (_) {}
+  }
+
+  ObsApiCapture? beginApiCapture() {
+    final activeSession = _sessionId;
+    final activeSink = sink;
+    final activePath = activeSink?.sessionFilePath;
+    if (!recording ||
+        activeSession == null ||
+        activePath == null ||
+        activePath.trim().isEmpty ||
+        !config.signalEnabled(ObsEventType.api)) {
+      return null;
+    }
+    final capture = ObsApiCapture(
+      sessionId: activeSession,
+      seq: nextSeq(),
+      screen: currentScreen,
+      sink: activeSink!,
+    );
+    _outstandingApi.add(capture);
+    return capture;
+  }
+
+  void completeApiCapture(ObsApiCapture capture, ObsApiEvent event) {
+    if (!_outstandingApi.remove(capture)) return;
+    try {
+      _writeTo(capture.sink, event);
+    } finally {
+      if (!capture.completed.isCompleted) capture.completed.complete();
+    }
+  }
+
+  void abandonApiCapture(ObsApiCapture capture) {
+    if (!_outstandingApi.remove(capture)) return;
+    if (!capture.completed.isCompleted) capture.completed.complete();
+  }
+
+  Future<void> drainOutstandingApi({required Duration timeout}) async {
+    final captures = _outstandingApi.toList(growable: false);
+    if (captures.isEmpty) return;
+    try {
+      await Future.wait(
+        captures.map((capture) => capture.completed.future),
+      ).timeout(timeout);
+    } on TimeoutException {
+      for (final capture in captures) {
+        abandonApiCapture(capture);
+      }
     }
   }
 
@@ -63,17 +142,19 @@ final class Observability {
   }) {
     if (!recording || !config.signalEnabled(ObsEventType.screen)) return;
     final seq = nextSeq();
-    record(ObsScreenEvent(
-      id: newEventId(ObsEventType.screen, seq),
-      sessionId: _sessionId ?? _unknownSessionId,
-      timestampUtc: clock().toUtc(),
-      seq: seq,
-      action: action,
-      route: route,
-      name: name,
-      previousRoute: previousRoute,
-      params: params,
-    ));
+    record(
+      ObsScreenEvent(
+        id: newEventId(ObsEventType.screen, seq),
+        sessionId: _sessionId ?? _unknownSessionId,
+        timestampUtc: clock().toUtc(),
+        seq: seq,
+        action: action,
+        route: route,
+        name: name,
+        previousRoute: previousRoute,
+        params: params,
+      ),
+    );
   }
 
   void recordNotification({
@@ -90,20 +171,22 @@ final class Observability {
       return;
     }
     final seq = nextSeq();
-    record(ObsNotificationEvent(
-      id: newEventId(ObsEventType.notification, seq),
-      sessionId: _sessionId ?? _unknownSessionId,
-      timestampUtc: clock().toUtc(),
-      seq: seq,
-      channel: channel,
-      mode: mode,
-      messageId: messageId,
-      category: category,
-      title: title,
-      body: body,
-      deepLink: deepLink,
-      data: data,
-    ));
+    record(
+      ObsNotificationEvent(
+        id: newEventId(ObsEventType.notification, seq),
+        sessionId: _sessionId ?? _unknownSessionId,
+        timestampUtc: clock().toUtc(),
+        seq: seq,
+        channel: channel,
+        mode: mode,
+        messageId: messageId,
+        category: category,
+        title: title,
+        body: body,
+        deepLink: deepLink,
+        data: data,
+      ),
+    );
   }
 
   void recordInteraction({
@@ -117,37 +200,76 @@ final class Observability {
   }) {
     if (!recording || !config.signalEnabled(ObsEventType.interaction)) return;
     final seq = nextSeq();
-    record(ObsInteractionEvent(
-      id: newEventId(ObsEventType.interaction, seq),
-      sessionId: _sessionId ?? _unknownSessionId,
-      timestampUtc: clock().toUtc(),
-      seq: seq,
-      gesture: gesture,
-      targetId: targetId,
-      targetLabel: targetLabel,
-      screen: screen,
-      dx: dx,
-      dy: dy,
-      valuePreview: valuePreview,
-    ));
+    record(
+      ObsInteractionEvent(
+        id: newEventId(ObsEventType.interaction, seq),
+        sessionId: _sessionId ?? _unknownSessionId,
+        timestampUtc: clock().toUtc(),
+        seq: seq,
+        gesture: gesture,
+        targetId: targetId,
+        targetLabel: targetLabel,
+        screen: screen,
+        dx: dx,
+        dy: dy,
+        valuePreview: valuePreview,
+      ),
+    );
   }
 
-  Future<void> install({
+  Future<bool> install({
     required String role,
     Future<String?> Function()? subLookup,
     Future<Directory> Function()? baseDirectoryProvider,
   }) async {
-    if (!kObsCompiledIn || _sessionId != null) return;
+    if (!kObsCompiledIn) return false;
+    final installedPath = sink?.sessionFilePath;
+    if (_sessionId != null &&
+        installedPath != null &&
+        installedPath.trim().isNotEmpty) {
+      return true;
+    }
+    final pending = _installing;
+    if (pending != null) return pending;
+    final attempt = _performInstall(
+      role: role,
+      subLookup: subLookup,
+      baseDirectoryProvider: baseDirectoryProvider,
+    );
+    _installing = attempt;
+    try {
+      return await attempt;
+    } finally {
+      if (identical(_installing, attempt)) _installing = null;
+    }
+  }
+
+  Future<bool> _performInstall({
+    required String role,
+    Future<String?> Function()? subLookup,
+    Future<Directory> Function()? baseDirectoryProvider,
+  }) async {
     try {
       final mintedId = _mintSessionId(role);
-      _sessionId = mintedId;
-      sink = await ObsFileWriter.installAsGlobal(
+      final installed = await ObsFileWriter.installAsGlobal(
         sessionId: mintedId,
         role: role,
         subLookup: subLookup,
         baseDirectoryProvider: baseDirectoryProvider,
       );
+      final installedPath = installed?.sessionFilePath;
+      if (installedPath == null || installedPath.trim().isEmpty) {
+        _sessionId = null;
+        sink = null;
+        return false;
+      }
+      _sessionId = mintedId;
+      sink = installed;
+      return true;
     } catch (_) {
+      _sessionId = null;
+      sink = null;
+      return false;
     }
   }
 
@@ -156,8 +278,7 @@ final class Observability {
     if (activeSink == null) return;
     try {
       await activeSink.flush();
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   @visibleForTesting
@@ -167,6 +288,10 @@ final class Observability {
     sink = null;
     _sessionId = null;
     _seq = 0;
+    for (final capture in _outstandingApi.toList(growable: false)) {
+      abandonApiCapture(capture);
+    }
+    _installing = null;
   }
 
   static bool _isFailureEvent(ObsEvent event) {

@@ -71,9 +71,7 @@ class DioClient {
 
     dio.interceptors.add(const DiagDioInterceptor());
 
-    if (kObsCompiledIn) {
-      dio.interceptors.add(const ObsDioInterceptor());
-    }
+    ObsDioInterceptor.attachTo(dio);
 
     if (kDebugMode) {
       dio.interceptors.add(const RedactingLogInterceptor());

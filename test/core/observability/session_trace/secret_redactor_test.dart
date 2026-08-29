@@ -13,7 +13,9 @@ final RegExp _secretPattern = RegExp(r'Bearer |eyJ[A-Za-z0-9_-]{10,}\.');
 void main() {
   group('redactString', () {
     test('replaces a Bearer-prefixed token as one unit', () {
-      final out = SecretRedactor.redactString('Authorization: Bearer $_fakeJwt');
+      final out = SecretRedactor.redactString(
+        'Authorization: Bearer $_fakeJwt',
+      );
       expect(out, isNot(contains(_fakeJwt)));
       expect(out, isNot(contains('Bearer ')));
       expect(out, contains(SecretRedactor.redacted));
@@ -43,164 +45,273 @@ void main() {
   });
 
   group('redactHeaders', () {
-    test('redacts Authorization/Cookie, passes non-sensitive ones through',
-        () {
+    test('redacts Authorization/Cookie, passes non-sensitive ones through', () {
       final out = SecretRedactor.redactHeaders(<String, Object?>{
         'Authorization': 'Bearer $_fakeJwt',
         'Content-Type': 'application/json',
         'Cookie': 'session=abc',
       });
-      expect(out['Authorization'], startsWith('tok:'));
+      expect(out['Authorization'], SecretRedactor.redacted);
       expect(out['Authorization'], isNot(contains(_fakeJwt)));
-      expect(out['Cookie'], startsWith('tok:'));
+      expect(out['Cookie'], SecretRedactor.redacted);
       expect(out['Content-Type'], 'application/json');
     });
   });
 
-  group('redactBody — sensitive keys (hard floor, both full modes)', () {
-    for (final full in [true, false]) {
-      test('token/authorization/password/passcode/otp/fcm/secret/apiKey '
-          'keys never leak raw (full=$full)', () {
-        final out = SecretRedactor.redactBody(<String, Object?>{
-          'token': 'raw-token-value-0001',
-          'authorization': 'Bearer $_fakeJwt',
-          'password': 'hunter2-super-secret',
-          'passcode': '1234',
-          'otp': '446789',
-          'fcmToken': 'fcm-registration-abcdef123456',
-          'secret': 'shh-do-not-log-this',
-          'apiKey': 'sk_live_ABCDEF1234567890',
-          'apiSecret': 'as_live_ABCDEF1234567890',
-          'clientSecret': 'cs_ABCDEF1234567890',
-          'accessToken': _fakeJwt,
-          'refreshToken': 'refresh-abcdef123456',
-          'idToken': _fakeJwt,
-          'deviceToken': 'device-abcdef123456',
-          'nonSecretField': 'this is fine to show',
-        }, full: full) as Map<String, Object?>;
+  group('redactBody — sensitive keys (non-disableable hard floor)', () {
+    test('token/authorization/password/passcode/otp/fcm/secret/apiKey '
+        'keys never leak raw', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'token': 'raw-token-value-0001',
+                'authorization': 'Bearer $_fakeJwt',
+                'password': 'hunter2-super-secret',
+                'passcode': '1234',
+                'otp': '446789',
+                'fcmToken': 'fcm-registration-abcdef123456',
+                'secret': 'shh-do-not-log-this',
+                'apiKey': 'sk_live_ABCDEF1234567890',
+                'apiSecret': 'as_live_ABCDEF1234567890',
+                'clientSecret': 'cs_ABCDEF1234567890',
+                'accessToken': _fakeJwt,
+                'refreshToken': 'refresh-abcdef123456',
+                'idToken': _fakeJwt,
+                'deviceToken': 'device-abcdef123456',
+                'kind': 'parcel',
+              })
+              as Map<String, Object?>;
 
-        for (final key in [
-          'token',
-          'authorization',
-          'password',
-          'passcode',
-          'otp',
-          'fcmToken',
-          'secret',
-          'apiKey',
-          'apiSecret',
-          'clientSecret',
-          'accessToken',
-          'refreshToken',
-          'idToken',
-          'deviceToken',
-        ]) {
-          expect(out[key], startsWith('tok:'), reason: 'key: $key');
-        }
-        expect(out['nonSecretField'], 'this is fine to show');
-      });
-    }
+      for (final key in [
+        'token',
+        'authorization',
+        'password',
+        'passcode',
+        'otp',
+        'fcmToken',
+        'secret',
+        'apiKey',
+        'apiSecret',
+        'clientSecret',
+        'accessToken',
+        'refreshToken',
+        'idToken',
+        'deviceToken',
+      ]) {
+        expect(out[key], SecretRedactor.redacted, reason: 'key: $key');
+      }
+      expect(out['kind'], 'parcel');
+    });
 
-    test('recurses into nested maps regardless of full', () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'nested': <String, Object?>{'password': 'deep-secret-value'},
-      }, full: false) as Map<String, Object?>;
+    test('recurses into nested maps', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'nested': <String, Object?>{'password': 'deep-secret-value'},
+              })
+              as Map<String, Object?>;
       final nested = out['nested'] as Map<String, Object?>;
-      expect(nested['password'], startsWith('tok:'));
+      expect(nested['password'], SecretRedactor.redacted);
       expect(nested['password'], isNot(contains('deep-secret-value')));
     });
 
-    test('recurses into list-of-maps (a roster) so no row leaks a secret',
-        () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'users': <Object?>[
-          <String, Object?>{'userId': 'u1', 'passcode': 'ROSTER-SECRET-1'},
-          <String, Object?>{'userId': 'u2', 'passcode': 'ROSTER-SECRET-2'},
-        ],
-      }, full: true) as Map<String, Object?>;
+    test('recurses into list-of-maps (a roster) so no row leaks a secret', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'users': <Object?>[
+                  <String, Object?>{
+                    'userId': 'u1',
+                    'passcode': 'ROSTER-SECRET-1',
+                  },
+                  <String, Object?>{
+                    'userId': 'u2',
+                    'passcode': 'ROSTER-SECRET-2',
+                  },
+                ],
+              })
+              as Map<String, Object?>;
       final users = out['users'] as List<Object?>;
       final row0 = users[0] as Map<String, Object?>;
       final row1 = users[1] as Map<String, Object?>;
-      expect(row0['passcode'], startsWith('tok:'));
-      expect(row0['userId'], 'u1');
+      expect(row0['passcode'], SecretRedactor.redacted);
+      expect(row0['userId'], SecretRedactor.redacted);
       expect(row1['passcode'], isNot(contains('ROSTER-SECRET-2')));
     });
 
     test('a JWT embedded in a NON-sensitive-keyed string is still caught '
-        '(pattern floor applies everywhere, full=false too)', () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'message': 'auth failed for Bearer $_fakeJwt',
-      }, full: false) as Map<String, Object?>;
+        '(pattern floor applies everywhere)', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'message': 'auth failed for Bearer $_fakeJwt',
+              })
+              as Map<String, Object?>;
       expect(out['message'], isNot(contains(_fakeJwt)));
       expect(out['message'], isNot(contains('Bearer ')));
     });
 
     test('null body redacts to null', () {
-      expect(SecretRedactor.redactBody(null, full: true), isNull);
+      expect(SecretRedactor.redactBody(null), isNull);
     });
 
     test('a bare scalar (String) is pattern-scanned directly', () {
       expect(
-        SecretRedactor.redactBody('Bearer $_fakeJwt', full: true),
+        SecretRedactor.redactBody('Bearer $_fakeJwt'),
         isNot(contains(_fakeJwt)),
       );
     });
 
     test('numbers/bools pass through untouched', () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'count': 3,
-        'active': true,
-      }, full: true) as Map<String, Object?>;
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'count': 3,
+                'active': true,
+              })
+              as Map<String, Object?>;
       expect(out['count'], 3);
       expect(out['active'], true);
     });
 
-    test('full=true additionally masks long bare digit runs (phone/account '
-        'numbers) that are not behind a named sensitive key', () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'notes': 'call 5551234567890 to confirm',
-      }, full: true) as Map<String, Object?>;
-      expect(out['notes'], isNot(contains('5551234567890')));
+    test('unknown strings and generic code fields redact by default while '
+        'audited enum fields remain useful', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'unknown': 'arbitrary customer prose',
+                'kind': 'parcel',
+                'outcome': 'accepted',
+                'code': 'invalid_amount',
+                'codeWithSpaces': 'invalid amount for John',
+              })!
+              as Map<String, Object?>;
+
+      expect(out['unknown'], SecretRedactor.redacted);
+      expect(out['kind'], 'parcel');
+      expect(out['outcome'], 'accepted');
+      expect(out['code'], SecretRedactor.redacted);
+      expect(out['codeWithSpaces'], SecretRedactor.redacted);
     });
 
-    test('full=false relaxes ONLY that extra digit-run precaution — the '
-        'hard floor (keys + patterns) is unchanged', () {
-      final out = SecretRedactor.redactBody(<String, Object?>{
-        'notes': 'call 5551234567890 to confirm',
-        'password': 'still-a-secret-value',
-      }, full: false) as Map<String, Object?>;
-      expect(out['notes'], contains('5551234567890'));
-      expect(out['password'], startsWith('tok:'));
+    test(
+      'generic code fields reject enum-like, capability, and OTP values',
+      () {
+        final out =
+            SecretRedactor.redactBody(<String, Object?>{
+                  'enumLike': <String, Object?>{'code': 'invalid_amount'},
+                  'capabilityA': <String, Object?>{'code': 'ABCD-EFGH'},
+                  'capabilityB': <String, Object?>{'code': 'sk_live_ABCDEF'},
+                  'code': 'otp_482913',
+                  'kind': 'delivery_4829',
+                })!
+                as Map<String, Object?>;
+
+        expect(out['code'], SecretRedactor.redacted);
+        expect(out['kind'], SecretRedactor.redacted);
+        for (final key in <String>['enumLike', 'capabilityA', 'capabilityB']) {
+          expect(
+            (out[key] as Map<String, Object?>)['code'],
+            SecretRedactor.redacted,
+            reason: key,
+          );
+        }
+      },
+    );
+
+    test(
+      'numeric OTPs and unknown numeric identifiers are denied by default',
+      () {
+        final out =
+            SecretRedactor.redactBody(<String, Object?>{
+                  'code': 482913,
+                  'customerId': 739281,
+                  'items': <Object?>[884422],
+                  'count': 3,
+                })!
+                as Map<String, Object?>;
+
+        expect(out['code'], SecretRedactor.redacted);
+        expect(out['customerId'], SecretRedactor.redacted);
+        expect(out['items'], <Object?>[SecretRedactor.redacted]);
+        expect(out['count'], 3);
+        expect(SecretRedactor.redactBody(482913), SecretRedactor.redacted);
+      },
+    );
+
+    test('marker-shaped user strings cannot bypass default-deny', () {
+      const canary = '<non-serializable body: PRIVATE-CANARY>';
+      expect(SecretRedactor.redactBody(canary), SecretRedactor.redacted);
+      expect(
+        SecretRedactor.redactBody('<non-serializable body>'),
+        '<non-serializable body>',
+      );
+    });
+
+    test('all concrete PII and free-text field canaries are redacted', () {
+      const canary = 'RAW-PRIVATE-CANARY';
+      final keys = <String>[
+        'transcription',
+        'caption',
+        'label',
+        'building',
+        'floorApt',
+        'deliveryNotes',
+        'name',
+        'username',
+        'targetLabel',
+        'firstName',
+        'lastName',
+        'fullName',
+        'customerName',
+      ];
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                for (final key in keys) key: '$canary-$key',
+              })!
+              as Map<String, Object?>;
+
+      for (final key in keys) {
+        expect(out[key], SecretRedactor.redacted, reason: key);
+      }
+      expect(jsonEncode(out), isNot(contains(canary)));
+    });
+
+    test('always masks long bare digit runs and free-text fields', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'notes': 'call 5551234567890 to confirm',
+              })
+              as Map<String, Object?>;
+      expect(out['notes'], isNot(contains('5551234567890')));
+      expect(out['notes'], SecretRedactor.redacted);
+    });
+
+    test('the legacy full=false argument cannot relax redaction', () {
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                'phone': '+31 6 1234 5678',
+                'freeText': 'private typed value',
+              }, full: false)
+              as Map<String, Object?>;
+
+      expect(out['phone'], SecretRedactor.redacted);
+      expect(out['freeText'], SecretRedactor.redacted);
     });
   });
 
   group('redactAndTruncate', () {
     test('a small redacted body passes through unchanged', () {
-      final out = SecretRedactor.redactAndTruncate(
-        <String, Object?>{'ok': true},
-        full: true,
-        maxBytes: 8192,
-      );
+      final out = SecretRedactor.redactAndTruncate(<String, Object?>{
+        'ok': true,
+      }, maxBytes: 8192);
       expect(out, {'ok': true});
     });
 
     test('an oversized body collapses to a truncated-bytes marker', () {
-      final big = <String, Object?>{'blob': 'x' * 10000};
-      final out = SecretRedactor.redactAndTruncate(
-        big,
-        full: true,
-        maxBytes: 100,
-      );
+      final big = <String, Object?>{'samples': List<int>.filled(10000, 7)};
+      final out = SecretRedactor.redactAndTruncate(big, maxBytes: 100);
       expect(out, isA<String>());
       expect(out.toString(), startsWith('<truncated '));
       expect(out.toString(), endsWith(' bytes>'));
     });
 
     test('null passes through as null', () {
-      expect(
-        SecretRedactor.redactAndTruncate(null, full: true, maxBytes: 10),
-        isNull,
-      );
+      expect(SecretRedactor.redactAndTruncate(null, maxBytes: 10), isNull);
     });
   });
 
@@ -214,8 +325,73 @@ void main() {
       expect(out, isNot(contains(_fakeJwt)));
     });
 
-    test('passes an ordinary label through untouched', () {
-      expect(SecretRedactor.redactLabel('Submit order'), 'Submit order');
+    test('redacts an ordinary label because labels can contain user text', () {
+      expect(
+        SecretRedactor.redactLabel('Submit order'),
+        SecretRedactor.redacted,
+      );
+    });
+  });
+
+  group('redactIdentifier', () {
+    test('keeps a stable semantics id but rejects prose and numeric OTPs', () {
+      expect(
+        SecretRedactor.redactIdentifier('checkout.submit-button'),
+        'checkout.submit-button',
+      );
+      expect(
+        SecretRedactor.redactIdentifier('John Smith'),
+        SecretRedactor.redacted,
+      );
+      expect(
+        SecretRedactor.redactIdentifier('482913'),
+        SecretRedactor.redacted,
+      );
+      expect(
+        SecretRedactor.redactIdentifier('otp-482913'),
+        SecretRedactor.redacted,
+      );
+    });
+  });
+
+  group('redactPath', () {
+    test('retains stable paths and rejects OTP-shaped path segments', () {
+      expect(SecretRedactor.redactPath('/orders/d-1'), '/orders/d-1');
+      expect(
+        SecretRedactor.redactPath('/recover/482913'),
+        SecretRedactor.redacted,
+      );
+    });
+
+    test('network paths retain only audited endpoint/template segments', () {
+      expect(
+        SecretRedactor.redactNetworkPath(
+          '/v1/requests/alice-passport/ABCD-EFGH?token=raw#private',
+        ),
+        '/v1/requests/:value/:value',
+      );
+      expect(
+        SecretRedactor.redactNetworkPath('/v1/requests/:id/offers'),
+        '/v1/requests/:id/offers',
+      );
+    });
+
+    test('off-origin absolute network URLs collapse to one fixed sentinel', () {
+      expect(
+        SecretRedactor.redactNetworkPath(
+          'https://signed.cdn.test/alice-passport/ABCD-EFGH'
+          '?signature=sk_live_ABCDEF#private',
+          baseUrl: 'https://gateway.test/v1',
+        ),
+        SecretRedactor.externalUploadPath,
+      );
+      expect(
+        SecretRedactor.redactNetworkPath(
+          'https://gateway.test/v1/requests/alice-passport',
+          baseUrl: 'https://gateway.test/api',
+        ),
+        '/v1/requests/:value',
+      );
     });
   });
 
@@ -236,32 +412,29 @@ void main() {
     });
   });
 
-  group('SECURITY GATE: no secret survives verbatim across the whole shape',
-      () {
-    Map<String, Object?> buildLeakyPayload() => <String, Object?>{
-          'headers': <String, Object?>{
-            'Authorization': 'Bearer $_fakeJwt',
-          },
-          'body': <String, Object?>{
-            'password': 'p@ssW0rd-super-secret',
-            'otp': '048213',
-            'fcmToken': 'fcm-abcdef1234567890XYZ',
-            'nested': <String, Object?>{'apiKey': 'sk_live_ABCDEF123456'},
-            'roster': <Object?>[
-              <String, Object?>{'passcode': 'HANDOVER-0001'},
-            ],
-            'freeText': 'auth via Bearer $_fakeJwt failed',
-          },
-        };
+  group(
+    'SECURITY GATE: no secret survives verbatim across the whole shape',
+    () {
+      Map<String, Object?> buildLeakyPayload() => <String, Object?>{
+        'headers': <String, Object?>{'Authorization': 'Bearer $_fakeJwt'},
+        'body': <String, Object?>{
+          'password': 'p@ssW0rd-super-secret',
+          'otp': '048213',
+          'fcmToken': 'fcm-abcdef1234567890XYZ',
+          'nested': <String, Object?>{'apiKey': 'sk_live_ABCDEF123456'},
+          'roster': <Object?>[
+            <String, Object?>{'passcode': 'HANDOVER-0001'},
+          ],
+          'freeText': 'auth via Bearer $_fakeJwt failed',
+        },
+      };
 
-    for (final full in [true, false]) {
-      test('holds with full=$full', () {
+      test('holds without any runtime redaction mode', () {
         final leaky = buildLeakyPayload();
         final redactedHeaders = SecretRedactor.redactHeaders(
           leaky['headers']! as Map<String, Object?>,
         );
-        final redactedBody =
-            SecretRedactor.redactBody(leaky['body'], full: full);
+        final redactedBody = SecretRedactor.redactBody(leaky['body']);
         final serialized =
             jsonEncode(redactedHeaders) + jsonEncode(redactedBody);
 
@@ -271,9 +444,12 @@ void main() {
         expect(serialized, isNot(contains('fcm-abcdef1234567890XYZ')));
         expect(serialized, isNot(contains('sk_live_ABCDEF123456')));
         expect(serialized, isNot(contains('HANDOVER-0001')));
-        expect(_secretPattern.hasMatch(serialized), isFalse,
-            reason: 'no Bearer/JWT pattern may ever survive:\n$serialized');
+        expect(
+          _secretPattern.hasMatch(serialized),
+          isFalse,
+          reason: 'no Bearer/JWT pattern may ever survive:\n$serialized',
+        );
       });
-    }
-  });
+    },
+  );
 }

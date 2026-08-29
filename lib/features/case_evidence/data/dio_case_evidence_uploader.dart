@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import '../domain/case_evidence.dart';
 
 enum CaseEvidenceSlot {
@@ -25,7 +26,9 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
     required CaseEvidenceSlot slot,
     Dio? uploadDio,
   }) : _slot = slot,
-       _uploadDio = uploadDio ?? Dio();
+       _uploadDio = uploadDio ?? Dio() {
+    ObsDioInterceptor.attachTo(_uploadDio);
+  }
 
   static const String _brokerPath = '/api/cdn/assets';
 
