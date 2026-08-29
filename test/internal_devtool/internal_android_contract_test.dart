@@ -121,14 +121,14 @@ void main() {
       contains('require_devtool ? %w[internal]'),
       reason: 'restricted code must never be inventoried into Production',
     );
+    final validatorPath = RegExp(
+      r"'bash', '([^']*validate_android_internal_devtool_artifact\.sh)'",
+    ).firstMatch(fastfile)?.group(1);
+    expect(validatorPath, isNotNull);
     expect(
-      fastfile,
-      contains("'bash', 'tool/validate_android_internal_devtool_artifact.sh'"),
-      reason: 'Fastlane shell actions execute from the repository root',
-    );
-    expect(
-      fastfile,
-      isNot(contains('../tool/validate_android_internal_devtool_artifact.sh')),
+      File('android/fastlane/$validatorPath').existsSync(),
+      isTrue,
+      reason: 'the configured validator must resolve from android/fastlane',
     );
     expect(fastfile, isNot(contains('lane :production')));
     for (final marker in _distributionWorkflowMarkers) {
