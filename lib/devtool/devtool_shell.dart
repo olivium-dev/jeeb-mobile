@@ -6,8 +6,6 @@ import '../app/bootstrap.dart';
 import '../core/dev_flags.dart';
 import '../core/di/injection_container.dart';
 import '../core/diagnostics/gesture_log.dart';
-import '../core/observability/session_trace/observability_config.dart';
-import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/theme/app_theme.dart';
 import '../features/registration/data/super_login_demo_user.dart';
 import '../features/registration/data/super_login_service.dart';
@@ -15,6 +13,7 @@ import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
 import 'location_simulation/location_simulator_page.dart';
+import 'session_logs/session_logs_page.dart';
 import 'users/scenario_users_page.dart';
 import '../features/registration/presentation/super_login/super_login_sheet.dart';
 import 'super_login/full_roster_login.dart';
@@ -40,6 +39,11 @@ enum DevToolSection {
     'Location Simulator',
     'Move an assigned Jeeber through a delivery route',
     Icons.route,
+  ),
+  sessionLogs(
+    'Session Logs',
+    'Start/stop local capture and export/share it',
+    Icons.receipt_long,
   ),
   serverUrl('Server URL', 'Point the app at a different backend', Icons.dns),
   clearData(
@@ -114,11 +118,6 @@ class _DevToolAppState extends State<DevToolApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      // Session-trace observability tool (devtool-only): mounts the SAME
-      builder: (context, child) {
-        final content = child ?? const SizedBox.shrink();
-        return kObsCompiledIn ? ObsOverlayHost(child: content) : content;
-      },
       home: FutureBuilder<BootstrapResult>(
         future: _bootstrap,
         builder: (context, snapshot) {
@@ -197,6 +196,10 @@ class DevToolShell extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (_) => const LocationSimulatorPage(),
           ),
+        );
+      case DevToolSection.sessionLogs:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SessionLogsPage()),
         );
       case DevToolSection.users:
         Navigator.of(context).push(

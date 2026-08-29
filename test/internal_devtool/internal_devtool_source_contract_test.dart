@@ -21,6 +21,7 @@ void main() {
 
   test('the full menu and its launcher controls remain intact', () {
     final shell = File('lib/devtool/devtool_shell.dart').readAsStringSync();
+    final app = File('lib/app/app.dart').readAsStringSync();
     final host = File(
       'lib/devtool/shake/devtool_shake.dart',
     ).readAsStringSync();
@@ -32,6 +33,16 @@ void main() {
     expect(
       host,
       contains("semanticLabel: 'Close Dev Tool without restarting'"),
+    );
+    expect(
+      app,
+      isNot(contains('ObsOverlayHost')),
+      reason: 'session logging must not add a floating product overlay',
+    );
+    expect(
+      shell,
+      isNot(contains('ObsOverlayHost')),
+      reason: 'the Dev Tool must use its normal Session Logs page',
     );
   });
 
@@ -49,6 +60,7 @@ const _fullDevToolCapabilities = <String>[
   "'Screen Catalog'",
   "'Actions'",
   "'Location Simulator'",
+  "'Session Logs'",
   "'Server URL'",
   "'Clear Local Data'",
   "'Scenario Users'",

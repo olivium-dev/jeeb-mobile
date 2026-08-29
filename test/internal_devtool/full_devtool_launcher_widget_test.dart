@@ -33,6 +33,11 @@ void main() {
 
       expect(find.text('Jeeber Dev Tool'), findsOne);
       for (final capability in _fullDevToolCapabilities) {
+        await tester.scrollUntilVisible(
+          find.text(capability),
+          80,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(find.text(capability), findsOne, reason: capability);
       }
       expect(find.byKey(kDevToolShakeApplyKey), findsOne);
@@ -40,6 +45,15 @@ void main() {
       expect(find.text('Apply & Restart'), findsOne);
       expect(find.text('Jeeb Internal QA'), findsNothing);
       expect(find.text('Build and environment'), findsNothing);
+
+      await tester.tap(find.text('Session Logs'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('obs-overlay-recording-switch')), findsOne);
+      expect(find.byKey(const Key('obs-overlay-export')), findsOne);
+      expect(find.bySemanticsLabel('Session trace overlay'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
     },
     skip: !kDevToolEnabled,
   );
@@ -51,6 +65,7 @@ const _fullDevToolCapabilities = <String>[
   'Screen Catalog',
   'Actions',
   'Location Simulator',
+  'Session Logs',
   'Server URL',
   'Clear Local Data',
   'Scenario Users',
