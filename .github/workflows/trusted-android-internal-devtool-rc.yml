@@ -82,7 +82,7 @@ jobs:
         run: bundle exec fastlane preflight_internal
 
   build:
-    name: Signed restricted internal AAB
+    name: Signed full Dev Tool internal AAB
     needs: policy
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     environment: mobile-rc
@@ -118,10 +118,17 @@ jobs:
 
       - uses: ./.github/actions/run-build-runner
 
-      - name: Test restricted policy, payload, and custody inspectors
+      - name: Test full Dev Tool policy, payload, and custody inspectors
         run: |
-          flutter analyze
+          dart analyze --fatal-infos
           flutter test test/internal_devtool --reporter expanded
+          flutter test \
+            --dart-define=JEEB_DEVTOOL_ENABLED=true \
+            --dart-define=JEEB_STAGING_DEVTOOL=true \
+            --dart-define=JEEB_DEVTOOL_SHAKE=false \
+            test/devtool \
+            test/internal_devtool/full_devtool_launcher_widget_test.dart \
+            --reporter expanded
           bash tool/test_android_internal_candidate_integrity.sh
           bash tool/test_android_internal_candidate_custody.sh
           bash tool/test_inspect_android_internal_release_payload.sh
@@ -197,6 +204,9 @@ jobs:
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
                 --dart-define=JEEB_INTERNAL_RELEASE=true \
+                --dart-define=JEEB_DEVTOOL_ENABLED=true \
+                --dart-define=JEEB_STAGING_DEVTOOL=true \
+                --dart-define=JEEB_DEVTOOL_SHAKE=false \
                 --dart-define=JEEB_CLARITY_ENABLED=false \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
                 --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
@@ -257,6 +267,8 @@ jobs:
             "${tmp_dir}/resources.pb"
           LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/manifest.pb"
           JEEB_INTERNAL_RELEASE=true \
+          JEEB_DEVTOOL_ENABLED=true \
+          JEEB_STAGING_DEVTOOL=true \
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
             bash tool/inspect_android_internal_release_payload.sh \
@@ -306,7 +318,8 @@ jobs:
               source_event:$source_event, source_ref:$source_ref,
               gateway_origin:$gateway_origin,
               realtime_socket:$realtime_socket,
-              devtool:true, super_login:false, clarity_enabled:false,
+              devtool:true, super_login:true, shake_to_open:false,
+              clarity_enabled:false,
               clarity_privacy_approved:false, retained:true,
               store_uploaded:false}' >"${provenance}"
           chmod 0600 "${provenance}"
@@ -318,7 +331,8 @@ jobs:
           SOURCE_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT}" \
           SOURCE_WORKFLOW_REF="${GITHUB_WORKFLOW_REF}" \
           JEEB_DEVTOOL_BUILD=true \
-          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_SUPER_LOGIN_ENABLED=true \
+          JEEB_DEVTOOL_SHAKE_ENABLED=false \
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \

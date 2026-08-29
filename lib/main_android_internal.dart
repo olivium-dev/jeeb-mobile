@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'app/jeeb_bootstrap.dart';
 import 'core/config/internal_release_policy.dart';
 import 'core/theme/app_theme.dart';
-import 'internal_devtool/internal_devtool_app.dart';
+import 'internal_devtool/internal_release_blocked_app.dart';
 import 'internal_devtool/native_internal_release_policy.dart';
 
 // ignore: unused_element
@@ -52,12 +52,13 @@ Widget _rootForPolicy({
   if (failure != InternalReleasePolicyFailure.none) {
     return const InternalReleaseBlockedApp();
   }
-  if (route != '/devtool') return const JeebBootstrap();
-  return shouldLaunchInternalDevTool(
+  if (route == '/devtool' &&
+      !shouldLaunchInternalDevTool(
         initialRoute: route,
         failure: failure,
         native: native,
-      )
-      ? const InternalDevToolApp()
-      : const InternalReleaseBlockedApp();
+      )) {
+    return const InternalReleaseBlockedApp();
+  }
+  return buildJeebRootForInitialRoute(route);
 }

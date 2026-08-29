@@ -183,7 +183,7 @@ android {
             // only release-only developer surface.
             applicationId "com.olivium.jeeb"
             resValue "string", "app_name", "Jeeb Internal"
-            resValue "string", "devtool_name", "Jeeb Internal QA"
+            resValue "string", "devtool_name", "Jeeber Dev Tool"
             resValue "bool", "jeeb_devtool_enabled", "true"
             resValue "bool", "jeeb_internal_release", "true"
             buildConfigField "boolean", "JEEB_INTERNAL_RELEASE", "true"

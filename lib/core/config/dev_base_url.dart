@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../dev_flags.dart';
 
 /// Persisted dev-tool override for gateway base URL. Read on DI Dio construction;
 /// when unset, build-time JEEB_MOCK_BASE_URL default applies. Wiped by Dev Tool
@@ -8,28 +9,28 @@ abstract final class DevBaseUrl {
 
   /// Override, or null when unset/blank (use build-time default).
   static String? read(SharedPreferences prefs) => resolve(
-    debugBuild: kDebugMode,
+    overrideAllowed: kDevAffordancesAllowed,
     persistedValue: prefs.getString(prefsKey),
   );
 
   static String? resolve({
-    required bool debugBuild,
+    required bool overrideAllowed,
     required String? persistedValue,
   }) {
-    if (!debugBuild) return null;
+    if (!overrideAllowed) return null;
     final value = persistedValue?.trim();
     return (value == null || value.isEmpty) ? null : value;
   }
 
   static Future<void> write(SharedPreferences prefs, String? url) =>
-      writeForBuild(prefs, url, debugBuild: kDebugMode);
+      writeForBuild(prefs, url, overrideAllowed: kDevAffordancesAllowed);
 
   static Future<void> writeForBuild(
     SharedPreferences prefs,
     String? url, {
-    required bool debugBuild,
+    required bool overrideAllowed,
   }) async {
-    if (!debugBuild) {
+    if (!overrideAllowed) {
       await prefs.remove(prefsKey);
       return;
     }

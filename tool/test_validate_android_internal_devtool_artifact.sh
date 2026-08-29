@@ -14,7 +14,8 @@ export SOURCE_RUN_ID=123456
 export SOURCE_RUN_ATTEMPT=2
 export SOURCE_WORKFLOW_REF='olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main'
 export JEEB_DEVTOOL_BUILD=true
-export JEEB_SUPER_LOGIN_ENABLED=false
+export JEEB_SUPER_LOGIN_ENABLED=true
+export JEEB_DEVTOOL_SHAKE_ENABLED=false
 export JEEB_CLARITY_ENABLED=false
 export JEEB_CLARITY_PRIVACY_APPROVED=false
 export JEEB_RELEASE_PROFILE=release
@@ -99,7 +100,8 @@ jq -n \
       source_event:"workflow_dispatch", source_ref:"refs/heads/main",
       gateway_origin:"https://app.jeeb.fds-1.com",
       realtime_socket:"wss://app.jeeb.fds-1.com/socket/websocket",
-      devtool:true, super_login:false, clarity_enabled:false,
+      devtool:true, super_login:true, shake_to_open:false,
+      clarity_enabled:false,
       clarity_privacy_approved:false, retained:true, store_uploaded:false}
   ' >"${provenance_path}"
 
@@ -161,7 +163,8 @@ assert_rejected_provenance '.version_name = "1.0.1"' wrong-version-name
 assert_rejected_provenance '.version_code = "26082602"' wrong-version-code
 assert_rejected_provenance '.build_profile = "debug"' wrong-profile
 assert_rejected_provenance '.devtool = false' wrong-devtool
-assert_rejected_provenance '.super_login = true' wrong-super-login
+assert_rejected_provenance '.super_login = false' wrong-super-login
+assert_rejected_provenance '.shake_to_open = true' wrong-shake-policy
 assert_rejected_provenance '.clarity_enabled = true' wrong-clarity
 assert_rejected_provenance '.reviewed_sha = ("2" * 40)' wrong-reviewed-sha
 assert_rejected_provenance '.source_run_id = "654321"' wrong-run
@@ -204,6 +207,12 @@ if SOURCE_RUN_ID=999999 \
   bash "${validator}" "${aab_path}" "${provenance_path}" \
     "${metadata_path}" >/dev/null 2>&1; then
   printf '%s\n' 'Validator accepted mismatched source run environment.' >&2
+  exit 1
+fi
+if JEEB_DEVTOOL_SHAKE_ENABLED=true \
+  bash "${validator}" "${aab_path}" "${provenance_path}" \
+    "${metadata_path}" >/dev/null 2>&1; then
+  printf '%s\n' 'Validator accepted an enabled shake-to-open gate.' >&2
   exit 1
 fi
 
