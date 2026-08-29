@@ -12,6 +12,7 @@
             android:name=".LegacyDevToolLauncher"
             android:exported="true"
             android:enabled="@bool/jeeb_devtool_enabled"
+            android:launchMode="singleTask"
             android:label="@string/devtool_name"
             android:icon="@mipmap/ic_launcher"
             android:theme="@style/LaunchTheme"

@@ -46,6 +46,21 @@ void main() {
     expect(internalManifest, isNot(contains('activity-alias')));
     expect(debugManifest, contains('.LegacyDevToolLauncher'));
     expect(debugManifest, isNot(contains('.DevToolLauncher"')));
+    expect(
+      _activityBlock(debugManifest, '.LegacyDevToolLauncher'),
+      contains('android:launchMode="singleTask"'),
+      reason: 'reopening the debug launcher must keep active session logs',
+    );
+  });
+
+  test('debug launcher reopens the existing Dev Tool isolate', () {
+    final launcher = _source(
+      'android/app/src/debug/kotlin/app/jeeb/mobile/'
+      'LegacyDevToolLauncher.kt',
+    );
+    expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_shake'));
+    expect(launcher, contains('invokeMethod("open", null)'));
   });
 
   test('native and Dart launchers independently fail closed', () {
