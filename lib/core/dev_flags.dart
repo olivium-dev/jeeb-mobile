@@ -8,11 +8,11 @@ const bool kDevToolRequested = bool.fromEnvironment(
 
 /// Whether this build is the STAGING internal-QA artifact.
 ///
-/// Passed only by `tool/build_signed_ios_internal_candidate.sh`, which archives
-/// the dedicated `Release-staging` configuration. It is deliberately a separate
-/// define from [kDevToolRequested]: a build must both request the Dev Tool AND
-/// declare itself a staging artifact, so a stray `JEEB_DEVTOOL_ENABLED=true` on
-/// a store build still resolves to `false`.
+/// Passed only by the protected Android Internal Testing workflow and by
+/// `tool/build_signed_ios_internal_candidate.sh`. It is deliberately a
+/// separate define from [kDevToolRequested]: a build must both request the Dev
+/// Tool AND declare itself a staging artifact, so a stray
+/// `JEEB_DEVTOOL_ENABLED=true` on a store build still resolves to `false`.
 ///
 /// The native half is gated INDEPENDENTLY by `#if JEEB_DEV`, which the plain
 /// `Release` configuration does not define. Both halves must agree for the Dev
@@ -32,9 +32,9 @@ const bool kStagingDevToolRequested = bool.fromEnvironment(
 ///
 /// This is NOT a general release unlock. `kDebugMode` still covers local dev;
 /// [kStagingDevToolRequested] covers exactly one artifact, the internal-only
-/// staging IPA that is never distributed externally
-/// (`pilot(distribute_external: false)`). A plain `Release` build — the one a
-/// store submission would use — satisfies neither branch.
+/// staging artifact that is distributed only through Play Internal Testing or
+/// internal TestFlight (`pilot(distribute_external: false)`). A plain `Release`
+/// build — the one a store submission would use — satisfies neither branch.
 const bool kDevToolEnabled =
     (kDebugMode || kStagingDevToolRequested) && kDevToolRequested;
 

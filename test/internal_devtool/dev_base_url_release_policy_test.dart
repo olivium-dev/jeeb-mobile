@@ -8,7 +8,7 @@ void main() {
   test('release builds ignore every persisted development URL', () {
     expect(
       DevBaseUrl.resolve(
-        debugBuild: false,
+        overrideAllowed: false,
         persistedValue: 'https://example.invalid',
       ),
       isNull,
@@ -25,23 +25,23 @@ void main() {
       await DevBaseUrl.writeForBuild(
         prefs,
         'https://another.invalid',
-        debugBuild: false,
+        overrideAllowed: false,
       );
       expect(prefs.containsKey(DevBaseUrl.prefsKey), isFalse);
     },
   );
 
-  test('debug builds retain the existing explicit override behavior', () async {
+  test('full Dev Tool builds retain the explicit override behavior', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await DevBaseUrl.writeForBuild(
       prefs,
       ' https://gateway.dev.invalid ',
-      debugBuild: true,
+      overrideAllowed: true,
     );
     expect(
       DevBaseUrl.resolve(
-        debugBuild: true,
+        overrideAllowed: true,
         persistedValue: prefs.getString(DevBaseUrl.prefsKey),
       ),
       'https://gateway.dev.invalid',

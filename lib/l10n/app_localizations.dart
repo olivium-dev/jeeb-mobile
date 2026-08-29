@@ -50,55 +50,6 @@ class AppLocalizations {
 
   String get appTitle => _get('appTitle');
 
-  String get internalDevToolTitle => _get('internalDevToolTitle');
-  String get internalDevToolBannerTitle => _get('internalDevToolBannerTitle');
-  String get internalDevToolBannerSubtitle =>
-      _get('internalDevToolBannerSubtitle');
-  String get internalDevToolUnlockTitle => _get('internalDevToolUnlockTitle');
-  String get internalDevToolUnlockBody => _get('internalDevToolUnlockBody');
-  String get internalDevToolUnlockReason => _get('internalDevToolUnlockReason');
-  String get internalDevToolUnlockAction => _get('internalDevToolUnlockAction');
-  String get internalDevToolUnlocking => _get('internalDevToolUnlocking');
-  String get internalDevToolUnlockDenied => _get('internalDevToolUnlockDenied');
-  String get internalDevToolStatusSection =>
-      _get('internalDevToolStatusSection');
-  String get internalDevToolRuntime => _get('internalDevToolRuntime');
-  String get internalDevToolStaging => _get('internalDevToolStaging');
-  String get internalDevToolGateway => _get('internalDevToolGateway');
-  String get internalDevToolRealtime => _get('internalDevToolRealtime');
-  String get internalDevToolBuild => _get('internalDevToolBuild');
-  String get internalDevToolClarity => _get('internalDevToolClarity');
-  String get internalDevToolOff => _get('internalDevToolOff');
-  String get internalDevToolAuth => _get('internalDevToolAuth');
-  String get internalDevToolNormalSmsOnly =>
-      _get('internalDevToolNormalSmsOnly');
-  String get internalDevToolConnectivity => _get('internalDevToolConnectivity');
-  String get internalDevToolNetworkAvailable =>
-      _get('internalDevToolNetworkAvailable');
-  String get internalDevToolNetworkUnavailable =>
-      _get('internalDevToolNetworkUnavailable');
-  String get internalDevToolNoGatewayProbe =>
-      _get('internalDevToolNoGatewayProbe');
-  String get internalDevToolRefreshConnectivity =>
-      _get('internalDevToolRefreshConnectivity');
-  String get internalDevToolLoadingStatus =>
-      _get('internalDevToolLoadingStatus');
-  String get internalDevToolClearSection => _get('internalDevToolClearSection');
-  String get internalDevToolClearBody => _get('internalDevToolClearBody');
-  String get internalDevToolClearAction => _get('internalDevToolClearAction');
-  String get internalDevToolClearConfirmTitle =>
-      _get('internalDevToolClearConfirmTitle');
-  String get internalDevToolClearConfirmBody =>
-      _get('internalDevToolClearConfirmBody');
-  String get internalDevToolClearConfirmAction =>
-      _get('internalDevToolClearConfirmAction');
-  String get internalDevToolClearUnlockReason =>
-      _get('internalDevToolClearUnlockReason');
-  String get internalDevToolCancel => _get('internalDevToolCancel');
-  String get internalDevToolCleared => _get('internalDevToolCleared');
-  String get internalDevToolClearFailed => _get('internalDevToolClearFailed');
-  String get internalDevToolBlockedTitle => _get('internalDevToolBlockedTitle');
-  String get internalDevToolBlockedBody => _get('internalDevToolBlockedBody');
   String get internalDevToolRosterErrorUnreachable =>
       _get('internalDevToolRosterErrorUnreachable');
   String get internalDevToolRosterErrorDisabled =>

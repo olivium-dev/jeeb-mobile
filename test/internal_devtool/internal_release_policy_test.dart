@@ -11,6 +11,7 @@ const _nativeAllowed = NativeInternalReleasePolicy(
 InternalReleasePolicyInput _validInput() => const InternalReleasePolicyInput(
   buildMode: InternalReleaseBuildMode.release,
   dartFlag: true,
+  devToolEnabled: true,
   appFlavor: InternalReleasePolicy.stagingFlavor,
   gatewayOrigin: InternalReleasePolicy.gatewayOrigin,
   realtimeSocket: InternalReleasePolicy.realtimeSocket,
@@ -32,6 +33,7 @@ void main() {
     final valid = _validInput();
     final failures = <InternalReleasePolicyInput>[
       _copy(valid, dartFlag: false),
+      _copy(valid, devToolEnabled: false),
       _copy(valid, buildMode: InternalReleaseBuildMode.debug),
       _copy(valid, appFlavor: 'production'),
       _copy(valid, gatewayOrigin: 'https://example.invalid'),
@@ -57,7 +59,7 @@ void main() {
     }
   });
 
-  test('only the exact launcher route opens the restricted tool', () {
+  test('only the exact launcher route opens the full staging tool', () {
     expect(
       shouldLaunchInternalDevTool(
         initialRoute: '/devtool',
@@ -109,6 +111,7 @@ InternalReleasePolicyInput _copy(
   InternalReleasePolicyInput source, {
   InternalReleaseBuildMode? buildMode,
   bool? dartFlag,
+  bool? devToolEnabled,
   String? appFlavor,
   String? gatewayOrigin,
   String? realtimeSocket,
@@ -119,6 +122,7 @@ InternalReleasePolicyInput _copy(
 }) => InternalReleasePolicyInput(
   buildMode: buildMode ?? source.buildMode,
   dartFlag: dartFlag ?? source.dartFlag,
+  devToolEnabled: devToolEnabled ?? source.devToolEnabled,
   appFlavor: appFlavor ?? source.appFlavor,
   gatewayOrigin: gatewayOrigin ?? source.gatewayOrigin,
   realtimeSocket: realtimeSocket ?? source.realtimeSocket,

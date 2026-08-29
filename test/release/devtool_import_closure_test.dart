@@ -137,13 +137,15 @@ void main() {
       expect(product.length, greaterThan(500));
       expect(
         internal,
-        contains('lib/internal_devtool/internal_devtool_app.dart'),
-        reason: 'the internal entrypoint must reach the restricted tool',
+        contains('lib/devtool/devtool_shell.dart'),
+        reason: 'the internal entrypoint must reach the original full tool',
       );
       expect(
         product,
-        isNot(contains('lib/internal_devtool/internal_devtool_app.dart')),
-        reason: 'the store entrypoint must not reach the restricted tool',
+        isNot(
+          contains('lib/internal_devtool/internal_release_blocked_app.dart'),
+        ),
+        reason: 'the store entrypoint must not reach internal policy UI',
       );
     });
 

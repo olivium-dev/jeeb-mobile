@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../dev_flags.dart';
 import 'app_config.dart';
 
 enum InternalReleaseBuildMode { debug, profile, release }
@@ -7,6 +8,7 @@ enum InternalReleaseBuildMode { debug, profile, release }
 enum InternalReleasePolicyFailure {
   none,
   dartFlag,
+  devTool,
   buildMode,
   flavor,
   gateway,
@@ -38,6 +40,7 @@ final class InternalReleasePolicyInput {
   const InternalReleasePolicyInput({
     required this.buildMode,
     required this.dartFlag,
+    required this.devToolEnabled,
     required this.appFlavor,
     required this.gatewayOrigin,
     required this.realtimeSocket,
@@ -49,6 +52,7 @@ final class InternalReleasePolicyInput {
 
   final InternalReleaseBuildMode buildMode;
   final bool dartFlag;
+  final bool devToolEnabled;
   final String appFlavor;
   final String gatewayOrigin;
   final String realtimeSocket;
@@ -74,6 +78,7 @@ abstract final class InternalReleasePolicy {
   ) => InternalReleasePolicyInput(
     buildMode: _currentBuildMode,
     dartFlag: _dartFlag,
+    devToolEnabled: kDevToolEnabled,
     appFlavor: AppConfig.appFlavor,
     gatewayOrigin: AppConfig.gatewayBaseUrl,
     realtimeSocket: AppConfig.realtimeSocketUrl,
@@ -87,6 +92,7 @@ abstract final class InternalReleasePolicy {
     InternalReleasePolicyInput input,
   ) {
     if (!input.dartFlag) return InternalReleasePolicyFailure.dartFlag;
+    if (!input.devToolEnabled) return InternalReleasePolicyFailure.devTool;
     if (input.buildMode != InternalReleaseBuildMode.release) {
       return InternalReleasePolicyFailure.buildMode;
     }

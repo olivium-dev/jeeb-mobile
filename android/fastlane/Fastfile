@@ -65,7 +65,7 @@ platform :android do
     upload_internal_aab(require_devtool: false)
   end
 
-  desc 'Upload a provenance-verified restricted Dev Tool AAB to Internal only'
+  desc 'Upload a provenance-verified full Dev Tool AAB to Internal only'
   lane :internal_devtool do
     upload_internal_aab(require_devtool: true)
   end

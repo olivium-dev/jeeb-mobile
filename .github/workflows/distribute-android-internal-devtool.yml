@@ -1,4 +1,4 @@
-name: Distribute restricted Android Dev Tool internally
+name: Distribute full Android Dev Tool internally
 
 run-name: Android Internal Dev Tool ${{ inputs.build_name }}+${{ inputs.build_number }} from ${{ inputs.source_run_id }}
 
@@ -131,7 +131,8 @@ jobs:
           SOURCE_RUN_ATTEMPT="${source_attempt}" \
           SOURCE_WORKFLOW_REF="${SOURCE_WORKFLOW_REF}" \
           JEEB_DEVTOOL_BUILD=true \
-          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_SUPER_LOGIN_ENABLED=true \
+          JEEB_DEVTOOL_SHAKE_ENABLED=false \
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \
@@ -195,7 +196,7 @@ jobs:
         run: bundle exec fastlane preflight_internal
 
   play-internal:
-    name: Upload exact restricted AAB to Play Internal only
+    name: Upload exact full Dev Tool AAB to Play Internal only
     needs: [source-policy, store-build-number-preflight]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     environment: mobile-internal-distribution
@@ -275,7 +276,8 @@ jobs:
           SOURCE_RUN_ATTEMPT="${SOURCE_RUN_ATTEMPT}" \
           SOURCE_WORKFLOW_REF="${SOURCE_WORKFLOW_REF}" \
           JEEB_DEVTOOL_BUILD=true \
-          JEEB_SUPER_LOGIN_ENABLED=false \
+          JEEB_SUPER_LOGIN_ENABLED=true \
+          JEEB_DEVTOOL_SHAKE_ENABLED=false \
           JEEB_CLARITY_ENABLED=false \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
           JEEB_RELEASE_PROFILE=release \
@@ -316,7 +318,8 @@ jobs:
           SOURCE_RUN_ATTEMPT: ${{ needs.source-policy.outputs.source_run_attempt }}
           SOURCE_WORKFLOW_REF: olivium-dev/jeeb-mobile/.github/workflows/trusted-android-internal-devtool-rc.yml@refs/heads/main
           JEEB_DEVTOOL_BUILD: 'true'
-          JEEB_SUPER_LOGIN_ENABLED: 'false'
+          JEEB_SUPER_LOGIN_ENABLED: 'true'
+          JEEB_DEVTOOL_SHAKE_ENABLED: 'false'
           JEEB_CLARITY_ENABLED: 'false'
           JEEB_CLARITY_PRIVACY_APPROVED: 'false'
           JEEB_RELEASE_PROFILE: release
@@ -350,7 +353,8 @@ jobs:
               source_run_id:$source_run_id,
               source_run_attempt:$source_run_attempt,
               reviewed_sha:$reviewed_sha, version_name:$version_name,
-              version_code:$version_code, devtool:true, super_login:false,
+              version_code:$version_code, devtool:true, super_login:true,
+              shake_to_open:false,
               clarity_enabled:false, release_profile:true}' \
             >build/distribution-receipts/android-internal-devtool.json
       - name: Retain internal distribution receipt

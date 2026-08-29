@@ -1,87 +1,67 @@
-# ADR 0003: Restricted Android internal-release QA tool
+# ADR 0003: Full Android staging Dev Tool on Play Internal Testing
 
-- Status: Accepted
-- Date: 2026-08-26
+- Status: Accepted (supersedes the restricted-surface decision)
+- Date: 2026-08-29
 - Owners: Jeeb Mobile
 
 ## Context
 
-Play Internal Testing needs a small, inspectable QA surface in the store-signed
-Android application. The existing full developer tool can mint or select test
-identities, mutate journeys, change endpoints, and use mocks. Compiling that
-graph into a release candidate would materially widen the authentication and
-business-action blast radius. Jeeb also has locked cash-on-delivery, gateway-only,
-no-LAN-host, no-cleartext, and Clarity-off staging policies.
+The Android Internal Testing launcher was originally replaced with a small
+status-and-connectivity page. That was not the requested staging behavior: QA
+needs the existing full Jeeber Dev Tool menu, including Super Login, Screen
+Catalog, Actions, Location Simulator, Server URL, Clear Local Data, and Scenario
+Users. The status-only page also made a successfully distributed build appear
+to be the wrong application.
 
 ## Decision
 
-We extend `jeeb-mobile` and reuse OMDS, `AppConfig`, the existing local-auth
-gateway, connectivity reachability source, secure storage, and shared preferences.
-No backend, auth contract, service, or new state-management package is introduced.
-Ephemeral unlock/status state stays in a local `StatefulWidget`; adding Riverpod
-beside the app's BLoC graph would add lifecycle and cold-start cost without shared
-state benefits.
+The `internalRelease` flavor keeps the unchanged `com.olivium.jeeb` store
+identity, protected release signer, separate `DevToolLauncher` activity, exact
+`/devtool` route, and native/Dart fail-closed policy checks. Once those checks
+pass, `lib/main_android_internal.dart` routes through the existing product root
+with the Dev Tool initially open. This reuses the original `DevToolShakeHost`
+and `DevToolShell`, including the `Apply & Restart` and close controls, instead
+of maintaining a second QA page.
 
-Android gains an `internalRelease` flavor with the unchanged
-`com.olivium.jeeb` store identity and the normal protected release signer. Its
-dedicated `DevToolLauncher` Activity and Flutter engine exist only in the flavor
-source set. The legacy full tool launcher exists only in the Android debug source
-set. The production and iOS Dart entrypoints never import the restricted tool.
+The staging build must explicitly set all of these Dart gates:
 
-The internal entrypoint starts only under this truth table:
+| Gate | Required value |
+|---|---|
+| `APP_FLAVOR` | `staging` |
+| `JEEB_INTERNAL_RELEASE` | `true` |
+| `JEEB_DEVTOOL_ENABLED` | `true` |
+| `JEEB_STAGING_DEVTOOL` | `true` |
+| `JEEB_DEVTOOL_SHAKE` | `false` on Android |
+| Gateway | `https://app.jeeb.fds-1.com` |
+| Realtime | `wss://app.jeeb.fds-1.com/socket/websocket` |
+| Clarity enabled/privacy | `false` / `false` |
 
-| Gate | Required value | Drift result |
-|---|---|---|
-| Native build | non-debug release | blocked screen |
-| Native flavor/resource | `internalRelease` / `true` | blocked screen |
-| Dedicated launcher | `true` for `/devtool` | blocked screen |
-| Dart build/flag | release / `JEEB_INTERNAL_RELEASE=true` | blocked screen |
-| Runtime | `APP_FLAVOR=staging` | blocked screen |
-| HTTP origin | `https://app.jeeb.fds-1.com` | blocked screen |
-| Realtime | `wss://app.jeeb.fds-1.com/socket/websocket` | blocked screen |
-| Clarity | enabled/privacy false; project id empty | blocked screen |
-| Route | exact `/devtool` | normal launcher opens `JeebBootstrap` |
+The artifact inspector requires the complete menu and launcher-control markers,
+plus both Super Login endpoints. Provenance and distribution receipts bind
+`devtool=true`, `super_login=true`, and `shake_to_open=false`. Candidate
+encryption, exact-SHA custody,
+release signing, dual-store build-number monotonicity, and Play Internal-only
+upload remain unchanged.
 
-The tool requires device biometric/credential authentication and exposes only
-build/environment status, a local-only connectivity reading, and confirmed local
-data clearing with a second unlock. It shows exact staging HTTP/WSS endpoints,
-Clarity off, and normal SMS only. Stable `Semantics(identifier:)` values provide
-black-box selectors without text, coordinates, or PII.
+Production containment is unchanged: the ordinary Android and iOS release
+inspectors continue rejecting the internal entrypoint, full Dev Tool graph,
+Super Login material, launcher label, and positive internal defines. The
+production build does not receive the two Dart enablement defines or the native
+internal flavor/resource/launcher combination.
 
-No live health request is shipped. The repository has no approved public-gateway
-client abstraction that guarantees redacted bodies and credentials for this
-surface. Catalog is also deferred because its offline/sanitized isolation is not
-proven. Super Login/Plus, token minting, rosters, scenarios, KYC/admin, OTP,
-location, delivery, server editing, raw logs, mocks, payments, and direct upstream
-ports are excluded by source and binary contracts.
-
-Build numbers are monotonic across both stores and have floor `26082601`. The
-internal profile must re-read Play and App Store maxima, build with Clarity
-false/false and exact staging defines, inspect the signed AAB, and record
-`devtool=true`, `super_login=false`, `retained=true`, and `store_uploaded=false`.
-The separate upload lane can target Google Play `internal` only.
+The `.50` host, production API host, direct upstream ports, UPG/payment routes,
+and Clarity remain forbidden in the internal artifact. No backend or production
+authentication behavior changes in this decision.
 
 ## Consequences
 
-- Defense in depth prevents a single Gradle resource, Dart define, route, or
-  runtime configuration mistake from opening the tool.
-- Production and iOS release inspectors reject internal entrypoints, UI markers,
-  labels, and positive internal defines.
-- The flavor adds one Android-only Flutter engine when the QA launcher is opened;
-  the normal app cold start and production binary avoid the restricted Dart graph.
-- Connectivity proves device reachability only; it does not claim gateway health.
-- Local clear is destructive only to this installation and never calls a server.
-
-Rollback is to disable or remove the `internalRelease` workflow/profile and stop
-promoting its higher build code. Existing production and iOS lanes remain
-unchanged and reject internal markers.
-
-## Alternatives considered
-
-1. Reuse the full legacy developer tool in release: rejected because its auth and
-   mutation capabilities violate least privilege and expand incident blast radius.
-2. Add a hidden route in `MainActivity`: rejected because launcher identity and
-   engine isolation would rely on a single Dart route check.
-3. Add a backend QA endpoint: rejected because no backend/auth change is
-   authorized; any such defect or contract would require a separate architecture
-   and Claude guardrail debate.
+- Opening **Jeeber Dev Tool** from Play Internal Testing displays the original
+  full tool, not a status page.
+- No biometric or device-credential gate is introduced by this launcher.
+- The Server URL override is enabled only when development affordances are
+  compiled in, so it works for the internal Dev Tool while remaining inert in
+  production.
+- The normal launcher in the same internal package still opens the Jeeb product
+  app.
+- Rollback is to stop distributing the internal candidate; it must not be
+  replaced with another reduced tool under the same launcher contract.

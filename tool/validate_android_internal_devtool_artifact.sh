@@ -47,8 +47,10 @@ validate_identity_inputs() {
 
 validate_release_inputs() {
   [[ "${JEEB_DEVTOOL_BUILD:-}" == true ]] || fail 'devtool gate is not true'
-  [[ "${JEEB_SUPER_LOGIN_ENABLED:-}" == false ]] ||
-    fail 'Super Login gate is not false'
+  [[ "${JEEB_SUPER_LOGIN_ENABLED:-}" == true ]] ||
+    fail 'Super Login gate is not true'
+  [[ "${JEEB_DEVTOOL_SHAKE_ENABLED:-}" == false ]] ||
+    fail 'shake-to-open gate is not false'
   [[ "${JEEB_CLARITY_ENABLED:-}" == false ]] || fail 'Clarity gate is not false'
   [[ "${JEEB_CLARITY_PRIVACY_APPROVED:-}" == false ]] ||
     fail 'Clarity privacy gate is not false'
@@ -138,7 +140,8 @@ validate_provenance() {
       and .gateway_origin == "https://app.jeeb.fds-1.com"
       and .realtime_socket == "wss://app.jeeb.fds-1.com/socket/websocket"
       and .devtool == true
-      and .super_login == false
+      and .super_login == true
+      and .shake_to_open == false
       and .clarity_enabled == false
       and .clarity_privacy_approved == false
       and .retained == true

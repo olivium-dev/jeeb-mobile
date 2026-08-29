@@ -15,6 +15,10 @@ void main() {
       gradle,
       contains('resValue "bool", "jeeb_internal_release", "true"'),
     );
+    expect(
+      gradle,
+      contains('resValue "string", "devtool_name", "Jeeber Dev Tool"'),
+    );
     expect(gradle, contains('signingConfig signingConfigs.release'));
     expect(gradle, contains("contains('internalreleaserelease')"));
   });
@@ -60,8 +64,9 @@ void main() {
     expect(nativePolicy, contains('BuildConfig.FLAVOR == INTERNAL_FLAVOR'));
     expect(nativePolicy, contains('R.bool.jeeb_internal_release'));
     expect(dartEntrypoint, contains('InternalReleasePolicy.evaluate'));
-    expect(dartEntrypoint, contains("route != '/devtool'"));
-    expect(dartEntrypoint, contains('const JeebBootstrap()'));
+    expect(dartEntrypoint, contains("route == '/devtool'"));
+    expect(dartEntrypoint, contains('buildJeebRootForInitialRoute(route)'));
+    expect(dartEntrypoint, isNot(contains('InternalDevToolApp')));
     expect(dartEntrypoint, contains('const InternalReleaseBlockedApp()'));
   });
 
@@ -119,7 +124,7 @@ void main() {
     expect(
       fastfile,
       contains('require_devtool ? %w[internal]'),
-      reason: 'restricted code must never be inventoried into Production',
+      reason: 'full Dev Tool code must never be inventoried into Production',
     );
     final validatorPath = RegExp(
       r"'bash', '([^']*validate_android_internal_devtool_artifact\.sh)'",
@@ -252,10 +257,11 @@ String _activityBlock(String manifest, String activityName) {
 
 const _internalMarkers = <String>[
   r'main_android_internal\.dart',
-  'InternalDevToolApp',
-  'internal_devtool_root',
-  'Jeeb Internal QA',
+  r'devtool_shell\.dart',
+  'DevToolApp',
+  'Jeeber Dev Tool',
   'JEEB_INTERNAL_RELEASE=true',
+  'JEEB_DEVTOOL_ENABLED=true',
 ];
 
 const _workflowMarkers = <String>[
@@ -265,10 +271,17 @@ const _workflowMarkers = <String>[
   '--target lib/main_android_internal.dart',
   '--dart-define=APP_FLAVOR=staging',
   '--dart-define=JEEB_INTERNAL_RELEASE=true',
+  '--dart-define=JEEB_DEVTOOL_ENABLED=true',
+  '--dart-define=JEEB_STAGING_DEVTOOL=true',
+  '--dart-define=JEEB_DEVTOOL_SHAKE=false',
+  'dart analyze --fatal-infos',
+  'test/devtool',
   '--dart-define=JEEB_CLARITY_ENABLED=false',
   '--dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false',
   'devtool:true',
-  'super_login:false',
+  'super_login:true',
+  'shake_to_open:false',
+  'JEEB_DEVTOOL_SHAKE_ENABLED=false',
   'metadata_sha256',
   'metadata_kind:"gradle-merged-manifest-v3"',
   'signer_sha1',
@@ -331,7 +344,9 @@ const _distributionWorkflowMarkers = <String>[
   'bundle exec fastlane android internal_devtool',
   'destination:"google-play-internal"',
   'devtool:true',
-  'super_login:false',
+  'super_login:true',
+  'shake_to_open:false',
+  "JEEB_DEVTOOL_SHAKE_ENABLED: 'false'",
   'clarity_enabled:false',
 ];
 
