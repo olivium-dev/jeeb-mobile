@@ -24,7 +24,7 @@ def upload_internal_aab(require_devtool:)
       JEEB_CLARITY_PRIVACY_APPROVED JEEB_RELEASE_PROFILE
     ].each { |name| required_env(name) }
     sh(
-      'bash', '../tool/validate_android_internal_devtool_artifact.sh',
+      'bash', 'tool/validate_android_internal_devtool_artifact.sh',
       aab_path, provenance_path, metadata_path,
     )
   end
