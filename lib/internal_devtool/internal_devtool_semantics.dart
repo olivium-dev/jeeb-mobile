@@ -1,9 +1,6 @@
 abstract final class InternalDevToolSemantics {
   static const String root = 'internal_devtool_root';
-  static const String launcher = 'internal_devtool_launcher';
-  static const String authGate = 'internal_devtool_auth_gate';
   static const String banner = 'internal_devtool_banner';
-  static const String unlock = 'internal_devtool_unlock';
   static const String status = 'internal_devtool_status';
   static const String runtime = 'internal_devtool_environment';
   static const String gateway = 'internal_devtool_status_gateway';

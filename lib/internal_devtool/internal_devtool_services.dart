@@ -5,22 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/network/connectivity_reachability_source.dart';
 import '../core/session/firebase_identity_teardown.dart';
-import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
-
-abstract interface class InternalDeviceUnlocker {
-  Future<bool> unlock({required String reason});
-}
-
-final class LocalAuthInternalDeviceUnlocker implements InternalDeviceUnlocker {
-  LocalAuthInternalDeviceUnlocker({LocalAuthBiometricGateway? gateway})
-    : _gateway = gateway ?? LocalAuthBiometricGateway();
-
-  final LocalAuthBiometricGateway _gateway;
-
-  @override
-  Future<bool> unlock({required String reason}) =>
-      _gateway.authenticate(reason: reason);
-}
 
 final class InternalDevToolStatus {
   const InternalDevToolStatus({

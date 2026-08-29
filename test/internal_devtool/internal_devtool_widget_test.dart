@@ -8,34 +8,25 @@ import 'package:jeeb_mobile/internal_devtool/internal_devtool_services.dart';
 import '../support/sync_app_localizations.dart';
 
 void main() {
-  testWidgets('unlock gates the restricted status surface', (tester) async {
-    final unlocker = _FakeUnlocker([true]);
-    await tester.pumpWidget(_app(unlocker: unlocker));
+  testWidgets('opens the restricted status surface without authentication', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
+    expect(find.bySemanticsIdentifier('internal_devtool_unlock'), findsNothing);
     expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
-      findsOne,
+      find.bySemanticsIdentifier('internal_devtool_auth_gate'),
+      findsNothing,
     );
     expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.authGate),
-      findsOne,
-    );
-    expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.launcher),
-      findsOne,
+      find.bySemanticsIdentifier('internal_devtool_launcher'),
+      findsNothing,
     );
     expect(
       find.bySemanticsIdentifier(InternalDevToolSemantics.close),
       findsOne,
     );
-    expect(find.text(InternalReleasePolicy.gatewayOrigin), findsNothing);
-
-    await tester.tap(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
-    );
-    await tester.pumpAndSettle();
-
     expect(
       find.bySemanticsIdentifier(InternalDevToolSemantics.banner),
       findsOne,
@@ -62,13 +53,7 @@ void main() {
     tester,
   ) async {
     final reader = _FakeStatusReader(<bool>[false, true]);
-    await tester.pumpWidget(
-      _app(unlocker: _FakeUnlocker([true]), reader: reader),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
-    );
+    await tester.pumpWidget(_app(reader: reader));
     await tester.pumpAndSettle();
     expect(find.text('Unavailable'), findsOne);
 
@@ -85,19 +70,12 @@ void main() {
     );
   });
 
-  testWidgets('clear requires confirmation and a second device unlock', (
+  testWidgets('clear requires confirmation but no device unlock', (
     tester,
   ) async {
-    final unlocker = _FakeUnlocker([true, true]);
     final clearer = _FakeClearer();
     final closer = _FakeCloser();
-    await tester.pumpWidget(
-      _app(unlocker: unlocker, clearer: clearer, closer: closer),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
-    );
+    await tester.pumpWidget(_app(clearer: clearer, closer: closer));
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
@@ -113,30 +91,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(unlocker.callCount, 2);
     expect(clearer.callCount, 1);
     expect(closer.callCount, 1);
     expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.authGate),
-      findsOne,
-    );
-    expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.root),
+      find.bySemanticsIdentifier('internal_devtool_auth_gate'),
       findsNothing,
     );
   });
 
-  testWidgets('clear failure still relocks and closes the warm tool', (
-    tester,
-  ) async {
-    final unlocker = _FakeUnlocker([true, true]);
+  testWidgets('clear failure still closes the tool', (tester) async {
     final clearer = _FakeClearer(throws: true);
     final closer = _FakeCloser();
-    await tester.pumpWidget(
-      _app(unlocker: unlocker, clearer: clearer, closer: closer),
-    );
+    await tester.pumpWidget(_app(clearer: clearer, closer: closer));
     await tester.pumpAndSettle();
-    await _unlock(tester);
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
 
@@ -151,36 +118,33 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(unlocker.callCount, 2);
     expect(clearer.callCount, 1);
     expect(closer.callCount, 1);
-    _expectLocked();
+    expect(find.bySemanticsIdentifier(InternalDevToolSemantics.root), findsOne);
   });
 
-  testWidgets('warm launcher relocks for every background lifecycle state', (
+  testWidgets('warm launcher remains free of authentication lifecycle gates', (
     tester,
   ) async {
-    final unlocker = _FakeUnlocker([true, true, true, true]);
     final reader = _FakeStatusReader(<bool>[true]);
-    await tester.pumpWidget(_app(unlocker: unlocker, reader: reader));
+    await tester.pumpWidget(_app(reader: reader));
     await tester.pumpAndSettle();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    await _unlock(tester);
 
     for (final state in _relockingStates) {
-      final callsBeforeBackground = unlocker.callCount;
       tester.binding.handleAppLifecycleStateChanged(state);
       await tester.pump();
-      if (state == AppLifecycleState.inactive) _expectRelockedState(tester);
-
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      _expectLocked();
-      expect(unlocker.callCount, callsBeforeBackground);
-
-      await _unlock(tester);
-      expect(unlocker.callCount, callsBeforeBackground + 1);
+      expect(
+        find.bySemanticsIdentifier(InternalDevToolSemantics.root),
+        findsOne,
+      );
+      expect(
+        find.bySemanticsIdentifier('internal_devtool_auth_gate'),
+        findsNothing,
+      );
     }
 
     expect(
@@ -193,16 +157,12 @@ void main() {
   testWidgets('Arabic surface is RTL and keeps stable semantics identifiers', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      _app(unlocker: _FakeUnlocker([true]), locale: const Locale('ar')),
-    );
+    await tester.pumpWidget(_app(locale: const Locale('ar')));
     await tester.pumpAndSettle();
-    final element = tester.element(find.byType(InternalDevToolUnlockGate));
+    final element = tester.element(find.byType(InternalDevToolScreen));
     expect(Directionality.of(element), TextDirection.rtl);
-    expect(
-      find.bySemanticsIdentifier(InternalDevToolSemantics.unlock),
-      findsOne,
-    );
+    expect(find.bySemanticsIdentifier('internal_devtool_unlock'), findsNothing);
+    expect(find.bySemanticsIdentifier(InternalDevToolSemantics.root), findsOne);
   });
 }
 
@@ -217,13 +177,11 @@ const _statusIdentifiers = <String>[
 ];
 
 Widget _app({
-  required _FakeUnlocker unlocker,
   _FakeStatusReader? reader,
   _FakeClearer? clearer,
   _FakeCloser? closer,
   Locale? locale,
 }) => InternalDevToolApp(
-  unlocker: unlocker,
   statusReader: reader ?? _FakeStatusReader(<bool>[true]),
   localDataClearer: clearer ?? _FakeClearer(),
   closer: closer ?? _FakeCloser(),
@@ -236,47 +194,6 @@ const _relockingStates = <AppLifecycleState>[
   AppLifecycleState.paused,
   AppLifecycleState.detached,
 ];
-
-Future<void> _unlock(WidgetTester tester) async {
-  await tester.tap(find.bySemanticsIdentifier(InternalDevToolSemantics.unlock));
-  await tester.pumpAndSettle();
-  expect(find.bySemanticsIdentifier(InternalDevToolSemantics.root), findsOne);
-}
-
-void _expectLocked() {
-  expect(
-    find.bySemanticsIdentifier(InternalDevToolSemantics.authGate),
-    findsOne,
-  );
-  expect(
-    find.bySemanticsIdentifier(InternalDevToolSemantics.root),
-    findsNothing,
-  );
-}
-
-void _expectRelockedState(WidgetTester tester) {
-  final stack = tester.widget<IndexedStack>(
-    find.descendant(
-      of: find.byType(InternalDevToolUnlockGate),
-      matching: find.byType(IndexedStack),
-    ),
-  );
-  expect(stack.index, 0);
-}
-
-final class _FakeUnlocker implements InternalDeviceUnlocker {
-  _FakeUnlocker(this._results);
-
-  final List<bool> _results;
-  int callCount = 0;
-
-  @override
-  Future<bool> unlock({required String reason}) async {
-    final result = _results[callCount];
-    callCount++;
-    return result;
-  }
-}
 
 final class _FakeStatusReader implements InternalDevToolStatusReader {
   _FakeStatusReader(this._networkStates);
