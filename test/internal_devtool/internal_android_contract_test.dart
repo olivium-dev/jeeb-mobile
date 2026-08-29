@@ -121,7 +121,15 @@ void main() {
       contains('require_devtool ? %w[internal]'),
       reason: 'restricted code must never be inventoried into Production',
     );
-    expect(fastfile, contains('validate_android_internal_devtool_artifact.sh'));
+    expect(
+      fastfile,
+      contains("'bash', 'tool/validate_android_internal_devtool_artifact.sh'"),
+      reason: 'Fastlane shell actions execute from the repository root',
+    );
+    expect(
+      fastfile,
+      isNot(contains('../tool/validate_android_internal_devtool_artifact.sh')),
+    );
     expect(fastfile, isNot(contains('lane :production')));
     for (final marker in _distributionWorkflowMarkers) {
       expect(distributionWorkflow, contains(marker));
