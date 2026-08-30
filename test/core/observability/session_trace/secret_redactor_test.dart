@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/audited_interaction_identifiers.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
+
+import 'static_interaction_inventory.dart';
 
 const String _fakeJwt =
     'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1LTEiLCJleHAiOjk5OTk5OTk5OTl9.S3cReTtOkEnLeAk';
@@ -11,61 +11,6 @@ const String _fakeJwt =
 /// The exact leak signature a run-mission gate would grep for: a raw
 /// `Bearer ` header value or a JWT-shaped `eyJ…` token.
 final RegExp _secretPattern = RegExp(r'Bearer |eyJ[A-Za-z0-9_-]{10,}\.');
-
-const List<String> _staticActionMarkers = <String>[
-  'accept',
-  'apply',
-  'attach',
-  'authenticate',
-  'back',
-  'button',
-  'cancel',
-  'chip',
-  'clear',
-  'close',
-  'confirm',
-  'continue',
-  'cta',
-  'decline',
-  'delete',
-  'dismiss',
-  'dispute',
-  'done',
-  'edit',
-  'enable',
-  'export',
-  'filter',
-  'link',
-  'logout',
-  'mic',
-  'next',
-  'open',
-  'option',
-  'photo',
-  'pill',
-  'play',
-  'rate',
-  'recording',
-  'register',
-  'resend',
-  'retry',
-  'row',
-  'save',
-  'send',
-  'sign_out',
-  'signout',
-  'skip',
-  'submit',
-  'support',
-  'switch',
-  'tab',
-  'toggle',
-  'topup',
-  'track',
-  'upload',
-  'wallet',
-  'zoom',
-];
 
 const List<String> _sensitiveControlSuffixes = <String>[
   '_body',
@@ -89,13 +34,6 @@ const List<String> _sensitiveControlMarkers = <String>[
   'search_input',
   'user_id',
 ];
-
-bool _isStaticActionCandidate(String identifier) {
-  final normalized = identifier.toLowerCase().replaceAll('-', '_');
-  return _staticActionMarkers.any(normalized.contains) &&
-      !_sensitiveControlMarkers.any(normalized.contains) &&
-      !_sensitiveControlSuffixes.any(normalized.endsWith);
-}
 
 void main() {
   group('redactString', () {
@@ -605,27 +543,34 @@ void main() {
       }
     });
 
-    test('static action registry covers every safe exact production literal', () {
-      final literalPattern = RegExp(
-        r'''(?:identifier|semanticIdentifier|semanticsIdentifier|accessibilityIdentifier)\s*:\s*(?:r)?(?:'([^'$\r\n]+)'|"([^"$\r\n]+)")''',
-      );
-      final missing = <String>{};
-      for (final entity in Directory('lib').listSync(recursive: true)) {
-        if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        final source = entity.readAsStringSync();
-        for (final match in literalPattern.allMatches(source)) {
-          final identifier = match.group(1) ?? match.group(2)!;
-          if (!_isStaticActionCandidate(identifier)) continue;
-          if (SecretRedactor.redactIdentifier(identifier) != identifier) {
-            continue;
-          }
-          if (!kAuditedStaticInteractionIdentifiers.contains(identifier)) {
-            missing.add(identifier);
-          }
+    test(
+      'every resolved static production identifier is classified',
+      () async {
+        final identifiers = await resolvedStaticInteractionIdentifiers();
+        final buckets = <Set<String>>[
+          kAuditedStaticInteractionIdentifiers,
+          kAuditedStaticInteractionAliases.keys.toSet(),
+          kExplicitlyRedactedStaticInteractionIdentifiers,
+        ];
+        final missing = identifiers.difference(
+          buckets.expand((b) => b).toSet(),
+        );
+        if (missing.isNotEmpty) {
+          fail(
+            'Unclassified static interaction identifiers:\n'
+            '${(missing.toList()..sort()).join('\n')}',
+          );
         }
-      }
-      expect(missing, isEmpty);
-    });
+        for (final identifier in identifiers) {
+          expect(
+            buckets.where((bucket) => bucket.contains(identifier)),
+            hasLength(1),
+            reason: '$identifier must have exactly one classification',
+          );
+        }
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
     test('static action registry never admits free-text controls', () {
       final rejectedByIdentifierFloor = <String>[];
@@ -650,6 +595,26 @@ void main() {
           reason: entry.key,
         );
       }
+      final capturedIdentifiers = <String>{
+        ...kAuditedStaticInteractionIdentifiers,
+        ...kAuditedStaticInteractionAliases.values,
+      };
+      expect(
+        capturedIdentifiers,
+        hasLength(
+          kAuditedStaticInteractionIdentifiers.length +
+              kAuditedStaticInteractionAliases.length,
+        ),
+        reason: 'static actions must not collapse onto the same captured ID',
+      );
+      for (final identifier
+          in kExplicitlyRedactedStaticInteractionIdentifiers) {
+        expect(
+          SecretRedactor.redactInteractionIdentifier(identifier),
+          SecretRedactor.redacted,
+          reason: identifier,
+        );
+      }
     });
 
     test('profile actions stay distinct without retaining sensitive names', () {
@@ -672,6 +637,59 @@ void main() {
       expect(captured, contains('customer_profile_saved_places_row'));
       expect(captured.join(' '), isNot(contains('password')));
       expect(captured.join(' '), isNot(contains('address')));
+    });
+
+    test(
+      'same-screen request, verification, and security actions stay distinct',
+      () {
+        const actionGroups = <List<String>>[
+          <String>[
+            'request_summary_change_route',
+            'request_summary_change_tier',
+            'request_summary_submit',
+          ],
+          <String>[
+            'phone_otp_back_cta',
+            'phone_otp_change_phone_cta',
+            'phone_otp_resend_cta',
+            'phone_otp_verify_cta',
+          ],
+          <String>[
+            'password_back',
+            'password_confirm_visibility_toggle',
+            'password_new_visibility_toggle',
+            'password_submit_cta',
+          ],
+        ];
+        for (final sourceIds in actionGroups) {
+          final captured = sourceIds
+              .map(SecretRedactor.redactInteractionIdentifier)
+              .toList();
+          expect(captured, isNot(contains(SecretRedactor.redacted)));
+          expect(captured.toSet(), hasLength(sourceIds.length));
+        }
+      },
+    );
+
+    test('conversation and place actions stay useful through safe aliases', () {
+      const sourceIds = <String>[
+        'order_chat_quick_reply_door',
+        'order_chat_quick_reply_home',
+        'order_chat_quick_reply_thanks',
+        'capture_location_back',
+        'capture_location_pin_cta',
+        'capture_location_zoom_in',
+        'capture_location_zoom_out',
+      ];
+      final captured = sourceIds
+          .map(SecretRedactor.redactInteractionIdentifier)
+          .toList();
+
+      expect(captured, isNot(contains(SecretRedactor.redacted)));
+      expect(captured.toSet(), hasLength(sourceIds.length));
+      expect(captured.join(' '), isNot(contains('chat')));
+      expect(captured.join(' '), isNot(contains('location')));
+      expect(captured.join(' '), isNot(contains('gps')));
     });
   });
 
