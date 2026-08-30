@@ -64,6 +64,112 @@ class AppLocalizations {
   String get internalDevToolRosterErrorUnknown =>
       _get('internalDevToolRosterErrorUnknown');
 
+  String get walletFundingTitle => _get('walletFundingTitle');
+  String get walletFundingJeeberSection => _get('walletFundingJeeberSection');
+  String get walletFundingAmountSection => _get('walletFundingAmountSection');
+  String get walletFundingAmountLabel => _get('walletFundingAmountLabel');
+  String get walletFundingDescription => _get('walletFundingDescription');
+  String get walletFundingAddMoney => _get('walletFundingAddMoney');
+  String get walletFundingVerified => _get('walletFundingVerified');
+  String get walletFundingStatusSection => _get('walletFundingStatusSection');
+  String get walletFundingReady => _get('walletFundingReady');
+  String get walletFundingInvalidAmount => _get('walletFundingInvalidAmount');
+  String walletFundingLockedAmount(String amount) =>
+      _get('walletFundingLockedAmount').replaceFirst('{amount}', amount);
+  String get walletFundingStepPreparing => _get('walletFundingStepPreparing');
+  String get walletFundingStepReading => _get('walletFundingStepReading');
+  String get walletFundingStepCredit => _get('walletFundingStepCredit');
+  String get walletFundingStepCreditReplay =>
+      _get('walletFundingStepCreditReplay');
+  String get walletFundingStepPreview => _get('walletFundingStepPreview');
+  String get walletFundingStepOtp => _get('walletFundingStepOtp');
+  String get walletFundingStepTopup => _get('walletFundingStepTopup');
+  String get walletFundingStepTopupReplay =>
+      _get('walletFundingStepTopupReplay');
+  String get walletFundingStepCleaning => _get('walletFundingStepCleaning');
+  String get walletFundingComplete => _get('walletFundingComplete');
+  String get walletFundingReconciliation => _get('walletFundingReconciliation');
+  String get walletFundingStopped => _get('walletFundingStopped');
+  String walletFundingErrorDetail(String message) =>
+      _get('walletFundingErrorDetail').replaceFirst('{message}', message);
+  String walletFundingReconciliationDetail(
+    String message,
+    String operationId,
+  ) => _get('walletFundingReconciliationDetail')
+      .replaceFirst('{message}', message)
+      .replaceFirst('{operationId}', operationId);
+  String get walletFundingCleanupRequiredTitle =>
+      _get('walletFundingCleanupRequiredTitle');
+  String get walletFundingCleanupRequiredBody =>
+      _get('walletFundingCleanupRequiredBody');
+  String get walletFundingCleanupRetry => _get('walletFundingCleanupRetry');
+  String get walletFundingErrorUncertain => _get('walletFundingErrorUncertain');
+  String get walletFundingErrorVerification =>
+      _get('walletFundingErrorVerification');
+  String get walletFundingErrorOtp => _get('walletFundingErrorOtp');
+  String get walletFundingErrorUnauthorized =>
+      _get('walletFundingErrorUnauthorized');
+  String get walletFundingErrorForbidden => _get('walletFundingErrorForbidden');
+  String get walletFundingErrorDisabled => _get('walletFundingErrorDisabled');
+  String get walletFundingErrorRetired => _get('walletFundingErrorRetired');
+  String get walletFundingErrorUnreachable =>
+      _get('walletFundingErrorUnreachable');
+  String walletFundingErrorStatus(String status) =>
+      _get('walletFundingErrorStatus').replaceFirst('{status}', status);
+  String get walletFundingReceiptTitle => _get('walletFundingReceiptTitle');
+  String get walletFundingReceiptBalance => _get('walletFundingReceiptBalance');
+  String get walletFundingReceiptCreditReplay =>
+      _get('walletFundingReceiptCreditReplay');
+  String get walletFundingReceiptTopupReplay =>
+      _get('walletFundingReceiptTopupReplay');
+  String walletFundingReceiptBefore(String amount) =>
+      _get('walletFundingReceiptBefore').replaceFirst('{amount}', amount);
+  String walletFundingReceiptAfter(String amount) =>
+      _get('walletFundingReceiptAfter').replaceFirst('{amount}', amount);
+  String walletFundingReceiptGross(String amount) =>
+      _get('walletFundingReceiptGross').replaceFirst('{amount}', amount);
+  String walletFundingReceiptFees(String amount) =>
+      _get('walletFundingReceiptFees').replaceFirst('{amount}', amount);
+  String walletFundingReceiptNet(String amount) =>
+      _get('walletFundingReceiptNet').replaceFirst('{amount}', amount);
+  String walletFundingReceiptTopupTransaction(String transactionId) => _get(
+    'walletFundingReceiptTopupTransaction',
+  ).replaceFirst('{transactionId}', transactionId);
+  String walletFundingReceiptCreditTransaction(String transactionId) => _get(
+    'walletFundingReceiptCreditTransaction',
+  ).replaceFirst('{transactionId}', transactionId);
+  String get scenarioUsersTitle => _get('scenarioUsersTitle');
+  String get scenarioUsersCreate => _get('scenarioUsersCreate');
+  String get scenarioUsersScenario => _get('scenarioUsersScenario');
+  String get scenarioUsersRegular => _get('scenarioUsersRegular');
+  String get scenarioUsersJeeber => _get('scenarioUsersJeeber');
+  String get scenarioUsersSuspended => _get('scenarioUsersSuspended');
+  String get scenarioUsersKycPending => _get('scenarioUsersKycPending');
+  String get scenarioUsersAdmin => _get('scenarioUsersAdmin');
+  String get scenarioUsersUsername => _get('scenarioUsersUsername');
+  String get scenarioUsersUsernameHelp => _get('scenarioUsersUsernameHelp');
+  String get scenarioUsersApproveKyc => _get('scenarioUsersApproveKyc');
+  String get scenarioUsersApproveKycHelp => _get('scenarioUsersApproveKycHelp');
+  String scenarioUsersCreated(String scenario, String username, String id) =>
+      _get('scenarioUsersCreated')
+          .replaceFirst('{scenario}', scenario)
+          .replaceFirst('{username}', username)
+          .replaceFirst('{id}', id);
+  String get scenarioUsersLastCreated => _get('scenarioUsersLastCreated');
+  String scenarioUsersId(String id) =>
+      _get('scenarioUsersId').replaceFirst('{id}', id);
+  String scenarioUsersUsernameValue(String username) =>
+      _get('scenarioUsersUsernameValue').replaceFirst('{username}', username);
+  String scenarioUsersRole(String role) =>
+      _get('scenarioUsersRole').replaceFirst('{role}', role);
+  String scenarioUsersStatus(String status) =>
+      _get('scenarioUsersStatus').replaceFirst('{status}', status);
+  String get scenarioUsersMakeOnlineReady =>
+      _get('scenarioUsersMakeOnlineReady');
+  String get scenarioUsersRoster => _get('scenarioUsersRoster');
+  String get scenarioUsersRetry => _get('scenarioUsersRetry');
+  String get scenarioUsersEmpty => _get('scenarioUsersEmpty');
+
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
   String get navChat => _get('navChat');

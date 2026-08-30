@@ -20,6 +20,10 @@ class DevGatewayClient {
   static const String _seedUserPath = '/dev/seed/user';
   static const String _mintPath = '/auth/tokens';
   static const String _kycQueuePath = '/admin/kyc/queue';
+  static const String _partnerCredentialPath = '/dev/partner/credentials';
+  static const String _partnerLoginPath = '/v1/partner/auth/login';
+  static const String _partnerWalletPath = '/v1/partner/wallet';
+  static const String _partnerTransferPath = '/v1/partner/wallet/transfers';
 
   static const String _conversationsPath = '/v1/conversations';
 
@@ -276,6 +280,227 @@ class DevGatewayClient {
     }
   }
 
+  Future<void> provisionPartnerCredential({
+    required String identifier,
+    required String holderId,
+    required String displayName,
+    required String password,
+  }) async {
+    try {
+      await _dio.post<void>(
+        _partnerCredentialPath,
+        data: <String, dynamic>{
+          'identifier': identifier,
+          'holderId': holderId,
+          'displayName': displayName,
+          'password': password,
+        },
+      );
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'provision the demo partner wallet',
+      );
+    }
+  }
+
+  Future<void> removePartnerCredential(
+    String identifier, {
+    required String holderId,
+  }) async {
+    try {
+      await _dio.delete<void>(
+        '$_partnerCredentialPath/$identifier',
+        queryParameters: <String, dynamic>{'holderId': holderId},
+      );
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'remove the temporary partner credential',
+      );
+    }
+  }
+
+  Future<void> ensureJeeberWallet(String holderId) async {
+    try {
+      await _dio.put<void>('/dev/wallets/jeeber/$holderId/ensure');
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'provision the Jeeber wallet',
+      );
+    }
+  }
+
+  Future<DevPartnerSession> loginPartner({
+    required String identifier,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _partnerLoginPath,
+        data: <String, dynamic>{'identifier': identifier, 'password': password},
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      final partner = data['partner'];
+      final token = (data['accessToken'] ?? data['token']) as String?;
+      final partnerId = partner is Map<String, dynamic>
+          ? partner['partnerId'] as String?
+          : null;
+      if (token == null ||
+          token.isEmpty ||
+          partnerId == null ||
+          partnerId.isEmpty) {
+        throw const DevGatewayException(
+          'The partner login returned an incomplete session.',
+        );
+      }
+      return DevPartnerSession(accessToken: token, partnerId: partnerId);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'sign in the demo partner');
+    }
+  }
+
+  Future<DevWalletBalance> readJeeberWallet({
+    required String userId,
+    required String accessToken,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/v1/jeeb/wallet',
+        options: _bearer(accessToken),
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      return DevWalletBalance(
+        holderId: userId,
+        amount: (data['availableBalance'] as num?)?.toDouble() ?? 0,
+        currency: data['currency'] as String?,
+      );
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'read the Jeeber wallet');
+    }
+  }
+
+  Future<DevWalletBalance> readPartnerWallet({
+    required String accessToken,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _partnerWalletPath,
+        options: _bearer(accessToken),
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      return DevWalletBalance(
+        holderId: data['partnerId'] as String? ?? '',
+        amount: (data['balance'] as num?)?.toDouble() ?? 0,
+        currencyId: (data['currencyId'] as num?)?.toInt(),
+      );
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'read the partner wallet');
+    }
+  }
+
+  Future<DevWalletMove> creditPartner({
+    required String partnerId,
+    required double amount,
+    required String adminToken,
+    required String idempotencyKey,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/v1/admin/partners/$partnerId/wallet/credits',
+        data: <String, dynamic>{
+          'amount': amount,
+          'evidenceNote': 'Dev Tool staging wallet-funding demo',
+          'idempotencyKey': idempotencyKey,
+        },
+        options: _bearer(adminToken),
+      );
+      return DevWalletMove.fromJson(response.data);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'cash-credit the demo partner',
+        uncertainOnMoneyTransport: true,
+      );
+    }
+  }
+
+  Future<DevTopupPreview> predictPartnerTopup({
+    required String jeeberId,
+    required double amount,
+    required String partnerToken,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_partnerTransferPath/predict',
+        data: <String, dynamic>{'jeeberId': jeeberId, 'amount': amount},
+        options: _bearer(partnerToken),
+      );
+      return DevTopupPreview.fromJson(response.data);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'preview the Jeeber top-up');
+    }
+  }
+
+  Future<DevPartnerOtp> requestPartnerTopupOtp({
+    required String jeeberId,
+    required double amount,
+    required String partnerToken,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_partnerTransferPath/otp/challenge',
+        data: <String, dynamic>{'jeeberId': jeeberId, 'amount': amount},
+        options: _bearer(partnerToken),
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      final challengeId = data['challengeId'] as String?;
+      final devCode = data['devCode'] as String?;
+      if (challengeId == null ||
+          challengeId.isEmpty ||
+          devCode == null ||
+          devCode.isEmpty) {
+        throw const DevGatewayException(
+          'The staging OTP challenge returned no in-app demo code.',
+        );
+      }
+      return DevPartnerOtp(challengeId: challengeId, code: devCode);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'request the top-up OTP');
+    }
+  }
+
+  Future<DevWalletMove> executePartnerTopup({
+    required String jeeberId,
+    required double amount,
+    required String partnerToken,
+    required String idempotencyKey,
+    DevPartnerOtp? otp,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _partnerTransferPath,
+        data: <String, dynamic>{
+          'jeeberId': jeeberId,
+          'amount': amount,
+          'idempotencyKey': idempotencyKey,
+          'note': 'Dev Tool staging wallet-funding demo',
+          if (otp != null) 'otpChallengeId': otp.challengeId,
+          if (otp != null) 'otpCode': otp.code,
+        },
+        options: _bearer(partnerToken),
+      );
+      return DevWalletMove.fromJson(response.data);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'fund the Jeeber wallet',
+        uncertainOnMoneyTransport: true,
+      );
+    }
+  }
+
   Future<void> initiateOffer({
     required String asUserId,
     required String requestId,
@@ -487,43 +712,177 @@ class DevUser {
   }
 }
 
+class DevPartnerSession {
+  const DevPartnerSession({required this.accessToken, required this.partnerId});
+
+  final String accessToken;
+  final String partnerId;
+}
+
+class DevWalletBalance {
+  const DevWalletBalance({
+    required this.holderId,
+    required this.amount,
+    this.currency,
+    this.currencyId,
+  });
+
+  final String holderId;
+  final double amount;
+  final String? currency;
+  final int? currencyId;
+}
+
+class DevTopupPreview {
+  const DevTopupPreview({
+    required this.grossAmount,
+    required this.fees,
+    required this.netToJeeber,
+    required this.otpRequired,
+  });
+
+  factory DevTopupPreview.fromJson(Map<String, dynamic>? data) {
+    final body = data ?? const <String, dynamic>{};
+    final otpRequired = body['otpRequired'];
+    if (otpRequired is! bool) {
+      throw const DevGatewayException(
+        'The top-up preview did not declare its OTP policy.',
+      );
+    }
+    return DevTopupPreview(
+      grossAmount: (body['grossAmount'] as num?)?.toDouble() ?? 0,
+      fees: (body['fees'] as num?)?.toDouble() ?? 0,
+      netToJeeber: (body['netToJeeber'] as num?)?.toDouble() ?? 0,
+      otpRequired: otpRequired,
+    );
+  }
+
+  final double grossAmount;
+  final double fees;
+  final double netToJeeber;
+  final bool otpRequired;
+}
+
+class DevWalletMove {
+  const DevWalletMove({
+    required this.transactionId,
+    required this.amount,
+    required this.fees,
+    required this.status,
+  });
+
+  factory DevWalletMove.fromJson(Map<String, dynamic>? data) {
+    final body = data ?? const <String, dynamic>{};
+    final transactionId = body['transactionId'] as String?;
+    if (transactionId == null || transactionId.isEmpty) {
+      throw const DevGatewayException.walletVerification(
+        'The wallet operation returned no transaction id.',
+      );
+    }
+    return DevWalletMove(
+      transactionId: transactionId,
+      amount: (body['amount'] as num?)?.toDouble() ?? 0,
+      fees: (body['fees'] as num?)?.toDouble() ?? 0,
+      status: body['status'] as String? ?? 'unknown',
+    );
+  }
+
+  final String transactionId;
+  final double amount;
+  final double fees;
+  final String status;
+}
+
+class DevPartnerOtp {
+  const DevPartnerOtp({required this.challengeId, required this.code});
+
+  final String challengeId;
+  final String code;
+}
+
 class DevGatewayException implements Exception {
-  const DevGatewayException(this.message, {this.statusCode, this.action});
+  const DevGatewayException(
+    this.message, {
+    this.statusCode,
+    this.action,
+    this.problemType,
+  });
+
+  const DevGatewayException.walletVerification(String message)
+    : this(
+        message,
+        problemType:
+            'https://jeeb.dev/errors/devtool-wallet-verification-failed',
+      );
 
   factory DevGatewayException.fromDio(
     DioException e, {
     required String action,
     String? notFoundMessage,
+    bool uncertainOnMoneyTransport = false,
   }) {
     final status = e.response?.statusCode;
+    final data = e.response?.data;
+    final problem = data is Map<String, dynamic>
+        ? data
+        : const <String, dynamic>{};
+    var problemType = problem['type'] as String?;
+    final detail = problem['detail'] as String?;
+    final title = problem['title'] as String?;
     final String message;
-    switch (status) {
-      case 404:
-        message =
-            notFoundMessage ??
-            'Could not $action: the gateway dev endpoints are disabled '
-                '(404). Enable Features:DevEndpoints on the target gateway.';
-      case 410:
-        message =
-            'Could not $action: that gateway route is RETIRED (410 Gone). '
-            'This is permanent, not a transient fault — the Dev Tool is '
-            'calling a surface the gateway no longer serves.';
-      case 401:
-        message =
-            'Could not $action: unauthorized (401). The token mint needs a '
-            'valid service-auth key (or SuperLogin OpenMode).';
-      case 403:
-        message =
-            'Could not $action: forbidden (403). The provided service-auth '
-            'key was rejected by the gateway mint gate.';
-      case null:
-        message =
-            'Could not $action: could not reach the gateway '
-            '(${e.type.name}). Check the Dev Tool Server URL.';
-      default:
-        message = 'Could not $action: the gateway returned $status.';
+    if (uncertainOnMoneyTransport &&
+        (status == null || status >= 500) &&
+        problemType == null) {
+      problemType =
+          'https://jeeb.dev/errors/devtool-wallet-transport-uncertain';
     }
-    return DevGatewayException(message, statusCode: status, action: action);
+    if (problemType == 'https://jeeb.dev/errors/partner-wallet-uncertain' ||
+        problemType == 'https://jeeb.dev/errors/partner-wallet-in-flight' ||
+        problemType ==
+            'https://jeeb.dev/errors/devtool-wallet-transport-uncertain') {
+      message =
+          'The wallet result is uncertain and may already be committed. '
+          'Do not retry this operation; reconcile the displayed operation id.';
+    } else if (problemType?.contains('/otp-') == true) {
+      message =
+          detail ?? title ?? 'The staging wallet OTP could not be verified.';
+    } else {
+      switch (status) {
+        case 404:
+          message =
+              notFoundMessage ??
+              'Could not $action: the gateway dev endpoints are disabled '
+                  '(404). Enable Features:DevEndpoints on the target gateway.';
+        case 410:
+          message =
+              'Could not $action: that gateway route is RETIRED (410 Gone). '
+              'This is permanent, not a transient fault — the Dev Tool is '
+              'calling a surface the gateway no longer serves.';
+        case 401:
+          message =
+              'Could not $action: unauthorized (401). The token mint needs a '
+              'valid service-auth key (or SuperLogin OpenMode).';
+        case 403:
+          message =
+              'Could not $action: forbidden (403). The provided service-auth '
+              'key was rejected by the gateway mint gate.';
+        case null:
+          message =
+              'Could not $action: could not reach the gateway '
+              '(${e.type.name}). Check the Dev Tool Server URL.';
+        default:
+          message =
+              detail ??
+              title ??
+              'Could not $action: the gateway returned $status.';
+      }
+    }
+    return DevGatewayException(
+      message,
+      statusCode: status,
+      action: action,
+      problemType: problemType,
+    );
   }
 
   final String message;
@@ -531,6 +890,16 @@ class DevGatewayException implements Exception {
   final int? statusCode;
 
   final String? action;
+
+  final String? problemType;
+
+  bool get isUncertainWalletMove =>
+      problemType == 'https://jeeb.dev/errors/partner-wallet-uncertain' ||
+      problemType == 'https://jeeb.dev/errors/partner-wallet-in-flight' ||
+      problemType ==
+          'https://jeeb.dev/errors/devtool-wallet-transport-uncertain' ||
+      problemType ==
+          'https://jeeb.dev/errors/devtool-wallet-verification-failed';
 
   @override
   String toString() => 'DevGatewayException($message)';
