@@ -378,7 +378,7 @@ class _ScenarioRosterSnapshot extends StatelessWidget {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: OmdsLoadingState()),
       );
     }
     final error = snapshot.error;

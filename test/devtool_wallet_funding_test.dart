@@ -756,6 +756,22 @@ void main() {
     );
   });
 
+  testWidgets('Scenario Users roster uses the OMDS loading state', (
+    tester,
+  ) async {
+    final rosterGate = Completer<void>();
+    final client = DevGatewayClient(
+      dio: _WalletFundingDio(rosterGate: rosterGate),
+    );
+
+    await tester.pumpWidget(_testApp(ScenarioUsersPage(client: client)));
+    await tester.pump();
+
+    expect(find.byType(OmdsLoadingState), findsOneWidget);
+    rosterGate.complete();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
     'Scenario Users creates a Jeeber and opens its real Add money flow',
     (tester) async {
@@ -861,6 +877,7 @@ class _WalletFundingDio extends Fake implements Dio {
     this.topupReplayStatus,
     this.credentialResponseLost = false,
     this.includeRosterJeeber = false,
+    this.rosterGate,
     this.otpThreshold = 50,
     this.omitOtpPolicy = false,
   });
@@ -886,6 +903,7 @@ class _WalletFundingDio extends Fake implements Dio {
   final String? topupReplayStatus;
   final bool credentialResponseLost;
   final bool includeRosterJeeber;
+  final Completer<void>? rosterGate;
   final double otpThreshold;
   final bool omitOtpPolicy;
   double _fundAmount = 50;
@@ -1095,6 +1113,7 @@ class _WalletFundingDio extends Fake implements Dio {
         'currencyId': 1,
       };
     } else if (path == '/api/User/super-login/users') {
+      if (rosterGate != null) await rosterGate!.future;
       body = <String, dynamic>{
         'users': includeRosterJeeber
             ? <Object>[
