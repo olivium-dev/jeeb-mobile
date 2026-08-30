@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import '../../diagnostics/diag_redaction.dart';
+import 'audited_interaction_identifiers.dart';
 
 abstract final class SecretRedactor {
   static const Set<String> kSensitiveKeys = {
@@ -137,36 +138,6 @@ abstract final class SecretRedactor {
     'accept',
     'xrequestid',
     'xcorrelationid',
-  };
-
-  /// Exact, compile-time interaction identifiers that have been audited not
-  /// to embed user, request, review, transaction, credential, or list-row
-  /// data. Unknown and interpolated identifiers are denied by default.
-  static const Set<String> _auditedInteractionIdentifiers = {
-    'availability_switch',
-    'client_home_mic_cta',
-    'client_home_retry_cta',
-    'devtool.session_logs.clear',
-    'devtool.session_logs.export',
-    'devtool.session_logs.recording',
-    'feed_make_offer_cta',
-    'notifications_retry_cta',
-    'obs_overlay_bubble',
-    'offer_accept_cancel_cta',
-    'offer_accept_confirm_cta',
-    'order_summary_open_chat',
-    'order_summary_track',
-    'request_feed_retry_cta',
-    'reviews_retry_cta',
-    'shell_tab_deliver',
-    'shell_tab_delivery',
-    'shell_tab_earnings',
-    'shell_tab_profile',
-    'shell_tab_requests',
-    'voice_request_cancel_button',
-    'voice_request_mic_button',
-    'voice_request_send_button',
-    'voice_request_type_button',
   };
 
   static const Set<String> _auditedHeaderKeyNames = {
@@ -647,7 +618,11 @@ abstract final class SecretRedactor {
 
   static String? redactInteractionIdentifier(String? identifier) {
     if (identifier == null || identifier.isEmpty) return identifier;
-    if (!_auditedInteractionIdentifiers.contains(identifier)) return redacted;
+    final alias = kAuditedStaticInteractionAliases[identifier];
+    if (alias != null) return redactIdentifier(alias);
+    if (!kAuditedStaticInteractionIdentifiers.contains(identifier)) {
+      return redacted;
+    }
     return redactIdentifier(identifier);
   }
 

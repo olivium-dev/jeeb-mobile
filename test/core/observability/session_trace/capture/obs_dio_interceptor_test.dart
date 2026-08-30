@@ -559,6 +559,63 @@ void main() {
     }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
+      'interceptor bounds oversized request headers before lookup/redaction',
+      () {
+        final cyclic = <Object?>[];
+        cyclic.add(cyclic);
+        final headers = <String, dynamic>{
+          'x-request-id': cyclic,
+          'content-length': cyclic,
+        };
+        for (var i = 0; i < SecretRedactor.maxCollectionEntries * 100; i++) {
+          headers['x-private-$i'] = 'request-canary-$i';
+        }
+
+        final event = _roundTrip(interceptor, sink, _options(headers: headers));
+
+        expect(event, isNotNull);
+        expect(event!.correlationId, isNull);
+        expect(
+          event.requestHeaders.length,
+          lessThanOrEqualTo(SecretRedactor.maxCollectionEntries + 1),
+        );
+        final encoded = jsonEncode(event.toJson());
+        expect(encoded, isNot(contains('request-canary-6399')));
+        expect(encoded, isNot(contains('x-private-6399')));
+      },
+      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
+    );
+
+    test(
+      'interceptor bounds response headers and ignores tail correlation IDs',
+      () {
+        final headers = Headers();
+        for (var i = 0; i < SecretRedactor.maxCollectionEntries * 100; i++) {
+          headers.add('x-private-$i', 'response-canary-$i');
+        }
+        headers.add('x-request-id', 'tail-correlation-canary');
+
+        final event = _roundTrip(
+          interceptor,
+          sink,
+          _options(),
+          responseHeaders: headers,
+        );
+
+        expect(event, isNotNull);
+        expect(event!.correlationId, isNull);
+        expect(
+          event.responseHeaders.length,
+          lessThanOrEqualTo(SecretRedactor.maxCollectionEntries + 1),
+        );
+        final encoded = jsonEncode(event.toJson());
+        expect(encoded, isNot(contains('response-canary-6399')));
+        expect(encoded, isNot(contains('tail-correlation-canary')));
+      },
+      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
+    );
+
+    test(
       'FormData fields and files are bounded before the summary is built',
       () {
         final form = FormData();

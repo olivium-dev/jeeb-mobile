@@ -144,9 +144,7 @@ final class ObsDioInterceptor extends Interceptor {
   }
 
   static Map<String, Object?> _requestHeaders(RequestOptions options) {
-    final redacted = SecretRedactor.redactHeaders(
-      _toObjectMap(options.headers),
-    );
+    final redacted = SecretRedactor.redactHeaders(options.headers);
     final bytes = _requestByteLength(options);
     if (bytes == null) return redacted;
     return <String, Object?>{...redacted, _requestBytesKey: bytes};
@@ -164,7 +162,7 @@ final class ObsDioInterceptor extends Interceptor {
   static Map<String, Object?> _responseHeaders(Response<dynamic>? response) {
     if (response == null) return const <String, Object?>{};
     final redacted = SecretRedactor.redactHeaders(
-      _flattenHeaders(response.headers),
+      _boundedResponseHeaders(response.headers),
     );
     final bytes = _responseByteLength(response);
     if (bytes == null) return redacted;
@@ -218,37 +216,79 @@ final class ObsDioInterceptor extends Interceptor {
     RequestOptions options,
     Response<dynamic>? response,
   ) {
-    for (final name in _correlationHeaderNames) {
-      final fromRequest = _headerIgnoreCase(options.headers, name);
-      if (fromRequest != null && fromRequest.isNotEmpty) {
-        return SecretRedactor.redactIdentifier(fromRequest);
-      }
+    final fromRequest = _boundedHeaderValue(
+      options.headers,
+      _correlationHeaderNames,
+    );
+    if (fromRequest != null) {
+      final text = fromRequest is String
+          ? fromRequest
+          : (fromRequest as num).toString();
+      if (text.isNotEmpty) return SecretRedactor.redactIdentifier(text);
     }
     if (response == null) return null;
-    for (final name in _correlationHeaderNames) {
-      final values = response.headers[name];
-      if (values != null && values.isNotEmpty) {
-        return SecretRedactor.redactIdentifier(values.first);
-      }
+    final fromResponse = _boundedHeaderValue(
+      response.headers.map,
+      _correlationHeaderNames,
+    );
+    if (fromResponse != null) {
+      final text = fromResponse is String
+          ? fromResponse
+          : (fromResponse as num).toString();
+      if (text.isNotEmpty) return SecretRedactor.redactIdentifier(text);
     }
     return null;
   }
 
-  static String? _headerIgnoreCase(Map<String, dynamic> headers, String name) {
+  static Object? _boundedHeaderValue(
+    Map<String, Object?> headers,
+    List<String> names,
+  ) {
+    final matches = <String, Object?>{};
+    var count = 0;
     for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() == name) return entry.value?.toString();
+      if (count >= SecretRedactor.maxCollectionEntries) break;
+      count++;
+      if (entry.key.length > SecretRedactor.maxStringCodeUnits) continue;
+      final normalized = entry.key.toLowerCase();
+      if (!names.contains(normalized) || matches.containsKey(normalized)) {
+        continue;
+      }
+      final scalar = _boundedHeaderScalar(entry.value);
+      if (scalar != null) matches[normalized] = scalar;
+    }
+    for (final name in names) {
+      final value = matches[name];
+      if (value != null) return value;
     }
     return null;
   }
 
-  static Map<String, Object?> _toObjectMap(Map<String, dynamic> headers) =>
-      headers.map((key, value) => MapEntry(key, value as Object?));
+  static Object? _boundedHeaderScalar(Object? value) {
+    if (value is String) {
+      return value.length <= SecretRedactor.maxStringCodeUnits ? value : null;
+    }
+    if (value is num) return value;
+    if (value is List && value.isNotEmpty) {
+      final first = value.first;
+      if (first is String) {
+        return first.length <= SecretRedactor.maxStringCodeUnits ? first : null;
+      }
+      if (first is num) return first;
+    }
+    return null;
+  }
 
-  static Map<String, Object?> _flattenHeaders(Headers headers) {
+  static Map<String, Object?> _boundedResponseHeaders(Headers headers) {
     final out = <String, Object?>{};
-    headers.map.forEach((key, values) {
-      out[key] = values.length == 1 ? values.first : values;
-    });
+    var count = 0;
+    for (final entry in headers.map.entries) {
+      if (count >= SecretRedactor.maxCollectionEntries) break;
+      out[entry.key] = entry.value.length == 1
+          ? entry.value.first
+          : entry.value;
+      count++;
+    }
     return out;
   }
 
@@ -346,10 +386,9 @@ final class ObsDioInterceptor extends Interceptor {
   }
 
   static int? _requestByteLength(RequestOptions options) {
-    final header = _headerIgnoreCase(
-      options.headers,
+    final header = _boundedHeaderValue(options.headers, const <String>[
       Headers.contentLengthHeader,
-    );
+    ]);
     final fromHeader = _parseContentLength(header);
     return fromHeader ?? _encodedLength(options.data);
   }
@@ -360,18 +399,15 @@ final class ObsDioInterceptor extends Interceptor {
       final parsed = int.tryParse(value);
       return parsed != null && parsed >= 0 ? parsed : null;
     }
-    if (value is List && value.isNotEmpty) {
-      return _parseContentLength(value.first);
-    }
     return null;
   }
 
   static int? _responseByteLength(Response<dynamic> response) {
-    try {
-      final raw = response.headers.value(Headers.contentLengthHeader);
-      final headerBytes = raw == null ? null : int.tryParse(raw);
-      if (headerBytes != null) return headerBytes;
-    } catch (_) {}
+    final raw = _boundedHeaderValue(response.headers.map, const <String>[
+      Headers.contentLengthHeader,
+    ]);
+    final headerBytes = _parseContentLength(raw);
+    if (headerBytes != null) return headerBytes;
     return _encodedLength(response.data);
   }
 }

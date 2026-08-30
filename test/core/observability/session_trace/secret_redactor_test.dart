@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/audited_interaction_identifiers.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
 
 const String _fakeJwt =
@@ -9,6 +11,91 @@ const String _fakeJwt =
 /// The exact leak signature a run-mission gate would grep for: a raw
 /// `Bearer ` header value or a JWT-shaped `eyJ…` token.
 final RegExp _secretPattern = RegExp(r'Bearer |eyJ[A-Za-z0-9_-]{10,}\.');
+
+const List<String> _staticActionMarkers = <String>[
+  'accept',
+  'apply',
+  'attach',
+  'authenticate',
+  'back',
+  'button',
+  'cancel',
+  'chip',
+  'clear',
+  'close',
+  'confirm',
+  'continue',
+  'cta',
+  'decline',
+  'delete',
+  'dismiss',
+  'dispute',
+  'done',
+  'edit',
+  'enable',
+  'export',
+  'filter',
+  'link',
+  'logout',
+  'mic',
+  'next',
+  'open',
+  'option',
+  'photo',
+  'pill',
+  'play',
+  'rate',
+  'recording',
+  'register',
+  'resend',
+  'retry',
+  'row',
+  'save',
+  'send',
+  'sign_out',
+  'signout',
+  'skip',
+  'submit',
+  'support',
+  'switch',
+  'tab',
+  'toggle',
+  'topup',
+  'track',
+  'upload',
+  'wallet',
+  'zoom',
+];
+
+const List<String> _sensitiveControlSuffixes = <String>[
+  '_body',
+  '_composer',
+  '_field',
+  '_input',
+  '_search',
+];
+
+const List<String> _sensitiveControlMarkers = <String>[
+  'comment_field',
+  'description_input',
+  'description_field',
+  'name_field',
+  'name_input',
+  'note_field',
+  'passcode',
+  'password',
+  'price_field',
+  'search_field',
+  'search_input',
+  'user_id',
+];
+
+bool _isStaticActionCandidate(String identifier) {
+  final normalized = identifier.toLowerCase().replaceAll('-', '_');
+  return _staticActionMarkers.any(normalized.contains) &&
+      !_sensitiveControlMarkers.any(normalized.contains) &&
+      !_sensitiveControlSuffixes.any(normalized.endsWith);
+}
 
 void main() {
   group('redactString', () {
@@ -500,6 +587,10 @@ void main() {
         SecretRedactor.redactInteractionIdentifier('client_home_retry_cta'),
         'client_home_retry_cta',
       );
+      expect(
+        SecretRedactor.redactInteractionIdentifier('shell_tab_dashboard'),
+        'shell_tab_dashboard',
+      );
       for (final dynamicId in <String>[
         'phone_otp_keypad_5',
         'review_rev-secret_report_cta',
@@ -512,6 +603,75 @@ void main() {
           reason: dynamicId,
         );
       }
+    });
+
+    test('static action registry covers every safe exact production literal', () {
+      final literalPattern = RegExp(
+        r'''(?:identifier|semanticIdentifier|semanticsIdentifier|accessibilityIdentifier)\s*:\s*(?:r)?(?:'([^'$\r\n]+)'|"([^"$\r\n]+)")''',
+      );
+      final missing = <String>{};
+      for (final entity in Directory('lib').listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        final source = entity.readAsStringSync();
+        for (final match in literalPattern.allMatches(source)) {
+          final identifier = match.group(1) ?? match.group(2)!;
+          if (!_isStaticActionCandidate(identifier)) continue;
+          if (SecretRedactor.redactIdentifier(identifier) != identifier) {
+            continue;
+          }
+          if (!kAuditedStaticInteractionIdentifiers.contains(identifier)) {
+            missing.add(identifier);
+          }
+        }
+      }
+      expect(missing, isEmpty);
+    });
+
+    test('static action registry never admits free-text controls', () {
+      final rejectedByIdentifierFloor = <String>[];
+      for (final identifier in kAuditedStaticInteractionIdentifiers) {
+        final normalized = identifier.toLowerCase().replaceAll('-', '_');
+        expect(
+          _sensitiveControlMarkers.any(normalized.contains) ||
+              _sensitiveControlSuffixes.any(normalized.endsWith),
+          isFalse,
+          reason: identifier,
+        );
+        if (SecretRedactor.redactIdentifier(identifier) != identifier) {
+          rejectedByIdentifierFloor.add(identifier);
+        }
+      }
+      expect(rejectedByIdentifierFloor, isEmpty);
+      for (final entry in kAuditedStaticInteractionAliases.entries) {
+        expect(entry.key, isNot(entry.value));
+        expect(
+          SecretRedactor.redactIdentifier(entry.value),
+          entry.value,
+          reason: entry.key,
+        );
+      }
+    });
+
+    test('profile actions stay distinct without retaining sensitive names', () {
+      const sourceIds = <String>[
+        'customer_profile_password_row',
+        'customer_profile_notifications_row',
+        'customer_profile_language_row',
+        'customer_profile_addresses_row',
+        'customer_profile_contact_row',
+        'customer_profile_rate_app_row',
+        'customer_profile_logout_row',
+      ];
+      final captured = sourceIds
+          .map(SecretRedactor.redactInteractionIdentifier)
+          .toList();
+
+      expect(captured, isNot(contains(SecretRedactor.redacted)));
+      expect(captured.toSet(), hasLength(sourceIds.length));
+      expect(captured, contains('customer_profile_security_row'));
+      expect(captured, contains('customer_profile_saved_places_row'));
+      expect(captured.join(' '), isNot(contains('password')));
+      expect(captured.join(' '), isNot(contains('address')));
     });
   });
 

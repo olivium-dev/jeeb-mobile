@@ -308,6 +308,55 @@ void main() {
     }, skip: !kObsCompiledIn);
 
     testWidgets(
+      'two static actions on one screen retain distinct audited identifiers',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  for (final target in <({String id, Key key})>[
+                    (
+                      id: 'delivery_status_contact_cta',
+                      key: const Key('contact'),
+                    ),
+                    (
+                      id: 'delivery_status_cancel_cta',
+                      key: const Key('cancel'),
+                    ),
+                  ])
+                    Semantics(
+                      identifier: target.id,
+                      button: true,
+                      child: GestureDetector(
+                        key: target.key,
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                        child: const SizedBox(width: 120, height: 56),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('contact')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('cancel')));
+        await tester.pump();
+
+        expect(_interactions(sink).map((event) => event.targetId), <String>[
+          'delivery_status_contact_cta',
+          'delivery_status_cancel_cta',
+        ]);
+        handle.dispose();
+      },
+      skip: !kObsCompiledIn,
+    );
+
+    testWidgets(
       'OTP keypad digits collapse to one fixed target and omit coordinates',
       (tester) async {
         final handle = tester.ensureSemantics();
