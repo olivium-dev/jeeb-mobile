@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import '../../diagnostics/diag_redaction.dart';
@@ -136,6 +137,36 @@ abstract final class SecretRedactor {
     'accept',
     'xrequestid',
     'xcorrelationid',
+  };
+
+  /// Exact, compile-time interaction identifiers that have been audited not
+  /// to embed user, request, review, transaction, credential, or list-row
+  /// data. Unknown and interpolated identifiers are denied by default.
+  static const Set<String> _auditedInteractionIdentifiers = {
+    'availability_switch',
+    'client_home_mic_cta',
+    'client_home_retry_cta',
+    'devtool.session_logs.clear',
+    'devtool.session_logs.export',
+    'devtool.session_logs.recording',
+    'feed_make_offer_cta',
+    'notifications_retry_cta',
+    'obs_overlay_bubble',
+    'offer_accept_cancel_cta',
+    'offer_accept_confirm_cta',
+    'order_summary_open_chat',
+    'order_summary_track',
+    'request_feed_retry_cta',
+    'reviews_retry_cta',
+    'shell_tab_deliver',
+    'shell_tab_delivery',
+    'shell_tab_earnings',
+    'shell_tab_profile',
+    'shell_tab_requests',
+    'voice_request_cancel_button',
+    'voice_request_mic_button',
+    'voice_request_send_button',
+    'voice_request_type_button',
   };
 
   static const Set<String> _auditedHeaderKeyNames = {
@@ -297,8 +328,6 @@ abstract final class SecretRedactor {
     'seq',
     'status',
     'ms',
-    'dx',
-    'dy',
     'count',
     'bytes',
     'contentlength',
@@ -353,8 +382,6 @@ abstract final class SecretRedactor {
     'deliverynotes',
     'description',
     'devicetoken',
-    'dx',
-    'dy',
     'email',
     'emailaddress',
     'enumlike',
@@ -363,6 +390,10 @@ abstract final class SecretRedactor {
     'errortype',
     'fcmtoken',
     'file',
+    'field',
+    'fields',
+    'filename',
+    'files',
     'firstname',
     'floorapt',
     'freetext',
@@ -537,6 +568,8 @@ abstract final class SecretRedactor {
 
   static Map<String, Object?> redactHeaders(Map<String, Object?> headers) {
     final out = <String, Object?>{};
+    final budget = _RedactionBudget();
+    final activeLists = HashSet<Object>.identity();
     var count = 0;
     for (final entry in headers.entries) {
       if (count >= maxCollectionEntries) {
@@ -564,7 +597,13 @@ abstract final class SecretRedactor {
       if (DiagRedaction.isSensitiveHeader(key) || isSensitiveKey(key)) {
         out[outputKey] = redacted;
       } else if (_safeHeaderNames.contains(normalized)) {
-        out[outputKey] = _redactHeaderValue(value, normalized);
+        out[outputKey] = _redactHeaderValue(
+          value,
+          normalized,
+          budget,
+          0,
+          activeLists,
+        );
       } else {
         out[outputKey] = redacted;
       }
@@ -602,7 +641,14 @@ abstract final class SecretRedactor {
     if (identifier == null || identifier.isEmpty) return identifier;
     final scanned = redactString(identifier);
     if (scanned != identifier) return redacted;
+    if (isSensitiveKey(identifier)) return redacted;
     return _safeIdentifierPattern.hasMatch(identifier) ? identifier : redacted;
+  }
+
+  static String? redactInteractionIdentifier(String? identifier) {
+    if (identifier == null || identifier.isEmpty) return identifier;
+    if (!_auditedInteractionIdentifiers.contains(identifier)) return redacted;
+    return redactIdentifier(identifier);
   }
 
   static String? redactPath(String? path) {
@@ -788,16 +834,43 @@ abstract final class SecretRedactor {
     return out;
   }
 
-  static Object? _redactHeaderValue(Object? value, String normalizedKey) {
+  static Object? _redactHeaderValue(
+    Object? value,
+    String normalizedKey,
+    _RedactionBudget budget,
+    int depth,
+    HashSet<Object> activeLists,
+  ) {
+    if (!budget.claimNode(depth)) return truncated;
     if (value is List) {
-      return value
-          .map((item) => _redactHeaderValue(item, normalizedKey))
-          .toList();
+      if (!activeLists.add(value)) return truncated;
+      final out = <Object?>[];
+      try {
+        for (final item in value) {
+          if (out.length >= maxCollectionEntries) {
+            out.add(truncated);
+            break;
+          }
+          out.add(
+            _redactHeaderValue(
+              item,
+              normalizedKey,
+              budget,
+              depth + 1,
+              activeLists,
+            ),
+          );
+        }
+      } finally {
+        activeLists.remove(value);
+      }
+      return out;
     }
     if (value is num) {
       return normalizedKey == 'contentlength' && value >= 0 ? value : redacted;
     }
     if (value is! String) return redacted;
+    if (!budget.claimString(value)) return truncated;
     final scanned = redactString(value);
     if (scanned != value) return redacted;
     return switch (normalizedKey) {
@@ -858,8 +931,8 @@ abstract final class SecretRedactor {
             : redacted,
       'reqid' ||
       'messageid' ||
-      'targetid' ||
       'buildsha' => redactIdentifier(value) ?? redacted,
+      'targetid' => redactInteractionIdentifier(value) ?? redacted,
       'contenttype' ||
       'accept' => _safeMimePattern.hasMatch(value) ? value : redacted,
       'contentlength' => int.tryParse(value) == null ? redacted : value,

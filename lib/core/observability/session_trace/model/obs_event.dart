@@ -1,11 +1,6 @@
 library;
 
-enum ObsEventType {
-  screen,
-  api,
-  notification,
-  interaction,
-}
+enum ObsEventType { screen, api, notification, interaction }
 
 sealed class ObsEvent {
   const ObsEvent({
@@ -28,14 +23,14 @@ sealed class ObsEvent {
   Map<String, Object?> toPayloadJson();
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'v': schemaVersion,
-        'type': type.name,
-        'id': id,
-        'sessionId': sessionId,
-        'seq': seq,
-        'ts': timestampUtc.toIso8601String(),
-        'payload': toPayloadJson(),
-      };
+    'v': schemaVersion,
+    'type': type.name,
+    'id': id,
+    'sessionId': sessionId,
+    'seq': seq,
+    'ts': timestampUtc.toIso8601String(),
+    'payload': toPayloadJson(),
+  };
 
   static const int schemaVersion = 1;
 }
@@ -68,12 +63,12 @@ final class ObsScreenEvent extends ObsEvent {
 
   @override
   Map<String, Object?> toPayloadJson() => <String, Object?>{
-        'action': action,
-        'route': route,
-        'name': name,
-        'prev': ?previousRoute,
-        'params': params,
-      };
+    'action': action,
+    'route': route,
+    'name': name,
+    'prev': ?previousRoute,
+    'params': params,
+  };
 }
 
 final class ObsApiEvent extends ObsEvent {
@@ -125,19 +120,19 @@ final class ObsApiEvent extends ObsEvent {
 
   @override
   Map<String, Object?> toPayloadJson() => <String, Object?>{
-        'm': method,
-        'path': path,
-        'status': statusCode,
-        'ms': durationMs,
-        'reqHeaders': requestHeaders,
-        'reqBody': requestBody,
-        'respHeaders': responseHeaders,
-        'respBody': responseBody,
-        'reqId': ?correlationId,
-        'screen': ?screen,
-        'errorType': ?errorType,
-        'errorMessage': ?errorMessage,
-      };
+    'm': method,
+    'path': path,
+    'status': statusCode,
+    'ms': durationMs,
+    'reqHeaders': requestHeaders,
+    'reqBody': requestBody,
+    'respHeaders': responseHeaders,
+    'respBody': responseBody,
+    'reqId': ?correlationId,
+    'screen': ?screen,
+    'errorType': ?errorType,
+    'errorMessage': ?errorMessage,
+  };
 }
 
 final class ObsNotificationEvent extends ObsEvent {
@@ -177,15 +172,15 @@ final class ObsNotificationEvent extends ObsEvent {
 
   @override
   Map<String, Object?> toPayloadJson() => <String, Object?>{
-        'channel': channel,
-        'mode': mode,
-        'messageId': messageId,
-        'category': category,
-        'title': ?title,
-        'body': ?body,
-        'deepLink': ?deepLink,
-        'data': data,
-      };
+    'channel': channel,
+    'mode': mode,
+    'messageId': messageId,
+    'category': category,
+    'title': ?title,
+    'body': ?body,
+    'deepLink': ?deepLink,
+    'data': data,
+  };
 }
 
 final class ObsInteractionEvent extends ObsEvent {
@@ -198,8 +193,6 @@ final class ObsInteractionEvent extends ObsEvent {
     this.targetId,
     this.targetLabel,
     this.screen,
-    this.dx,
-    this.dy,
     this.valuePreview,
   });
 
@@ -211,9 +204,6 @@ final class ObsInteractionEvent extends ObsEvent {
 
   final String? screen;
 
-  final int? dx;
-  final int? dy;
-
   final String? valuePreview;
 
   @override
@@ -221,12 +211,10 @@ final class ObsInteractionEvent extends ObsEvent {
 
   @override
   Map<String, Object?> toPayloadJson() => <String, Object?>{
-        'gesture': gesture,
-        'targetId': ?targetId,
-        'targetLabel': ?targetLabel,
-        'screen': ?screen,
-        'dx': ?dx,
-        'dy': ?dy,
-        'valuePreview': ?valuePreview,
-      };
+    'gesture': gesture,
+    'targetId': ?targetId,
+    'targetLabel': ?targetLabel,
+    'screen': ?screen,
+    'valuePreview': ?valuePreview,
+  };
 }

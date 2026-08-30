@@ -271,13 +271,54 @@ final class ObsDioInterceptor extends Interceptor {
   }
 
   static Map<String, Object?> _formDataSummary(FormData form) {
-    final fields = <String, Object?>{
-      for (final entry in form.fields) entry.key: entry.value,
-    };
-    final files = <Map<String, Object?>>[
-      for (final entry in form.files)
-        <String, Object?>{'field': entry.key, 'filename': entry.value.filename},
-    ];
+    final fields = <String, Object?>{};
+    final files = <Map<String, Object?>>[];
+    var remaining = SecretRedactor.maxCollectionEntries;
+    var fieldsTruncated = false;
+    for (final entry in form.fields) {
+      if (remaining == 0) {
+        fieldsTruncated = true;
+        break;
+      }
+      if (entry.key.length > SecretRedactor.maxStringCodeUnits) {
+        fieldsTruncated = true;
+        break;
+      }
+      fields[entry.key] =
+          entry.value.length <= SecretRedactor.maxStringCodeUnits
+          ? entry.value
+          : SecretRedactor.truncated;
+      remaining--;
+    }
+    if (fieldsTruncated) {
+      fields[SecretRedactor.truncated] = SecretRedactor.truncated;
+    }
+
+    var filesTruncated = false;
+    for (final entry in form.files) {
+      if (remaining == 0) {
+        filesTruncated = true;
+        break;
+      }
+      final filename = entry.value.filename;
+      files.add(<String, Object?>{
+        'field': entry.key.length <= SecretRedactor.maxStringCodeUnits
+            ? entry.key
+            : SecretRedactor.truncated,
+        'filename':
+            filename != null &&
+                filename.length <= SecretRedactor.maxStringCodeUnits
+            ? filename
+            : SecretRedactor.truncated,
+      });
+      remaining--;
+    }
+    if (filesTruncated) {
+      files.add(<String, Object?>{
+        'field': SecretRedactor.truncated,
+        'filename': SecretRedactor.truncated,
+      });
+    }
     return <String, Object?>{
       if (fields.isNotEmpty) 'fields': fields,
       if (files.isNotEmpty) 'files': files,

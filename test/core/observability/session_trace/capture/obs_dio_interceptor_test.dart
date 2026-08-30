@@ -559,6 +559,41 @@ void main() {
     }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
+      'FormData fields and files are bounded before the summary is built',
+      () {
+        final form = FormData();
+        for (var i = 0; i < SecretRedactor.maxCollectionEntries * 2; i++) {
+          form.fields.add(MapEntry<String, String>('field_$i', 'value_$i'));
+          form.files.add(
+            MapEntry<String, MultipartFile>(
+              'upload_$i',
+              MultipartFile.fromString('x', filename: 'private-$i.bin'),
+            ),
+          );
+        }
+
+        final event = _roundTrip(
+          interceptor,
+          sink,
+          _options(method: 'POST', data: form),
+        );
+
+        final body = event!.requestBody! as Map<String, Object?>;
+        final fields = body['fields']! as Map<String, Object?>;
+        final files = body['files']! as List<Object?>;
+        expect(
+          fields.length,
+          lessThanOrEqualTo(SecretRedactor.maxCollectionEntries + 1),
+        );
+        expect(files.length, lessThanOrEqualTo(1));
+        final encoded = jsonEncode(body);
+        expect(encoded, isNot(contains('private-127.bin')));
+        expect(encoded, isNot(contains('value_127')));
+      },
+      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
+    );
+
+    test(
       'captureApiBodies=false omits bodies but keeps headers',
       () {
         ObservabilityConfig.instance.captureApiBodies = false;

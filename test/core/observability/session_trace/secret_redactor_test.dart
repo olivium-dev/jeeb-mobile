@@ -74,6 +74,30 @@ void main() {
         hasLength(2),
       );
     });
+
+    test('bounds nested header lists and terminates cyclic lists', () {
+      final oversized = List<Object?>.filled(
+        SecretRedactor.maxCollectionEntries * 100,
+        'application/json',
+      );
+      final cyclic = <Object?>[];
+      cyclic.add(cyclic);
+
+      final oversizedOut = SecretRedactor.redactHeaders(<String, Object?>{
+        'Accept': oversized,
+      });
+      final cyclicOut = SecretRedactor.redactHeaders(<String, Object?>{
+        'Accept': cyclic,
+      });
+
+      final bounded = oversizedOut['Accept']! as List<Object?>;
+      expect(
+        bounded.length,
+        lessThanOrEqualTo(SecretRedactor.maxCollectionEntries + 1),
+      );
+      expect(bounded.last, SecretRedactor.truncated);
+      expect(cyclicOut['Accept'], <Object?>[SecretRedactor.truncated]);
+    });
   });
 
   group('redactBody — sensitive keys (non-disableable hard floor)', () {
@@ -461,6 +485,33 @@ void main() {
         SecretRedactor.redactIdentifier('otp-482913'),
         SecretRedactor.redacted,
       );
+      expect(
+        SecretRedactor.redactIdentifier('phone_otp_keypad_3'),
+        SecretRedactor.redacted,
+      );
+      expect(
+        SecretRedactor.redactIdentifier('phone_otp_keypad_7'),
+        SecretRedactor.redacted,
+      );
+    });
+
+    test('interaction identifiers allow only audited exact literals', () {
+      expect(
+        SecretRedactor.redactInteractionIdentifier('client_home_retry_cta'),
+        'client_home_retry_cta',
+      );
+      for (final dynamicId in <String>[
+        'phone_otp_keypad_5',
+        'review_rev-secret_report_cta',
+        'jeeber_feed_request_offer_request-secret',
+        'swordfish',
+      ]) {
+        expect(
+          SecretRedactor.redactInteractionIdentifier(dynamicId),
+          SecretRedactor.redacted,
+          reason: dynamicId,
+        );
+      }
     });
   });
 

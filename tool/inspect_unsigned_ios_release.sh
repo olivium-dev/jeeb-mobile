@@ -119,7 +119,7 @@ fi
 # distributed externally (`pilot(distribute_external: false)`).
 if [[ "${RELEASE_PROFILE}" == production ]]; then
   if [[ -f "${APP_BINARY}" ]] && LC_ALL=C grep -aEq \
-      '/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|devtool_launcher|Jeeber Dev Tool|Jeeb Internal QA|JEEB_DEVTOOL_ENABLED=true|JEEB_INTERNAL_RELEASE=true' \
+      '/api/User/(user-id-login|super-login/users)|jeeb\.seam\.super_login_|DefaultSuperLogin|SuperLoginService|SuperLoginDemoUser|devtool_shell\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|devtool_launcher|Jeeber Dev Tool|Jeeb Internal QA|JEEB_DEVTOOL_ENABLED=true|JEEB_INTERNAL_RELEASE=true|JEEB_OBS_OVERLAY|obs_trace|devtool\.session_logs|Session Logs' \
     "${APP_BINARY}"; then
     fail 'developer surface leaked into a store-bound Dart snapshot'
   fi

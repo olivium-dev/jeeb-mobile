@@ -58,6 +58,28 @@ void _expectBashPasses(String script, [List<String> arguments = const []]) {
 }
 
 void _registerAndroidContracts() {
+  test('production payload gates deny every local session-log marker', () {
+    const markers = <String>[
+      'JEEB_OBS_OVERLAY',
+      'obs_trace',
+      r'devtool\.session_logs',
+      'Session Logs',
+    ];
+    final androidInspector = _source('tool/inspect_android_release_payload.sh');
+    final androidNegative = _source(
+      'tool/test_inspect_android_release_payload.sh',
+    );
+    final iosInspector = _source('tool/inspect_unsigned_ios_release.sh');
+    _expectContainsAll(androidInspector, markers);
+    _expectContainsAll(iosInspector, markers);
+    _expectContainsAll(androidNegative, const <String>[
+      'JEEB_OBS_OVERLAY',
+      'obs_trace',
+      'devtool.session_logs',
+      'Session Logs',
+    ]);
+  });
+
   test('Android production signing inspects the certificate fingerprint', () {
     final gradle = _source('android/app/build.gradle');
     _expectContainsAll(gradle, [
@@ -334,13 +356,15 @@ void _registerIosContracts() {
     expect(
       denyList.length,
       2,
-      reason: 'the production profile must forbid devtool_shake in BOTH the '
+      reason:
+          'the production profile must forbid devtool_shake in BOTH the '
           'Dart snapshot and the native Runner binary',
     );
     expect(
       inspector,
       contains(r'if [[ "${RELEASE_PROFILE}" == production ]]; then'),
-      reason: 'developer-surface markers must be scoped to a profile that '
+      reason:
+          'developer-surface markers must be scoped to a profile that '
           'DEFAULTS to production, never unconditionally permitted',
     );
     expect(
@@ -351,11 +375,10 @@ void _registerIosContracts() {
     // And the staging artifact must PROVE it carries the tool, so a silent
     // fallback to plain `Release` cannot pass as a successful staging build.
     expect(
-      'devtool_shake'.allMatches(
-        inspector.split('== staging ]]').last,
-      ).length,
+      'devtool_shake'.allMatches(inspector.split('== staging ]]').last).length,
       2,
-      reason: 'the staging positive control must assert the Dev Tool is '
+      reason:
+          'the staging positive control must assert the Dev Tool is '
           'present in BOTH binaries',
     );
     expect(inspector, contains(r'if [[ "${runner_localhost_count}" != 0 ]]'));
@@ -544,89 +567,86 @@ void _registerCiContracts() {
     },
   );
 
-  test(
-    'trusted RC is protected-main-only, immutable, signed, and retained',
-    () {
-      final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
-      _expectContainsAll(workflow, [
-        'workflow_dispatch:',
-        'environment: mobile-rc',
-        "api_get 'environments/mobile-rc'",
-        '.deployment_branch_policy.protected_branches == true',
-        '.deployment_branch_policy.custom_branch_policies == false',
-        'checks: read',
-        'Flutter CI + coverage (79%)',
-        'Release security scans',
-        'check-runs?filter=latest&per_page=100',
-        'REVIEWED_SHA: \${{ inputs.reviewed_sha }}',
-        r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
-        r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
-        r'(( 10#${BUILD_NUMBER} <= 2100000000 ))',
-        'CANDIDATE_PLATFORM: \${{ inputs.platform }}',
-        r'"${CANDIDATE_PLATFORM}" == both',
-        "inputs.platform != 'ios'",
-        "inputs.platform != 'android'",
-        r'git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD',
-        'persist-credentials: false',
-        'flutter build appbundle --flavor production --release --no-pub',
-        'bash tool/build_signed_ios_internal_candidate.sh',
-        'environment: mobile-internal-distribution',
-        'secrets.OMDS_FLUTTER_PAT',
-        'secrets.APP_STORE_KEY_ID',
-        'secrets.APP_STORE_ISSUER_ID',
-        'secrets.APP_STORE_KEY_CONTENT_B64',
-        'APP_STORE_CONNECT_API_KEY_PATH',
-        'unset APP_STORE_KEY_CONTENT_B64',
-        r'chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"',
-        'trap cleanup EXIT HUP INT TERM',
-        'jarsigner -verify -strict -verbose -certs',
-        'keytool -printcert -jarfile',
-        '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172',
-        'bash tool/inspect_android_release_payload.sh',
-        'build/app/outputs/mapping/productionRelease/mapping.txt',
-        "-name '*.dSYM'",
-        'mapping_sha256',
-        'dsym_sha256',
-        'source_run_attempt',
-        'source_head_sha',
-        'source_workflow_path',
-        'clarity_enabled: false',
-        'runs-on: macos-26',
-        '/Applications/Xcode_26.6.app/Contents/Developer',
-        'xcode_version="\$(xcodebuild -version)"',
-        "grep -Fxq 'Xcode 26.6' <<<\"\${xcode_version}\"",
-        'sdk_inventory="\$(xcodebuild -showsdks)"',
-        "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
-        'iphoneos_version="\$(xcrun --sdk iphoneos --show-sdk-version)"',
-        "grep -Eq '^26\\.[0-9]+' <<<\"\${iphoneos_version}\"",
-        "metadata_root='build/app/intermediates/merged_manifests/productionRelease'",
-        '.artifactType.type == "MERGED_MANIFESTS"',
-        '.applicationId == "com.olivium.jeeb"',
-        '.variantName == "productionRelease"',
-        'output-metadata.json',
-        '.elements[0].versionCode == \$build_number',
-        'build/provenance/android-rc.json',
-        'build/provenance/ios-rc.json',
-        r'$ARGS.named + {clarity_enabled: false, retained: true,',
-        'uses: ./.github/actions/run-build-runner',
-        'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
-        'retention-days: 7',
-        'compression-level: 0',
-      ]);
-      expect(r'$ARGS.named +'.allMatches(workflow).length, 2);
-      expect(workflow, isNot(contains("'{platform, reviewed_sha")));
-      expect(workflow, isNot(contains('pull_request_target')));
-      expect(workflow, isNot(contains('MOBILE_RC_MAIN_RULESET_ID')));
-      expect(workflow, isNot(contains('rulesets/')));
-      expect(workflow, isNot(contains('required_reviewers')));
-      expect(workflow, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
-      expect(workflow, isNot(contains('IOS_PROVISIONING_PROFILE_B64')));
-      expect(workflow, isNot(contains('upload-google-play')));
-      expect(workflow, isNot(contains('fastlane')));
-      expect(workflow, isNot(contains('macos-latest')));
-      expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
-    },
-  );
+  test('trusted RC is protected-main-only, immutable, signed, and retained', () {
+    final workflow = _source('.github/workflows/trusted-mobile-rc.yml');
+    _expectContainsAll(workflow, [
+      'workflow_dispatch:',
+      'environment: mobile-rc',
+      "api_get 'environments/mobile-rc'",
+      '.deployment_branch_policy.protected_branches == true',
+      '.deployment_branch_policy.custom_branch_policies == false',
+      'checks: read',
+      'Flutter CI + coverage (79%)',
+      'Release security scans',
+      'check-runs?filter=latest&per_page=100',
+      'REVIEWED_SHA: \${{ inputs.reviewed_sha }}',
+      r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
+      r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
+      r'(( 10#${BUILD_NUMBER} <= 2100000000 ))',
+      'CANDIDATE_PLATFORM: \${{ inputs.platform }}',
+      r'"${CANDIDATE_PLATFORM}" == both',
+      "inputs.platform != 'ios'",
+      "inputs.platform != 'android'",
+      r'git merge-base --is-ancestor "${REVIEWED_SHA}" HEAD',
+      'persist-credentials: false',
+      'flutter build appbundle --flavor production --release --no-pub',
+      'bash tool/build_signed_ios_internal_candidate.sh',
+      'environment: mobile-internal-distribution',
+      'secrets.OMDS_FLUTTER_PAT',
+      'secrets.APP_STORE_KEY_ID',
+      'secrets.APP_STORE_ISSUER_ID',
+      'secrets.APP_STORE_KEY_CONTENT_B64',
+      'APP_STORE_CONNECT_API_KEY_PATH',
+      'unset APP_STORE_KEY_CONTENT_B64',
+      r'chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"',
+      'trap cleanup EXIT HUP INT TERM',
+      'jarsigner -verify -strict -verbose -certs',
+      'keytool -printcert -jarfile',
+      '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172',
+      'bash tool/inspect_android_release_payload.sh',
+      'build/app/outputs/mapping/productionRelease/mapping.txt',
+      "-name '*.dSYM'",
+      'mapping_sha256',
+      'dsym_sha256',
+      'source_run_attempt',
+      'source_head_sha',
+      'source_workflow_path',
+      'clarity_enabled: false',
+      'runs-on: macos-26',
+      '/Applications/Xcode_26.6.app/Contents/Developer',
+      'xcode_version="\$(xcodebuild -version)"',
+      "grep -Fxq 'Xcode 26.6' <<<\"\${xcode_version}\"",
+      'sdk_inventory="\$(xcodebuild -showsdks)"',
+      "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
+      'iphoneos_version="\$(xcrun --sdk iphoneos --show-sdk-version)"',
+      "grep -Eq '^26\\.[0-9]+' <<<\"\${iphoneos_version}\"",
+      "metadata_root='build/app/intermediates/merged_manifests/productionRelease'",
+      '.artifactType.type == "MERGED_MANIFESTS"',
+      '.applicationId == "com.olivium.jeeb"',
+      '.variantName == "productionRelease"',
+      'output-metadata.json',
+      '.elements[0].versionCode == \$build_number',
+      'build/provenance/android-rc.json',
+      'build/provenance/ios-rc.json',
+      r'$ARGS.named + {clarity_enabled: false, retained: true,',
+      'uses: ./.github/actions/run-build-runner',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+      'retention-days: 7',
+      'compression-level: 0',
+    ]);
+    expect(r'$ARGS.named +'.allMatches(workflow).length, 2);
+    expect(workflow, isNot(contains("'{platform, reviewed_sha")));
+    expect(workflow, isNot(contains('pull_request_target')));
+    expect(workflow, isNot(contains('MOBILE_RC_MAIN_RULESET_ID')));
+    expect(workflow, isNot(contains('rulesets/')));
+    expect(workflow, isNot(contains('required_reviewers')));
+    expect(workflow, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
+    expect(workflow, isNot(contains('IOS_PROVISIONING_PROFILE_B64')));
+    expect(workflow, isNot(contains('upload-google-play')));
+    expect(workflow, isNot(contains('fastlane')));
+    expect(workflow, isNot(contains('macos-latest')));
+    expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
+  });
 
   test('every release build keeps Clarity explicitly disabled', () {
     for (final path in [

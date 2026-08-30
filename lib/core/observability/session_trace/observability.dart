@@ -194,8 +194,6 @@ final class Observability {
     String? targetId,
     String? targetLabel,
     String? screen,
-    int? dx,
-    int? dy,
     String? valuePreview,
   }) {
     if (!recording || !config.signalEnabled(ObsEventType.interaction)) return;
@@ -210,8 +208,6 @@ final class Observability {
         targetId: targetId,
         targetLabel: targetLabel,
         screen: screen,
-        dx: dx,
-        dy: dy,
         valuePreview: valuePreview,
       ),
     );

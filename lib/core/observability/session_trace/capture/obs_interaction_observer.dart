@@ -107,8 +107,6 @@ final class ObsInteractionObserver {
       targetId: pending.targetId,
       targetLabel: pending.targetLabel,
       screen: Observability.instance.currentScreen,
-      dx: pending.downPosition.dx.round(),
-      dy: pending.downPosition.dy.round(),
     );
   }
 
@@ -228,7 +226,7 @@ final class ObsInteractionObserver {
     final id = node.identifier;
     final label = node.label;
     return (
-      id: id.isEmpty ? null : SecretRedactor.redactIdentifier(id),
+      id: id.isEmpty ? null : SecretRedactor.redactInteractionIdentifier(id),
       label: label.isEmpty ? null : SecretRedactor.redactLabel(label),
     );
   }

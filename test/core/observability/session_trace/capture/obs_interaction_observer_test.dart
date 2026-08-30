@@ -6,6 +6,7 @@ import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dar
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — [kObsCompiledIn] is a hard
@@ -117,15 +118,15 @@ void main() {
     });
 
     test(
-      'a quick, still tap emits gesture=tap at the down position',
+      'a quick, still tap emits gesture=tap without recoverable coordinates',
       () {
         _sendTap(const Offset(100, 200));
 
         expect(sink.events, hasLength(1));
         final event = _interactions(sink).single;
         expect(event.gesture, 'tap');
-        expect(event.dx, 100);
-        expect(event.dy, 200);
+        expect(event.toPayloadJson().containsKey('dx'), isFalse);
+        expect(event.toPayloadJson().containsKey('dy'), isFalse);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
@@ -280,7 +281,7 @@ void main() {
           home: Scaffold(
             body: Center(
               child: Semantics(
-                identifier: 'submit-button',
+                identifier: 'client_home_retry_cta',
                 label: secretLabel,
                 container: true,
                 child: const SizedBox(
@@ -300,11 +301,54 @@ void main() {
 
       final event = _interactions(sink).single;
       expect(event.gesture, 'tap');
-      expect(event.targetId, 'submit-button');
+      expect(event.targetId, 'client_home_retry_cta');
       expect(event.targetLabel, SecretRedactor.redacted);
 
       handle.dispose();
     }, skip: !kObsCompiledIn);
+
+    testWidgets(
+      'OTP keypad digits collapse to one fixed target and omit coordinates',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final pressed = <String>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 360,
+                child: JeebNumericKeypad(
+                  identifierPrefix: 'phone_otp_keypad',
+                  backspaceLabel: 'Delete digit',
+                  onDigit: pressed.add,
+                  onBackspace: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.bySemanticsIdentifier('phone_otp_keypad_3'));
+        await tester.pump();
+        await tester.tap(find.bySemanticsIdentifier('phone_otp_keypad_7'));
+        await tester.pump();
+
+        final events = _interactions(sink);
+        expect(pressed, <String>['3', '7']);
+        expect(events, hasLength(2));
+        for (final event in events) {
+          final payload = event.toPayloadJson();
+          expect(event.targetId, SecretRedactor.redacted);
+          expect(event.targetLabel, SecretRedactor.redacted);
+          expect(payload.containsKey('dx'), isFalse);
+          expect(payload.containsKey('dy'), isFalse);
+        }
+        expect(events[0].targetId, events[1].targetId);
+
+        handle.dispose();
+      },
+      skip: !kObsCompiledIn,
+    );
   });
 
   group(

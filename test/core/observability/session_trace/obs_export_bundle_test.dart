@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/obs_export_bundle.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/obs_file_writer.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
 
 void main() {
@@ -169,6 +171,70 @@ void main() {
       expect(bundle, isNotNull);
       expect(bundle!.paths, hasLength(1));
       expect(bundle.diagPath, isNull);
+    },
+  );
+
+  test(
+    'dynamic interaction IDs are fixed-redacted on disk and in export',
+    () async {
+      const reviewId = 'review_rev-secret_report_cta';
+      const requestId = 'jeeber_feed_request_offer_request-secret';
+      final writer = ObsFileWriter(
+        baseDirectoryProvider: () async => temp,
+        sessionId: 'dynamic-id-test',
+        role: 'test',
+        flushThresholdLines: 1,
+      );
+      await writer.start();
+      writer.add(
+        ObsInteractionEvent(
+          id: '1-interaction',
+          sessionId: 'dynamic-id-test',
+          timestampUtc: DateTime.utc(2026, 8, 30, 10),
+          seq: 1,
+          gesture: 'tap',
+          targetId: reviewId,
+        ),
+      );
+      writer.add(
+        ObsInteractionEvent(
+          id: '2-interaction',
+          sessionId: 'dynamic-id-test',
+          timestampUtc: DateTime.utc(2026, 8, 30, 10, 0, 1),
+          seq: 2,
+          gesture: 'tap',
+          targetId: requestId,
+        ),
+      );
+      await writer.flush();
+
+      final sourcePath = writer.sessionFilePath;
+      final bundle = await ObsExportBundleBuilder.create(
+        obsSourcePath: sourcePath,
+        intervals: const <ObsRecordingInterval>[],
+        exportDirectoryProvider: () async => temp,
+        clock: () => DateTime.utc(2026, 8, 30, 11),
+      );
+
+      expect(sourcePath, isNotNull);
+      expect(bundle, isNotNull);
+      for (final path in <String>[sourcePath!, bundle!.obsPath]) {
+        final raw = await File(path).readAsString();
+        expect(raw, isNot(contains(reviewId)), reason: path);
+        expect(raw, isNot(contains(requestId)), reason: path);
+        expect(raw, isNot(contains('"dx"')), reason: path);
+        expect(raw, isNot(contains('"dy"')), reason: path);
+        final rows = await File(path).readAsLines();
+        final interactions = rows
+            .map((line) => jsonDecode(line) as Map<String, dynamic>)
+            .where((row) => row['type'] == 'interaction')
+            .toList();
+        expect(interactions, hasLength(2));
+        for (final event in interactions) {
+          final payload = event['payload']! as Map<String, dynamic>;
+          expect(payload['targetId'], SecretRedactor.redacted);
+        }
+      }
     },
   );
 
