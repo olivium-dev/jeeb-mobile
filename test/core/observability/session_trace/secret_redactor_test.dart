@@ -691,6 +691,12 @@ void main() {
             'chat_detail_send_button',
             'order_chat_composer_send',
           ],
+          <String>['logout_confirm_cta', 'delete_confirm_cta'],
+          <String>[
+            'charge_info_store_step',
+            'charge_info_identity_step',
+            'charge_info_pay_cash_step',
+          ],
         ];
         for (final sourceIds in actionGroups) {
           final captured = sourceIds

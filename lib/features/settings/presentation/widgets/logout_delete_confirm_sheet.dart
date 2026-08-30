@@ -122,7 +122,7 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
       if (!isDelete)
         _confirmCta(
           theme,
-          id: 'logout_confirm_cta',
+          semanticsIdentifier: 'logout_confirm_cta',
           buttonKey: const Key('logout-confirm-cta'),
           text: l10n.appBarSignOut,
           onTap: () => _run(LogoutDeleteMode.logout),
@@ -131,7 +131,7 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
       if (isDelete || isBoth)
         _confirmCta(
           theme,
-          id: 'delete_confirm_cta',
+          semanticsIdentifier: 'delete_confirm_cta',
           buttonKey: const Key('delete-confirm-cta'),
           text: l10n.accountDeleteConfirm,
           onTap: () => _run(LogoutDeleteMode.delete),
@@ -210,13 +210,13 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
 
   Widget _confirmCta(
     ThemeData theme, {
-    required String id,
+    required String semanticsIdentifier,
     required Key buttonKey,
     required String text,
     required VoidCallback onTap,
   }) {
     return Semantics(
-      identifier: id,
+      identifier: semanticsIdentifier,
       container: true,
       button: true,
       enabled: !_inFlight,

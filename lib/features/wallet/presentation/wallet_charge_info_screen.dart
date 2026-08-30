@@ -145,17 +145,17 @@ class WalletChargeInfoScreen extends StatelessWidget {
                       children: [
                         _Step(
                           index: 1,
-                          id: 'charge_info_store_step',
+                          semanticsIdentifier: 'charge_info_store_step',
                           text: l10n.chargeInfoStoreStep,
                         ),
                         _Step(
                           index: 2,
-                          id: 'charge_info_identity_step',
+                          semanticsIdentifier: 'charge_info_identity_step',
                           text: l10n.chargeInfoIdentityStep,
                         ),
                         _Step(
                           index: 3,
-                          id: 'charge_info_pay_cash_step',
+                          semanticsIdentifier: 'charge_info_pay_cash_step',
                           text: l10n.chargeInfoPayCashStep,
                         ),
                       ],
@@ -227,7 +227,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
     );
   }
 }
-
 /// A single ordered instruction step: a numbered glass badge + the step copy,
 /// sized to sit inside a [JeebOutlinedCard.grouped] ([JeebListRow]'s own 14/16
 /// padding and 12 gap, so a step row keeps the same rhythm as every other row
@@ -239,10 +238,14 @@ class WalletChargeInfoScreen extends StatelessWidget {
 /// 1 read as navy and Midnight renders `#D73B00`: three orange discs on a screen
 /// whose only act is "Back to wallet".
 class _Step extends StatelessWidget {
-  const _Step({required this.index, required this.id, required this.text});
+  const _Step({
+    required this.index,
+    required this.semanticsIdentifier,
+    required this.text,
+  });
 
   final int index;
-  final String id;
+  final String semanticsIdentifier;
   final String text;
 
   @override
@@ -252,7 +255,7 @@ class _Step extends StatelessWidget {
         Theme.of(context).extension<JeebSemanticColors>() ??
             JeebSemanticColors.midnight();
     return Semantics(
-      identifier: id,
+      identifier: semanticsIdentifier,
       container: true,
       child: Padding(
         padding: JeebListRow.defaultPadding,
