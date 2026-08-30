@@ -330,6 +330,74 @@ void main() {
     );
   });
 
+  testWidgets('missing Jeeber currency stops before any money mutation', (
+    tester,
+  ) async {
+    final dio = _WalletFundingDio(omitJeeberCurrency: true);
+    const jeeber = DevUser(
+      id: _WalletFundingDio.jeeberId,
+      username: 'demo_jeeber',
+      status: 'active',
+      role: 'jeeber',
+    );
+
+    await tester.pumpWidget(
+      _testApp(
+        FundJeeberWalletPage(
+          jeeber: jeeber,
+          client: DevGatewayClient(dio: dio),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add money'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified receipt'), findsNothing);
+    expect(dio.matching('POST', RegExp(r'/wallet/credits$')), isEmpty);
+    expect(dio.matching('POST', '/v1/partner/wallet/transfers'), isEmpty);
+    expect(
+      dio.matching('POST', '/v1/partner/wallet/transfers/predict'),
+      isEmpty,
+    );
+    expect(
+      dio.matching('DELETE', RegExp(r'^/dev/partner/credentials/')),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('missing partner currency stops before any money mutation', (
+    tester,
+  ) async {
+    final dio = _WalletFundingDio(omitPartnerCurrency: true);
+    const jeeber = DevUser(
+      id: _WalletFundingDio.jeeberId,
+      username: 'demo_jeeber',
+      status: 'active',
+      role: 'jeeber',
+    );
+
+    await tester.pumpWidget(
+      _testApp(
+        FundJeeberWalletPage(
+          jeeber: jeeber,
+          client: DevGatewayClient(dio: dio),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add money'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified receipt'), findsNothing);
+    expect(dio.matching('POST', RegExp(r'/wallet/credits$')), isEmpty);
+    expect(dio.matching('POST', '/v1/partner/wallet/transfers'), isEmpty);
+    expect(
+      dio.matching('POST', '/v1/partner/wallet/transfers/predict'),
+      isEmpty,
+    );
+  });
+
   testWidgets('wrong wallet delta never produces a verified receipt', (
     tester,
   ) async {
@@ -971,6 +1039,8 @@ class _WalletFundingDio extends Fake implements Dio {
     this.rosterGate,
     this.otpThreshold = 50,
     this.omitOtpPolicy = false,
+    this.omitJeeberCurrency = false,
+    this.omitPartnerCurrency = false,
   });
 
   static const partnerId = '11111111-1111-1111-1111-111111111111';
@@ -1000,6 +1070,8 @@ class _WalletFundingDio extends Fake implements Dio {
   final Completer<void>? rosterGate;
   final double otpThreshold;
   final bool omitOtpPolicy;
+  final bool omitJeeberCurrency;
+  final bool omitPartnerCurrency;
   double _fundAmount = 50;
   var _uncertainRaised = false;
   var _postTopupReadFailureRaised = false;
@@ -1203,7 +1275,8 @@ class _WalletFundingDio extends Fake implements Dio {
         'availableBalance': _topupCommitted
             ? (_fundAmount * 0.95) + jeeberDeltaOffset
             : 0,
-        'currency': _topupCommitted ? jeeberCurrencyAfter ?? 'USD' : 'USD',
+        if (!omitJeeberCurrency)
+          'currency': _topupCommitted ? jeeberCurrencyAfter ?? 'USD' : 'USD',
       };
     } else if (path == '/v1/partner/wallet') {
       if (failPartnerWalletRead && !_partnerWalletReadFailureRaised) {
@@ -1224,7 +1297,7 @@ class _WalletFundingDio extends Fake implements Dio {
             : _creditCommitted
             ? _fundAmount
             : 0,
-        'currencyId': 1,
+        if (!omitPartnerCurrency) 'currencyId': 1,
       };
     } else if (path == '/api/User/super-login/users') {
       if (rosterGate != null) await rosterGate!.future;

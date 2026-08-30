@@ -93,6 +93,8 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
       _partnerBeforeCredit ??= await _client.readPartnerWallet(
         accessToken: actors.partner.accessToken,
       );
+      _requireCurrencyIdentity(_jeeberBefore!, 'Jeeber balance');
+      _requireCurrencyIdentity(_partnerBeforeCredit!, 'partner wallet');
 
       _setStep(_FundingStep.preview);
       _preview ??= await _client.predictPartnerTopup(
@@ -431,6 +433,17 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
         '$label currency identity is missing or changed.',
       );
     }
+  }
+
+  static void _requireCurrencyIdentity(DevWalletBalance balance, String label) {
+    final currencyId = balance.currencyId;
+    if (balance.currency?.trim().isNotEmpty == true ||
+        (currencyId != null && currencyId > 0)) {
+      return;
+    }
+    throw DevGatewayException.walletVerification(
+      '$label currency identity is missing.',
+    );
   }
 
   static void _requireExecuted(
