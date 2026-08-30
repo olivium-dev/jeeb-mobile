@@ -1,0 +1,8 @@
+# Synthetic redaction-test fixtures introduced in a3ab9cd1. These exact
+# historical findings are not credentials; the current fixtures use explicit
+# low-entropy placeholders so new scans do not need additional suppressions.
+a3ab9cd1a3fc09cd1c6c0d5adcc280072124cbce:test/core/observability/session_trace/secret_redactor_test.dart:stripe-access-token:73
+a3ab9cd1a3fc09cd1c6c0d5adcc280072124cbce:test/core/observability/session_trace/secret_redactor_test.dart:generic-api-key:74
+a3ab9cd1a3fc09cd1c6c0d5adcc280072124cbce:test/core/observability/session_trace/secret_redactor_test.dart:generic-api-key:75
+a3ab9cd1a3fc09cd1c6c0d5adcc280072124cbce:test/core/observability/session_trace/secret_redactor_test.dart:generic-api-key:423
+a3ab9cd1a3fc09cd1c6c0d5adcc280072124cbce:test/core/observability/session_trace/secret_redactor_test.dart:stripe-access-token:424

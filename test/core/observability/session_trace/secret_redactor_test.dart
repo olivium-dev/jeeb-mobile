@@ -70,9 +70,9 @@ void main() {
                 'otp': '446789',
                 'fcmToken': 'fcm-registration-abcdef123456',
                 'secret': 'shh-do-not-log-this',
-                'apiKey': 'sk_live_ABCDEF1234567890',
-                'apiSecret': 'as_live_ABCDEF1234567890',
-                'clientSecret': 'cs_ABCDEF1234567890',
+                'apiKey': 'test-key-not-real',
+                'apiSecret': 'test-secret-not-real',
+                'clientSecret': 'test-client-secret-not-real',
                 'accessToken': _fakeJwt,
                 'refreshToken': 'refresh-abcdef123456',
                 'idToken': _fakeJwt,
@@ -195,7 +195,7 @@ void main() {
             SecretRedactor.redactBody(<String, Object?>{
                   'enumLike': <String, Object?>{'code': 'invalid_amount'},
                   'capabilityA': <String, Object?>{'code': 'ABCD-EFGH'},
-                  'capabilityB': <String, Object?>{'code': 'sk_live_ABCDEF'},
+                  'capabilityB': <String, Object?>{'code': 'test-placeholder'},
                   'code': 'otp_482913',
                   'kind': 'delivery_4829',
                 })!
@@ -410,7 +410,7 @@ void main() {
       expect(
         SecretRedactor.redactNetworkPath(
           'https://signed.cdn.test/alice-passport/ABCD-EFGH'
-          '?signature=sk_live_ABCDEF#private',
+          '?signature=test-placeholder#private',
           baseUrl: 'https://gateway.test/v1',
         ),
         SecretRedactor.externalUploadPath,
@@ -450,8 +450,8 @@ void main() {
         'body': <String, Object?>{
           'password': 'p@ssW0rd-super-secret',
           'otp': '048213',
-          'fcmToken': 'fcm-abcdef1234567890XYZ',
-          'nested': <String, Object?>{'apiKey': 'sk_live_ABCDEF123456'},
+          'fcmToken': 'test-fcm-token-not-real',
+          'nested': <String, Object?>{'apiKey': 'test-key-not-real'},
           'roster': <Object?>[
             <String, Object?>{'passcode': 'HANDOVER-0001'},
           ],
@@ -472,7 +472,7 @@ void main() {
         expect(serialized, isNot(contains('p@ssW0rd-super-secret')));
         expect(serialized, isNot(contains('048213')));
         expect(serialized, isNot(contains('fcm-abcdef1234567890XYZ')));
-        expect(serialized, isNot(contains('sk_live_ABCDEF123456')));
+        expect(serialized, isNot(contains('test-key-not-real')));
         expect(serialized, isNot(contains('HANDOVER-0001')));
         expect(
           _secretPattern.hasMatch(serialized),
