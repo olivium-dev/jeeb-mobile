@@ -617,6 +617,26 @@ void main() {
       }
     });
 
+    test('semantic text fields are always explicitly denied', () {
+      for (final identifier in <String>[
+        'chat_detail_message_input',
+        'order_chat_composer_input',
+        'support_body',
+        'support_order_link',
+      ]) {
+        expect(
+          kExplicitlyRedactedStaticInteractionIdentifiers,
+          contains(identifier),
+          reason: identifier,
+        );
+        expect(
+          SecretRedactor.redactInteractionIdentifier(identifier),
+          SecretRedactor.redacted,
+          reason: identifier,
+        );
+      }
+    });
+
     test('profile actions stay distinct without retaining sensitive names', () {
       const sourceIds = <String>[
         'customer_profile_password_row',
@@ -659,6 +679,17 @@ void main() {
             'password_confirm_visibility_toggle',
             'password_new_visibility_toggle',
             'password_submit_cta',
+          ],
+          <String>['jeeber_feed_filter_clear', 'jeeber_feed_filter_apply'],
+          <String>['orders_filter_clear', 'orders_filter_apply'],
+          <String>[
+            'offer_composer_price_decrement',
+            'offer_composer_price_increment',
+          ],
+          <String>[
+            'chat_detail_attach_button',
+            'chat_detail_send_button',
+            'order_chat_composer_send',
           ],
         ];
         for (final sourceIds in actionGroups) {

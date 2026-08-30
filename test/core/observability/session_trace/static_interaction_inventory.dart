@@ -73,11 +73,27 @@ final class _StaticIdentifierVisitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitNamedExpression(NamedExpression node) {
-    if (_identifierParameterNames.contains(node.name.label.name)) {
+    if (_isIdentifierParameter(node.name.label.name)) {
       _collectStaticStrings(node.expression);
     }
     super.visitNamedExpression(node);
   }
+
+  @override
+  void visitDefaultFormalParameter(DefaultFormalParameter node) {
+    final name = node.name?.lexeme;
+    final defaultValue = node.defaultValue;
+    if (name != null && defaultValue != null && _isIdentifierParameter(name)) {
+      _collectStaticStrings(defaultValue);
+    }
+    super.visitDefaultFormalParameter(node);
+  }
+
+  bool _isIdentifierParameter(String name) =>
+      _identifierParameterNames.contains(name) ||
+      name.endsWith('Identifier') ||
+      name == 'semanticId' ||
+      name == 'semanticsId';
 
   void _collectStaticStrings(Expression expression) {
     final identifier = expression
