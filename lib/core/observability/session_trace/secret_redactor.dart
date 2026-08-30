@@ -295,6 +295,7 @@ abstract final class SecretRedactor {
   };
 
   static const String redacted = '<redacted>';
+  static const String redactedMapKey = '<redacted-key>';
   static const String truncated = '<truncated>';
 
   /// Hard traversal limits applied before inspecting user-controlled bodies.
@@ -366,16 +367,30 @@ abstract final class SecretRedactor {
 
   static Map<String, Object?> redactHeaders(Map<String, Object?> headers) {
     final out = <String, Object?>{};
-    headers.forEach((key, value) {
+    var count = 0;
+    for (final entry in headers.entries) {
+      if (count >= maxCollectionEntries) {
+        out[_sanitizedOutputKey(truncated, out)] = truncated;
+        break;
+      }
+      final key = entry.key;
+      final value = entry.value;
+      final outputKey = _sanitizedOutputKey(key, out);
+      if (outputKey != key) {
+        out[outputKey] = redacted;
+        count++;
+        continue;
+      }
       final normalized = _normalizeKey(key);
       if (DiagRedaction.isSensitiveHeader(key) || isSensitiveKey(key)) {
-        out[key] = redacted;
+        out[outputKey] = redacted;
       } else if (_safeHeaderNames.contains(normalized)) {
-        out[key] = _redactHeaderValue(value, normalized);
+        out[outputKey] = _redactHeaderValue(value, normalized);
       } else {
-        out[key] = redacted;
+        out[outputKey] = redacted;
       }
-    });
+      count++;
+    }
     return out;
   }
 
@@ -484,7 +499,7 @@ abstract final class SecretRedactor {
     var count = 0;
     for (final entry in map.entries) {
       if (count >= maxCollectionEntries) {
-        typed[truncated] = truncated;
+        typed[_sanitizedOutputKey(truncated, typed)] = truncated;
         break;
       }
       final key = entry.key.toString();
@@ -492,7 +507,7 @@ abstract final class SecretRedactor {
         typed[truncated] = truncated;
         break;
       }
-      typed[key] = entry.value;
+      typed[_sanitizedOutputKey(key, typed)] = entry.value;
       count++;
     }
     return _redactMap(typed, budget, depth, keysAlreadyClaimed: true);
@@ -526,39 +541,40 @@ abstract final class SecretRedactor {
     var count = 0;
     for (final entry in map.entries) {
       if (count >= maxCollectionEntries) {
-        out[truncated] = truncated;
+        out[_sanitizedOutputKey(truncated, out)] = truncated;
         break;
       }
       final key = entry.key;
       final value = entry.value;
       if (!keysAlreadyClaimed && !budget.claimString(key)) {
-        out[truncated] = truncated;
+        out[_sanitizedOutputKey(truncated, out)] = truncated;
         break;
       }
       if (!budget.claimNode(depth + 1)) {
-        out[truncated] = truncated;
+        out[_sanitizedOutputKey(truncated, out)] = truncated;
         break;
       }
+      final outputKey = _sanitizedOutputKey(key, out);
       if (isSensitiveKey(key)) {
-        out[key] = redacted;
+        out[outputKey] = redacted;
         count++;
         continue;
       }
       if (value is String) {
-        out[key] = budget.claimString(value)
+        out[outputKey] = budget.claimString(value)
             ? _redactStringField(key, value)
             : truncated;
         count++;
         continue;
       }
       if (value is num) {
-        out[key] = _safeNumericKeys.contains(_normalizeKey(key))
+        out[outputKey] = _safeNumericKeys.contains(_normalizeKey(key))
             ? value
             : redacted;
         count++;
         continue;
       }
-      out[key] = _redactClaimedValue(value, budget, depth + 1);
+      out[outputKey] = _redactClaimedValue(value, budget, depth + 1);
       count++;
     }
     return out;
@@ -656,6 +672,18 @@ abstract final class SecretRedactor {
     if (RegExp(r'^<truncated \d+ bytes>$').hasMatch(value)) return value;
     if (value == '<non-serializable body>') return value;
     return null;
+  }
+
+  static String _sanitizedOutputKey(String key, Map<String, Object?> output) {
+    final containsSensitiveMaterial =
+        key.length > maxStringCodeUnits || redactString(key) != key;
+    final candidate = containsSensitiveMaterial ? redactedMapKey : key;
+    if (!output.containsKey(candidate)) return candidate;
+    for (var suffix = 2; suffix <= maxCollectionEntries + 1; suffix++) {
+      final unique = '$candidate#$suffix';
+      if (!output.containsKey(unique)) return unique;
+    }
+    return '$redactedMapKey#overflow';
   }
 
   static bool isSensitiveKey(String key) {

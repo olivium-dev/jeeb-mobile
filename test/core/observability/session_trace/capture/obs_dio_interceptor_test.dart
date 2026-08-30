@@ -294,6 +294,9 @@ void main() {
       const responseCodeCanary = 'sk_live_ABCDEF';
       const objectRefCanary = 'alice-passport';
       const absolutePathCanary = 'private-person-passport';
+      const emailKeyCanary = 'victim@example.invalid';
+      const phoneKeyCanary = '+31612345678';
+      const bearerKeyCanary = 'Bearer $_fakeJwt';
       final temp = await Directory.systemTemp.createTemp(
         'obs_interceptor_export_canary',
       );
@@ -317,7 +320,11 @@ void main() {
               '/api/cdn/assets/content/$objectRefCanary/'
               '$requestCodeCanary?token=raw-query#private-fragment',
           data: <String, Object?>{
-            'outer': <String, Object?>{'code': requestCodeCanary},
+            'outer': <String, Object?>{
+              'code': requestCodeCanary,
+              emailKeyCanary: 'accepted',
+              phoneKeyCanary: 'accepted',
+            },
           },
         );
         interceptor.onRequest(relativeOptions, RequestInterceptorHandler());
@@ -327,7 +334,11 @@ void main() {
             statusCode: 200,
             data: <String, Object?>{
               'items': <Object?>[
-                <String, Object?>{'code': responseCodeCanary},
+                <String, Object?>{
+                  'code': responseCodeCanary,
+                  bearerKeyCanary: 'accepted',
+                  _fakeJwt: 'accepted',
+                },
               ],
             },
           ),
@@ -389,6 +400,10 @@ void main() {
             responseCodeCanary,
             objectRefCanary,
             absolutePathCanary,
+            emailKeyCanary,
+            phoneKeyCanary,
+            bearerKeyCanary,
+            _fakeJwt,
             'signed.cdn.test',
             'raw-query',
             'private-fragment',

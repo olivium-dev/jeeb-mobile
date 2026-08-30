@@ -59,6 +59,32 @@ void main() {
   });
 
   group('redactBody — sensitive keys (non-disableable hard floor)', () {
+    test('sanitizes sensitive map keys without collisions', () {
+      const emailKey = 'victim@example.invalid';
+      const phoneKey = '+31612345678';
+      const bearerKey = 'Bearer $_fakeJwt';
+      const rawMarkerKey = SecretRedactor.redactedMapKey;
+      final out =
+          SecretRedactor.redactBody(<String, Object?>{
+                rawMarkerKey: 'accepted',
+                emailKey: 'accepted',
+                phoneKey: 'accepted',
+                bearerKey: 'accepted',
+                _fakeJwt: 'accepted',
+              })!
+              as Map<String, Object?>;
+      final encoded = jsonEncode(out);
+
+      for (final canary in <String>[emailKey, phoneKey, bearerKey, _fakeJwt]) {
+        expect(encoded, isNot(contains(canary)), reason: canary);
+      }
+      expect(out, hasLength(5));
+      expect(
+        out.keys.where((key) => key.startsWith(SecretRedactor.redactedMapKey)),
+        hasLength(5),
+      );
+    });
+
     test('token/authorization/password/passcode/otp/fcm/secret/apiKey '
         'keys never leak raw', () {
       final out =
