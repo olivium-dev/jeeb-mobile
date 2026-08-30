@@ -232,9 +232,20 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
       );
       _setStep(_FundingStep.cleaning);
     } on DevGatewayException catch (error) {
-      requiresReconciliation = error.isUncertainWalletMove || _credit != null;
+      final beforeMoneyMutation =
+          _step == _FundingStep.preparing ||
+          _step == _FundingStep.reading ||
+          _step == _FundingStep.preview;
+      requiresReconciliation =
+          _credit != null ||
+          (!beforeMoneyMutation && error.isUncertainWalletMove);
       if (!mounted) return;
       setState(() {
+        if (!requiresReconciliation) {
+          _jeeberBefore = null;
+          _partnerBeforeCredit = null;
+          _preview = null;
+        }
         _requiresReconciliation = requiresReconciliation;
         _step = requiresReconciliation
             ? _FundingStep.reconciliation

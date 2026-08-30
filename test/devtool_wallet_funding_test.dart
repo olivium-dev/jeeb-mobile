@@ -322,7 +322,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Stopped'), findsWidgets);
-    expect(dio.matching('POST', RegExp(r'/wallet/credits$')), isEmpty);
+    expect(dio.creditCalls, isEmpty);
     expect(dio.matching('POST', '/v1/partner/wallet/transfers'), isEmpty);
     expect(
       dio.matching('DELETE', RegExp(r'^/dev/partner/credentials/')),
@@ -354,7 +354,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Verified receipt'), findsNothing);
-    expect(dio.matching('POST', RegExp(r'/wallet/credits$')), isEmpty);
+    expect(dio.creditCalls, isEmpty);
     expect(dio.matching('POST', '/v1/partner/wallet/transfers'), isEmpty);
     expect(
       dio.matching('POST', '/v1/partner/wallet/transfers/predict'),
@@ -364,6 +364,21 @@ void main() {
       dio.matching('DELETE', RegExp(r'^/dev/partner/credentials/')),
       hasLength(1),
     );
+
+    dio.omitJeeberCurrency = false;
+    await tester.ensureVisible(find.text('Add money'));
+    await tester.pumpAndSettle();
+    final submit = tester.widget<OmdsLoadingButton>(
+      find.byType(OmdsLoadingButton).first,
+    );
+    expect(submit.isEnabled, isTrue);
+    submit.onTap();
+    await tester.pumpAndSettle();
+
+    expect(dio.matching('GET', '/v1/jeeb/wallet'), hasLength(4));
+    expect(dio.matching('GET', '/v1/partner/wallet'), isNotEmpty);
+    expect(dio.creditCalls, hasLength(2));
+    expect(dio.matching('POST', '/v1/partner/wallet/transfers'), hasLength(2));
   });
 
   testWidgets('missing partner currency stops before any money mutation', (
@@ -390,7 +405,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Verified receipt'), findsNothing);
-    expect(dio.matching('POST', RegExp(r'/wallet/credits$')), isEmpty);
+    expect(dio.creditCalls, isEmpty);
     expect(dio.matching('POST', '/v1/partner/wallet/transfers'), isEmpty);
     expect(
       dio.matching('POST', '/v1/partner/wallet/transfers/predict'),
@@ -1070,8 +1085,8 @@ class _WalletFundingDio extends Fake implements Dio {
   final Completer<void>? rosterGate;
   final double otpThreshold;
   final bool omitOtpPolicy;
-  final bool omitJeeberCurrency;
-  final bool omitPartnerCurrency;
+  bool omitJeeberCurrency;
+  bool omitPartnerCurrency;
   double _fundAmount = 50;
   var _uncertainRaised = false;
   var _postTopupReadFailureRaised = false;
@@ -1089,6 +1104,13 @@ class _WalletFundingDio extends Fake implements Dio {
             (path is String
                 ? call.path == path
                 : path.matchAsPrefix(call.path) != null),
+      )
+      .toList(growable: false);
+
+  List<_Call> get creditCalls => calls
+      .where(
+        (call) =>
+            call.method == 'POST' && call.path.endsWith('/wallet/credits'),
       )
       .toList(growable: false);
 
