@@ -27,6 +27,7 @@ const Set<String> kSensitiveDataKeys = {
   'bearer',
   'handovercode',
   'otpcode',
+  'devcode',
   'deliverycode',
   'idnumber',
   'nationalid',

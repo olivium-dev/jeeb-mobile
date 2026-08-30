@@ -1,0 +1,47 @@
+appId: ${APP_ID}
+name: Dev Tool stages and verifies a real Jeeber wallet funding move
+tags:
+  - critical
+  - staging
+  - devtool
+  - wallet
+---
+- extendedWaitUntil:
+    visible:
+      text: "Jeeber Dev Tool"
+    timeout: 30000
+- tapOn:
+    text: "Scenario Users"
+- extendedWaitUntil:
+    visible:
+      text: "Scenario Users"
+    timeout: 30000
+- tapOn:
+    id: "devtool.scenarioUsers.scenario"
+- tapOn:
+    text: "Jeeber"
+- tapOn:
+    id: "devtool.scenarioUsers.create"
+- extendedWaitUntil:
+    visible:
+      id: "devtool.walletFunding.lastCreated"
+    timeout: 30000
+- takeScreenshot: devtool_wallet_funding_scenario_user
+- tapOn:
+    id: "devtool.walletFunding.lastCreated"
+- extendedWaitUntil:
+    visible:
+      text: "Fund Jeeber wallet"
+    timeout: 30000
+- takeScreenshot: devtool_wallet_funding_before
+- tapOn:
+    id: "devtool.walletFunding.submit"
+- extendedWaitUntil:
+    visible:
+      text: "Verified receipt"
+    timeout: 120000
+- assertVisible:
+    text: "Verified receipt"
+- assertVisible:
+    text: "Before:.*USD"
+- takeScreenshot: devtool_wallet_funding_verified_receipt
