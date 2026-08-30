@@ -56,6 +56,24 @@ void main() {
       expect(out['Cookie'], SecretRedactor.redacted);
       expect(out['Content-Type'], 'application/json');
     });
+
+    test('replaces every unaudited header name, including short secrets', () {
+      const decoratedSecret = 'x-private-swordfish-secret';
+      const shortSecret = 'swordfish';
+      final out = SecretRedactor.redactHeaders(<String, Object?>{
+        decoratedSecret: 'ignored',
+        shortSecret: 'ignored',
+      });
+      final encoded = jsonEncode(out);
+
+      expect(encoded, isNot(contains(decoratedSecret)));
+      expect(encoded, isNot(contains(shortSecret)));
+      expect(out, hasLength(2));
+      expect(
+        out.keys.where((key) => key.startsWith(SecretRedactor.redactedMapKey)),
+        hasLength(2),
+      );
+    });
   });
 
   group('redactBody — sensitive keys (non-disableable hard floor)', () {
@@ -63,6 +81,8 @@ void main() {
       const emailKey = 'victim@example.invalid';
       const phoneKey = '+31612345678';
       const bearerKey = 'Bearer $_fakeJwt';
+      const decoratedSecretKey = 'hunter2-super-secret';
+      const shortSecretKey = 'swordfish';
       const rawMarkerKey = SecretRedactor.redactedMapKey;
       final out =
           SecretRedactor.redactBody(<String, Object?>{
@@ -71,17 +91,26 @@ void main() {
                 phoneKey: 'accepted',
                 bearerKey: 'accepted',
                 _fakeJwt: 'accepted',
+                decoratedSecretKey: 'accepted',
+                shortSecretKey: 'accepted',
               })!
               as Map<String, Object?>;
       final encoded = jsonEncode(out);
 
-      for (final canary in <String>[emailKey, phoneKey, bearerKey, _fakeJwt]) {
+      for (final canary in <String>[
+        emailKey,
+        phoneKey,
+        bearerKey,
+        _fakeJwt,
+        decoratedSecretKey,
+        shortSecretKey,
+      ]) {
         expect(encoded, isNot(contains(canary)), reason: canary);
       }
-      expect(out, hasLength(5));
+      expect(out, hasLength(7));
       expect(
         out.keys.where((key) => key.startsWith(SecretRedactor.redactedMapKey)),
-        hasLength(5),
+        hasLength(7),
       );
     });
 

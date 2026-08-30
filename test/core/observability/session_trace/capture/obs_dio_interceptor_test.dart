@@ -297,6 +297,9 @@ void main() {
       const emailKeyCanary = 'victim@example.invalid';
       const phoneKeyCanary = '+31612345678';
       const bearerKeyCanary = 'Bearer $_fakeJwt';
+      const decoratedKeyCanary = 'hunter2-super-secret';
+      const shortKeyCanary = 'swordfish';
+      const headerKeyCanary = 'x-private-swordfish-secret';
       final temp = await Directory.systemTemp.createTemp(
         'obs_interceptor_export_canary',
       );
@@ -319,11 +322,14 @@ void main() {
           path:
               '/api/cdn/assets/content/$objectRefCanary/'
               '$requestCodeCanary?token=raw-query#private-fragment',
+          headers: <String, Object?>{headerKeyCanary: 'ignored'},
           data: <String, Object?>{
             'outer': <String, Object?>{
               'code': requestCodeCanary,
               emailKeyCanary: 'accepted',
               phoneKeyCanary: 'accepted',
+              decoratedKeyCanary: 'accepted',
+              shortKeyCanary: 'accepted',
             },
           },
         );
@@ -404,6 +410,9 @@ void main() {
             phoneKeyCanary,
             bearerKeyCanary,
             _fakeJwt,
+            decoratedKeyCanary,
+            shortKeyCanary,
+            headerKeyCanary,
             'signed.cdn.test',
             'raw-query',
             'private-fragment',

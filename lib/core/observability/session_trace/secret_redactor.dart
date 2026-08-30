@@ -138,6 +138,19 @@ abstract final class SecretRedactor {
     'xcorrelationid',
   };
 
+  static const Set<String> _auditedHeaderKeyNames = {
+    'accept',
+    'apikey',
+    'authorization',
+    'contentlength',
+    'contenttype',
+    'cookie',
+    'setcookie',
+    'xapikey',
+    'xcorrelationid',
+    'xrequestid',
+  };
+
   /// Audited endpoint vocabulary that is safe to retain in a network trace.
   /// Every other path segment is treated as a potentially user-controlled ID,
   /// object reference, filename, capability, or piece of PII.
@@ -294,6 +307,159 @@ abstract final class SecretRedactor {
     'maxsessionbytes',
   };
 
+  /// Only these normalized property names may survive in diagnostic JSON.
+  /// Server-controlled and user-controlled maps can use secrets as keys, so
+  /// unknown names are replaced with ordinal placeholders even when they do
+  /// not resemble an email, phone number, or token.
+  static const Set<String> _auditedBodyKeyNames = {
+    'accept',
+    'accesstoken',
+    'action',
+    'active',
+    'address',
+    'addressline1',
+    'addressline2',
+    'apikey',
+    'apisecret',
+    'appversion',
+    'authorization',
+    'authtoken',
+    'body',
+    'buildsha',
+    'building',
+    'bytes',
+    'capabilitya',
+    'capabilityb',
+    'caption',
+    'category',
+    'channel',
+    'chat',
+    'chattext',
+    'clientsecret',
+    'code',
+    'codewithspaces',
+    'comment',
+    'comments',
+    'content',
+    'contentlength',
+    'contenttype',
+    'coordinates',
+    'count',
+    'cookie',
+    'customerid',
+    'customername',
+    'data',
+    'deeplink',
+    'deliverynotes',
+    'description',
+    'devicetoken',
+    'dx',
+    'dy',
+    'email',
+    'emailaddress',
+    'enumlike',
+    'error',
+    'errormessage',
+    'errortype',
+    'fcmtoken',
+    'file',
+    'firstname',
+    'floorapt',
+    'freetext',
+    'fullname',
+    'gesture',
+    'gps',
+    'headers',
+    'id',
+    'idtoken',
+    'items',
+    'kind',
+    'label',
+    'lastname',
+    'lat',
+    'latitude',
+    'lng',
+    'location',
+    'lon',
+    'longitude',
+    'm',
+    'maxsessionbytes',
+    'message',
+    'messageid',
+    'method',
+    'misc',
+    'mobile',
+    'mobilenumber',
+    'mode',
+    'model',
+    'ms',
+    'name',
+    'nested',
+    'note',
+    'notes',
+    'ok',
+    'os',
+    'osversion',
+    'otp',
+    'outcome',
+    'outer',
+    'owner',
+    'params',
+    'passcode',
+    'password',
+    'path',
+    'payload',
+    'phone',
+    'phonenumber',
+    'postalcode',
+    'postcode',
+    'prev',
+    'refreshtoken',
+    'reqbody',
+    'reqheaders',
+    'reqid',
+    'requestbody',
+    'requestheaders',
+    'requestid',
+    'respbody',
+    'respheaders',
+    'responsebody',
+    'responseheaders',
+    'result',
+    'role',
+    'route',
+    'samples',
+    'screen',
+    'secret',
+    'seq',
+    'sessionid',
+    'sessiontoken',
+    'state',
+    'status',
+    'street',
+    'streetaddress',
+    'subprefix',
+    't',
+    'targetid',
+    'targetlabel',
+    'text',
+    'title',
+    'token',
+    'transcription',
+    'ts',
+    'type',
+    'unknown',
+    'userid',
+    'username',
+    'users',
+    'v',
+    'valuepreview',
+    'xcorrelationid',
+    'xobsrequestbytes',
+    'xobsresponsebytes',
+    'xrequestid',
+  };
+
   static const String redacted = '<redacted>';
   static const String redactedMapKey = '<redacted-key>';
   static const String truncated = '<truncated>';
@@ -354,6 +520,10 @@ abstract final class SecretRedactor {
     r'[A-Za-z][A-Za-z0-9_-]{0,31}$',
   );
 
+  static final RegExp _generatedMapKeyPattern = RegExp(
+    r'^<redacted-key>(?:#\d+)?$',
+  );
+
   static String redactString(String input) {
     if (input.isEmpty) return input;
     var out = input.replaceAll(_bearerPattern, redacted);
@@ -370,12 +540,21 @@ abstract final class SecretRedactor {
     var count = 0;
     for (final entry in headers.entries) {
       if (count >= maxCollectionEntries) {
-        out[_sanitizedOutputKey(truncated, out)] = truncated;
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedHeaderKeyNames,
+            )] =
+            truncated;
         break;
       }
       final key = entry.key;
       final value = entry.value;
-      final outputKey = _sanitizedOutputKey(key, out);
+      final outputKey = _sanitizedOutputKey(
+        key,
+        out,
+        auditedKeys: _auditedHeaderKeyNames,
+      );
       if (outputKey != key) {
         out[outputKey] = redacted;
         count++;
@@ -499,7 +678,12 @@ abstract final class SecretRedactor {
     var count = 0;
     for (final entry in map.entries) {
       if (count >= maxCollectionEntries) {
-        typed[_sanitizedOutputKey(truncated, typed)] = truncated;
+        typed[_sanitizedOutputKey(
+              truncated,
+              typed,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
         break;
       }
       final key = entry.key.toString();
@@ -507,7 +691,12 @@ abstract final class SecretRedactor {
         typed[truncated] = truncated;
         break;
       }
-      typed[_sanitizedOutputKey(key, typed)] = entry.value;
+      typed[_sanitizedOutputKey(
+            key,
+            typed,
+            auditedKeys: _auditedBodyKeyNames,
+          )] =
+          entry.value;
       count++;
     }
     return _redactMap(typed, budget, depth, keysAlreadyClaimed: true);
@@ -541,20 +730,39 @@ abstract final class SecretRedactor {
     var count = 0;
     for (final entry in map.entries) {
       if (count >= maxCollectionEntries) {
-        out[_sanitizedOutputKey(truncated, out)] = truncated;
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
         break;
       }
       final key = entry.key;
       final value = entry.value;
       if (!keysAlreadyClaimed && !budget.claimString(key)) {
-        out[_sanitizedOutputKey(truncated, out)] = truncated;
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
         break;
       }
       if (!budget.claimNode(depth + 1)) {
-        out[_sanitizedOutputKey(truncated, out)] = truncated;
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
         break;
       }
-      final outputKey = _sanitizedOutputKey(key, out);
+      final outputKey = _sanitizedOutputKey(
+        key,
+        out,
+        auditedKeys: _auditedBodyKeyNames,
+      );
       if (isSensitiveKey(key)) {
         out[outputKey] = redacted;
         count++;
@@ -674,10 +882,18 @@ abstract final class SecretRedactor {
     return null;
   }
 
-  static String _sanitizedOutputKey(String key, Map<String, Object?> output) {
-    final containsSensitiveMaterial =
-        key.length > maxStringCodeUnits || redactString(key) != key;
-    final candidate = containsSensitiveMaterial ? redactedMapKey : key;
+  static String _sanitizedOutputKey(
+    String key,
+    Map<String, Object?> output, {
+    required Set<String> auditedKeys,
+  }) {
+    final isGenerated =
+        key == truncated || _generatedMapKeyPattern.hasMatch(key);
+    final isAudited =
+        key.length <= maxStringCodeUnits &&
+        redactString(key) == key &&
+        auditedKeys.contains(_normalizeKey(key));
+    final candidate = isGenerated || isAudited ? key : redactedMapKey;
     if (!output.containsKey(candidate)) return candidate;
     for (var suffix = 2; suffix <= maxCollectionEntries + 1; suffix++) {
       final unique = '$candidate#$suffix';
