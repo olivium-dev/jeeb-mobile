@@ -180,6 +180,17 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
     await sl<SharedPreferences>().setBool(OnboardingCubit.completedKey, true);
   }
 
+  void _selectScenario(_UserScenario scenario) {
+    setState(() {
+      _selectedScenario = scenario;
+      if (!_usernameEdited) {
+        _usernameController.text = DevGatewayClient.suggestedUsername(
+          scenario.role,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -202,34 +213,27 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
               style: Theme.of(context).textTheme.labelMedium,
             ),
             const SizedBox(height: 8),
-            OMDSBottomSheetSelectField(
-              title: l10n.scenarioUsersScenario,
-              label: l10n.scenarioUsersScenario,
-              value: _selectedScenario.labelKey,
-              showSearch: false,
-              enabled: !_seeding,
-              identifier: 'devtool.scenarioUsers.scenario',
-              options: [
-                for (final scenario in _scenarios)
-                  OMDSSelectOption(
-                    value: scenario.labelKey,
-                    label: _scenarioLabel(l10n, scenario),
-                  ),
-              ],
-              onChanged: (option) {
-                if (option == null) return;
-                final value = _scenarios.firstWhere(
-                  (scenario) => scenario.labelKey == option.value,
-                );
-                setState(() {
-                  _selectedScenario = value;
-                  if (!_usernameEdited) {
-                    _usernameController.text =
-                        DevGatewayClient.suggestedUsername(value.role);
-                  }
-                });
-              },
+            Text(
+              l10n.scenarioUsersScenario,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
+            const SizedBox(height: 4),
+            for (final scenario in _scenarios)
+              OmdsRadioTile<_UserScenario>(
+                title: _scenarioLabel(l10n, scenario),
+                value: scenario,
+                groupValue: _selectedScenario,
+                enabled: !_seeding,
+                dense: true,
+                identifier: scenario == _selectedScenario
+                    ? 'devtool.scenarioUsers.scenario'
+                    : 'devtool.scenarioUsers.scenario.${scenario.labelKey}',
+                onChanged: _seeding
+                    ? null
+                    : (value) {
+                        if (value != null) _selectScenario(value);
+                      },
+              ),
             const SizedBox(height: 12),
             OmdsTextField(
               controller: _usernameController,
