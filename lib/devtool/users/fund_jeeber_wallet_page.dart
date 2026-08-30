@@ -166,6 +166,12 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
       final partnerAfterTopup = await _client.readPartnerWallet(
         accessToken: actors.partner.accessToken,
       );
+      _requireSameCurrency(_jeeberBefore!, after, 'Jeeber balance');
+      _requireSameCurrency(
+        _partnerFunded!,
+        partnerAfterTopup,
+        'partner wallet',
+      );
       _requireExecuted(_topup!, amount, 'Jeeber top-up');
       _requireMoney(
         _topup!.amount,
@@ -323,7 +329,19 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
           _running = false;
         });
         return true;
-      } on DevGatewayException {
+      } on DevGatewayException catch (error) {
+        if (error.statusCode == 404) {
+          _credentialProvisioned = false;
+          _actors = null;
+          _partnerUser = null;
+          _adminUser = null;
+          if (!mounted) return true;
+          setState(() {
+            _cleanupRequired = false;
+            _running = false;
+          });
+          return true;
+        }
         // The server-enforced one-shot credential and five-minute session cap
         // keep this fail-closed while the idempotent DELETE is retried.
       }
@@ -382,7 +400,37 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
     DevWalletBalance replay,
     String label,
   ) {
+    _requireSameCurrency(first, replay, label);
     _requireMoney(replay.amount, first.amount, '$label replay balance');
+  }
+
+  static void _requireSameCurrency(
+    DevWalletBalance first,
+    DevWalletBalance second,
+    String label,
+  ) {
+    final firstCode = first.currency?.trim().toUpperCase();
+    final secondCode = second.currency?.trim().toUpperCase();
+    if (firstCode?.isNotEmpty == true || secondCode?.isNotEmpty == true) {
+      if (firstCode == null ||
+          firstCode.isEmpty ||
+          secondCode == null ||
+          secondCode.isEmpty ||
+          firstCode != secondCode) {
+        throw DevGatewayException.walletVerification(
+          '$label currency changed from ${first.currency ?? 'unknown'} '
+          'to ${second.currency ?? 'unknown'}.',
+        );
+      }
+      return;
+    }
+    if (first.currencyId == null ||
+        second.currencyId == null ||
+        first.currencyId != second.currencyId) {
+      throw DevGatewayException.walletVerification(
+        '$label currency identity is missing or changed.',
+      );
+    }
   }
 
   static void _requireExecuted(
@@ -727,11 +775,13 @@ class _FundingReceiptMoney extends StatelessWidget {
       children: [
         Text(
           l10n.walletFundingReceiptBefore(
-            _money(context, receipt.before.amount),
+            _moneyWithCurrency(context, receipt.before.amount, receipt.before),
           ),
         ),
         Text(
-          l10n.walletFundingReceiptAfter(_money(context, receipt.after.amount)),
+          l10n.walletFundingReceiptAfter(
+            _moneyWithCurrency(context, receipt.after.amount, receipt.after),
+          ),
         ),
         Text(
           l10n.walletFundingReceiptGross(
@@ -791,6 +841,18 @@ class _FundingReceipt {
   final DevTopupPreview preview;
   final DevWalletMove credit;
   final DevWalletMove topup;
+}
+
+String _moneyWithCurrency(
+  BuildContext context,
+  double amount,
+  DevWalletBalance balance,
+) {
+  final code = balance.currency?.trim();
+  final identity = code?.isNotEmpty == true
+      ? code!
+      : 'currency-${balance.currencyId ?? 'unknown'}';
+  return '${_money(context, amount)} ${_bidiIsolate(identity)}';
 }
 
 class _FundingActors {

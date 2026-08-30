@@ -90,30 +90,23 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
           _selectedScenario.role,
         );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.scenarioUsersCreated(
-              _scenarioLabel(l10n, _selectedScenario),
-              user.username,
-              _bidiScenario(user.id),
-            ),
-          ),
+      showOmdsSuccessSnackbar(
+        context,
+        message: l10n.scenarioUsersCreated(
+          _scenarioLabel(l10n, _selectedScenario),
+          user.username,
+          _bidiScenario(user.id),
         ),
       );
       if (isJeeber && _approveKyc) {
         final status = await _runOnlineReady(user.id);
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${user.id} — $status')));
+        showOmdsSuccessSnackbar(context, message: '${user.id} — $status');
       }
       _loadRoster();
     } on DevGatewayException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      showOmdsErrorSnackbar(context, message: e.message);
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
@@ -124,14 +117,10 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
     try {
       final status = await _runOnlineReady(userId);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$userId — $status')));
+      showOmdsSuccessSnackbar(context, message: '$userId — $status');
     } on DevGatewayException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      showOmdsErrorSnackbar(context, message: e.message);
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
@@ -195,8 +184,12 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.scenarioUsersTitle)),
-      body: RefreshIndicator(
+      appBar: OMDSAppBar(
+        title: l10n.scenarioUsersTitle,
+        showBackButton: true,
+        centerTitle: false,
+      ),
+      body: OmdsPullToRefresh(
         onRefresh: () async {
           _loadRoster();
           await _rosterFuture;
@@ -209,116 +202,108 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
               style: Theme.of(context).textTheme.labelMedium,
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<_UserScenario>(
-              initialValue: _selectedScenario,
-              decoration: InputDecoration(
-                labelText: l10n.scenarioUsersScenario,
-                border: const OutlineInputBorder(),
-              ),
-              items: [
+            OMDSBottomSheetSelectField(
+              title: l10n.scenarioUsersScenario,
+              label: l10n.scenarioUsersScenario,
+              value: _selectedScenario.labelKey,
+              showSearch: false,
+              enabled: !_seeding,
+              identifier: 'devtool.scenarioUsers.scenario',
+              options: [
                 for (final scenario in _scenarios)
-                  DropdownMenuItem(
-                    value: scenario,
-                    child: Text(_scenarioLabel(l10n, scenario)),
+                  OMDSSelectOption(
+                    value: scenario.labelKey,
+                    label: _scenarioLabel(l10n, scenario),
                   ),
               ],
-              onChanged: _seeding
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedScenario = value;
-                          if (!_usernameEdited) {
-                            _usernameController.text =
-                                DevGatewayClient.suggestedUsername(value.role);
-                          }
-                        });
-                      }
-                    },
+              onChanged: (option) {
+                if (option == null) return;
+                final value = _scenarios.firstWhere(
+                  (scenario) => scenario.labelKey == option.value,
+                );
+                setState(() {
+                  _selectedScenario = value;
+                  if (!_usernameEdited) {
+                    _usernameController.text =
+                        DevGatewayClient.suggestedUsername(value.role);
+                  }
+                });
+              },
             ),
             const SizedBox(height: 12),
-            TextField(
+            OmdsTextField(
               controller: _usernameController,
               enabled: !_seeding,
-              decoration: InputDecoration(
-                labelText: l10n.scenarioUsersUsername,
-                helperText: l10n.scenarioUsersUsernameHelp,
-                border: const OutlineInputBorder(),
-              ),
+              labelText: l10n.scenarioUsersUsername,
+              hintText: l10n.scenarioUsersUsernameHelp,
+              identifier: 'devtool.scenarioUsers.username',
               onChanged: (_) => _usernameEdited = true,
             ),
             if (_selectedScenario.role == 'jeeber') ...[
               const SizedBox(height: 4),
-              CheckboxListTile(
+              OmdsCheckboxTile(
                 contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
                 value: _approveKyc,
+                enabled: !_seeding,
                 onChanged: _seeding
                     ? null
                     : (value) => setState(() => _approveKyc = value ?? false),
-                title: Text(l10n.scenarioUsersApproveKyc),
-                subtitle: Text(l10n.scenarioUsersApproveKycHelp),
+                title: l10n.scenarioUsersApproveKyc,
+                subtitle: l10n.scenarioUsersApproveKycHelp,
+                identifier: 'devtool.scenarioUsers.approveKyc',
               ),
             ],
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _seeding ? null : _createUser,
-              icon: _seeding
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.person_add),
-              label: Text(l10n.scenarioUsersCreate),
+            OmdsLoadingButton(
+              text: l10n.scenarioUsersCreate,
+              onTap: _createUser,
+              isLoading: _seeding,
+              isEnabled: !_seeding,
+              identifier: 'devtool.scenarioUsers.create',
             ),
             if (_lastSeeded != null) ...[
               const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.scenarioUsersLastCreated,
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 4),
+              OMDSSectionCard(
+                title: l10n.scenarioUsersLastCreated,
+                showDivider: false,
+                content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      l10n.scenarioUsersId(_bidiScenario(_lastSeeded!.id)),
+                    ),
+                    SelectableText(
+                      l10n.scenarioUsersUsernameValue(_lastSeeded!.username),
+                    ),
+                    if (_lastSeeded!.role != null)
                       SelectableText(
-                        l10n.scenarioUsersId(_bidiScenario(_lastSeeded!.id)),
-                      ),
-                      SelectableText(
-                        l10n.scenarioUsersUsernameValue(_lastSeeded!.username),
-                      ),
-                      if (_lastSeeded!.role != null)
-                        SelectableText(
-                          l10n.scenarioUsersRole(_lastSeeded!.role!),
+                        l10n.scenarioUsersRole(
+                          _localizedRole(l10n, _lastSeeded!.role!),
                         ),
-                      SelectableText(
-                        l10n.scenarioUsersStatus(_lastSeeded!.status),
                       ),
-                      if (_lastSeededWasJeeber) ...[
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: _seeding
-                              ? null
-                              : () => _makeOnlineReady(_lastSeeded!.id),
-                          icon: const Icon(Icons.verified_user),
-                          label: Text(l10n.scenarioUsersMakeOnlineReady),
-                        ),
-                        const SizedBox(height: 8),
-                        OmdsPrimaryButton(
-                          identifier: 'devtool.walletFunding.lastCreated',
-                          text: l10n.walletFundingAddMoney,
-                          icon: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                          ),
-                          onTap: () => _openWalletFunding(_lastSeeded!),
-                        ),
-                      ],
+                    SelectableText(
+                      l10n.scenarioUsersStatus(
+                        _localizedStatus(l10n, _lastSeeded!.status),
+                      ),
+                    ),
+                    if (_lastSeededWasJeeber) ...[
+                      const SizedBox(height: 8),
+                      OMDSOutlinedButton(
+                        enabled: !_seeding,
+                        onTap: () => _makeOnlineReady(_lastSeeded!.id),
+                        icon: const Icon(Icons.verified_user),
+                        text: l10n.scenarioUsersMakeOnlineReady,
+                        identifier: 'devtool.scenarioUsers.makeOnlineReady',
+                      ),
+                      const SizedBox(height: 8),
+                      OmdsPrimaryButton(
+                        identifier: 'devtool.walletFunding.lastCreated',
+                        text: l10n.walletFundingAddMoney,
+                        icon: const Icon(Icons.account_balance_wallet_outlined),
+                        onTap: () => _openWalletFunding(_lastSeeded!),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -450,8 +435,9 @@ class _ScenarioUserRosterCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final metadata = <String>[
       l10n.scenarioUsersId(_bidiScenario(user.id)),
-      if (user.role != null) l10n.scenarioUsersRole(user.role!),
-      l10n.scenarioUsersStatus(user.status),
+      if (user.role != null)
+        l10n.scenarioUsersRole(_localizedRole(l10n, user.role!)),
+      l10n.scenarioUsersStatus(_localizedStatus(l10n, user.status)),
     ].join('\n');
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -494,3 +480,20 @@ String _scenarioLabel(AppLocalizations l10n, _UserScenario scenario) =>
     };
 
 String _bidiScenario(String value) => '\u2068$value\u2069';
+
+String _localizedRole(AppLocalizations l10n, String value) =>
+    switch (value.trim().toLowerCase()) {
+      'client' || 'customer' => l10n.scenarioUsersRoleCustomer,
+      'driver' || 'jeeber' => l10n.scenarioUsersRoleJeeber,
+      'partner' => l10n.scenarioUsersRolePartner,
+      'admin' => l10n.scenarioUsersRoleAdmin,
+      _ => value,
+    };
+
+String _localizedStatus(AppLocalizations l10n, String value) =>
+    switch (value.trim().toLowerCase()) {
+      'active' => l10n.scenarioUsersStatusActive,
+      'suspended' => l10n.scenarioUsersStatusSuspended,
+      'pending' || 'kyc-pending' => l10n.scenarioUsersStatusPending,
+      _ => value,
+    };

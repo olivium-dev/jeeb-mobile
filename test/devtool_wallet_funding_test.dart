@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,27 @@ import 'package:omds/omds.dart';
 import 'support/sync_app_localizations.dart';
 
 void main() {
+  test('staging Maestro flow pins the real wallet funding journey', () {
+    final flow = File(
+      '.maestro/flows/devtool-wallet-funding-staging.yaml',
+    ).readAsStringSync();
+
+    for (final contract in <String>[
+      'Scenario Users',
+      'devtool.scenarioUsers.scenario',
+      'devtool.scenarioUsers.create',
+      'devtool.walletFunding.lastCreated',
+      'devtool.walletFunding.submit',
+      'Verified receipt',
+      'timeout: 120000',
+      'takeScreenshot: devtool_wallet_funding_verified_receipt',
+    ]) {
+      expect(flow, contains(contract));
+    }
+    expect(flow, isNot(contains('clearState')));
+    expect(flow, isNot(contains('point:')));
+  });
+
   test(
     'wallet funding client sends request-scoped bearers and exact money contracts',
     () async {
@@ -127,8 +149,9 @@ void main() {
         scrollable: find.byType(Scrollable).last,
       );
       expect(find.text('Verified receipt'), findsOneWidget);
-      expect(find.text('Before: 0.00'), findsOneWidget);
-      expect(find.text('After: 47.50'), findsOneWidget);
+      expect(find.textContaining('Before: 0.00'), findsOneWidget);
+      expect(find.textContaining('USD'), findsAtLeastNWidgets(2));
+      expect(find.textContaining('After: 47.50'), findsOneWidget);
       expect(
         find.text('✓ Cash credit replay did not duplicate'),
         findsOneWidget,
@@ -660,6 +683,71 @@ void main() {
     );
   });
 
+  testWidgets(
+    'credential failure before activation treats cleanup 404 as already absent',
+    (tester) async {
+      final dio = _WalletFundingDio(
+        credentialFailureBeforeCreate: true,
+        cleanupNotFound: true,
+      );
+      const jeeber = DevUser(
+        id: _WalletFundingDio.jeeberId,
+        username: 'demo_jeeber',
+        status: 'active',
+        role: 'jeeber',
+      );
+
+      await tester.pumpWidget(
+        _testApp(
+          FundJeeberWalletPage(
+            jeeber: jeeber,
+            client: DevGatewayClient(dio: dio),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add money'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Session cleanup required'), findsNothing);
+      expect(
+        dio.matching('DELETE', RegExp(r'^/dev/partner/credentials/')),
+        hasLength(1),
+      );
+      expect(
+        tester.widget<PopScope<dynamic>>(find.byType(PopScope)).canPop,
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('currency drift cannot produce a verified receipt', (
+    tester,
+  ) async {
+    final dio = _WalletFundingDio(jeeberCurrencyAfter: 'EUR');
+    const jeeber = DevUser(
+      id: _WalletFundingDio.jeeberId,
+      username: 'demo_jeeber',
+      status: 'active',
+      role: 'jeeber',
+    );
+
+    await tester.pumpWidget(
+      _testApp(
+        FundJeeberWalletPage(
+          jeeber: jeeber,
+          client: DevGatewayClient(dio: dio),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add money'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified receipt'), findsNothing);
+    expect(find.text('Reconciliation required'), findsWidgets);
+  });
+
   testWidgets('sub-cent balance drift cannot produce a receipt', (
     tester,
   ) async {
@@ -839,8 +927,8 @@ void main() {
       find.textContaining('المعرّف: \u2068${_WalletFundingDio.jeeberId}\u2069'),
       findsOneWidget,
     );
-    expect(find.textContaining('الدور: jeeber'), findsOneWidget);
-    expect(find.textContaining('الحالة: active'), findsOneWidget);
+    expect(find.textContaining('الدور: موصّل'), findsOneWidget);
+    expect(find.textContaining('الحالة: نشط'), findsOneWidget);
     expect(find.textContaining('id:'), findsNothing);
     expect(find.textContaining('role:'), findsNothing);
     expect(find.textContaining('status:'), findsNothing);
@@ -876,6 +964,9 @@ class _WalletFundingDio extends Fake implements Dio {
     this.topupReplayAmountOffset = 0,
     this.topupReplayStatus,
     this.credentialResponseLost = false,
+    this.credentialFailureBeforeCreate = false,
+    this.cleanupNotFound = false,
+    this.jeeberCurrencyAfter,
     this.includeRosterJeeber = false,
     this.rosterGate,
     this.otpThreshold = 50,
@@ -902,6 +993,9 @@ class _WalletFundingDio extends Fake implements Dio {
   final double topupReplayAmountOffset;
   final String? topupReplayStatus;
   final bool credentialResponseLost;
+  final bool credentialFailureBeforeCreate;
+  final bool cleanupNotFound;
+  final String? jeeberCurrencyAfter;
   final bool includeRosterJeeber;
   final Completer<void>? rosterGate;
   final double otpThreshold;
@@ -939,6 +1033,16 @@ class _WalletFundingDio extends Fake implements Dio {
     ProgressCallback? onReceiveProgress,
   }) async {
     calls.add(_Call('POST', path, _map(data), _authorization(options)));
+    if (path == '/dev/partner/credentials' && credentialFailureBeforeCreate) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<Object?>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 503,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
     if (path == '/dev/partner/credentials' && credentialResponseLost) {
       throw DioException(
         requestOptions: RequestOptions(path: path),
@@ -1042,6 +1146,16 @@ class _WalletFundingDio extends Fake implements Dio {
       }, _authorization(options)),
     );
     if (cleanupGate != null) await cleanupGate!.future;
+    if (cleanupNotFound) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<Object?>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 404,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
     if (cleanupFailures > 0) {
       cleanupFailures--;
       throw DioException(
@@ -1089,7 +1203,7 @@ class _WalletFundingDio extends Fake implements Dio {
         'availableBalance': _topupCommitted
             ? (_fundAmount * 0.95) + jeeberDeltaOffset
             : 0,
-        'currency': 'USD',
+        'currency': _topupCommitted ? jeeberCurrencyAfter ?? 'USD' : 'USD',
       };
     } else if (path == '/v1/partner/wallet') {
       if (failPartnerWalletRead && !_partnerWalletReadFailureRaised) {

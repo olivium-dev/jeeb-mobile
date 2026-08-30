@@ -164,6 +164,14 @@ class AppLocalizations {
       _get('scenarioUsersRole').replaceFirst('{role}', role);
   String scenarioUsersStatus(String status) =>
       _get('scenarioUsersStatus').replaceFirst('{status}', status);
+  String get scenarioUsersRoleCustomer => _get('scenarioUsersRoleCustomer');
+  String get scenarioUsersRoleJeeber => _get('scenarioUsersRoleJeeber');
+  String get scenarioUsersRolePartner => _get('scenarioUsersRolePartner');
+  String get scenarioUsersRoleAdmin => _get('scenarioUsersRoleAdmin');
+  String get scenarioUsersStatusActive => _get('scenarioUsersStatusActive');
+  String get scenarioUsersStatusSuspended =>
+      _get('scenarioUsersStatusSuspended');
+  String get scenarioUsersStatusPending => _get('scenarioUsersStatusPending');
   String get scenarioUsersMakeOnlineReady =>
       _get('scenarioUsersMakeOnlineReady');
   String get scenarioUsersRoster => _get('scenarioUsersRoster');
