@@ -816,7 +816,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                   // its `devtool_shell.dart` import are tree-shaken out and
                   // `routed` is returned unchanged. The native half is
                   // gated independently by `#if JEEB_DEV`. Wrapped BELOW
-                  // `ClarityMask` so the Dev Tool remains outside Clarity.
+                  // `ClarityMask` so the Dev Tool remains outside SDK capture.
                   final shakeHosted = kDevToolEnabled
                       ? DevToolShakeHost(
                           initiallyOpen:
