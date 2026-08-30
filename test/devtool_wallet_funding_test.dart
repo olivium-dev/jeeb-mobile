@@ -81,7 +81,9 @@ void main() {
         holderId: _WalletFundingDio.partnerId,
       );
 
-      expect(preview.netToJeeber, 57);
+      expect(preview.grossAmount, 60);
+      expect(preview.fees, 0);
+      expect(preview.netToJeeber, 60);
       expect(preview.otpRequired, isTrue);
       expect(
         dio.single(
@@ -151,7 +153,7 @@ void main() {
       expect(find.text('Verified receipt'), findsOneWidget);
       expect(find.textContaining('Before: 0.00'), findsOneWidget);
       expect(find.textContaining('USD'), findsAtLeastNWidgets(2));
-      expect(find.textContaining('After: 47.50'), findsOneWidget);
+      expect(find.textContaining('After: 50.00'), findsOneWidget);
       expect(
         find.text('✓ Cash credit replay did not duplicate'),
         findsOneWidget,
@@ -1295,7 +1297,7 @@ class _WalletFundingDio extends Fake implements Dio {
       }
       body = <String, dynamic>{
         'availableBalance': _topupCommitted
-            ? (_fundAmount * 0.95) + jeeberDeltaOffset
+            ? _fundAmount + jeeberDeltaOffset
             : 0,
         if (!omitJeeberCurrency)
           'currency': _topupCommitted ? jeeberCurrencyAfter ?? 'USD' : 'USD',
@@ -1398,8 +1400,8 @@ class _WalletFundingDio extends Fake implements Dio {
       _fundAmount = amount;
       return <String, dynamic>{
         'grossAmount': amount,
-        'fees': amount * 0.05,
-        'netToJeeber': amount * 0.95,
+        'fees': 0,
+        'netToJeeber': amount,
         if (!omitOtpPolicy) 'otpRequired': amount > otpThreshold,
       };
     }
@@ -1416,7 +1418,7 @@ class _WalletFundingDio extends Fake implements Dio {
       return <String, dynamic>{
         'transactionId': 'topup-transaction',
         'amount': _fundAmount + (_topupPosts > 1 ? topupReplayAmountOffset : 0),
-        'fees': (_fundAmount * 0.05) + transferFeeOffset,
+        'fees': transferFeeOffset,
         'status': _topupPosts > 1 && topupReplayStatus != null
             ? topupReplayStatus
             : 'executed',

@@ -177,14 +177,14 @@ class _FundJeeberWalletPageState extends State<FundJeeberWalletPage> {
       _requireExecuted(_topup!, amount, 'Jeeber top-up');
       _requireMoney(
         _topup!.amount,
-        _preview!.grossAmount,
-        'executed gross amount',
+        _preview!.netToJeeber,
+        'executed net amount',
       );
       _requireMoney(_topup!.fees, _preview!.fees, 'executed fees');
       _requireMoney(
-        _topup!.amount - _topup!.fees,
-        _preview!.netToJeeber,
-        'executed net amount',
+        _topup!.amount + _topup!.fees,
+        _preview!.grossAmount,
+        'executed gross amount',
       );
       _requireMoney(
         after.amount - _jeeberBefore!.amount,
