@@ -59,7 +59,7 @@ void main() {
       'LegacyDevToolLauncher.kt',
     );
     expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
-    expect(launcher, contains('com.olivium.jeeb/devtool_shake'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_launcher'));
     expect(launcher, contains('invokeMethod("open", null)'));
   });
 
@@ -69,8 +69,19 @@ void main() {
       'DevToolLauncher.kt',
     );
     expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
-    expect(launcher, contains('com.olivium.jeeb/devtool_shake'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_launcher'));
     expect(launcher, contains('invokeMethod("open", null)'));
+  });
+
+  test('launcher reopen stays independent of the optional shake flag', () {
+    final host = _source('lib/devtool/shake/devtool_shake.dart');
+    expect(host, contains('kDevToolLauncherChannel'));
+    expect(host, contains('_claimNativeHandler(widget.launcherChannel)'));
+    expect(
+      host,
+      contains('if (widget.shakeEnabled &&'),
+      reason: 'only the physical shake channel should be optional',
+    );
   });
 
   test('native and Dart launchers independently fail closed', () {

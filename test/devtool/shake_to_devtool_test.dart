@@ -42,10 +42,23 @@ class _StubSuperLoginService implements SuperLoginService {
 Future<ByteData?> _deliverShake(
   WidgetTester tester, {
   String method = kDevToolShakeOpenMethod,
+}) => _deliverNativeOpen(
+  tester,
+  channelName: kDevToolShakeChannelName,
+  method: method,
+);
+
+Future<ByteData?> _deliverLauncherOpen(WidgetTester tester) =>
+    _deliverNativeOpen(tester, channelName: kDevToolLauncherChannelName);
+
+Future<ByteData?> _deliverNativeOpen(
+  WidgetTester tester, {
+  required String channelName,
+  String method = kDevToolShakeOpenMethod,
 }) async {
   final ByteData? reply = await tester.binding.defaultBinaryMessenger
       .handlePlatformMessage(
-        kDevToolShakeChannelName,
+        channelName,
         const StandardMethodCodec().encodeMethodCall(MethodCall(method)),
         null,
       );
@@ -464,6 +477,19 @@ void main() {
       await tester.pumpAndSettle();
       expect(await _deliverShake(tester), isNull);
       expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+    });
+
+    testWidgets('launcher reopens while the shake channel is disabled', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _hostUnderTest(_FakeClock(), initiallyOpen: true, shakeEnabled: false),
+      );
+      await tester.tap(find.byKey(kDevToolShakeCloseKey));
+      await tester.pumpAndSettle();
+
+      expect(await _deliverLauncherOpen(tester), isNotNull);
+      expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
     });
 
     testWidgets('a native shake mounts the Dev Tool over the product UI', (

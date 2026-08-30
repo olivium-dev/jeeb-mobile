@@ -13,7 +13,7 @@ class LegacyDevToolLauncher : MainActivity() {
         super.configureFlutterEngine(flutterEngine)
         devToolChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.olivium.jeeb/devtool_shake",
+            "com.olivium.jeeb/devtool_launcher",
         )
     }
 
