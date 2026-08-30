@@ -162,6 +162,31 @@ void main() {
       expect(bundle.diagPath, isNull);
     },
   );
+
+  test('export cache retains only the ten newest JSONL snapshots', () async {
+    await diagSource.writeAsString(
+      '${jsonEncode(_event('bounded_cache', '2026-08-29T10:00:30Z'))}\n',
+    );
+    final paths = <String>[];
+    for (var i = 0; i < 12; i++) {
+      final path = await ObsExportBundleBuilder.createSanitizedDiagSnapshot(
+        diagSourcePath: diagSource.path,
+        exportDirectoryProvider: () async => temp,
+        clock: () => DateTime.utc(2026, 8, 29, 11, 0, i),
+      );
+      paths.add(path!);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+
+    final exportDirectory = Directory('${temp.path}/jeeb_trace_exports');
+    final retained = await exportDirectory
+        .list()
+        .where((entity) => entity is File && entity.path.endsWith('.jsonl'))
+        .length;
+    expect(retained, 10);
+    expect(await File(paths.first).exists(), isFalse);
+    expect(await File(paths.last).exists(), isTrue);
+  });
 }
 
 Map<String, Object?> _event(

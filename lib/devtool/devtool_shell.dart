@@ -6,6 +6,7 @@ import '../app/bootstrap.dart';
 import '../core/dev_flags.dart';
 import '../core/di/injection_container.dart';
 import '../core/diagnostics/gesture_log.dart';
+import '../core/observability/session_trace/observability_config.dart';
 import '../core/theme/app_theme.dart';
 import '../features/registration/data/super_login_demo_user.dart';
 import '../features/registration/data/super_login_service.dart';
@@ -143,6 +144,11 @@ class DevToolShell extends StatelessWidget {
   Widget build(BuildContext context) {
     // Defensive: this shell must only ever run inside a dev-tool-enabled build.
     assertDevToolOnly('DevToolShell');
+    final sections = DevToolSection.values
+        .where(
+          (section) => section != DevToolSection.sessionLogs || kObsCompiledIn,
+        )
+        .toList(growable: false);
     return Scaffold(
       appBar: AppBar(title: const Text('Jeeber Dev Tool'), centerTitle: false),
       body: Column(
@@ -152,10 +158,10 @@ class DevToolShell extends StatelessWidget {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: DevToolSection.values.length,
+              itemCount: sections.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
-                final section = DevToolSection.values[i];
+                final section = sections[i];
                 return ListTile(
                   leading: Icon(section.icon),
                   title: Text(section.title),

@@ -131,6 +131,7 @@ run_release_build() {
     --dart-define=APP_FLAVOR=staging \
     --dart-define=JEEB_DEVTOOL_ENABLED=true \
     --dart-define=JEEB_STAGING_DEVTOOL=true \
+    --dart-define=JEEB_OBS_OVERLAY=true \
     --dart-define=JEEB_CLARITY_ENABLED=false \
     --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
     --dart-define="JEEB_REALTIME_SOCKET_URL=${REALTIME_SOCKET_URL}" \

@@ -287,15 +287,15 @@ final class ObsOverlayController extends ChangeNotifier {
         case ShareResultStatus.dismissed:
           _lastExportSucceeded = false;
           _lastExportMessage =
-              'Sharing was cancelled; snapshots remain in cache.';
+              'Sharing was cancelled; snapshots remain in bounded cache.';
         case ShareResultStatus.unavailable:
           _lastExportSucceeded = false;
           _lastExportMessage =
-              'Sharing is unavailable; snapshots remain in cache.';
+              'Sharing is unavailable; snapshots remain in bounded cache.';
       }
     } catch (_) {
       _lastExportSucceeded = false;
-      _lastExportMessage = 'Sharing failed; snapshots remain in cache.';
+      _lastExportMessage = 'Sharing failed; snapshots remain in bounded cache.';
     }
   }
 

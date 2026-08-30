@@ -6,6 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import '../../diagnostics/diag_file_sink.dart';
 import 'secret_redactor.dart';
 
+const int _kMaxExportFiles = 10;
+const int _kMaxExportBytes = 40 * 1024 * 1024;
+
 final class ObsRecordingInterval {
   const ObsRecordingInterval({required this.startUtc, required this.endUtc});
 
@@ -43,6 +46,12 @@ abstract final class ObsExportBundleBuilder {
       sourcePath: diagSourcePath,
       intervals: intervals,
     );
+    if (snapshot != null) {
+      await _pruneExportDirectory(
+        directory,
+        preservePaths: <String>{snapshot.path},
+      );
+    }
     return snapshot?.path;
   }
 
@@ -72,10 +81,12 @@ abstract final class ObsExportBundleBuilder {
       sourcePath: activeDiagPath,
       intervals: intervals,
     );
-    return ObsExportBundle(
+    final bundle = ObsExportBundle(
       obsPath: obsSnapshot.path,
       diagPath: diagSnapshot?.path,
     );
+    await _pruneExportDirectory(directory, preservePaths: bundle.paths.toSet());
+    return bundle;
   }
 
   static Future<File?> _createDiagSnapshot({
@@ -148,6 +159,39 @@ abstract final class ObsExportBundleBuilder {
         : await provider();
     final directory = Directory('${base.path}/jeeb_trace_exports');
     await directory.create(recursive: true);
+    await _pruneExportDirectory(directory);
     return directory;
+  }
+
+  static Future<void> _pruneExportDirectory(
+    Directory directory, {
+    Set<String> preservePaths = const <String>{},
+  }) async {
+    final entries = <({File file, int bytes, DateTime modified})>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! File || !entity.path.endsWith('.jsonl')) continue;
+      try {
+        final stat = await entity.stat();
+        entries.add((file: entity, bytes: stat.size, modified: stat.modified));
+      } catch (_) {}
+    }
+    entries.sort((a, b) {
+      final byTime = a.modified.compareTo(b.modified);
+      return byTime != 0 ? byTime : a.file.path.compareTo(b.file.path);
+    });
+    var totalBytes = entries.fold<int>(0, (sum, item) => sum + item.bytes);
+    var remainingFiles = entries.length;
+    for (final entry in entries) {
+      if (remainingFiles <= _kMaxExportFiles &&
+          totalBytes <= _kMaxExportBytes) {
+        break;
+      }
+      if (preservePaths.contains(entry.file.path)) continue;
+      try {
+        await entry.file.delete();
+        remainingFiles--;
+        totalBytes -= entry.bytes;
+      } catch (_) {}
+    }
   }
 }

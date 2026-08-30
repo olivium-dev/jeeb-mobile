@@ -43,7 +43,7 @@ abstract final class ObsNotificationRecorder {
       body: SecretRedactor.redactLabel(message.body),
       deepLink: deepLink == null
           ? null
-          : SecretRedactor.redactPath(DiagRedaction.scrubPath(deepLink)),
+          : SecretRedactor.redactNetworkPath(DiagRedaction.scrubPath(deepLink)),
       data: _redactData(message.data),
     );
   }

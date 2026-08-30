@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -86,6 +87,29 @@ void main() {
       dio.interceptors.whereType<ObsDioInterceptor>(),
       hasLength(kObsCompiledIn ? 1 : 0),
     );
+  });
+
+  test('product Dio observes main and refresh attempts before recovery', () {
+    final source = File('lib/core/network/dio_client.dart').readAsStringSync();
+    final refreshObs = source.indexOf(
+      'ObsDioInterceptor.attachTo(refreshClient);',
+    );
+    final refreshFallback = source.indexOf(
+      'refreshClient.interceptors.add(',
+      refreshObs,
+    );
+    final mainObs = source.indexOf('ObsDioInterceptor.attachTo(dio);');
+    final tokenRefresh = source.indexOf('TokenRefreshInterceptor(', mainObs);
+    final mainFallback = source.indexOf(
+      'UnversionedPathFallbackInterceptor(dio)',
+      mainObs,
+    );
+
+    expect(refreshObs, greaterThanOrEqualTo(0));
+    expect(refreshFallback, greaterThan(refreshObs));
+    expect(mainObs, greaterThanOrEqualTo(0));
+    expect(tokenRefresh, greaterThan(mainObs));
+    expect(mainFallback, greaterThan(mainObs));
   });
 
   test(

@@ -16,6 +16,11 @@ final class ObsDioInterceptor extends Interceptor {
     caseSensitive: false,
   );
 
+  static final RegExp _authRefreshPath = RegExp(
+    r'^/(?:v1/)?auth/refresh$',
+    caseSensitive: false,
+  );
+
   static final RegExp _deliveryCredentialPath = RegExp(
     r'^/(?:v1/)?(?:delivery|deliveries)/[^/]+/(?:otp(?:/verify)?|handover(?:-code)?(?:/verify)?)$',
     caseSensitive: false,
@@ -80,7 +85,10 @@ final class ObsDioInterceptor extends Interceptor {
     DioException? error,
   }) {
     final capture = options.extra.remove(_captureKey);
-    if (capture is! ObsApiCapture) return;
+    if (capture is! ObsApiCapture) {
+      options.extra.remove(_startedAtKey);
+      return;
+    }
     try {
       final event = _buildEvent(
         options,
@@ -91,6 +99,10 @@ final class ObsDioInterceptor extends Interceptor {
       Observability.instance.completeApiCapture(capture, event);
     } catch (_) {
       Observability.instance.abandonApiCapture(capture);
+    } finally {
+      // A compatibility or auth replay reuses RequestOptions. Clearing the
+      // first attempt's clock makes the replay a distinct wire timing.
+      options.extra.remove(_startedAtKey);
     }
   }
 
@@ -190,7 +202,8 @@ final class ObsDioInterceptor extends Interceptor {
     final normalized = scrubbed.length > 1 && scrubbed.endsWith('/')
         ? scrubbed.substring(0, scrubbed.length - 1)
         : scrubbed;
-    return _authRecoveryPath.hasMatch(normalized) ||
+    return _authRefreshPath.hasMatch(normalized) ||
+        _authRecoveryPath.hasMatch(normalized) ||
         _deliveryCredentialPath.hasMatch(normalized);
   }
 

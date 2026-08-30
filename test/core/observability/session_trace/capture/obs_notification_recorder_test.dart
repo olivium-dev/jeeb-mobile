@@ -151,7 +151,8 @@ void main() {
         expect(event.channel, 'fcm');
         expect(event.mode, 'opened');
         expect(event.messageId, 'm-9');
-        expect(event.deepLink, '/orders/d-1');
+        expect(event.deepLink, '/orders/:value');
+        expect(jsonEncode(event.toJson()), isNot(contains('d-1')));
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
@@ -168,7 +169,7 @@ void main() {
     }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
-      'recordOpened redacts an OTP-shaped path segment at capture time',
+      'recordOpened templates an OTP-shaped path segment at capture time',
       () {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
@@ -179,7 +180,7 @@ void main() {
         );
 
         final event = fake.events.single as ObsNotificationEvent;
-        expect(event.deepLink, SecretRedactor.redacted);
+        expect(event.deepLink, '/:value/:value');
         expect(jsonEncode(event.toJson()), isNot(contains('482913')));
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,

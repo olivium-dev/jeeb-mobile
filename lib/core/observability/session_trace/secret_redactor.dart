@@ -197,6 +197,7 @@ abstract final class SecretRedactor {
     'moderation',
     'notification-service',
     'notifications',
+    'orders',
     'offer-service',
     'offers',
     'otp',

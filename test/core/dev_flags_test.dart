@@ -55,10 +55,12 @@ void main() {
       ).readAsStringSync();
 
       expect(iosBuilder, contains('--dart-define=JEEB_STAGING_DEVTOOL=true'));
+      expect(iosBuilder, contains('--dart-define=JEEB_OBS_OVERLAY=true'));
       expect(
         androidBuilder,
         contains('--dart-define=JEEB_STAGING_DEVTOOL=true'),
       );
+      expect(androidBuilder, contains('--dart-define=JEEB_OBS_OVERLAY=true'));
       expect(
         androidBuilder,
         contains('--dart-define=JEEB_DEVTOOL_ENABLED=true'),

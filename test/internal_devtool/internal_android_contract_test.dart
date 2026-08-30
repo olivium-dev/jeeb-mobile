@@ -63,6 +63,16 @@ void main() {
     expect(launcher, contains('invokeMethod("open", null)'));
   });
 
+  test('internal launcher reopens the existing Dev Tool isolate', () {
+    final launcher = _source(
+      'android/app/src/internalRelease/kotlin/app/jeeb/mobile/'
+      'DevToolLauncher.kt',
+    );
+    expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_shake'));
+    expect(launcher, contains('invokeMethod("open", null)'));
+  });
+
   test('native and Dart launchers independently fail closed', () {
     final nativeLauncher = _source(
       'android/app/src/internalRelease/kotlin/app/jeeb/mobile/'

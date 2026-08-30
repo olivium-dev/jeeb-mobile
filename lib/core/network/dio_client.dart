@@ -45,6 +45,11 @@ class DioClient {
       ),
     );
 
+    // Capture each physical refresh attempt before the compatibility fallback
+    // can resolve it. Auth refresh is metadata-only in ObsDioInterceptor, so
+    // token bodies and headers are never retained.
+    ObsDioInterceptor.attachTo(refreshClient);
+
     // The refresh Dio carries no auth interceptors, so this replay can never
     // start a second refresh; scoped to `/v1/auth`, single-shot, revert-safe.
     refreshClient.interceptors.add(
@@ -57,6 +62,11 @@ class DioClient {
     dio.interceptors.add(RateLimitInterceptor());
 
     dio.interceptors.add(BearerAuthInterceptor(store));
+
+    // Keep observability ahead of refresh/fallback error recovery so the
+    // original 401/404 and every replay are separate wire-attempt events.
+    ObsDioInterceptor.attachTo(dio);
+
     dio.interceptors.add(
       TokenRefreshInterceptor(
         retryClient: dio,
@@ -70,8 +80,6 @@ class DioClient {
     dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
 
     dio.interceptors.add(const DiagDioInterceptor());
-
-    ObsDioInterceptor.attachTo(dio);
 
     if (kDebugMode) {
       dio.interceptors.add(const RedactingLogInterceptor());
