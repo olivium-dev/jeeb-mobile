@@ -137,12 +137,15 @@ class MockGatewayClient {
 
     dio.interceptors.add(_AuthInterceptor());
 
-    // W6-02 compat window: a 404/405 on `/v1/...` is retried unversioned.
-    dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
-
     dio.interceptors.add(const DiagDioInterceptor());
 
+    // Observe the original wire result before compatibility recovery handles
+    // it. The replay then traverses this interceptor again and gets its own
+    // capture, so `/v1/...` 404 + unversioned 200 remain distinct attempts.
     ObsDioInterceptor.attachTo(dio);
+
+    // W6-02 compat window: a 404/405 on `/v1/...` is retried unversioned.
+    dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
 
     if (kDebugMode) {
       dio.interceptors.add(const RedactingLogInterceptor());

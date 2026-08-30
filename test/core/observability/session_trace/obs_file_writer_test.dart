@@ -36,6 +36,15 @@ const double _longitudeCanary = 4.9041002;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('the default trace source uses the cross-platform no-backup cache', () {
+    final source = File(
+      'lib/core/observability/session_trace/obs_file_writer.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('getApplicationCacheDirectory'));
+    expect(source, isNot(contains('getApplicationDocumentsDirectory')));
+  });
+
   late Directory tempBase;
 
   ObsFileWriter makeWriter({

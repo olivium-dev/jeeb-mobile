@@ -88,7 +88,10 @@ final class ObsFileWriter implements ObservabilitySink {
     try {
       final writer = ObsFileWriter(
         baseDirectoryProvider:
-            baseDirectoryProvider ?? getApplicationDocumentsDirectory,
+            // Android app cache and iOS Library/Caches are excluded from OS
+            // backups. Diagnostic traces must stay local unless the tester
+            // explicitly invokes Export / Share.
+            baseDirectoryProvider ?? getApplicationCacheDirectory,
         sessionId: sessionId,
         role: role,
         flushThresholdLines: 1,

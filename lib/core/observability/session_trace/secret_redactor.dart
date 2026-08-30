@@ -295,6 +295,16 @@ abstract final class SecretRedactor {
   };
 
   static const String redacted = '<redacted>';
+  static const String truncated = '<truncated>';
+
+  /// Hard traversal limits applied before inspecting user-controlled bodies.
+  /// These bounds keep diagnostics from copying or serializing an arbitrarily
+  /// large response on the UI isolate.
+  static const int maxTraversalDepth = 12;
+  static const int maxTraversalNodes = 512;
+  static const int maxCollectionEntries = 64;
+  static const int maxStringCodeUnits = 4096;
+  static const int maxInputBytes = 64 * 1024;
 
   static final RegExp _bearerPattern = RegExp(
     r'Bearer\s+[A-Za-z0-9\-_.=]+',
@@ -372,7 +382,7 @@ abstract final class SecretRedactor {
   /// [full] remains only for source compatibility. Both values apply the same
   /// mandatory full-redaction policy.
   static Object? redactBody(Object? body, {bool full = true}) =>
-      _redactValue(body);
+      _redactValue(body, _RedactionBudget(), 0);
 
   /// [full] is ignored intentionally; callers cannot relax redaction.
   static Object? redactAndTruncate(
@@ -432,37 +442,125 @@ abstract final class SecretRedactor {
     return _redactRelativeNetworkPath(parsed.path);
   }
 
-  static Object? _redactValue(Object? value) {
+  static Object? _redactValue(
+    Object? value,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    if (!budget.claimNode(depth)) return truncated;
+    return _redactClaimedValue(value, budget, depth);
+  }
+
+  static Object? _redactClaimedValue(
+    Object? value,
+    _RedactionBudget budget,
+    int depth,
+  ) {
     if (value == null) return null;
-    if (value is Map<String, Object?>) return _redactMap(value);
-    if (value is Map) {
-      return _redactMap(value.map((k, v) => MapEntry(k.toString(), v)));
+    if (value is Map<String, Object?>) {
+      return _redactMap(value, budget, depth);
     }
-    if (value is List) return value.map(_redactValue).toList();
-    if (value is String) return _generatedMarkerOrRedacted(value);
+    if (value is Map) {
+      return _redactUntypedMap(value, budget, depth);
+    }
+    if (value is List) {
+      return _redactList(value, budget, depth);
+    }
+    if (value is String) {
+      return budget.claimString(value)
+          ? _generatedMarkerOrRedacted(value)
+          : truncated;
+    }
     if (value is bool) return value;
     return redacted;
   }
 
-  static Map<String, Object?> _redactMap(Map<String, Object?> map) {
+  static Map<String, Object?> _redactUntypedMap(
+    Map<Object?, Object?> map,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    final typed = <String, Object?>{};
+    var count = 0;
+    for (final entry in map.entries) {
+      if (count >= maxCollectionEntries) {
+        typed[truncated] = truncated;
+        break;
+      }
+      final key = entry.key.toString();
+      if (!budget.claimString(key)) {
+        typed[truncated] = truncated;
+        break;
+      }
+      typed[key] = entry.value;
+      count++;
+    }
+    return _redactMap(typed, budget, depth, keysAlreadyClaimed: true);
+  }
+
+  static List<Object?> _redactList(
+    List<Object?> list,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    final out = <Object?>[];
+    var count = 0;
+    for (final value in list) {
+      if (count >= maxCollectionEntries) {
+        out.add(truncated);
+        break;
+      }
+      out.add(_redactValue(value, budget, depth + 1));
+      count++;
+    }
+    return out;
+  }
+
+  static Map<String, Object?> _redactMap(
+    Map<String, Object?> map,
+    _RedactionBudget budget,
+    int depth, {
+    bool keysAlreadyClaimed = false,
+  }) {
     final out = <String, Object?>{};
-    map.forEach((key, value) {
+    var count = 0;
+    for (final entry in map.entries) {
+      if (count >= maxCollectionEntries) {
+        out[truncated] = truncated;
+        break;
+      }
+      final key = entry.key;
+      final value = entry.value;
+      if (!keysAlreadyClaimed && !budget.claimString(key)) {
+        out[truncated] = truncated;
+        break;
+      }
+      if (!budget.claimNode(depth + 1)) {
+        out[truncated] = truncated;
+        break;
+      }
       if (isSensitiveKey(key)) {
         out[key] = redacted;
-        return;
+        count++;
+        continue;
       }
       if (value is String) {
-        out[key] = _redactStringField(key, value);
-        return;
+        out[key] = budget.claimString(value)
+            ? _redactStringField(key, value)
+            : truncated;
+        count++;
+        continue;
       }
       if (value is num) {
         out[key] = _safeNumericKeys.contains(_normalizeKey(key))
             ? value
             : redacted;
-        return;
+        count++;
+        continue;
       }
-      out[key] = _redactValue(value);
-    });
+      out[key] = _redactClaimedValue(value, budget, depth + 1);
+      count++;
+    }
     return out;
   }
 
@@ -554,6 +652,7 @@ abstract final class SecretRedactor {
 
   static String? _generatedMarkerOrNull(String value) {
     if (value == redacted) return redacted;
+    if (value == truncated) return truncated;
     if (RegExp(r'^<truncated \d+ bytes>$').hasMatch(value)) return value;
     if (value == '<non-serializable body>') return value;
     return null;
@@ -610,5 +709,29 @@ abstract final class SecretRedactor {
     } catch (_) {
       return null;
     }
+  }
+}
+
+final class _RedactionBudget {
+  int _remainingNodes = SecretRedactor.maxTraversalNodes;
+  int _remainingBytes = SecretRedactor.maxInputBytes;
+
+  bool claimNode(int depth) {
+    if (depth > SecretRedactor.maxTraversalDepth || _remainingNodes <= 0) {
+      return false;
+    }
+    _remainingNodes--;
+    return true;
+  }
+
+  bool claimString(String value) {
+    if (value.length > SecretRedactor.maxStringCodeUnits ||
+        value.length > _remainingBytes ~/ 3) {
+      return false;
+    }
+    final bytes = utf8.encode(value).length;
+    if (bytes > _remainingBytes) return false;
+    _remainingBytes -= bytes;
+    return true;
   }
 }

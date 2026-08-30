@@ -6,6 +6,15 @@ import 'package:jeeb_mobile/core/observability/session_trace/obs_export_bundle.d
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
 
 void main() {
+  test('export snapshots use the cross-platform no-backup temp directory', () {
+    final source = File(
+      'lib/core/observability/session_trace/obs_export_bundle.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('getTemporaryDirectory'));
+    expect(source, isNot(contains('getApplicationDocumentsDirectory')));
+  });
+
   late Directory temp;
   late File obsSource;
   late File diagSource;

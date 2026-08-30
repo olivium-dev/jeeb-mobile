@@ -46,16 +46,21 @@ class _SessionLogsPageState extends State<SessionLogsPage> {
   @override
   Widget build(BuildContext context) {
     assertDevToolOnly('SessionLogsPage');
-    return Scaffold(
-      appBar: const OMDSAppBar(
-        title: 'Session Logs',
-        showBackButton: true,
-        centerTitle: false,
-      ),
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => _SessionLogsBody(controller: _controller),
+    return Semantics(
+      identifier: 'devtool.session_logs.screen',
+      container: true,
+      explicitChildNodes: true,
+      child: Scaffold(
+        appBar: const OMDSAppBar(
+          title: 'Session Logs',
+          showBackButton: true,
+          centerTitle: false,
+        ),
+        body: SafeArea(
+          child: ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) => _SessionLogsBody(controller: _controller),
+          ),
         ),
       ),
     );

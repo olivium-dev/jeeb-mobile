@@ -52,6 +52,7 @@ class _RecordingSwitch extends StatelessWidget {
     final recording = controller.recording;
     return OmdsSwitchTile(
       key: const Key('obs-overlay-recording-switch'),
+      identifier: 'devtool.session_logs.recording',
       title: 'Recording',
       subtitle: recording ? 'Capturing screen/api/push/interaction' : 'Paused',
       value: recording,
@@ -82,11 +83,18 @@ class _ClearRow extends StatelessWidget {
             context,
           ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
         ),
-        OMDSOutlinedButton(
-          key: const Key('obs-overlay-clear'),
-          text: 'Clear view',
-          icon: const Icon(Icons.delete_outline, size: Sizes.small),
-          onTap: controller.clear,
+        ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: Sizes.fourXLarge,
+            minHeight: Sizes.fourXLarge,
+          ),
+          child: OMDSOutlinedButton(
+            key: const Key('obs-overlay-clear'),
+            identifier: 'devtool.session_logs.clear',
+            text: 'Clear view',
+            icon: const Icon(Icons.delete_outline, size: Sizes.small),
+            onTap: controller.clear,
+          ),
         ),
       ],
     );

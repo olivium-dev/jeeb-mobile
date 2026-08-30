@@ -147,7 +147,7 @@ final class ObsDioInterceptor extends Interceptor {
     final redacted = SecretRedactor.redactHeaders(
       _toObjectMap(options.headers),
     );
-    final bytes = _encodedLength(options.data);
+    final bytes = _requestByteLength(options);
     if (bytes == null) return redacted;
     return <String, Object?>{...redacted, _requestBytesKey: bytes};
   }
@@ -288,12 +288,41 @@ final class ObsDioInterceptor extends Interceptor {
     if (data == null) return null;
     try {
       if (data is FormData) return data.length;
-      if (data is String) return utf8.encode(data).length;
+      if (data is String) {
+        if (data.length > SecretRedactor.maxStringCodeUnits) return null;
+        return utf8.encode(data).length;
+      }
       if (data is List<int>) return data.length;
-      return utf8.encode(jsonEncode(data)).length;
+      if (data is num || data is bool) {
+        return utf8.encode(jsonEncode(data)).length;
+      }
+      // Never serialize an unbounded structured body just to calculate a
+      // diagnostic byte marker. Wire Content-Length remains preferred.
+      return null;
     } catch (_) {
       return null;
     }
+  }
+
+  static int? _requestByteLength(RequestOptions options) {
+    final header = _headerIgnoreCase(
+      options.headers,
+      Headers.contentLengthHeader,
+    );
+    final fromHeader = _parseContentLength(header);
+    return fromHeader ?? _encodedLength(options.data);
+  }
+
+  static int? _parseContentLength(Object? value) {
+    if (value is num && value >= 0) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed != null && parsed >= 0 ? parsed : null;
+    }
+    if (value is List && value.isNotEmpty) {
+      return _parseContentLength(value.first);
+    }
+    return null;
   }
 
   static int? _responseByteLength(Response<dynamic> response) {

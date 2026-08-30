@@ -294,6 +294,7 @@ String _activityBlock(String manifest, String activityName) {
 const _internalMarkers = <String>[
   r'main_android_internal\.dart',
   r'devtool_shell\.dart',
+  'devtool_launcher',
   'DevToolApp',
   'Jeeber Dev Tool',
   'JEEB_INTERNAL_RELEASE=true',

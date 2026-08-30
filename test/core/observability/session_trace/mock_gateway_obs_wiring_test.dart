@@ -54,6 +54,38 @@ final class _JsonAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+final class _FallbackJsonAdapter implements HttpClientAdapter {
+  final List<String> paths = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    paths.add(options.path);
+    if (options.path == '/v1/offers') {
+      return ResponseBody.fromString(
+        jsonEncode(<String, Object?>{'error': 'not_found'}),
+        404,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+        },
+      );
+    }
+    return ResponseBody.fromString(
+      jsonEncode(<String, Object?>{'items': <Object?>[]}),
+      200,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -110,7 +142,44 @@ void main() {
     expect(mainObs, greaterThanOrEqualTo(0));
     expect(tokenRefresh, greaterThan(mainObs));
     expect(mainFallback, greaterThan(mainObs));
+
+    final mockSource = File(
+      'lib/core/network/mock_gateway_client.dart',
+    ).readAsStringSync();
+    final mockObs = mockSource.indexOf('ObsDioInterceptor.attachTo(dio);');
+    final mockFallback = mockSource.indexOf(
+      'UnversionedPathFallbackInterceptor(dio)',
+      mockObs,
+    );
+    expect(mockObs, greaterThanOrEqualTo(0));
+    expect(mockFallback, greaterThan(mockObs));
   });
+
+  test(
+    'product Dio records versioned failure and fallback success separately',
+    () async {
+      final sink = _FakeSink();
+      final adapter = _FallbackJsonAdapter();
+      Observability.instance.sink = sink;
+      ObservabilityConfig.instance.enabled = true;
+      final dio = MockGatewayClient.createDio(baseUrl: 'http://localhost:10090')
+        ..httpClientAdapter = adapter;
+
+      final response = await dio.get<Map<String, dynamic>>('/v1/offers');
+
+      expect(response.statusCode, 200);
+      expect(adapter.paths, <String>['/v1/offers', '/offers']);
+      final attempts = sink.events.whereType<ObsApiEvent>().toList();
+      expect(attempts, hasLength(2));
+      expect(attempts.map((event) => event.path), <String>[
+        '/v1/offers',
+        '/offers',
+      ]);
+      expect(attempts.map((event) => event.statusCode), <int?>[404, 200]);
+      expect(attempts.first.seq, lessThan(attempts.last.seq));
+    },
+    skip: !kObsCompiledIn,
+  );
 
   test(
     'a real product-client request records sanitized request and response data',

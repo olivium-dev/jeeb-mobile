@@ -313,6 +313,61 @@ void main() {
     test('null passes through as null', () {
       expect(SecretRedactor.redactAndTruncate(null, maxBytes: 10), isNull);
     });
+
+    test('caps collection traversal before walking an oversized list', () {
+      final huge = List<Object?>.filled(
+        SecretRedactor.maxCollectionEntries * 100,
+        <String, Object?>{'status': 'accepted'},
+      );
+
+      final out = SecretRedactor.redactAndTruncate(huge, maxBytes: 8192);
+
+      expect(out, isA<List<Object?>>());
+      expect(
+        (out! as List<Object?>).length,
+        SecretRedactor.maxCollectionEntries + 1,
+      );
+    });
+
+    test('caps recursive depth and safely terminates cyclic bodies', () {
+      final cyclic = <String, Object?>{};
+      cyclic['data'] = cyclic;
+
+      final out = SecretRedactor.redactAndTruncate(cyclic, maxBytes: 8192);
+      final encoded = jsonEncode(out);
+
+      expect(encoded, contains(SecretRedactor.truncated));
+      expect(encoded.length, lessThan(8192));
+    });
+
+    test('rejects oversized strings before secret scanning or encoding', () {
+      final hugeCanary = 'private-canary-${'x'.padRight(1000000, 'x')}';
+
+      final out =
+          SecretRedactor.redactAndTruncate(<String, Object?>{
+                'status': hugeCanary,
+              }, maxBytes: 8192)!
+              as Map<String, Object?>;
+
+      expect(out['status'], SecretRedactor.truncated);
+      expect(jsonEncode(out), isNot(contains('private-canary')));
+    });
+
+    test('enforces a global input-byte budget across many safe fields', () {
+      final body = <String, Object?>{
+        for (var i = 0; i < SecretRedactor.maxCollectionEntries; i++)
+          'status_$i': 'a'.padRight(SecretRedactor.maxStringCodeUnits, 'a'),
+      };
+
+      final out =
+          SecretRedactor.redactAndTruncate(body, maxBytes: 8192)!
+              as Map<String, Object?>;
+      final encoded = jsonEncode(out);
+
+      expect(out.values, contains(SecretRedactor.truncated));
+      expect(encoded.length, lessThan(8192));
+      expect(encoded, isNot(contains('a'.padRight(128, 'a'))));
+    });
   });
 
   group('redactLabel', () {

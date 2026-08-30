@@ -33,7 +33,7 @@ LC_ALL=C grep -aFq "${EXPECTED_REALTIME_SOCKET_URL}" "${APP_BINARY}" ||
 
 for payload in "${MANIFEST_PAYLOAD}" "${RESOURCES_PAYLOAD}" "${APP_BINARY}"; do
   if LC_ALL=C grep -aEiq \
-    '192\.168\.2\.(39|50)|10\.0\.2\.2|emulator-|http://(localhost|127\.0\.0\.1)|api\.jeeb\.app|unified[_-]?payment|/v1/payments/|/v1/matching/(find-jeebers|broadcast)|super[_-]?login|devtool_shell\.dart|main_devtool\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|Jeeber Dev Tool|Jeeb Internal QA|JEEB_DEVTOOL_ENABLED=true|JEEB_INTERNAL_RELEASE=true' \
+    '192\.168\.2\.(39|50)|10\.0\.2\.2|emulator-|http://(localhost|127\.0\.0\.1)|api\.jeeb\.app|unified[_-]?payment|/v1/payments/|/v1/matching/(find-jeebers|broadcast)|super[_-]?login|devtool_shell\.dart|main_devtool\.dart|main_android_internal\.dart|DevToolApp|InternalDevToolApp|internal_devtool_root|devtool_shake|devtool_launcher|Jeeber Dev Tool|Jeeb Internal QA|JEEB_DEVTOOL_ENABLED=true|JEEB_INTERNAL_RELEASE=true' \
     "${payload}"; then
     fail "forbidden endpoint, emulator, payment, or developer material reached ${payload}"
   fi
