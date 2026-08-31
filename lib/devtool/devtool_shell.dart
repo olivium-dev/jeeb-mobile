@@ -14,7 +14,9 @@ import '../features/registration/data/super_login_service.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
+import 'gateway/dev_gateway_client.dart';
 import 'location_simulation/location_simulator_page.dart';
+import 'users/fund_jeeber_wallet_picker_page.dart';
 import 'users/scenario_users_page.dart';
 import '../features/registration/presentation/super_login/super_login_sheet.dart';
 import 'super_login/full_roster_login.dart';
@@ -40,6 +42,11 @@ enum DevToolSection {
     'Location Simulator',
     'Move an assigned Jeeber through a delivery route',
     Icons.route,
+  ),
+  walletFunding(
+    'Fund Jeeber wallet',
+    'Select any existing Jeeber and add funds at any time',
+    Icons.account_balance_wallet_outlined,
   ),
   serverUrl('Server URL', 'Point the app at a different backend', Icons.dns),
   clearData(
@@ -138,14 +145,16 @@ class _DevToolAppState extends State<DevToolApp> {
 }
 
 class DevToolShell extends StatelessWidget {
-  const DevToolShell({super.key});
+  const DevToolShell({super.key, this.walletFundingClient});
+
+  final DevGatewayClient? walletFundingClient;
 
   @override
   Widget build(BuildContext context) {
     // Defensive: this shell must only ever run inside a dev-tool-enabled build.
     assertDevToolOnly('DevToolShell');
     return Scaffold(
-      appBar: AppBar(title: const Text('Jeeber Dev Tool'), centerTitle: false),
+      appBar: const OMDSAppBar(title: 'Jeeber Dev Tool', centerTitle: false),
       body: Column(
         children: [
           const _GestureLoggingSwitch(),
@@ -157,11 +166,21 @@ class DevToolShell extends StatelessWidget {
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final section = DevToolSection.values[i];
-                return ListTile(
-                  leading: Icon(section.icon),
-                  title: Text(section.title),
-                  subtitle: Text(section.subtitle),
-                  trailing: const Icon(Icons.chevron_right),
+                final l10n = AppLocalizations.of(context);
+                return OmdsSettingsRow(
+                  identifier: section == DevToolSection.walletFunding
+                      ? 'devtool.walletFunding.home'
+                      : null,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.medium,
+                  ),
+                  leadingIcon: section.icon,
+                  title: section == DevToolSection.walletFunding
+                      ? l10n.walletFundingTitle
+                      : section.title,
+                  subtitle: section == DevToolSection.walletFunding
+                      ? l10n.walletFundingHomeSubtitle
+                      : section.subtitle,
                   onTap: () => _openSection(context, section),
                 );
               },
@@ -196,6 +215,12 @@ class DevToolShell extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => const LocationSimulatorPage(),
+          ),
+        );
+      case DevToolSection.walletFunding:
+        Navigator.of(context).push(
+          OmdsSlideRoute<void>(
+            page: FundJeeberWalletPickerPage(client: walletFundingClient),
           ),
         );
       case DevToolSection.users:

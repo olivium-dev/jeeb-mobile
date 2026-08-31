@@ -666,7 +666,8 @@ class DevUser {
 
   final String? displayName;
 
-  bool get isJeeber => roles.any(_isJeeberRole);
+  bool get isJeeber =>
+      roles.any(_isJeeberRole) || (role != null && _isJeeberRole(role!));
 
   String? get roleForOfferInitiation {
     for (final availableRole in roles) {

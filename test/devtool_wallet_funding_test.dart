@@ -5,9 +5,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/dev_flags.dart';
 import 'package:jeeb_mobile/core/diagnostics/diag_redaction.dart';
+import 'package:jeeb_mobile/devtool/devtool_shell.dart';
 import 'package:jeeb_mobile/devtool/gateway/dev_gateway_client.dart';
 import 'package:jeeb_mobile/devtool/users/fund_jeeber_wallet_page.dart';
+import 'package:jeeb_mobile/devtool/users/fund_jeeber_wallet_picker_page.dart';
 import 'package:jeeb_mobile/devtool/users/scenario_users_page.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:omds/omds.dart';
@@ -21,10 +24,9 @@ void main() {
     ).readAsStringSync();
 
     for (final contract in <String>[
-      'Scenario Users',
-      'devtool.scenarioUsers.scenario',
-      'devtool.scenarioUsers.create',
-      'devtool.walletFunding.lastCreated',
+      'devtool.walletFunding.home',
+      'devtool.walletFunding.jeeber.*',
+      'devtool_wallet_funding_jeeber_picker',
       'devtool.walletFunding.submit',
       'Verified receipt',
       'timeout: 120000',
@@ -34,7 +36,36 @@ void main() {
     }
     expect(flow, isNot(contains('clearState')));
     expect(flow, isNot(contains('point:')));
+    expect(flow, isNot(contains('devtool.scenarioUsers.create')));
   });
+
+  test(
+    'Jeeber detection accepts roster roles and the legacy singular role',
+    () {
+      const pluralRole = DevUser(
+        id: 'driver',
+        username: 'driver',
+        status: 'active',
+        roles: <String>['driver'],
+      );
+      const singularRole = DevUser(
+        id: 'legacy',
+        username: 'legacy',
+        status: 'active',
+        role: 'jeeber',
+      );
+      const customer = DevUser(
+        id: 'customer',
+        username: 'customer',
+        status: 'active',
+        role: 'customer',
+      );
+
+      expect(pluralRole.isJeeber, isTrue);
+      expect(singularRole.isJeeber, isTrue);
+      expect(customer.isJeeber, isFalse);
+    },
+  );
 
   test(
     'wallet funding client sends request-scoped bearers and exact money contracts',
@@ -946,6 +977,123 @@ void main() {
   });
 
   testWidgets(
+    'dedicated Dev Tool entry selects any existing Jeeber and supports re-entry',
+    (tester) async {
+      final client = DevGatewayClient(
+        dio: _WalletFundingDio(
+          rosterUsers: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'userId': _WalletFundingDio.jeeberId,
+              'username': 'demo_driver',
+              'status': 'active',
+              'roles': <String>['driver'],
+            },
+            <String, dynamic>{
+              'userId': _WalletFundingDio.legacyJeeberId,
+              'username': 'legacy_jeeber',
+              'status': 'active',
+              'role': 'jeeber',
+            },
+            <String, dynamic>{
+              'userId': '55555555-5555-5555-5555-555555555555',
+              'username': 'demo_customer',
+              'status': 'active',
+              'roles': <String>['customer'],
+            },
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(
+        _testApp(DevToolShell(walletFundingClient: client)),
+      );
+      await tester.pumpAndSettle();
+      final homeEntry = find.text('Fund Jeeber wallet');
+      await tester.scrollUntilVisible(
+        homeEntry,
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(homeEntry);
+      await tester.pumpAndSettle();
+
+      expect(find.text('demo_driver'), findsOneWidget);
+      expect(find.text('legacy_jeeber'), findsOneWidget);
+      expect(find.text('demo_customer'), findsNothing);
+
+      await tester.tap(find.text('legacy_jeeber'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add money'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('demo_driver'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add money'), findsOneWidget);
+    },
+    skip: !kDevToolEnabled,
+  );
+
+  testWidgets('wallet picker renders OMDS loading and empty states', (
+    tester,
+  ) async {
+    final rosterGate = Completer<void>();
+    final client = DevGatewayClient(
+      dio: _WalletFundingDio(rosterGate: rosterGate),
+    );
+
+    await tester.pumpWidget(
+      _testApp(FundJeeberWalletPickerPage(client: client)),
+    );
+    await tester.pump();
+    expect(find.byType(OmdsLoadingState), findsOneWidget);
+
+    rosterGate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(OmdsEmptyState), findsOneWidget);
+    expect(find.text('No Jeeber accounts found'), findsOneWidget);
+  });
+
+  testWidgets('wallet picker shows an OMDS error and retries the real roster', (
+    tester,
+  ) async {
+    final client = DevGatewayClient(
+      dio: _WalletFundingDio(includeRosterJeeber: true, rosterFailureCalls: 2),
+    );
+
+    await tester.pumpWidget(
+      _testApp(FundJeeberWalletPickerPage(client: client)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(OmdsErrorState), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('demo_jeeber'), findsOneWidget);
+  });
+
+  testWidgets('wallet picker localizes Arabic copy and keeps RTL direction', (
+    tester,
+  ) async {
+    final client = DevGatewayClient(
+      dio: _WalletFundingDio(includeRosterJeeber: true),
+    );
+
+    await tester.pumpWidget(
+      _testApp(
+        FundJeeberWalletPickerPage(client: client),
+        locale: const Locale('ar'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('تعبئة محفظة الموصّل'), findsOneWidget);
+    final tapToFund = find.textContaining('اضغط لإضافة الأموال');
+    expect(tapToFund, findsOneWidget);
+    expect(Directionality.of(tester.element(tapToFund)), TextDirection.rtl);
+  });
+
+  testWidgets(
     'Scenario Users creates a Jeeber and opens its real Add money flow',
     (tester) async {
       final dio = _WalletFundingDio();
@@ -1053,6 +1201,8 @@ class _WalletFundingDio extends Fake implements Dio {
     this.cleanupNotFound = false,
     this.jeeberCurrencyAfter,
     this.includeRosterJeeber = false,
+    this.rosterUsers,
+    this.rosterFailureCalls = 0,
     this.rosterGate,
     this.otpThreshold = 50,
     this.omitOtpPolicy = false,
@@ -1064,6 +1214,7 @@ class _WalletFundingDio extends Fake implements Dio {
   static const retryPartnerId = '44444444-4444-4444-4444-444444444444';
   static const adminId = '22222222-2222-2222-2222-222222222222';
   static const jeeberId = '33333333-3333-3333-3333-333333333333';
+  static const legacyJeeberId = '66666666-6666-6666-6666-666666666666';
 
   final List<_Call> calls = <_Call>[];
   final double jeeberDeltaOffset;
@@ -1084,6 +1235,8 @@ class _WalletFundingDio extends Fake implements Dio {
   final bool cleanupNotFound;
   final String? jeeberCurrencyAfter;
   final bool includeRosterJeeber;
+  final List<Map<String, dynamic>>? rosterUsers;
+  int rosterFailureCalls;
   final Completer<void>? rosterGate;
   final double otpThreshold;
   final bool omitOtpPolicy;
@@ -1283,6 +1436,18 @@ class _WalletFundingDio extends Fake implements Dio {
     ProgressCallback? onReceiveProgress,
   }) async {
     calls.add(_Call('GET', path, _map(data), _authorization(options)));
+    if ((path == '/api/User/super-login/users' || path == '/dev/data/users') &&
+        rosterFailureCalls > 0) {
+      rosterFailureCalls--;
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<Object?>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 503,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
     final Map<String, dynamic> body;
     if (path == '/v1/jeeb/wallet') {
       if (_topupCommitted &&
@@ -1326,17 +1491,19 @@ class _WalletFundingDio extends Fake implements Dio {
     } else if (path == '/api/User/super-login/users') {
       if (rosterGate != null) await rosterGate!.future;
       body = <String, dynamic>{
-        'users': includeRosterJeeber
-            ? <Object>[
-                <String, dynamic>{
-                  'userId': jeeberId,
-                  'username': 'demo_jeeber',
-                  'status': 'active',
-                  'role': 'jeeber',
-                  'roles': <String>['jeeber'],
-                },
-              ]
-            : <Object>[],
+        'users':
+            rosterUsers ??
+            (includeRosterJeeber
+                ? <Object>[
+                    <String, dynamic>{
+                      'userId': jeeberId,
+                      'username': 'demo_jeeber',
+                      'status': 'active',
+                      'role': 'jeeber',
+                      'roles': <String>['jeeber'],
+                    },
+                  ]
+                : <Object>[]),
       };
     } else if (path == '/dev/data/users') {
       body = <String, dynamic>{'users': <Object>[]};
