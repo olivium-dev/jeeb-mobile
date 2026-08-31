@@ -11,24 +11,18 @@ tags:
       text: "Jeeber Dev Tool"
     timeout: 30000
 - tapOn:
-    text: "Scenario Users"
+    id: "devtool.walletFunding.home"
 - extendedWaitUntil:
     visible:
-      text: "Scenario Users"
+      text: "Choose an existing Jeeber.*"
     timeout: 30000
-- tapOn:
-    id: "devtool.scenarioUsers.scenario"
-- tapOn:
-    text: "Jeeber"
-- tapOn:
-    id: "devtool.scenarioUsers.create"
 - extendedWaitUntil:
     visible:
-      id: "devtool.walletFunding.lastCreated"
+      id: "devtool.walletFunding.jeeber.*"
     timeout: 30000
-- takeScreenshot: devtool_wallet_funding_scenario_user
+- takeScreenshot: devtool_wallet_funding_jeeber_picker
 - tapOn:
-    id: "devtool.walletFunding.lastCreated"
+    id: "devtool.walletFunding.jeeber.*"
 - extendedWaitUntil:
     visible:
       text: "Fund Jeeber wallet"

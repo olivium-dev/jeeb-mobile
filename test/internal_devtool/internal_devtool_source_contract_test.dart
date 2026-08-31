@@ -49,6 +49,7 @@ const _fullDevToolCapabilities = <String>[
   "'Screen Catalog'",
   "'Actions'",
   "'Location Simulator'",
+  "'Fund Jeeber wallet'",
   "'Server URL'",
   "'Clear Local Data'",
   "'Scenario Users'",

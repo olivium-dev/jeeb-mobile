@@ -65,6 +65,18 @@ class AppLocalizations {
       _get('internalDevToolRosterErrorUnknown');
 
   String get walletFundingTitle => _get('walletFundingTitle');
+  String get walletFundingHomeSubtitle => _get('walletFundingHomeSubtitle');
+  String get walletFundingPickerDescription =>
+      _get('walletFundingPickerDescription');
+  String get walletFundingPickerLoading => _get('walletFundingPickerLoading');
+  String get walletFundingPickerErrorTitle =>
+      _get('walletFundingPickerErrorTitle');
+  String get walletFundingPickerEmptyTitle =>
+      _get('walletFundingPickerEmptyTitle');
+  String get walletFundingPickerEmptyBody =>
+      _get('walletFundingPickerEmptyBody');
+  String get walletFundingPickerTapToFund =>
+      _get('walletFundingPickerTapToFund');
   String get walletFundingJeeberSection => _get('walletFundingJeeberSection');
   String get walletFundingAmountSection => _get('walletFundingAmountSection');
   String get walletFundingAmountLabel => _get('walletFundingAmountLabel');
