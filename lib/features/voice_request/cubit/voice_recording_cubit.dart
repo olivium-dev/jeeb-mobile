@@ -9,10 +9,14 @@ import '../domain/voice_recorder.dart';
 import 'voice_recording_state.dart';
 
 typedef VoiceRecordingTickerFactory = Stream<Duration> Function(Duration step);
+typedef VoicePollingDelay = Future<void> Function(Duration duration);
 
 Stream<Duration> _defaultTickerFactory(Duration step) {
   return Stream<Duration>.periodic(step, (i) => step * (i + 1));
 }
+
+Future<void> _defaultPollingDelay(Duration duration) =>
+    Future.delayed(duration);
 
 class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   VoiceRecordingCubit({
@@ -21,12 +25,23 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     required VoiceRecordingRepository repository,
     VoiceRecordingTickerFactory tickerFactory = _defaultTickerFactory,
     Duration tickInterval = const Duration(milliseconds: 100),
+    VoicePollingDelay pollingDelay = _defaultPollingDelay,
+    Duration pollingTimeout = const Duration(seconds: 45),
+    Duration initialPollingInterval = const Duration(seconds: 1),
+    Duration maxPollingInterval = const Duration(seconds: 5),
     VoiceRecordingState initialState = const VoiceRecordingState(),
   }) : _recorder = recorder,
        _player = player,
        _repository = repository,
        _tickerFactory = tickerFactory,
        _tickInterval = tickInterval,
+       _pollingDelay = pollingDelay,
+       _pollingTimeout = pollingTimeout,
+       _initialPollingInterval = initialPollingInterval,
+       _maxPollingInterval = maxPollingInterval,
+       assert(pollingTimeout > Duration.zero),
+       assert(initialPollingInterval > Duration.zero),
+       assert(maxPollingInterval >= initialPollingInterval),
        super(initialState);
 
   final VoiceRecorder _recorder;
@@ -34,14 +49,20 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   final VoiceRecordingRepository _repository;
   final VoiceRecordingTickerFactory _tickerFactory;
   final Duration _tickInterval;
+  final VoicePollingDelay _pollingDelay;
+  final Duration _pollingTimeout;
+  final Duration _initialPollingInterval;
+  final Duration _maxPollingInterval;
 
   StreamSubscription<Duration>? _recordTickSub; // ignore: cancel_subscriptions
+  int _sendGeneration = 0;
 
   Future<void> startRecording() async {
     if (state.phase != VoiceRecordingPhase.idle &&
         state.phase != VoiceRecordingPhase.sent) {
       return;
     }
+    _cancelPendingSend();
     emit(const VoiceRecordingState());
     try {
       await _recorder.start();
@@ -79,12 +100,9 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     final elapsed = state.elapsed;
     await _stopRecordTicker();
     if (elapsed < VoiceRecordingState.minSendableDuration) {
-
       try {
         await _recorder.cancel();
-      } catch (_) {
-
-      }
+      } catch (_) {}
       emit(
         state.copyWith(
           phase: VoiceRecordingPhase.idle,
@@ -103,9 +121,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     await _stopRecordTicker();
     try {
       await _recorder.cancel();
-    } catch (_) {
-
-    }
+    } catch (_) {}
     emit(
       state.copyWith(
         phase: VoiceRecordingPhase.idle,
@@ -121,6 +137,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     if (state.phase == VoiceRecordingPhase.playing) {
       await _player.stop();
     }
+    _cancelPendingSend();
     emit(const VoiceRecordingState());
   }
 
@@ -168,16 +185,23 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   }
 
   Future<void> send() async {
-    if (!state.canSend) return;
+    if (!state.canSend || state.phase == VoiceRecordingPhase.sending) return;
     if (state.phase == VoiceRecordingPhase.playing) {
       await _player.stop();
     }
     final clip = state.clip!;
+    final sendGeneration = ++_sendGeneration;
     emit(state.copyWith(phase: VoiceRecordingPhase.sending, clearError: true));
     try {
-      final result = await _repository.upload(clip);
+      final uploaded = await _repository.upload(clip);
+      final result = await _awaitTerminalTranscription(
+        uploaded,
+        sendGeneration: sendGeneration,
+      );
+      if (!_isCurrentSend(sendGeneration)) return;
       emit(state.copyWith(phase: VoiceRecordingPhase.sent, result: result));
     } on VoiceUploadException catch (e) {
+      if (!_isCurrentSend(sendGeneration)) return;
       emit(
         state.copyWith(
           phase: VoiceRecordingPhase.recorded,
@@ -185,6 +209,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
         ),
       );
     } catch (_) {
+      if (!_isCurrentSend(sendGeneration)) return;
       emit(
         state.copyWith(
           phase: VoiceRecordingPhase.recorded,
@@ -200,6 +225,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   }
 
   Future<void> reset() async {
+    _cancelPendingSend();
     await _stopRecordTicker();
     if (state.phase == VoiceRecordingPhase.playing) {
       await _player.stop();
@@ -209,6 +235,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
 
   @override
   Future<void> close() async {
+    _cancelPendingSend();
     await _stopRecordTicker();
 
     try {
@@ -218,6 +245,60 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
       await _player.stop();
     } catch (_) {}
     return super.close();
+  }
+
+  Future<TranscriptionResult> _awaitTerminalTranscription(
+    TranscriptionResult initial, {
+    required int sendGeneration,
+  }) async {
+    if (!_isQueued(initial.status)) return initial;
+    final statusRepository = switch (_repository) {
+      final VoiceTranscriptionStatusRepository repository => repository,
+      _ => null,
+    };
+    if (statusRepository == null) return initial;
+
+    var elapsed = Duration.zero;
+    var delay = _initialPollingInterval;
+    while (elapsed < _pollingTimeout) {
+      final remaining = _pollingTimeout - elapsed;
+      final boundedDelay = delay > remaining ? remaining : delay;
+      await _pollingDelay(boundedDelay);
+      elapsed += boundedDelay;
+      if (!_isCurrentSend(sendGeneration)) return initial;
+
+      final current = await statusRepository.getTranscriptionStatus(initial.id);
+      if (!_isCurrentSend(sendGeneration)) return initial;
+      final status = current.status?.trim().toLowerCase();
+      if (status == 'completed' || status == 'transcribed') {
+        return current;
+      }
+      if (status == 'failed') {
+        throw const VoiceUploadException(VoiceUploadFailure.server);
+      }
+      if (status != 'queued' && status != 'processing') {
+        throw const VoiceUploadException(VoiceUploadFailure.unknown);
+      }
+      delay = _doubleBounded(delay, _maxPollingInterval);
+    }
+    throw const VoiceUploadException(VoiceUploadFailure.network);
+  }
+
+  bool _isCurrentSend(int generation) =>
+      !isClosed && generation == _sendGeneration;
+
+  static bool _isQueued(String? status) {
+    final normalized = status?.trim().toLowerCase();
+    return normalized == 'queued' || normalized == 'processing';
+  }
+
+  static Duration _doubleBounded(Duration value, Duration maximum) {
+    final doubled = value * 2;
+    return doubled > maximum ? maximum : doubled;
+  }
+
+  void _cancelPendingSend() {
+    _sendGeneration++;
   }
 
   Future<void> _finalizeRecording(Duration elapsed) async {
@@ -263,7 +344,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   void _onRecordTick(Duration elapsed) {
     if (state.phase != VoiceRecordingPhase.recording) return;
     if (elapsed >= VoiceRecordingState.maxDuration) {
-
       emit(state.copyWith(elapsed: VoiceRecordingState.maxDuration));
       unawaited(_autoStopAtCap());
       return;
