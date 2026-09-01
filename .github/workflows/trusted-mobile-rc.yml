@@ -669,7 +669,7 @@ jobs:
             '"(iPhone|Apple) Distribution: Ouday Khaled \(K5RDQ8J7AN\)"$' \
             <<<"${identity_output}" || true)"
           development_identity_line="$(grep -E \
-            '"Apple Development: khaledouday1990@gmail.com \(3T9KFY9HYY\)"$' \
+            '"Apple Development: Ouday Khaled \(3T9KFY9HYY\)"$' \
             <<<"${identity_output}" || true)"
           [[ "$(grep -c . <<<"${distribution_identity_line}")" == 1 ]] || {
             echo '::error::Protected iOS distribution identity is missing or ambiguous.'
@@ -699,8 +699,13 @@ jobs:
             exit 1
           }
           [[ "${development_identity_label}" == \
-            'Apple Development: khaledouday1990@gmail.com (3T9KFY9HYY)' ]] || {
+            'Apple Development: Ouday Khaled (3T9KFY9HYY)' ]] || {
             echo '::error::Protected iOS development identity subject drifted.'
+            exit 1
+          }
+          [[ "${development_identity_sha1}" == \
+            B76F89AC9D9C87A1E1446CE31E8513A8173D38FD ]] || {
+            echo '::error::Protected iOS development identity fingerprint drifted.'
             exit 1
           }
           security find-certificate -a -c "${distribution_identity_label}" -p \

@@ -716,6 +716,17 @@ void _registerCiContracts() {
       expect(ios, contains('IOS_SIGNING_KEYCHAIN_PATH'));
       expect(ios, contains('IOS_DISTRIBUTION_SIGNING_IDENTITY_SHA1'));
       expect(ios, contains('IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1'));
+      expect(ios, contains('Apple Development: Ouday Khaled (3T9KFY9HYY)'));
+      expect(ios, contains('B76F89AC9D9C87A1E1446CE31E8513A8173D38FD'));
+      expect(
+        ios,
+        isNot(
+          contains(
+            'Apple Development: khaledouday1990@gmail.com '
+            '(3T9KFY9HYY)',
+          ),
+        ),
+      );
       expect(ios, contains('signingStyle string automatic'));
       expect(ios, contains('uploadSymbols bool false'));
       expect(ios, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));

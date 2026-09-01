@@ -227,6 +227,9 @@ identity for the archive and the distribution identity for App Store Connect
 export while authenticated provisioning updates remain enabled. The RC export
 remains local, preserves the requested version/build, sets
 `testFlightInternalTestingOnly`, and never uploads to App Store Connect.
+Both `IOS_*_CERTIFICATE_SHA256` inputs pin the leaf certificate fingerprint,
+not the PKCS#12 file checksum. The development identity is additionally pinned
+to `Apple Development: Ouday Khaled (3T9KFY9HYY)` and its verified SHA-1.
 Release runs fail closed when protected-branch policy, retained provenance,
 successful check contexts, monotonic store build numbers, or any named
 credential is absent. Credentials must never be committed.
