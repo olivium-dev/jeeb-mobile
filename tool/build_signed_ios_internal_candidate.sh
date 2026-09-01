@@ -32,7 +32,8 @@ AUTHENTICATION_KEY_PATH="${APP_STORE_CONNECT_API_KEY_PATH:-}"
 AUTHENTICATION_KEY_ID="${APP_STORE_CONNECT_API_KEY_ID:-}"
 AUTHENTICATION_KEY_ISSUER_ID="${APP_STORE_CONNECT_API_ISSUER_ID:-}"
 SIGNING_KEYCHAIN_PATH="${IOS_SIGNING_KEYCHAIN_PATH:-}"
-SIGNING_IDENTITY_SHA1="${IOS_SIGNING_IDENTITY_SHA1:-}"
+DISTRIBUTION_SIGNING_IDENTITY_SHA1="${IOS_DISTRIBUTION_SIGNING_IDENTITY_SHA1:-}"
+DEVELOPMENT_SIGNING_IDENTITY_SHA1="${IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1:-}"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
 
 fail() {
@@ -61,8 +62,21 @@ fail() {
 [[ "${AUTHENTICATION_KEY_ISSUER_ID}" =~ \
   ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]] ||
   fail 'App Store Connect issuer ID is malformed'
-[[ "${SIGNING_IDENTITY_SHA1}" =~ ^[0-9A-F]{40}$ ]] ||
-  fail 'protected iOS signing identity fingerprint is malformed'
+[[ "${DISTRIBUTION_SIGNING_IDENTITY_SHA1}" =~ ^[0-9A-F]{40}$ ]] ||
+  fail 'protected iOS distribution identity fingerprint is malformed'
+[[ "${DEVELOPMENT_SIGNING_IDENTITY_SHA1}" =~ ^[0-9A-F]{40}$ ]] ||
+  fail 'protected iOS development identity fingerprint is malformed'
+[[ "${DISTRIBUTION_SIGNING_IDENTITY_SHA1}" != \
+  "${DEVELOPMENT_SIGNING_IDENTITY_SHA1}" ]] ||
+  fail 'protected iOS signing identities must be distinct'
+signing_identities="$(security find-identity -v -p codesigning \
+  "${SIGNING_KEYCHAIN_PATH}")"
+grep -Eq "^[[:space:]]*[0-9]+\\) ${DISTRIBUTION_SIGNING_IDENTITY_SHA1} " \
+  <<<"${signing_identities}" ||
+  fail 'protected iOS distribution identity is unavailable'
+grep -Eq "^[[:space:]]*[0-9]+\\) ${DEVELOPMENT_SIGNING_IDENTITY_SHA1} " \
+  <<<"${signing_identities}" ||
+  fail 'protected iOS development identity is unavailable'
 [[ -n "${EXPECTED_FIREBASE_CLIENT_ID}" ]] ||
   fail 'protected approved Google Sign-In client identity is missing'
 [[ -n "${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" ]] ||
@@ -174,7 +188,8 @@ export -f run_release_build
 export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
 export AUTHENTICATION_KEY_PATH AUTHENTICATION_KEY_ID AUTHENTICATION_KEY_ISSUER_ID
-export SIGNING_KEYCHAIN_PATH SIGNING_IDENTITY_SHA1
+export SIGNING_KEYCHAIN_PATH DISTRIBUTION_SIGNING_IDENTITY_SHA1
+export DEVELOPMENT_SIGNING_IDENTITY_SHA1
 
 (
   cd "${REPO_ROOT}"

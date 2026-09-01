@@ -236,9 +236,13 @@ void _registerIosContracts() {
       'CODE_SIGN_STYLE=Automatic',
       r'OTHER_CODE_SIGN_FLAGS="--keychain ${SIGNING_KEYCHAIN_PATH}"',
       'IOS_SIGNING_KEYCHAIN_PATH',
-      'IOS_SIGNING_IDENTITY_SHA1',
+      'IOS_DISTRIBUTION_SIGNING_IDENTITY_SHA1',
+      'IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1',
       'protected iOS signing keychain is missing',
-      'protected iOS signing identity fingerprint is malformed',
+      'protected iOS distribution identity fingerprint is malformed',
+      'protected iOS development identity fingerprint is malformed',
+      'protected iOS distribution identity is unavailable',
+      'protected iOS development identity is unavailable',
       '-allowProvisioningUpdates',
       '-authenticationKeyPath',
       '-authenticationKeyID',
@@ -257,10 +261,12 @@ void _registerIosContracts() {
       r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
     ]);
     expect(
-      '"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";'
-          .allMatches(project)
-          .length,
-      1,
+      project,
+      isNot(
+        contains(
+          '"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";',
+        ),
+      ),
     );
     expect(signedBuilder, isNot(contains('CODE_SIGN_IDENTITY=')));
     expect(signedBuilder, isNot(contains('CODE_SIGN_STYLE=Manual')));
@@ -594,15 +600,21 @@ void _registerCiContracts() {
       'secrets.IOS_SIGNING_CERTIFICATE_P12_B64',
       'secrets.IOS_SIGNING_CERTIFICATE_PASSWORD',
       'secrets.IOS_SIGNING_CERTIFICATE_SHA256',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_P12_B64',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_PASSWORD',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_SHA256',
       'APP_STORE_CONNECT_API_KEY_PATH',
       'IOS_SIGNING_KEYCHAIN_PATH',
-      'IOS_SIGNING_IDENTITY_SHA1',
+      'IOS_DISTRIBUTION_SIGNING_IDENTITY_SHA1',
+      'IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1',
       'security create-keychain',
       'security set-key-partition-list',
       'security delete-keychain',
-      'Protected iOS keychain must contain exactly one usable identity.',
+      'Protected iOS keychain must contain exactly two usable identities.',
       '1.2.840.113635.100.6.1.4',
+      '1.2.840.113635.100.6.1.2',
       'Protected iOS certificate fingerprint drifted.',
+      'Protected iOS development certificate fingerprint drifted.',
       'unset APP_STORE_KEY_CONTENT_B64',
       r'chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"',
       'trap cleanup EXIT HUP INT TERM',
@@ -697,9 +709,13 @@ void _registerCiContracts() {
       expect(ios, contains('secrets.IOS_SIGNING_CERTIFICATE_P12_B64'));
       expect(ios, contains('secrets.IOS_SIGNING_CERTIFICATE_PASSWORD'));
       expect(ios, contains('secrets.IOS_SIGNING_CERTIFICATE_SHA256'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_P12_B64'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_PASSWORD'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_SHA256'));
       expect(ios, contains('APP_STORE_CONNECT_API_KEY_PATH'));
       expect(ios, contains('IOS_SIGNING_KEYCHAIN_PATH'));
-      expect(ios, contains('IOS_SIGNING_IDENTITY_SHA1'));
+      expect(ios, contains('IOS_DISTRIBUTION_SIGNING_IDENTITY_SHA1'));
+      expect(ios, contains('IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1'));
       expect(ios, contains('signingStyle string automatic'));
       expect(ios, contains('uploadSymbols bool false'));
       expect(ios, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
