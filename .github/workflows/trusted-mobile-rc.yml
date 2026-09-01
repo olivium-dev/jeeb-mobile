@@ -533,6 +533,9 @@ jobs:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
           APP_STORE_KEY_CONTENT_B64: ${{ secrets.APP_STORE_KEY_CONTENT_B64 }}
+          IOS_SIGNING_CERTIFICATE_P12_B64: ${{ secrets.IOS_SIGNING_CERTIFICATE_P12_B64 }}
+          IOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IOS_SIGNING_CERTIFICATE_SHA256: ${{ secrets.IOS_SIGNING_CERTIFICATE_SHA256 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -542,6 +545,8 @@ jobs:
             IOS_FIREBASE_EXPECTED_CLIENT_ID
             IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID IOS_GOOGLE_MAPS_API_KEY
             APP_STORE_KEY_ID APP_STORE_ISSUER_ID APP_STORE_KEY_CONTENT_B64
+            IOS_SIGNING_CERTIFICATE_P12_B64
+            IOS_SIGNING_CERTIFICATE_PASSWORD IOS_SIGNING_CERTIFICATE_SHA256
           )
           for variable in "${required[@]}"; do
             [[ -n "${!variable:-}" ]] || {
@@ -559,7 +564,31 @@ jobs:
             exit 1
           }
           tmp_dir="$(mktemp -d)"
+          signing_keychain="${tmp_dir}/jeeb-signing.keychain-db"
+          original_default_keychain="$(security default-keychain -d user)"
+          original_default_keychain="${original_default_keychain#*\"}"
+          original_default_keychain="${original_default_keychain%\"*}"
+          [[ -n "${original_default_keychain}" ]] || {
+            echo '::error::The original default keychain could not be resolved.'
+            exit 1
+          }
+          original_keychains=()
+          while IFS= read -r existing_keychain; do
+            existing_keychain="${existing_keychain#*\"}"
+            existing_keychain="${existing_keychain%\"*}"
+            [[ -n "${existing_keychain}" ]] &&
+              original_keychains+=("${existing_keychain}")
+          done < <(security list-keychains -d user)
+          keychain_created=false
           cleanup() {
+            if [[ "${keychain_created}" == true ]]; then
+              security default-keychain -d user \
+                -s "${original_default_keychain}" >/dev/null 2>&1 || true
+              security list-keychains -d user \
+                -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+              security delete-keychain "${signing_keychain}" \
+                >/dev/null 2>&1 || true
+            fi
             rm -rf -- "${tmp_dir}"
           }
           trap cleanup EXIT HUP INT TERM
@@ -575,13 +604,91 @@ jobs:
           firebase_plist="${tmp_dir}/GoogleService-Info.plist"
           maps_key_file="${tmp_dir}/maps-api-key"
           api_key_path="${tmp_dir}/app-store-connect.p8"
+          certificate_p12="${tmp_dir}/jeeb-distribution.p12"
+          certificate_pem="${tmp_dir}/jeeb-distribution.pem"
           export_options="${tmp_dir}/ExportOptions.plist"
           decode_base64 "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64}" "${firebase_plist}"
           decode_base64 "${APP_STORE_KEY_CONTENT_B64}" "${api_key_path}"
+          decode_base64 "${IOS_SIGNING_CERTIFICATE_P12_B64}" \
+            "${certificate_p12}"
           printf '%s\n' "${IOS_GOOGLE_MAPS_API_KEY}" >"${maps_key_file}"
           unset IOS_GOOGLE_SERVICE_INFO_PLIST_B64
           unset APP_STORE_KEY_CONTENT_B64 IOS_GOOGLE_MAPS_API_KEY
-          chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"
+          unset IOS_SIGNING_CERTIFICATE_P12_B64
+          chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}" \
+            "${certificate_p12}"
+          [[ "${IOS_SIGNING_CERTIFICATE_SHA256}" =~ \
+            ^([0-9A-Fa-f]{2}:?){31}[0-9A-Fa-f]{2}$ ]] || {
+            echo '::error::Protected iOS certificate SHA-256 is malformed.'
+            exit 1
+          }
+          keychain_password="$(openssl rand -hex 32)"
+          security create-keychain -p "${keychain_password}" "${signing_keychain}"
+          keychain_created=true
+          security set-keychain-settings -lut 21600 "${signing_keychain}"
+          security unlock-keychain -p "${keychain_password}" "${signing_keychain}"
+          security import "${certificate_p12}" -k "${signing_keychain}" \
+            -P "${IOS_SIGNING_CERTIFICATE_PASSWORD}" \
+            -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" \
+            "${signing_keychain}" >/dev/null
+          security list-keychains -d user -s "${signing_keychain}" \
+            "${original_keychains[@]}"
+          security default-keychain -d user -s "${signing_keychain}"
+          identity_output="$(security find-identity -v -p codesigning \
+            "${signing_keychain}")"
+          identity_count="$(grep -Ec \
+            '^[[:space:]]*[0-9]+\) [0-9A-F]{40} ' \
+            <<<"${identity_output}" || true)"
+          [[ "${identity_count}" == 1 ]] || {
+            echo '::error::Protected iOS keychain must contain exactly one usable identity.'
+            exit 1
+          }
+          identity_sha1="$(sed -En \
+            's/^[[:space:]]*[0-9]+\) ([0-9A-F]{40}) .*/\1/p' \
+            <<<"${identity_output}")"
+          identity_label="$(sed -En \
+            's/^[[:space:]]*[0-9]+\) [0-9A-F]{40} "(.*)"/\1/p' \
+            <<<"${identity_output}")"
+          [[ "${identity_label}" == \
+            'iPhone Distribution: Ouday Khaled (K5RDQ8J7AN)' || \
+            "${identity_label}" == \
+            'Apple Distribution: Ouday Khaled (K5RDQ8J7AN)' ]] || {
+            echo '::error::Protected iOS identity subject or team drifted.'
+            exit 1
+          }
+          security find-certificate -a -c "${identity_label}" -p \
+            "${signing_keychain}" >"${certificate_pem}"
+          test -s "${certificate_pem}"
+          openssl x509 -in "${certificate_pem}" -noout -checkend 2592000
+          certificate_text="$(openssl x509 -in "${certificate_pem}" \
+            -noout -text)"
+          grep -Fq '1.2.840.113635.100.6.1.4' <<<"${certificate_text}" || {
+            echo '::error::Protected iOS identity is not an Apple distribution certificate.'
+            exit 1
+          }
+          certificate_subject="$(openssl x509 -in "${certificate_pem}" \
+            -noout -subject -nameopt RFC2253)"
+          grep -Fq 'UID=K5RDQ8J7AN' <<<"${certificate_subject}"
+          grep -Fq 'OU=K5RDQ8J7AN' <<<"${certificate_subject}"
+          actual_certificate_sha256="$(openssl x509 -in "${certificate_pem}" \
+            -noout -fingerprint -sha256 | cut -d= -f2)"
+          normalize_fingerprint() {
+            tr -d ':' <<<"$1" | tr '[:lower:]' '[:upper:]'
+          }
+          [[ "$(normalize_fingerprint "${actual_certificate_sha256}")" == \
+            "$(normalize_fingerprint "${IOS_SIGNING_CERTIFICATE_SHA256}")" ]] || {
+            echo '::error::Protected iOS certificate fingerprint drifted.'
+            exit 1
+          }
+          certificate_sha1="$(openssl x509 -in "${certificate_pem}" \
+            -noout -fingerprint -sha1 | cut -d= -f2)"
+          [[ "${identity_sha1}" == \
+            "$(normalize_fingerprint "${certificate_sha1}")" ]]
+          unset IOS_SIGNING_CERTIFICATE_PASSWORD
+          unset IOS_SIGNING_CERTIFICATE_SHA256
+          rm -f -- "${certificate_p12}"
           IOS_GOOGLE_SERVICE_INFO_PLIST_PATH="${firebase_plist}" \
             bash tool/validate_ios_google_service_info.sh "${firebase_plist}"
           bash tool/validate_ios_maps_api_key.sh "${maps_key_file}"
@@ -612,6 +719,8 @@ jobs:
           APP_STORE_CONNECT_API_KEY_PATH="${api_key_path}" \
           APP_STORE_CONNECT_API_KEY_ID="${APP_STORE_KEY_ID}" \
           APP_STORE_CONNECT_API_ISSUER_ID="${APP_STORE_ISSUER_ID}" \
+          IOS_SIGNING_KEYCHAIN_PATH="${signing_keychain}" \
+          IOS_SIGNING_IDENTITY_SHA1="${identity_sha1}" \
             bash tool/build_signed_ios_internal_candidate.sh
           ipa_count="$(find build/ios -type f -name '*.ipa' |
             wc -l | tr -d '[:space:]')"
