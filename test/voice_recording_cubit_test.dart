@@ -38,7 +38,7 @@ class _Harness {
     return controller.stream;
   }
 
-/// Pushes a cumulative elapsed value into the most recently cre
+  /// Pushes a cumulative elapsed value into the most recently cre
   Future<void> tick(Duration elapsed) async {
     expect(
       _tickers,
@@ -276,6 +276,117 @@ void main() {
         expect(cubit.state.result, isNotNull);
         expect(cubit.state.result!.transcript, 'hello');
         expect(harness.repository.uploadCalls, 1);
+      },
+    );
+
+    test('queued upload polls until the transcript completes', () async {
+      final repository = FakeVoiceRecordingRepository(status: 'queued')
+        ..statusResults.addAll(const <TranscriptionResult>[
+          TranscriptionResult(id: 'queued-1', status: 'processing'),
+          TranscriptionResult(
+            id: 'queued-1',
+            status: 'completed',
+            transcript: 'جيب ماء',
+            language: 'ar',
+          ),
+        ]);
+      final harness = _Harness(repository: repository);
+      final cubit = VoiceRecordingCubit(
+        recorder: harness.recorder,
+        player: harness.player,
+        repository: repository,
+        tickerFactory: harness._factory,
+        pollingDelay: (_) async {},
+        pollingTimeout: const Duration(seconds: 10),
+        initialPollingInterval: const Duration(seconds: 1),
+        maxPollingInterval: const Duration(seconds: 2),
+      );
+      addTearDown(() async {
+        await cubit.close();
+        await harness.closeTickers();
+      });
+
+      await cubit.startRecording();
+      await harness.tick(const Duration(seconds: 2));
+      await cubit.stopRecording();
+      await cubit.send();
+
+      expect(repository.uploadCalls, 1);
+      expect(repository.statusCalls, 2);
+      expect(cubit.state.phase, VoiceRecordingPhase.sent);
+      expect(cubit.state.result?.transcript, 'جيب ماء');
+      expect(cubit.state.result?.status, 'completed');
+    });
+
+    test('failed durable status restores the retained clip', () async {
+      final repository = FakeVoiceRecordingRepository(status: 'queued')
+        ..statusResults.add(
+          const TranscriptionResult(
+            id: 'queued-failed',
+            status: 'failed',
+            reason: 'exhausted_retries',
+          ),
+        );
+      final harness = _Harness(repository: repository);
+      final cubit = VoiceRecordingCubit(
+        recorder: harness.recorder,
+        player: harness.player,
+        repository: repository,
+        tickerFactory: harness._factory,
+        pollingDelay: (_) async {},
+        pollingTimeout: const Duration(seconds: 5),
+      );
+      addTearDown(() async {
+        await cubit.close();
+        await harness.closeTickers();
+      });
+
+      await cubit.startRecording();
+      await harness.tick(const Duration(seconds: 2));
+      await cubit.stopRecording();
+      await cubit.send();
+
+      expect(cubit.state.phase, VoiceRecordingPhase.recorded);
+      expect(cubit.state.error, VoiceRecordingError.uploadServer);
+      expect(cubit.state.clip, isNotNull);
+    });
+
+    test(
+      'reset cancels queued polling before another status request',
+      () async {
+        final delayStarted = Completer<void>();
+        final releaseDelay = Completer<void>();
+        final repository = FakeVoiceRecordingRepository(status: 'queued');
+        final harness = _Harness(repository: repository);
+        final cubit = VoiceRecordingCubit(
+          recorder: harness.recorder,
+          player: harness.player,
+          repository: repository,
+          tickerFactory: harness._factory,
+          pollingDelay: (_) {
+            if (!delayStarted.isCompleted) delayStarted.complete();
+            return releaseDelay.future;
+          },
+        );
+        addTearDown(() async {
+          await cubit.close();
+          await harness.closeTickers();
+        });
+
+        await cubit.startRecording();
+        await harness.tick(const Duration(seconds: 2));
+        await cubit.stopRecording();
+        final send = cubit.send();
+        await delayStarted.future;
+
+        await cubit.reset();
+        releaseDelay.complete();
+        await send;
+
+        expect(repository.uploadCalls, 1);
+        expect(repository.statusCalls, 0);
+        expect(cubit.state.phase, VoiceRecordingPhase.idle);
+        expect(cubit.state.result, isNull);
       },
     );
 

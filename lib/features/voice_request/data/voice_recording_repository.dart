@@ -37,7 +37,18 @@ abstract class VoiceRecordingRepository {
   Future<TranscriptionResult> upload(VoiceClip clip);
 }
 
-class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
+/// Optional durable-status capability for repositories whose upload endpoint
+/// can return `202 queued`.
+///
+/// Keeping this separate from [VoiceRecordingRepository] preserves catalog and
+/// test implementations that only model synchronous uploads. Production uses
+/// [HttpVoiceRecordingRepository], which implements both contracts.
+abstract interface class VoiceTranscriptionStatusRepository {
+  Future<TranscriptionResult> getTranscriptionStatus(String audioId);
+}
+
+class HttpVoiceRecordingRepository
+    implements VoiceRecordingRepository, VoiceTranscriptionStatusRepository {
   HttpVoiceRecordingRepository({
     required Dio dio,
     Duration transcribeTimeout = defaultTranscribeTimeout,
@@ -45,6 +56,8 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
        _transcribeTimeout = transcribeTimeout;
 
   static const String endpoint = '/transcribe';
+  static String statusEndpoint(String audioId) =>
+      '$endpoint/status/${Uri.encodeComponent(audioId)}';
 
   /// Sized to exceed the gateway's ~30s+ retry budget against
   /// voice-transcription-service. See root cause 5 in
@@ -92,6 +105,36 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
     }
   }
 
+  @override
+  Future<TranscriptionResult> getTranscriptionStatus(String audioId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        statusEndpoint(audioId),
+        options: Options(receiveTimeout: _transcribeTimeout),
+      );
+      final body = response.data ?? const <String, dynamic>{};
+      final returnedId =
+          (body['audio_id'] as String?) ??
+          (body['audioId'] as String?) ??
+          audioId;
+      return TranscriptionResult(
+        id: returnedId,
+        transcript:
+            (body['transcript'] as String?) ??
+            (body['transcription'] as String?),
+        status: body['status'] as String?,
+        language: body['language'] as String?,
+        reason: body['reason'] as String?,
+      );
+    } on DioException catch (e) {
+      throw VoiceUploadException(_mapDio(e));
+    } on VoiceUploadException {
+      rethrow;
+    } catch (_) {
+      throw const VoiceUploadException(VoiceUploadFailure.unknown);
+    }
+  }
+
   VoiceUploadFailure _mapDio(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -110,7 +153,8 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   }
 }
 
-class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
+class FakeVoiceRecordingRepository
+    implements VoiceRecordingRepository, VoiceTranscriptionStatusRepository {
   FakeVoiceRecordingRepository({
     this.failure,
     this.transcript,
@@ -127,7 +171,10 @@ class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
   final String? reason;
 
   int uploadCalls = 0;
+  int statusCalls = 0;
   VoiceClip? lastClip;
+  final List<TranscriptionResult> statusResults = <TranscriptionResult>[];
+  VoiceUploadFailure? statusFailure;
 
   @override
   Future<TranscriptionResult> upload(VoiceClip clip) async {
@@ -143,5 +190,23 @@ class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
       language: language,
       reason: reason,
     );
+  }
+
+  @override
+  Future<TranscriptionResult> getTranscriptionStatus(String audioId) async {
+    statusCalls++;
+    if (statusFailure != null) {
+      throw VoiceUploadException(statusFailure!);
+    }
+    if (statusResults.isEmpty) {
+      return TranscriptionResult(
+        id: audioId,
+        transcript: transcript,
+        status: status ?? 'queued',
+        language: language,
+        reason: reason,
+      );
+    }
+    return statusResults.removeAt(0);
   }
 }
