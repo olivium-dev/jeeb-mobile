@@ -24,6 +24,7 @@ import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/diagnostics/diag.dart';
 import '../core/diagnostics/gesture_log.dart';
 import '../core/lifecycle/app_resume_signals.dart';
+import '../core/input/keyboard_dismiss_on_tap_outside.dart';
 import '../core/locale/language_preference_repository.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
@@ -843,20 +844,22 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                       ? GestureLogListener(child: shakeHosted)
                       : shakeHosted;
                   final maskedProduct = ClarityMask(child: productUi);
-                  return ListenableBuilder(
-                    listenable: _clarity,
-                    child: maskedProduct,
-                    builder: (context, child) {
-                      if (!_clarity.shouldMountSdkWidget) return child!;
-                      return ClarityWidget(
-                        key: const ValueKey<String>('jeeb-clarity-sdk'),
-                        clarityConfig: ClarityConfig(
-                          projectId: AppConfig.clarityProjectId,
-                          logLevel: LogLevel.None,
-                        ),
-                        app: child!,
-                      );
-                    },
+                  return keyboardDismissOnTapOutside(
+                    child: ListenableBuilder(
+                      listenable: _clarity,
+                      child: maskedProduct,
+                      builder: (context, child) {
+                        if (!_clarity.shouldMountSdkWidget) return child!;
+                        return ClarityWidget(
+                          key: const ValueKey<String>('jeeb-clarity-sdk'),
+                          clarityConfig: ClarityConfig(
+                            projectId: AppConfig.clarityProjectId,
+                            logLevel: LogLevel.None,
+                          ),
+                          app: child!,
+                        );
+                      },
+                    ),
                   );
                 },
               ),
