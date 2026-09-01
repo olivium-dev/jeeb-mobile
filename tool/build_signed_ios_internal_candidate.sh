@@ -31,6 +31,8 @@ EXPORT_OPTIONS="${IOS_EXPORT_OPTIONS_PATH:-}"
 AUTHENTICATION_KEY_PATH="${APP_STORE_CONNECT_API_KEY_PATH:-}"
 AUTHENTICATION_KEY_ID="${APP_STORE_CONNECT_API_KEY_ID:-}"
 AUTHENTICATION_KEY_ISSUER_ID="${APP_STORE_CONNECT_API_ISSUER_ID:-}"
+SIGNING_KEYCHAIN_PATH="${IOS_SIGNING_KEYCHAIN_PATH:-}"
+SIGNING_IDENTITY_SHA1="${IOS_SIGNING_IDENTITY_SHA1:-}"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
 
 fail() {
@@ -50,6 +52,8 @@ fail() {
   fail 'protected automatic export policy is missing'
 [[ -f "${AUTHENTICATION_KEY_PATH}" && ! -L "${AUTHENTICATION_KEY_PATH}" ]] ||
   fail 'App Store Connect authentication key is missing'
+[[ -f "${SIGNING_KEYCHAIN_PATH}" && ! -L "${SIGNING_KEYCHAIN_PATH}" ]] ||
+  fail 'protected iOS signing keychain is missing'
 [[ "$(stat -f '%Lp' "${AUTHENTICATION_KEY_PATH}")" == 600 ]] ||
   fail 'App Store Connect authentication key must be owner-only'
 [[ "${AUTHENTICATION_KEY_ID}" =~ ^[A-Za-z0-9]{10}$ ]] ||
@@ -57,6 +61,8 @@ fail() {
 [[ "${AUTHENTICATION_KEY_ISSUER_ID}" =~ \
   ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]] ||
   fail 'App Store Connect issuer ID is malformed'
+[[ "${SIGNING_IDENTITY_SHA1}" =~ ^[0-9A-F]{40}$ ]] ||
+  fail 'protected iOS signing identity fingerprint is malformed'
 [[ -n "${EXPECTED_FIREBASE_CLIENT_ID}" ]] ||
   fail 'protected approved Google Sign-In client identity is missing'
 [[ -n "${EXPECTED_FIREBASE_REVERSED_CLIENT_ID}" ]] ||
@@ -149,6 +155,8 @@ run_release_build() {
     -hideShellScriptEnvironment \
     DEVELOPMENT_TEAM=K5RDQ8J7AN \
     CODE_SIGN_STYLE=Automatic \
+    CODE_SIGN_IDENTITY="${SIGNING_IDENTITY_SHA1}" \
+    OTHER_CODE_SIGN_FLAGS="--keychain ${SIGNING_KEYCHAIN_PATH}" \
     archive
 
   xcodebuild \
@@ -167,6 +175,7 @@ export -f run_release_build
 export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
 export AUTHENTICATION_KEY_PATH AUTHENTICATION_KEY_ID AUTHENTICATION_KEY_ISSUER_ID
+export SIGNING_KEYCHAIN_PATH SIGNING_IDENTITY_SHA1
 
 (
   cd "${REPO_ROOT}"
