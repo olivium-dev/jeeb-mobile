@@ -155,7 +155,6 @@ run_release_build() {
     -hideShellScriptEnvironment \
     DEVELOPMENT_TEAM=K5RDQ8J7AN \
     CODE_SIGN_STYLE=Automatic \
-    CODE_SIGN_IDENTITY="${SIGNING_IDENTITY_SHA1}" \
     OTHER_CODE_SIGN_FLAGS="--keychain ${SIGNING_KEYCHAIN_PATH}" \
     archive
 

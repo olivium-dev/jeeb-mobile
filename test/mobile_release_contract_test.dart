@@ -222,6 +222,7 @@ void _registerIosContracts() {
     );
     final signedInspector = _source('tool/inspect_signed_ios_release.sh');
     final exportOptions = _source('ios/ExportOptions.Internal.plist');
+    final project = _source('ios/Runner.xcodeproj/project.pbxproj');
     _expectContainsAll(signedBuilder, [
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
@@ -233,7 +234,6 @@ void _registerIosContracts() {
       'EXPECTED_FIREBASE_CLIENT_ID',
       'EXPECTED_FIREBASE_REVERSED_CLIENT_ID',
       'CODE_SIGN_STYLE=Automatic',
-      r'CODE_SIGN_IDENTITY="${SIGNING_IDENTITY_SHA1}"',
       r'OTHER_CODE_SIGN_FLAGS="--keychain ${SIGNING_KEYCHAIN_PATH}"',
       'IOS_SIGNING_KEYCHAIN_PATH',
       'IOS_SIGNING_IDENTITY_SHA1',
@@ -256,6 +256,13 @@ void _registerIosContracts() {
       'IOS_BUILD_NUMBER must be explicit and valid',
       r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
     ]);
+    expect(
+      '"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";'
+          .allMatches(project)
+          .length,
+      1,
+    );
+    expect(signedBuilder, isNot(contains('CODE_SIGN_IDENTITY=')));
     expect(signedBuilder, isNot(contains('CODE_SIGN_STYLE=Manual')));
     expect(
       signedBuilder,
