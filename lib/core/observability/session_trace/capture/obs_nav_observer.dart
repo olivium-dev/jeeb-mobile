@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../../diagnostics/diag_redaction.dart';
 import '../observability.dart';
+import '../observability_config.dart';
 import '../secret_redactor.dart';
 
 final class ObsNavObserver extends NavigatorObserver {
@@ -23,11 +24,12 @@ final class ObsNavObserver extends NavigatorObserver {
   }
 
   void _emit(String action, Route<dynamic>? route, {Route<dynamic>? from}) {
-    if (!Observability.instance.recording || route == null) return;
+    if (!kObsCompiledIn || route == null) return;
     final settings = route.settings;
     final pattern = _routePattern(settings);
     Observability.instance.currentScreen =
         pattern ?? Observability.instance.currentScreen;
+    if (!Observability.instance.recording) return;
     Observability.instance.recordScreen(
       action: action,
       route: pattern,
@@ -40,20 +42,17 @@ final class ObsNavObserver extends NavigatorObserver {
   static String? _routePattern(RouteSettings settings) {
     final name = settings.name;
     if (name == null || name.isEmpty) return null;
-    return DiagRedaction.scrubPath(name);
+    return SecretRedactor.redactRoute(DiagRedaction.scrubPath(name));
   }
 
   static String? _routeName(RouteSettings settings) {
     final name = settings.name;
     if (name == null || name.isEmpty) return null;
-    return DiagRedaction.scrubPath(name);
+    return SecretRedactor.redactRoute(DiagRedaction.scrubPath(name));
   }
 
   static Map<String, Object?> _redactedPathParams(RouteSettings settings) {
-    final redacted = SecretRedactor.redactBody(
-      _pathParams(settings),
-      full: true,
-    );
+    final redacted = SecretRedactor.redactBody(_pathParams(settings));
     return redacted is Map<String, Object?>
         ? redacted
         : const <String, Object?>{};

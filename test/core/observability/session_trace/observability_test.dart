@@ -72,8 +72,11 @@ void main() {
       // enabled=false alone forces `recording` false regardless of
       ObservabilityConfig.instance.enabled = false;
 
-      Observability.instance
-          .recordScreen(action: 'push', route: '/x', name: 'x');
+      Observability.instance.recordScreen(
+        action: 'push',
+        route: '/x',
+        name: 'x',
+      );
       Observability.instance.recordNotification(
         channel: 'fcm',
         mode: 'foreground',
@@ -81,15 +84,17 @@ void main() {
         category: 'delivery',
       );
       Observability.instance.recordInteraction(gesture: 'tap');
-      Observability.instance.record(ObsScreenEvent(
-        id: '1-screen',
-        sessionId: 's',
-        timestampUtc: DateTime.utc(2026, 1, 1),
-        seq: 1,
-        action: 'push',
-        route: '/x',
-        name: 'x',
-      ));
+      Observability.instance.record(
+        ObsScreenEvent(
+          id: '1-screen',
+          sessionId: 's',
+          timestampUtc: DateTime.utc(2026, 1, 1),
+          seq: 1,
+          action: 'push',
+          route: '/x',
+          name: 'x',
+        ),
+      );
 
       expect(fake.events, isEmpty);
     });
@@ -114,10 +119,7 @@ void main() {
     });
 
     test('newEventId formats <seq>-<type>', () {
-      expect(
-        Observability.instance.newEventId(ObsEventType.api, 42),
-        '42-api',
-      );
+      expect(Observability.instance.newEventId(ObsEventType.api, 42), '42-api');
       expect(
         Observability.instance.newEventId(ObsEventType.screen, 1),
         '1-screen',
@@ -215,8 +217,11 @@ void main() {
         final fake = _FakeSink();
         Observability.instance.sink = fake;
 
-        Observability.instance
-            .recordScreen(action: 'push', route: '/a', name: 'a');
+        Observability.instance.recordScreen(
+          action: 'push',
+          route: '/a',
+          name: 'a',
+        );
         Observability.instance.recordInteraction(gesture: 'tap');
         Observability.instance.recordNotification(
           channel: 'fcm',
@@ -237,8 +242,11 @@ void main() {
         Observability.instance.sink = fake;
         ObservabilityConfig.instance.captureScreens = false;
 
-        Observability.instance
-            .recordScreen(action: 'push', route: '/a', name: 'a');
+        Observability.instance.recordScreen(
+          action: 'push',
+          route: '/a',
+          name: 'a',
+        );
         Observability.instance.recordInteraction(gesture: 'tap');
 
         expect(fake.events, hasLength(1));
@@ -247,65 +255,60 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'record() flags flushNow for a failed/transport-error api event, not '
-      'for a 2xx one',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        final ok = ObsApiEvent(
-          id: '1-api',
-          sessionId: 's',
-          timestampUtc: DateTime.utc(2026, 1, 1),
-          seq: 1,
-          method: 'GET',
-          path: '/x',
-          statusCode: 200,
-          durationMs: 1,
-        );
-        final serverError = ObsApiEvent(
-          id: '2-api',
-          sessionId: 's',
-          timestampUtc: DateTime.utc(2026, 1, 1),
-          seq: 2,
-          method: 'GET',
-          path: '/x',
-          statusCode: 500,
-          durationMs: 1,
-        );
-        final transportFailure = ObsApiEvent(
-          id: '3-api',
-          sessionId: 's',
-          timestampUtc: DateTime.utc(2026, 1, 1),
-          seq: 3,
-          method: 'GET',
-          path: '/x',
-          statusCode: null,
-          durationMs: 1,
-        );
+    test('record() flags flushNow for a failed/transport-error api event, not '
+        'for a 2xx one', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+      final ok = ObsApiEvent(
+        id: '1-api',
+        sessionId: 's',
+        timestampUtc: DateTime.utc(2026, 1, 1),
+        seq: 1,
+        method: 'GET',
+        path: '/x',
+        statusCode: 200,
+        durationMs: 1,
+      );
+      final serverError = ObsApiEvent(
+        id: '2-api',
+        sessionId: 's',
+        timestampUtc: DateTime.utc(2026, 1, 1),
+        seq: 2,
+        method: 'GET',
+        path: '/x',
+        statusCode: 500,
+        durationMs: 1,
+      );
+      final transportFailure = ObsApiEvent(
+        id: '3-api',
+        sessionId: 's',
+        timestampUtc: DateTime.utc(2026, 1, 1),
+        seq: 3,
+        method: 'GET',
+        path: '/x',
+        statusCode: null,
+        durationMs: 1,
+      );
 
-        Observability.instance.record(ok);
-        Observability.instance.record(serverError);
-        Observability.instance.record(transportFailure);
+      Observability.instance.record(ok);
+      Observability.instance.record(serverError);
+      Observability.instance.record(transportFailure);
 
-        expect(fake.flushNowFlags, [false, true, true]);
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      expect(fake.flushNowFlags, [false, true, true]);
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
-    test(
-      'events recorded before install() resolves fall back to the '
-      'unknown-session id rather than crashing',
-      () {
-        final fake = _FakeSink();
-        Observability.instance.sink = fake;
-        Observability.instance
-            .recordScreen(action: 'push', route: '/a', name: 'a');
+    test('events recorded before install() resolves fall back to the '
+        'unknown-session id rather than crashing', () {
+      final fake = _FakeSink();
+      Observability.instance.sink = fake;
+      Observability.instance.recordScreen(
+        action: 'push',
+        route: '/a',
+        name: 'a',
+      );
 
-        expect(fake.events.single.sessionId, 'unknown-session');
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      expect(fake.events.single.sessionId, 'unknown-session');
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
       'flush() delegates to the sink and is fail-soft on a throwing sink',
@@ -319,31 +322,50 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'install() mints a stamp-role session id and wires a real '
-      'ObsFileWriter as the sink',
-      () async {
-        Observability.instance.clock =
-            () => DateTime.utc(2026, 7, 18, 10, 30, 15, 123);
+    test('install() mints a stamp-role session id and wires a real '
+        'ObsFileWriter as the sink', () async {
+      Observability.instance.clock = () =>
+          DateTime.utc(2026, 7, 18, 10, 30, 15, 123);
 
-        await Observability.instance.install(
+      await Observability.instance.install(
+        role: 'client',
+        baseDirectoryProvider: () async => tempBase,
+      );
+
+      expect(
+        Observability.instance.sessionId,
+        '2026-07-18T10-30-15-123Z-client',
+      );
+      expect(Observability.instance.sink, isA<ObsFileWriter>());
+      await Observability.instance.flush();
+      expect(
+        File(
+          '${tempBase.path}/obs_trace/'
+          '2026-07-18T10-30-15-123Z-client.jsonl',
+        ).existsSync(),
+        isTrue,
+      );
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
+
+    test(
+      'install failure returns false without latching, then a retry succeeds',
+      () async {
+        final failed = await Observability.instance.install(
+          role: 'client',
+          baseDirectoryProvider: () async =>
+              throw const FileSystemException('disk unavailable'),
+        );
+        expect(failed, isFalse);
+        expect(Observability.instance.sessionId, isNull);
+        expect(Observability.instance.sink, isNull);
+
+        final retry = await Observability.instance.install(
           role: 'client',
           baseDirectoryProvider: () async => tempBase,
         );
-
-        expect(
-          Observability.instance.sessionId,
-          '2026-07-18T10-30-15-123Z-client',
-        );
-        expect(Observability.instance.sink, isA<ObsFileWriter>());
-        await Observability.instance.flush();
-        expect(
-          File(
-            '${tempBase.path}/obs_trace/'
-            '2026-07-18T10-30-15-123Z-client.jsonl',
-          ).existsSync(),
-          isTrue,
-        );
+        expect(retry, isTrue);
+        expect(Observability.instance.sessionId, isNotNull);
+        expect(Observability.instance.sink?.sessionFilePath, isNotNull);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );

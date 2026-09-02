@@ -206,6 +206,7 @@ jobs:
                 --dart-define=JEEB_INTERNAL_RELEASE=true \
                 --dart-define=JEEB_DEVTOOL_ENABLED=true \
                 --dart-define=JEEB_STAGING_DEVTOOL=true \
+                --dart-define=JEEB_OBS_OVERLAY=true \
                 --dart-define=JEEB_DEVTOOL_SHAKE=false \
                 --dart-define=JEEB_CLARITY_ENABLED=false \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \

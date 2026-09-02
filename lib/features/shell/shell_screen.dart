@@ -7,6 +7,8 @@ import 'package:omds/omds.dart';
 import '../../core/dev_seam/dev_seam.dart';
 import '../../core/lifecycle/route_visibility.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
+import '../../core/observability/session_trace/observability.dart';
+import '../../core/observability/session_trace/observability_config.dart';
 import '../../core/role/role_availability_cubit.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
@@ -128,7 +130,7 @@ class _ShellScreenState extends State<ShellScreen> {
       // White status glyphs over navy on EVERY tab, whatever a tab body does.
       value: AppTheme.systemOverlayStyle,
       child: _RootBackHandler(
-        onRootBack: () => _handleRootBack(landingIndex, safeIndex),
+        onRootBack: () => _handleRootBack(tabs, landingIndex, safeIndex),
         child: Scaffold(
           // The nav floats OVER the tab content, so the body runs full height and
           // Scaffold grows its bottom inset by the nav's painted height.
@@ -168,7 +170,7 @@ class _ShellScreenState extends State<ShellScreen> {
             child: _FloatingTabNav(
               tabs: tabs,
               selectedIndex: safeIndex,
-              onSelected: (i) => setState(() => _selectedIndex = i),
+              onSelected: (i) => _handleTabSelected(tabs, safeIndex, i),
             ),
           ),
         ),
@@ -178,9 +180,35 @@ class _ShellScreenState extends State<ShellScreen> {
 
   /// Standard Android root back: off the landing tab it returns there; on it,
   /// the first press only warns — a single stray BACK used to destroy the task.
-  void _handleRootBack(int landingIndex, int currentIndex) {
+  void _handleTabSelected(
+    List<_Tab> tabs,
+    int currentIndex,
+    int selectedIndex,
+  ) {
+    setState(() => _selectedIndex = selectedIndex);
+    if (selectedIndex == currentIndex) {
+      if (kObsCompiledIn) {
+        Observability.instance.currentScreen = _tabRoute(tabs[selectedIndex]);
+      }
+      return;
+    }
+    _recordTabNavigation(
+      tabs: tabs,
+      fromIndex: currentIndex,
+      toIndex: selectedIndex,
+      action: 'tab',
+    );
+  }
+
+  void _handleRootBack(List<_Tab> tabs, int landingIndex, int currentIndex) {
     if (currentIndex != landingIndex) {
       setState(() => _selectedIndex = landingIndex);
+      _recordTabNavigation(
+        tabs: tabs,
+        fromIndex: currentIndex,
+        toIndex: landingIndex,
+        action: 'tab_back',
+      );
       return;
     }
     final now = DateTime.now();
@@ -200,6 +228,25 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
       );
   }
+
+  void _recordTabNavigation({
+    required List<_Tab> tabs,
+    required int fromIndex,
+    required int toIndex,
+    required String action,
+  }) {
+    if (!kObsCompiledIn) return;
+    final route = _tabRoute(tabs[toIndex]);
+    Observability.instance.currentScreen = route;
+    Observability.instance.recordScreen(
+      action: action,
+      route: route,
+      name: tabs[toIndex].id,
+      previousRoute: _tabRoute(tabs[fromIndex]),
+    );
+  }
+
+  String _tabRoute(_Tab tab) => '/shell/${tab.id}';
 
   /// BUG-1: the tab the shell lands on before the user navigates. A jeeber (by
   /// capability) lands on the additive Jeeber surface ([_jeeberLandingTabId]);

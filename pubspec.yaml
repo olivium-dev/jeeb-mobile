@@ -271,6 +271,9 @@ dependencies:
   package_info_plus: 9.0.1
 
 dev_dependencies:
+  # Resolves compile-time Semantics identifiers in the observability privacy
+  # inventory test. Keep exact-aligned with build_runner's locked analyzer.
+  analyzer: 8.4.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

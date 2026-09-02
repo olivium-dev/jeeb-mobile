@@ -10,6 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
@@ -42,6 +45,22 @@ class _StubEarningsRepository implements EarningsRepository {
     String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async => '/tmp/earnings.pdf';
+}
+
+final class _FakeObsSink implements ObservabilitySink {
+  final List<ObsEvent> events = <ObsEvent>[];
+
+  @override
+  void add(ObsEvent event, {bool flushNow = false}) => events.add(event);
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  String get sessionFilePath => '/fake/shell-session.jsonl';
 }
 
 Widget _harness(SharedPreferences prefs, {required UserRole role}) =>
@@ -142,6 +161,8 @@ List<String> _labels(WidgetTester tester) => tester
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    Observability.instance.resetForTest();
+    ObservabilityConfig.instance.reset();
     sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
     sl.registerLazySingleton<AvailabilityGateway>(
       InMemoryAvailabilityGateway.new,
@@ -151,7 +172,37 @@ void main() {
     );
   });
 
-  tearDown(() async => sl.reset());
+  tearDown(() async {
+    Observability.instance.resetForTest();
+    ObservabilityConfig.instance.reset();
+    await sl.reset();
+  });
+
+  testWidgets(
+    'shell tab changes emit screen navigation and update API screen context',
+    (tester) async {
+      _reduceMotion(tester);
+      final sink = _FakeObsSink();
+      Observability.instance
+        ..sink = sink
+        ..setSessionForTest('shell-session');
+      ObservabilityConfig.instance.enabled = true;
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(_harness(prefs, role: UserRole.client));
+      await _settle(tester);
+
+      await tester.tap(find.bySemanticsIdentifier('shell_tab_profile'));
+      await _settle(tester);
+
+      expect(Observability.instance.currentScreen, '/shell/profile');
+      final event = sink.events.whereType<ObsScreenEvent>().single;
+      expect(event.action, 'tab');
+      expect(event.route, '/shell/profile');
+      expect(event.name, 'profile');
+      expect(event.previousRoute, '/shell/requests');
+    },
+    skip: !kObsCompiledIn,
+  );
 
   testWidgets('client role: no jeeber wording anywhere in the nav',
       (tester) async {

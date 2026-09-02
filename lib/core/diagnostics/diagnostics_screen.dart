@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../layout/bottom_inset.dart';
+import '../observability/session_trace/obs_export_bundle.dart';
 import '../theme/jeeb_semantic_colors.dart';
 import '../widgets/jeeb/jeeb_cta_button.dart';
 import '../widgets/jeeb/jeeb_empty_state.dart';
@@ -65,9 +66,9 @@ class DiagnosticsScreen extends StatefulWidget {
     Future<List<DiagSessionFileInfo>> Function()? sessionsLoader,
     Future<void> Function(DiagSessionFileInfo file)? shareLauncher,
     Future<void> Function(String text)? clipboardWriter,
-  })  : _sessionsLoader = sessionsLoader,
-        _shareLauncher = shareLauncher,
-        _clipboardWriter = clipboardWriter;
+  }) : _sessionsLoader = sessionsLoader,
+       _shareLauncher = shareLauncher,
+       _clipboardWriter = clipboardWriter;
 
   final Future<List<DiagSessionFileInfo>> Function()? _sessionsLoader;
   final Future<void> Function(DiagSessionFileInfo file)? _shareLauncher;
@@ -76,7 +77,8 @@ class DiagnosticsScreen extends StatefulWidget {
   static Future<List<DiagSessionFileInfo>> defaultSessionsLoader() async {
     try {
       final active = DiagFileSink.active;
-      final dirPath = active?.directoryPath ??
+      final dirPath =
+          active?.directoryPath ??
           '${(await getApplicationSupportDirectory()).path}'
               '/${DiagFileSink.dirName}';
       final dir = Directory(dirPath);
@@ -85,13 +87,15 @@ class DiagnosticsScreen extends StatefulWidget {
       await for (final entity in dir.list(followLinks: false)) {
         if (entity is! File || !entity.path.endsWith('.jsonl')) continue;
         final stat = await entity.stat();
-        files.add(DiagSessionFileInfo(
-          path: entity.path,
-          name: entity.path.split('/').last,
-          sizeBytes: stat.size,
-          modified: stat.modified,
-          isCurrent: entity.path == active?.sessionFilePath,
-        ));
+        files.add(
+          DiagSessionFileInfo(
+            path: entity.path,
+            name: entity.path.split('/').last,
+            sizeBytes: stat.size,
+            modified: stat.modified,
+            isCurrent: entity.path == active?.sessionFilePath,
+          ),
+        );
       }
       files.sort((a, b) => b.name.compareTo(a.name));
       return files;
@@ -111,13 +115,29 @@ class DiagnosticsScreen extends StatefulWidget {
   static const String disabledIdentifier = 'diagnostics_disabled';
   static const String sessionsEmptyIdentifier = 'diagnostics_sessions_empty';
 
-  static Future<void> defaultShareLauncher(DiagSessionFileInfo file) async {
+  static Future<void> defaultShareLauncher(
+    DiagSessionFileInfo file, {
+    Future<String?> Function(String sourcePath)? snapshotBuilder,
+    Future<ShareResult> Function(List<XFile> files, String subject)? share,
+  }) async {
     await Diag.flushPersistent();
-    await Share.shareXFiles(
-      <XFile>[XFile(file.path, mimeType: 'text/plain')],
-      subject: file.name,
-    );
+    final snapshotPath =
+        await (snapshotBuilder ??
+            (sourcePath) => ObsExportBundleBuilder.createSanitizedDiagSnapshot(
+              diagSourcePath: sourcePath,
+            ))(file.path);
+    if (snapshotPath == null) {
+      throw const FileSystemException('No diagnostics snapshot was created.');
+    }
+    await (share ?? _shareSanitizedSnapshot)(<XFile>[
+      XFile(snapshotPath, mimeType: 'application/x-ndjson'),
+    ], 'sanitized-diagnostics.jsonl');
   }
+
+  static Future<ShareResult> _shareSanitizedSnapshot(
+    List<XFile> files,
+    String subject,
+  ) => Share.shareXFiles(files, subject: subject);
 
   @override
   State<DiagnosticsScreen> createState() => _DiagnosticsScreenState();
@@ -141,8 +161,9 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
   Future<void> _share(DiagSessionFileInfo file) async {
     try {
-      await (widget._shareLauncher ??
-          DiagnosticsScreen.defaultShareLauncher)(file);
+      await (widget._shareLauncher ?? DiagnosticsScreen.defaultShareLauncher)(
+        file,
+      );
     } catch (_) {
       _snack('Share failed — use "copy path" + adb instead.');
     }
@@ -162,8 +183,9 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -196,9 +218,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                       )
                     : null,
               ),
-              Expanded(
-                child: enabled ? _enabledBody() : const _DisabledBody(),
-              ),
+              Expanded(child: enabled ? _enabledBody() : const _DisabledBody()),
             ],
           ),
         ),
@@ -345,7 +365,8 @@ class _GatedDisc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -407,9 +428,9 @@ class _ExportSection extends StatelessWidget {
               onTap: newest == null
                   ? null
                   : () => onCopy(
-                        DiagExport.adbPullCommand(newest.path),
-                        'adb command copied',
-                      ),
+                      DiagExport.adbPullCommand(newest.path),
+                      'adb command copied',
+                    ),
             ),
           ],
         ),
@@ -458,7 +479,8 @@ class _SessionsSection extends StatelessWidget {
             medallions: <JeebEmptyMedallion>[],
             identifier: DiagnosticsScreen.sessionsEmptyIdentifier,
             headline: 'No session files yet',
-            body: 'Files appear here once the diag stream persists a '
+            body:
+                'Files appear here once the diag stream persists a '
                 'session (debug/dev builds).',
           )
         else
@@ -625,9 +647,9 @@ Widget diagnosticsScreenLongestContent() =>
   size: _diagnosticsScreenCompactBox,
 )
 Widget diagnosticsScreenCompact() => _diagnosticsScreenHosted(
-      DiagnosticsScreenPreviewFixtures.compactListing,
-      box: _diagnosticsScreenCompactBox,
-    );
+  DiagnosticsScreenPreviewFixtures.compactListing,
+  box: _diagnosticsScreenCompactBox,
+);
 
 /// Release-like build: `Diag.enabled` is false, so the body is the dev-only
 /// notice and no listing happens at all.
@@ -637,6 +659,6 @@ Widget diagnosticsScreenCompact() => _diagnosticsScreenHosted(
   size: _diagnosticsScreenPhoneBox,
 )
 Widget diagnosticsScreenDisabled() => _diagnosticsScreenHosted(
-      DiagnosticsScreenPreviewFixtures.listing,
-      enabled: false,
-    );
+  DiagnosticsScreenPreviewFixtures.listing,
+  enabled: false,
+);

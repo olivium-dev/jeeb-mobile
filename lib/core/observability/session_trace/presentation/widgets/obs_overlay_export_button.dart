@@ -41,6 +41,7 @@ class _ObsOverlayExportButtonState extends State<ObsOverlayExportButton> {
       children: [
         OmdsLoadingButton(
           key: const Key('obs-overlay-export'),
+          identifier: 'devtool.session_logs.export',
           text: 'Export / Share JSONL',
           isLoading: _busy,
           onTap: _onExport,

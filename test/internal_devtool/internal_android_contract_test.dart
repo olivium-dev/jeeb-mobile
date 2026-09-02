@@ -46,6 +46,42 @@ void main() {
     expect(internalManifest, isNot(contains('activity-alias')));
     expect(debugManifest, contains('.LegacyDevToolLauncher'));
     expect(debugManifest, isNot(contains('.DevToolLauncher"')));
+    expect(
+      _activityBlock(debugManifest, '.LegacyDevToolLauncher'),
+      contains('android:launchMode="singleTask"'),
+      reason: 'reopening the debug launcher must keep active session logs',
+    );
+  });
+
+  test('debug launcher reopens the existing Dev Tool isolate', () {
+    final launcher = _source(
+      'android/app/src/debug/kotlin/app/jeeb/mobile/'
+      'LegacyDevToolLauncher.kt',
+    );
+    expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_launcher'));
+    expect(launcher, contains('invokeMethod("open", null)'));
+  });
+
+  test('internal launcher reopens the existing Dev Tool isolate', () {
+    final launcher = _source(
+      'android/app/src/internalRelease/kotlin/app/jeeb/mobile/'
+      'DevToolLauncher.kt',
+    );
+    expect(launcher, contains('override fun onNewIntent(intent: Intent)'));
+    expect(launcher, contains('com.olivium.jeeb/devtool_launcher'));
+    expect(launcher, contains('invokeMethod("open", null)'));
+  });
+
+  test('launcher reopen stays independent of the optional shake flag', () {
+    final host = _source('lib/devtool/shake/devtool_shake.dart');
+    expect(host, contains('kDevToolLauncherChannel'));
+    expect(host, contains('_claimNativeHandler(widget.launcherChannel)'));
+    expect(
+      host,
+      contains('if (widget.shakeEnabled &&'),
+      reason: 'only the physical shake channel should be optional',
+    );
   });
 
   test('native and Dart launchers independently fail closed', () {
@@ -258,6 +294,7 @@ String _activityBlock(String manifest, String activityName) {
 const _internalMarkers = <String>[
   r'main_android_internal\.dart',
   r'devtool_shell\.dart',
+  'devtool_launcher',
   'DevToolApp',
   'Jeeber Dev Tool',
   'JEEB_INTERNAL_RELEASE=true',

@@ -8,6 +8,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:jeeb_mobile/core/network/auth_interceptor.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/network/unversioned_path_fallback_interceptor.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_dio_interceptor.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 
 /// Lowest-level Dio adapter that returns scripted [ResponseBody]s per request,
 /// so the token-refresh flow can be exercised end-to-end without a real socket.
@@ -41,6 +45,22 @@ class _ScriptedAdapter implements HttpClientAdapter {
 
 class _MockTokenStore extends Mock implements AuthTokenStore {}
 
+final class _ObsSink implements ObservabilitySink {
+  final List<ObsEvent> events = <ObsEvent>[];
+
+  @override
+  void add(ObsEvent event, {bool flushNow = false}) => events.add(event);
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  String? get sessionFilePath => '/tmp/auth-interceptor-obs.jsonl';
+}
+
 ResponseBody _json(Map<String, dynamic> body, int status) =>
     ResponseBody.fromString(
       jsonEncode(body),
@@ -68,6 +88,11 @@ void main() {
     when(() => store.clear()).thenAnswer((_) async {});
   });
 
+  tearDown(() {
+    Observability.instance.resetForTest();
+    ObservabilityConfig.instance.reset();
+  });
+
   /// Builds the three-Dio harness the interceptor is designed around:
   ///   - [mainDio] carries the [TokenRefreshInterceptor] and serves the
   ({
@@ -82,6 +107,7 @@ void main() {
     required ResponseBody Function(RequestOptions) retryResponder,
     required ResponseBody Function(RequestOptions) refreshResponder,
     bool refreshFallback = false,
+    bool observeWireAttempts = false,
   }) {
     final mainAdapter = _ScriptedAdapter(mainResponder);
     final retryAdapter = _ScriptedAdapter(retryResponder);
@@ -90,6 +116,10 @@ void main() {
 
     final retryClient = Dio()..httpClientAdapter = retryAdapter;
     final refreshClient = Dio()..httpClientAdapter = refreshAdapter;
+    if (observeWireAttempts) {
+      ObsDioInterceptor.attachTo(retryClient);
+      ObsDioInterceptor.attachTo(refreshClient);
+    }
     if (refreshFallback) {
       refreshClient.interceptors.add(
         UnversionedPathFallbackInterceptor(
@@ -100,15 +130,16 @@ void main() {
     }
 
     final mainDio = Dio(BaseOptions(baseUrl: 'http://localhost:4010'))
-      ..httpClientAdapter = mainAdapter
-      ..interceptors.add(
-        TokenRefreshInterceptor(
-          retryClient: retryClient,
-          refreshClient: refreshClient,
-          tokenStore: store,
-          onUnauthenticated: () async => logoutCalls.add('logout'),
-        ),
-      );
+      ..httpClientAdapter = mainAdapter;
+    if (observeWireAttempts) ObsDioInterceptor.attachTo(mainDio);
+    mainDio.interceptors.add(
+      TokenRefreshInterceptor(
+        retryClient: retryClient,
+        refreshClient: refreshClient,
+        tokenStore: store,
+        onUnauthenticated: () async => logoutCalls.add('logout'),
+      ),
+    );
 
     return (
       mainDio: mainDio,
@@ -302,6 +333,57 @@ void main() {
   // R2-9: the /v1 flag-day guard on the refresh path. `/auth/refresh` is the
   // legacy AuthController over the same ITokenService, so the twin is real.
   group('refresh-path unversioned fallback (DioClient wiring)', () {
+    test(
+      'records the initial 401, both refresh paths, and successful replay',
+      () async {
+        final sink = _ObsSink();
+        Observability.instance
+          ..sink = sink
+          ..setSessionForTest('auth-wire-session');
+        ObservabilityConfig.instance.enabled = true;
+        final h = buildHarness(
+          mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+          retryResponder: (_) => _json({'data': 'fresh'}, 200),
+          refreshResponder: (options) => options.path == '/v1/auth/refresh'
+              ? _json({'error': 'not found'}, 404)
+              : _json({
+                  'accessToken': 'new-access',
+                  'refreshToken': 'new-refresh',
+                }, 200),
+          refreshFallback: true,
+          observeWireAttempts: true,
+        );
+
+        final response = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
+
+        expect(response.statusCode, 200);
+        final apiEvents = sink.events.whereType<ObsApiEvent>().toList();
+        expect(apiEvents.map((event) => event.path), <String>[
+          '/v1/jeeb/wallet',
+          '/v1/auth/refresh',
+          '/auth/refresh',
+          '/v1/jeeb/wallet',
+        ]);
+        expect(apiEvents.map((event) => event.statusCode), <int>[
+          401,
+          404,
+          200,
+          200,
+        ]);
+        for (final event in apiEvents.where(
+          (item) => item.path.contains('auth/refresh'),
+        )) {
+          expect(event.requestHeaders, isEmpty);
+          expect(event.responseHeaders, isEmpty);
+          expect(event.requestBody, isNull);
+          expect(event.responseBody, isNull);
+        }
+      },
+      skip: kObsCompiledIn
+          ? false
+          : 'requires JEEB_DEVTOOL_ENABLED and JEEB_OBS_OVERLAY',
+    );
+
     test(
       'a 404 on /v1/auth/refresh rotates via the unversioned twin',
       () async {

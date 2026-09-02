@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart' show BuildContext, FocusManager, FocusNode;
+import 'package:flutter/widgets.dart'
+    show BuildContext, FocusManager, FocusNode;
 
 import '../model/obs_event.dart';
 import '../observability.dart';
@@ -79,8 +80,7 @@ final class ObsInteractionObserver {
       } else if (event is PointerCancelEvent) {
         _pendingPointers.remove(event.pointer);
       }
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   void _onPointerDown(PointerDownEvent event) {
@@ -107,8 +107,6 @@ final class ObsInteractionObserver {
       targetId: pending.targetId,
       targetLabel: pending.targetLabel,
       screen: Observability.instance.currentScreen,
-      dx: pending.downPosition.dx.round(),
-      dy: pending.downPosition.dy.round(),
     );
   }
 
@@ -143,8 +141,7 @@ final class ObsInteractionObserver {
     if (!_shouldCapture()) return;
     try {
       _handleFocusChange();
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   void _handleFocusChange() {
@@ -229,7 +226,7 @@ final class ObsInteractionObserver {
     final id = node.identifier;
     final label = node.label;
     return (
-      id: id.isEmpty ? null : id,
+      id: id.isEmpty ? null : SecretRedactor.redactInteractionIdentifier(id),
       label: label.isEmpty ? null : SecretRedactor.redactLabel(label),
     );
   }

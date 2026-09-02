@@ -11,9 +11,23 @@ import '../secret_redactor.dart';
 final class ObsDioInterceptor extends Interceptor {
   const ObsDioInterceptor();
 
+  static final RegExp _authRecoveryPath = RegExp(
+    r'^/(?:v1/)?auth/recovery/(?:request|verify)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _authRefreshPath = RegExp(
+    r'^/(?:v1/)?auth/refresh$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _deliveryCredentialPath = RegExp(
+    r'^/(?:v1/)?(?:delivery|deliveries)/[^/]+/(?:otp(?:/verify)?|handover(?:-code)?(?:/verify)?)$',
+    caseSensitive: false,
+  );
+
   static const String _startedAtKey = 'jeeb.obs.startedAtMicros';
-  static const String _seqKey = 'jeeb.obs.seq';
-  static const String _screenKey = 'jeeb.obs.screen';
+  static const String _captureKey = 'jeeb.obs.capture';
 
   static const List<String> _correlationHeaderNames = [
     'x-correlation-id',
@@ -25,15 +39,27 @@ final class ObsDioInterceptor extends Interceptor {
   static const String _requestBytesKey = 'x-obs-request-bytes';
   static const String _responseBytesKey = 'x-obs-response-bytes';
 
-  static const String _unknownSessionId = 'unknown-session';
+  static const List<String> _localServicePrefixes = <String>[
+    '/auth-service',
+    '/delivery-service',
+  ];
+
+  static void attachTo(Dio dio) {
+    if (!kObsCompiledIn ||
+        dio.interceptors.whereType<ObsDioInterceptor>().isNotEmpty) {
+      return;
+    }
+    dio.interceptors.add(const ObsDioInterceptor());
+  }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    options.extra[_startedAtKey] = DateTime.now().microsecondsSinceEpoch;
-    if (Observability.instance.recording) {
-      options.extra[_seqKey] = Observability.instance.nextSeq();
-      final screen = Observability.instance.currentScreen;
-      if (screen != null) options.extra[_screenKey] = screen;
+    options.extra[_startedAtKey] ??= DateTime.now().microsecondsSinceEpoch;
+    if (options.extra[_captureKey] is! ObsApiCapture) {
+      final capture = Observability.instance.beginApiCapture();
+      if (capture != null) {
+        options.extra[_captureKey] = capture;
+      }
     }
     handler.next(options);
   }
@@ -58,30 +84,48 @@ final class ObsDioInterceptor extends Interceptor {
     Response<dynamic>? response,
     DioException? error,
   }) {
-    if (!Observability.instance.recording ||
-        !ObservabilityConfig.instance.signalEnabled(ObsEventType.api)) {
+    final capture = options.extra.remove(_captureKey);
+    if (capture is! ObsApiCapture) {
+      options.extra.remove(_startedAtKey);
       return;
     }
-    Observability.instance.record(
-      _buildEvent(options, response: response, error: error),
-    );
+    try {
+      final event = _buildEvent(
+        options,
+        capture: capture,
+        response: response,
+        error: error,
+      );
+      Observability.instance.completeApiCapture(capture, event);
+    } catch (_) {
+      Observability.instance.abandonApiCapture(capture);
+    } finally {
+      // A compatibility or auth replay reuses RequestOptions. Clearing the
+      // first attempt's clock makes the replay a distinct wire timing.
+      options.extra.remove(_startedAtKey);
+    }
   }
 
   static ObsApiEvent _buildEvent(
     RequestOptions options, {
+    required ObsApiCapture capture,
     Response<dynamic>? response,
     DioException? error,
   }) {
-    final suppressPayload = DiagRedaction.isBodySuppressedPath(options.path);
+    final suppressPayload = _isMetadataOnlyPath(options.path);
     final correlationId = _correlationId(options, response);
-    final seq = _seqFor(options);
     return ObsApiEvent(
-      id: Observability.instance.newEventId(ObsEventType.api, seq),
-      sessionId: Observability.instance.sessionId ?? _unknownSessionId,
+      id: Observability.instance.newEventId(ObsEventType.api, capture.seq),
+      sessionId: capture.sessionId,
       timestampUtc: DateTime.now().toUtc(),
-      seq: seq,
+      seq: capture.seq,
       method: options.method.toUpperCase(),
-      path: DiagRedaction.scrubPath(options.path),
+      path:
+          SecretRedactor.redactNetworkPath(
+            options.path,
+            baseUrl: options.baseUrl,
+          ) ??
+          SecretRedactor.redacted,
       statusCode: response?.statusCode,
       durationMs: _elapsedMs(options),
       requestHeaders: suppressPayload
@@ -92,18 +136,16 @@ final class ObsDioInterceptor extends Interceptor {
           ? const <String, Object?>{}
           : _responseHeaders(response),
       responseBody: suppressPayload ? null : _responseBody(response),
-      correlationId: correlationId,
-      screen: _screenFor(options),
+      correlationId: suppressPayload ? null : correlationId,
+      screen: capture.screen,
       errorType: error?.type.name,
       errorMessage: suppressPayload ? null : _errorMessage(error),
     );
   }
 
   static Map<String, Object?> _requestHeaders(RequestOptions options) {
-    final redacted = SecretRedactor.redactHeaders(
-      _toObjectMap(options.headers),
-    );
-    final bytes = _encodedLength(options.data);
+    final redacted = SecretRedactor.redactHeaders(options.headers);
+    final bytes = _requestByteLength(options);
     if (bytes == null) return redacted;
     return <String, Object?>{...redacted, _requestBytesKey: bytes};
   }
@@ -113,7 +155,6 @@ final class ObsDioInterceptor extends Interceptor {
     if (!config.captureApiBodies) return null;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(options.data),
-      full: config.redactionEnabled,
       maxBytes: config.maxBodyBytes,
     );
   }
@@ -121,7 +162,7 @@ final class ObsDioInterceptor extends Interceptor {
   static Map<String, Object?> _responseHeaders(Response<dynamic>? response) {
     if (response == null) return const <String, Object?>{};
     final redacted = SecretRedactor.redactHeaders(
-      _flattenHeaders(response.headers),
+      _boundedResponseHeaders(response.headers),
     );
     final bytes = _responseByteLength(response);
     if (bytes == null) return redacted;
@@ -133,7 +174,6 @@ final class ObsDioInterceptor extends Interceptor {
     if (response == null || !config.captureApiBodies) return null;
     return SecretRedactor.redactAndTruncate(
       _jsonSafeBody(response.data),
-      full: config.redactionEnabled,
       maxBytes: config.maxBodyBytes,
     );
   }
@@ -144,18 +184,25 @@ final class ObsDioInterceptor extends Interceptor {
     final capped = raw.length > _maxErrorMessageChars
         ? '${raw.substring(0, _maxErrorMessageChars)}…'
         : raw;
-    return SecretRedactor.redactString(capped);
+    return SecretRedactor.redactLabel(capped);
   }
 
-  static int _seqFor(RequestOptions options) {
-    final stashed = options.extra[_seqKey];
-    if (stashed is int) return stashed;
-    return Observability.instance.nextSeq();
-  }
-
-  static String? _screenFor(RequestOptions options) {
-    final screen = options.extra[_screenKey];
-    return screen is String ? screen : null;
+  static bool _isMetadataOnlyPath(String path) {
+    if (DiagRedaction.isBodySuppressedPath(path)) return true;
+    var scrubbed = DiagRedaction.scrubPath(path).toLowerCase();
+    for (final prefix in _localServicePrefixes) {
+      if (scrubbed == prefix || scrubbed.startsWith('$prefix/')) {
+        scrubbed = scrubbed.substring(prefix.length);
+        break;
+      }
+    }
+    if (DiagRedaction.isBodySuppressedPath(scrubbed)) return true;
+    final normalized = scrubbed.length > 1 && scrubbed.endsWith('/')
+        ? scrubbed.substring(0, scrubbed.length - 1)
+        : scrubbed;
+    return _authRefreshPath.hasMatch(normalized) ||
+        _authRecoveryPath.hasMatch(normalized) ||
+        _deliveryCredentialPath.hasMatch(normalized);
   }
 
   static int _elapsedMs(RequestOptions options) {
@@ -169,33 +216,79 @@ final class ObsDioInterceptor extends Interceptor {
     RequestOptions options,
     Response<dynamic>? response,
   ) {
-    for (final name in _correlationHeaderNames) {
-      final fromRequest = _headerIgnoreCase(options.headers, name);
-      if (fromRequest != null && fromRequest.isNotEmpty) return fromRequest;
+    final fromRequest = _boundedHeaderValue(
+      options.headers,
+      _correlationHeaderNames,
+    );
+    if (fromRequest != null) {
+      final text = fromRequest is String
+          ? fromRequest
+          : (fromRequest as num).toString();
+      if (text.isNotEmpty) return SecretRedactor.redactIdentifier(text);
     }
     if (response == null) return null;
-    for (final name in _correlationHeaderNames) {
-      final values = response.headers[name];
-      if (values != null && values.isNotEmpty) return values.first;
+    final fromResponse = _boundedHeaderValue(
+      response.headers.map,
+      _correlationHeaderNames,
+    );
+    if (fromResponse != null) {
+      final text = fromResponse is String
+          ? fromResponse
+          : (fromResponse as num).toString();
+      if (text.isNotEmpty) return SecretRedactor.redactIdentifier(text);
     }
     return null;
   }
 
-  static String? _headerIgnoreCase(Map<String, dynamic> headers, String name) {
+  static Object? _boundedHeaderValue(
+    Map<String, Object?> headers,
+    List<String> names,
+  ) {
+    final matches = <String, Object?>{};
+    var count = 0;
     for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() == name) return entry.value?.toString();
+      if (count >= SecretRedactor.maxCollectionEntries) break;
+      count++;
+      if (entry.key.length > SecretRedactor.maxStringCodeUnits) continue;
+      final normalized = entry.key.toLowerCase();
+      if (!names.contains(normalized) || matches.containsKey(normalized)) {
+        continue;
+      }
+      final scalar = _boundedHeaderScalar(entry.value);
+      if (scalar != null) matches[normalized] = scalar;
+    }
+    for (final name in names) {
+      final value = matches[name];
+      if (value != null) return value;
     }
     return null;
   }
 
-  static Map<String, Object?> _toObjectMap(Map<String, dynamic> headers) =>
-      headers.map((key, value) => MapEntry(key, value as Object?));
+  static Object? _boundedHeaderScalar(Object? value) {
+    if (value is String) {
+      return value.length <= SecretRedactor.maxStringCodeUnits ? value : null;
+    }
+    if (value is num) return value;
+    if (value is List && value.isNotEmpty) {
+      final first = value.first;
+      if (first is String) {
+        return first.length <= SecretRedactor.maxStringCodeUnits ? first : null;
+      }
+      if (first is num) return first;
+    }
+    return null;
+  }
 
-  static Map<String, Object?> _flattenHeaders(Headers headers) {
+  static Map<String, Object?> _boundedResponseHeaders(Headers headers) {
     final out = <String, Object?>{};
-    headers.map.forEach((key, values) {
-      out[key] = values.length == 1 ? values.first : values;
-    });
+    var count = 0;
+    for (final entry in headers.map.entries) {
+      if (count >= SecretRedactor.maxCollectionEntries) break;
+      out[entry.key] = entry.value.length == 1
+          ? entry.value.first
+          : entry.value;
+      count++;
+    }
     return out;
   }
 
@@ -211,20 +304,61 @@ final class ObsDioInterceptor extends Interceptor {
           raw is bool) {
         return raw;
       }
-      return '<non-serializable body: ${raw.runtimeType}>';
+      return '<non-serializable body>';
     } catch (_) {
       return '<non-serializable body>';
     }
   }
 
   static Map<String, Object?> _formDataSummary(FormData form) {
-    final fields = <String, Object?>{
-      for (final entry in form.fields) entry.key: entry.value,
-    };
-    final files = <Map<String, Object?>>[
-      for (final entry in form.files)
-        <String, Object?>{'field': entry.key, 'filename': entry.value.filename},
-    ];
+    final fields = <String, Object?>{};
+    final files = <Map<String, Object?>>[];
+    var remaining = SecretRedactor.maxCollectionEntries;
+    var fieldsTruncated = false;
+    for (final entry in form.fields) {
+      if (remaining == 0) {
+        fieldsTruncated = true;
+        break;
+      }
+      if (entry.key.length > SecretRedactor.maxStringCodeUnits) {
+        fieldsTruncated = true;
+        break;
+      }
+      fields[entry.key] =
+          entry.value.length <= SecretRedactor.maxStringCodeUnits
+          ? entry.value
+          : SecretRedactor.truncated;
+      remaining--;
+    }
+    if (fieldsTruncated) {
+      fields[SecretRedactor.truncated] = SecretRedactor.truncated;
+    }
+
+    var filesTruncated = false;
+    for (final entry in form.files) {
+      if (remaining == 0) {
+        filesTruncated = true;
+        break;
+      }
+      final filename = entry.value.filename;
+      files.add(<String, Object?>{
+        'field': entry.key.length <= SecretRedactor.maxStringCodeUnits
+            ? entry.key
+            : SecretRedactor.truncated,
+        'filename':
+            filename != null &&
+                filename.length <= SecretRedactor.maxStringCodeUnits
+            ? filename
+            : SecretRedactor.truncated,
+      });
+      remaining--;
+    }
+    if (filesTruncated) {
+      files.add(<String, Object?>{
+        'field': SecretRedactor.truncated,
+        'filename': SecretRedactor.truncated,
+      });
+    }
     return <String, Object?>{
       if (fields.isNotEmpty) 'fields': fields,
       if (files.isNotEmpty) 'files': files,
@@ -235,20 +369,45 @@ final class ObsDioInterceptor extends Interceptor {
     if (data == null) return null;
     try {
       if (data is FormData) return data.length;
-      if (data is String) return utf8.encode(data).length;
+      if (data is String) {
+        if (data.length > SecretRedactor.maxStringCodeUnits) return null;
+        return utf8.encode(data).length;
+      }
       if (data is List<int>) return data.length;
-      return utf8.encode(jsonEncode(data)).length;
+      if (data is num || data is bool) {
+        return utf8.encode(jsonEncode(data)).length;
+      }
+      // Never serialize an unbounded structured body just to calculate a
+      // diagnostic byte marker. Wire Content-Length remains preferred.
+      return null;
     } catch (_) {
       return null;
     }
   }
 
+  static int? _requestByteLength(RequestOptions options) {
+    final header = _boundedHeaderValue(options.headers, const <String>[
+      Headers.contentLengthHeader,
+    ]);
+    final fromHeader = _parseContentLength(header);
+    return fromHeader ?? _encodedLength(options.data);
+  }
+
+  static int? _parseContentLength(Object? value) {
+    if (value is num && value >= 0) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed != null && parsed >= 0 ? parsed : null;
+    }
+    return null;
+  }
+
   static int? _responseByteLength(Response<dynamic> response) {
-    try {
-      final raw = response.headers.value(Headers.contentLengthHeader);
-      final headerBytes = raw == null ? null : int.tryParse(raw);
-      if (headerBytes != null) return headerBytes;
-    } catch (_) {}
+    final raw = _boundedHeaderValue(response.headers.map, const <String>[
+      Headers.contentLengthHeader,
+    ]);
+    final headerBytes = _parseContentLength(raw);
+    if (headerBytes != null) return headerBytes;
     return _encodedLength(response.data);
   }
 }

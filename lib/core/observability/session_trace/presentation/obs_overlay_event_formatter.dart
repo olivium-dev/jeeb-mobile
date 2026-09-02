@@ -7,18 +7,18 @@ import '../secret_redactor.dart';
 
 abstract final class ObsOverlayEventFormatter {
   static IconData iconFor(ObsEventType type) => switch (type) {
-        ObsEventType.screen => Icons.map_outlined,
-        ObsEventType.api => Icons.cloud_outlined,
-        ObsEventType.notification => Icons.notifications_outlined,
-        ObsEventType.interaction => Icons.touch_app_outlined,
-      };
+    ObsEventType.screen => Icons.map_outlined,
+    ObsEventType.api => Icons.cloud_outlined,
+    ObsEventType.notification => Icons.notifications_outlined,
+    ObsEventType.interaction => Icons.touch_app_outlined,
+  };
 
   static String labelFor(ObsEventType type) => switch (type) {
-        ObsEventType.screen => 'Screen',
-        ObsEventType.api => 'API',
-        ObsEventType.notification => 'Push',
-        ObsEventType.interaction => 'Interaction',
-      };
+    ObsEventType.screen => 'Screen',
+    ObsEventType.api => 'API',
+    ObsEventType.notification => 'Push',
+    ObsEventType.interaction => 'Interaction',
+  };
 
   static String summaryFor(ObsEvent event) {
     final raw = switch (event) {
@@ -26,11 +26,9 @@ abstract final class ObsOverlayEventFormatter {
       final ObsApiEvent e =>
         '${e.method} ${e.path} · ${e.statusCode ?? 'ERR'} '
             '· ${e.durationMs}ms',
-      final ObsNotificationEvent e =>
-        '${e.channel}/${e.mode} · ${e.category}',
-      final ObsInteractionEvent e => e.targetLabel == null
-          ? e.gesture
-          : '${e.gesture} · ${e.targetLabel}',
+      final ObsNotificationEvent e => '${e.channel}/${e.mode} · ${e.category}',
+      final ObsInteractionEvent e =>
+        e.targetId == null ? e.gesture : '${e.gesture} · ${e.targetId}',
     };
     return SecretRedactor.redactString(raw);
   }
@@ -45,7 +43,7 @@ abstract final class ObsOverlayEventFormatter {
 
   static String prettyPayload(ObsEvent event) {
     final json = event.toJson();
-    json['payload'] = SecretRedactor.redactBody(json['payload'], full: true);
+    json['payload'] = SecretRedactor.redactBody(json['payload']);
     const encoder = JsonEncoder.withIndent('  ');
     try {
       return encoder.convert(json);

@@ -46,10 +46,15 @@ for forbidden in \
   'InternalDevToolApp' \
   'internal_devtool_root' \
   'devtool_shake' \
+  'devtool_launcher' \
   'Jeeber Dev Tool' \
   'Jeeb Internal QA' \
   'JEEB_INTERNAL_RELEASE=true' \
-  'JEEB_DEVTOOL_ENABLED=true'; do
+  'JEEB_DEVTOOL_ENABLED=true' \
+  'JEEB_OBS_OVERLAY' \
+  'obs_trace' \
+  'devtool.session_logs' \
+  'Session Logs'; do
   printf ' %s' "${forbidden}" >>"${binary}"
   if run_inspector false false >/dev/null 2>&1; then
     printf 'Inspector accepted forbidden release marker: %s\n' \

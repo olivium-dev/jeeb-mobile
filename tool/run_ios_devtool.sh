@@ -34,6 +34,7 @@ exec "${flutter_bin}" run \
   --dart-define=JEEB_MOCK_BASE_URL="${base_url}" \
   --dart-define=JEEB_USE_MOCK_PREFIXES="${mock_prefixes}" \
   --dart-define=JEEB_DEVTOOL_ENABLED=true \
+  --dart-define=JEEB_OBS_OVERLAY=true \
   --dart-define=JEEB_REALTIME_TRACKING=true \
   --dart-define=JEEB_REALTIME_SOCKET_URL="${realtime_socket_url}" \
   --route=/devtool

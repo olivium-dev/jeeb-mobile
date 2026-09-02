@@ -3,22 +3,32 @@ import 'model/obs_event.dart';
 
 const bool kObsCompiledIn = kDevToolEnabled && _kObsOverlayRequested;
 
-const bool _kObsOverlayRequested =
-    bool.fromEnvironment('JEEB_OBS_OVERLAY', defaultValue: false);
+const bool _kObsOverlayRequested = bool.fromEnvironment(
+  'JEEB_OBS_OVERLAY',
+  defaultValue: false,
+);
 
 final class ObservabilityConfig {
   ObservabilityConfig._();
 
   static final ObservabilityConfig instance = ObservabilityConfig._();
 
-  bool enabled = kObsCompiledIn;
+  // Recording is always an explicit Dev Tool action, even in a compiled-in
+  // build. Merely launching the app must not create or append a trace.
+  bool enabled = false;
 
   bool captureScreens = true;
   bool captureApi = true;
   bool captureNotifications = true;
   bool captureInteractions = true;
 
-  bool redactionEnabled = true;
+  /// Compatibility-only view for older Dev Tool code. Redaction is mandatory;
+  /// assigning `false` is intentionally ignored.
+  @Deprecated('Session-trace redaction is always enabled')
+  bool get redactionEnabled => true;
+
+  @Deprecated('Session-trace redaction cannot be disabled')
+  set redactionEnabled(bool _) {}
 
   bool captureApiBodies = true;
 
@@ -34,17 +44,12 @@ final class ObservabilityConfig {
     };
   }
 
-  void enableAll() {
-    enabled = true;
-  }
-
   void reset() {
     enabled = false;
     captureScreens = true;
     captureApi = true;
     captureNotifications = true;
     captureInteractions = true;
-    redactionEnabled = true;
     captureApiBodies = true;
     maxBodyBytes = 8192;
   }

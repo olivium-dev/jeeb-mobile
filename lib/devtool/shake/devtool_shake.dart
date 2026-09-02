@@ -34,12 +34,22 @@ import '../devtool_shell.dart';
 /// release binary scanners can grep for it.
 const String kDevToolShakeChannelName = 'com.olivium.jeeb/devtool_shake';
 
+/// Android launcher → Dart channel used to reopen an existing single-task
+/// Dev Tool activity. It stays independent of the optional shake channel so
+/// an internal build can disable physical shake without disabling its icon.
+const String kDevToolLauncherChannelName = 'com.olivium.jeeb/devtool_launcher';
+
 /// The only method the native side sends.
 const String kDevToolShakeOpenMethod = 'open';
 
 /// The channel instance shared by the host and its tests.
 const MethodChannel kDevToolShakeChannel = MethodChannel(
   kDevToolShakeChannelName,
+);
+
+/// Channel shared by both Android Dev Tool launcher activities.
+const MethodChannel kDevToolLauncherChannel = MethodChannel(
+  kDevToolLauncherChannelName,
 );
 
 /// Identifies the mounted Dev Tool layer (used by tests and by the no-op
@@ -73,7 +83,7 @@ DateTime _systemClock() => DateTime.now();
 /// `ClarityMask` to `ClarityWidget` when Clarity consent is accepted, and any
 /// structural hot reload above the host does the same. Clearing only when this
 /// instance is still the recorded owner makes the teardown safe.
-final Map<String, _DevToolShakeHostState> _shakeHandlerOwners =
+final Map<String, _DevToolShakeHostState> _nativeHandlerOwners =
     <String, _DevToolShakeHostState>{};
 
 /// Default content of the Dev Tool layer.
@@ -137,6 +147,7 @@ class DevToolShakeHost extends StatefulWidget {
     this.initiallyOpen = false,
     this.shakeEnabled = true,
     this.channel = kDevToolShakeChannel,
+    this.launcherChannel = kDevToolLauncherChannel,
     this.layerBuilder = defaultDevToolShakeLayer,
     this.clock = _systemClock,
     this.debounce = kDevToolShakeDebounce,
@@ -148,11 +159,14 @@ class DevToolShakeHost extends StatefulWidget {
   /// Whether the Dev Tool layer is visible on the host's first frame.
   final bool initiallyOpen;
 
-  /// Whether this host owns the native shake channel.
+  /// Whether this host owns the optional native shake channel.
   final bool shakeEnabled;
 
   /// Channel the native shake arrives on.
   final MethodChannel channel;
+
+  /// Channel an existing Android launcher activity uses to reopen the tool.
+  final MethodChannel launcherChannel;
 
   /// Builds the content of the Dev Tool layer.
   final WidgetBuilder layerBuilder;
@@ -175,43 +189,58 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void initState() {
     super.initState();
     _open = widget.initiallyOpen;
-    if (!widget.shakeEnabled) return;
-    _claimShakeHandler();
+    _claimNativeHandlers();
   }
 
-  void _claimShakeHandler() {
+  void _claimNativeHandlers() {
+    _claimNativeHandler(widget.launcherChannel);
+    if (widget.shakeEnabled &&
+        widget.channel.name != widget.launcherChannel.name) {
+      _claimNativeHandler(widget.channel);
+    }
+  }
+
+  void _claimNativeHandler(MethodChannel channel) {
     // Registered synchronously, not in a post-frame callback: a shake can
     // arrive at any time and the handler is cheap. Claiming ownership here —
     // before any outgoing host's deferred `dispose` runs — is what lets that
-    // teardown know it is no longer the owner. See [_shakeHandlerOwners].
-    _shakeHandlerOwners[widget.channel.name] = this;
-    widget.channel.setMethodCallHandler(_onNativeCall);
+    // teardown know it is no longer the owner. See [_nativeHandlerOwners].
+    _nativeHandlerOwners[channel.name] = this;
+    channel.setMethodCallHandler(_onNativeCall);
   }
 
-  void _releaseShakeHandler(MethodChannel channel) {
+  void _releaseNativeHandler(MethodChannel channel) {
     final String name = channel.name;
-    if (!identical(_shakeHandlerOwners[name], this)) return;
-    _shakeHandlerOwners.remove(name);
+    if (!identical(_nativeHandlerOwners[name], this)) return;
+    _nativeHandlerOwners.remove(name);
     channel.setMethodCallHandler(null);
+  }
+
+  void _releaseNativeHandlers(DevToolShakeHost host) {
+    _releaseNativeHandler(host.launcherChannel);
+    if (host.channel.name != host.launcherChannel.name) {
+      _releaseNativeHandler(host.channel);
+    }
   }
 
   @override
   void didUpdateWidget(covariant DevToolShakeHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.shakeEnabled == widget.shakeEnabled &&
-        oldWidget.channel.name == widget.channel.name) {
+        oldWidget.channel.name == widget.channel.name &&
+        oldWidget.launcherChannel.name == widget.launcherChannel.name) {
       return;
     }
-    _releaseShakeHandler(oldWidget.channel);
-    if (widget.shakeEnabled) _claimShakeHandler();
+    _releaseNativeHandlers(oldWidget);
+    _claimNativeHandlers();
   }
 
   @override
   void dispose() {
     // Tear down ONLY the handler this instance still owns: a host that was
     // already superseded in the same frame must leave its successor's handler
-    // alone. See [_shakeHandlerOwners].
-    _releaseShakeHandler(widget.channel);
+    // alone. See [_nativeHandlerOwners].
+    _releaseNativeHandlers(widget);
     super.dispose();
   }
 

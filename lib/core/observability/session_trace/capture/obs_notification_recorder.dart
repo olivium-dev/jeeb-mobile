@@ -1,4 +1,5 @@
 import '../../../notifications/domain/notification_message.dart';
+import '../../../diagnostics/diag_redaction.dart';
 import '../observability.dart';
 import '../secret_redactor.dart';
 
@@ -33,7 +34,6 @@ abstract final class ObsNotificationRecorder {
     required String? deepLink,
   }) {
     if (!Observability.instance.recording) return;
-    final full = Observability.instance.config.redactionEnabled;
     Observability.instance.recordNotification(
       channel: channel,
       mode: mode,
@@ -41,16 +41,15 @@ abstract final class ObsNotificationRecorder {
       category: message.category.name,
       title: SecretRedactor.redactLabel(message.title),
       body: SecretRedactor.redactLabel(message.body),
-      deepLink: deepLink,
-      data: _redactData(message.data, full: full),
+      deepLink: deepLink == null
+          ? null
+          : SecretRedactor.redactNetworkPath(DiagRedaction.scrubPath(deepLink)),
+      data: _redactData(message.data),
     );
   }
 
-  static Map<String, Object?> _redactData(
-    Map<String, String> data, {
-    required bool full,
-  }) {
-    final redacted = SecretRedactor.redactBody(data, full: full);
+  static Map<String, Object?> _redactData(Map<String, String> data) {
+    final redacted = SecretRedactor.redactBody(data);
     return redacted is Map<String, Object?>
         ? redacted
         : const <String, Object?>{};

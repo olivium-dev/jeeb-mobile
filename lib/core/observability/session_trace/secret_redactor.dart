@@ -1,17 +1,479 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import '../../diagnostics/diag_redaction.dart';
+import 'audited_interaction_identifiers.dart';
 
 abstract final class SecretRedactor {
-  static const Set<String> kExtraSensitiveKeys = {
+  static const Set<String> kSensitiveKeys = {
     'apikey',
     'apisecret',
     'clientsecret',
     'authtoken',
     'sessiontoken',
+    'phone',
+    'phonenumber',
+    'mobile',
+    'mobilenumber',
+    'email',
+    'emailaddress',
+    'address',
+    'street',
+    'streetaddress',
+    'addressline1',
+    'addressline2',
+    'postalcode',
+    'postcode',
+    'latitude',
+    'longitude',
+    'lat',
+    'lon',
+    'lng',
+    'coordinates',
+    'location',
+    'gps',
+    'message',
+    'body',
+    'text',
+    'content',
+    'chat',
+    'chattext',
+    'freetext',
+    'note',
+    'notes',
+    'comment',
+    'comments',
+    'description',
+    'title',
+    'transcription',
+    'caption',
+    'label',
+    'building',
+    'floorapt',
+    'deliverynotes',
+    'name',
+    'username',
+    'targetlabel',
+    'firstname',
+    'lastname',
+    'fullname',
+    'customername',
+  };
+
+  static const Set<String> _sensitiveKeyFragments = {
+    'authorization',
+    'password',
+    'passcode',
+    'secret',
+    'token',
+    'cookie',
+    'otp',
+    'phone',
+    'email',
+    'address',
+    'latitude',
+    'longitude',
+    'coordinate',
+    'location',
+    'gps',
+    'chat',
+    'transcript',
+    'caption',
+    'building',
+    'floorapt',
+    'deliverynote',
+    'username',
+    'targetlabel',
+    'firstname',
+    'lastname',
+    'fullname',
+    'customername',
+  };
+
+  /// String-valued fields are denied by default. These are the deliberately
+  /// small, audited exceptions needed to diagnose a trace without retaining
+  /// user-authored prose.
+  static const Set<String> _safeStringKeys = {
+    'action',
+    'route',
+    'prev',
+    'm',
+    'method',
+    'path',
+    'reqid',
+    'screen',
+    'errortype',
+    'channel',
+    'mode',
+    'messageid',
+    'category',
+    'deeplink',
+    'gesture',
+    'targetid',
+    'valuepreview',
+    'status',
+    'state',
+    'kind',
+    'outcome',
+    'result',
+    'type',
+    't',
+    'sessionid',
+    'seq',
+    'ts',
+    'role',
+    'os',
+    'appversion',
+    'buildsha',
+    'contenttype',
+    'contentlength',
+    'accept',
+    'xrequestid',
+    'xcorrelationid',
+  };
+
+  static const Set<String> _safeHeaderNames = {
+    'contenttype',
+    'contentlength',
+    'accept',
+    'xrequestid',
+    'xcorrelationid',
+  };
+
+  static const Set<String> _auditedHeaderKeyNames = {
+    'accept',
+    'apikey',
+    'authorization',
+    'contentlength',
+    'contenttype',
+    'cookie',
+    'setcookie',
+    'xapikey',
+    'xcorrelationid',
+    'xrequestid',
+  };
+
+  /// Audited endpoint vocabulary that is safe to retain in a network trace.
+  /// Every other path segment is treated as a potentially user-controlled ID,
+  /// object reference, filename, capability, or piece of PII.
+  static const Set<String> _safeNetworkPathSegments = {
+    '__mock',
+    'accept',
+    'acknowledge',
+    'active',
+    'api',
+    'assets',
+    'auth',
+    'auth-service',
+    'availability',
+    'cancel',
+    'channels',
+    'chat',
+    'chat-service',
+    'cdn',
+    'compliment-service',
+    'content',
+    'contract-signing-service',
+    'contract-template',
+    'contracts',
+    'conversations',
+    'decline',
+    'deliveries',
+    'delivery',
+    'delivery-service',
+    'device',
+    'devices',
+    'disputes',
+    'earnings',
+    'escalate',
+    'export',
+    'feed',
+    'feedback',
+    'feedback-service',
+    'firebase-token',
+    'form-builder-service',
+    'form-schema',
+    'geolocation-service',
+    'goods-cost',
+    'handover',
+    'handover-code',
+    'jeeb',
+    'jeeb-chat',
+    'jeebers',
+    'kyc',
+    'language',
+    'ledger',
+    'location',
+    'login',
+    'logout',
+    'matching',
+    'me',
+    'messages',
+    'moderation',
+    'notification-service',
+    'notifications',
+    'orders',
+    'offer-service',
+    'offers',
+    'otp',
+    'password',
+    'pending',
+    'preferences',
+    'profile',
+    'prohibited-items',
+    'push-notification',
+    'pushnotification',
+    'ratings',
+    'read',
+    'realtime',
+    'realtime-comunication-service',
+    'recovery',
+    'refresh',
+    'register',
+    'reply',
+    'report',
+    'request',
+    'requests',
+    'reset',
+    'reviews',
+    'role',
+    'run',
+    'saved-locations',
+    'score-taking-service',
+    'seed',
+    'send',
+    'set-password',
+    'sign',
+    'signup',
+    'since',
+    'social',
+    'statements',
+    'status',
+    'submit',
+    'super-login',
+    'support',
+    'support-service',
+    'switch',
+    'templates',
+    'tickets',
+    'tiers',
+    'tracking',
+    'transcribe',
+    'transition',
+    'unregister',
+    'update',
+    'user',
+    'user-id-login',
+    'user-management',
+    'userpreferences',
+    'users',
+    'v1',
+    'v2',
+    'verify',
+    'voice',
+    'voice-transcription-service',
+    'wallet',
+    'wallet-service',
+    'waiting',
+  };
+
+  static const Set<String> _safeNetworkTemplateSegments = {
+    ':conversationId',
+    ':deliveryId',
+    ':disputeId',
+    ':id',
+    ':jeeberId',
+    ':offerId',
+    ':prefKey',
+    ':requestId',
+    ':reviewId',
+    ':ticketId',
+    ':userId',
+  };
+
+  static const String externalUploadPath = '/external-upload';
+  static const String redactedPathSegment = ':value';
+
+  static const Set<String> _safeNumericKeys = {
+    'v',
+    'seq',
+    'status',
+    'ms',
+    'count',
+    'bytes',
+    'contentlength',
+    'xobsrequestbytes',
+    'xobsresponsebytes',
+    'maxsessionbytes',
+  };
+
+  /// Only these normalized property names may survive in diagnostic JSON.
+  /// Server-controlled and user-controlled maps can use secrets as keys, so
+  /// unknown names are replaced with ordinal placeholders even when they do
+  /// not resemble an email, phone number, or token.
+  static const Set<String> _auditedBodyKeyNames = {
+    'accept',
+    'accesstoken',
+    'action',
+    'active',
+    'address',
+    'addressline1',
+    'addressline2',
+    'apikey',
+    'apisecret',
+    'appversion',
+    'authorization',
+    'authtoken',
+    'body',
+    'buildsha',
+    'building',
+    'bytes',
+    'capabilitya',
+    'capabilityb',
+    'caption',
+    'category',
+    'channel',
+    'chat',
+    'chattext',
+    'clientsecret',
+    'code',
+    'codewithspaces',
+    'comment',
+    'comments',
+    'content',
+    'contentlength',
+    'contenttype',
+    'coordinates',
+    'count',
+    'cookie',
+    'customerid',
+    'customername',
+    'data',
+    'deeplink',
+    'deliverynotes',
+    'description',
+    'devicetoken',
+    'email',
+    'emailaddress',
+    'enumlike',
+    'error',
+    'errormessage',
+    'errortype',
+    'fcmtoken',
+    'file',
+    'field',
+    'fields',
+    'filename',
+    'files',
+    'firstname',
+    'floorapt',
+    'freetext',
+    'fullname',
+    'gesture',
+    'gps',
+    'headers',
+    'id',
+    'idtoken',
+    'items',
+    'kind',
+    'label',
+    'lastname',
+    'lat',
+    'latitude',
+    'lng',
+    'location',
+    'lon',
+    'longitude',
+    'm',
+    'maxsessionbytes',
+    'message',
+    'messageid',
+    'method',
+    'misc',
+    'mobile',
+    'mobilenumber',
+    'mode',
+    'model',
+    'ms',
+    'name',
+    'nested',
+    'note',
+    'notes',
+    'ok',
+    'os',
+    'osversion',
+    'otp',
+    'outcome',
+    'outer',
+    'owner',
+    'params',
+    'passcode',
+    'password',
+    'path',
+    'payload',
+    'phone',
+    'phonenumber',
+    'postalcode',
+    'postcode',
+    'prev',
+    'refreshtoken',
+    'reqbody',
+    'reqheaders',
+    'reqid',
+    'requestbody',
+    'requestheaders',
+    'requestid',
+    'respbody',
+    'respheaders',
+    'responsebody',
+    'responseheaders',
+    'result',
+    'role',
+    'route',
+    'samples',
+    'screen',
+    'secret',
+    'seq',
+    'sessionid',
+    'sessiontoken',
+    'state',
+    'status',
+    'street',
+    'streetaddress',
+    'subprefix',
+    't',
+    'targetid',
+    'targetlabel',
+    'text',
+    'title',
+    'token',
+    'transcription',
+    'ts',
+    'type',
+    'unknown',
+    'userid',
+    'username',
+    'users',
+    'v',
+    'valuepreview',
+    'xcorrelationid',
+    'xobsrequestbytes',
+    'xobsresponsebytes',
+    'xrequestid',
   };
 
   static const String redacted = '<redacted>';
+  static const String redactedMapKey = '<redacted-key>';
+  static const String truncated = '<truncated>';
+
+  /// Hard traversal limits applied before inspecting user-controlled bodies.
+  /// These bounds keep diagnostics from copying or serializing an arbitrarily
+  /// large response on the UI isolate.
+  static const int maxTraversalDepth = 12;
+  static const int maxTraversalNodes = 512;
+  static const int maxCollectionEntries = 64;
+  static const int maxStringCodeUnits = 4096;
+  static const int maxInputBytes = 64 * 1024;
 
   static final RegExp _bearerPattern = RegExp(
     r'Bearer\s+[A-Za-z0-9\-_.=]+',
@@ -26,76 +488,512 @@ abstract final class SecretRedactor {
     r'\b(?=[A-Za-z0-9_\-:]*\d)[A-Za-z0-9_\-:]{24,}\b',
   );
 
+  static final RegExp _emailPattern = RegExp(
+    r'\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b',
+    caseSensitive: false,
+  );
+
+  static final RegExp _phonePattern = RegExp(r'\+?\d(?:[\s().\-]*\d){6,}');
+
   static final RegExp _longDigitRun = RegExp(r'\d{7,}');
+
+  static final RegExp _safeCodePattern = RegExp(
+    r'^(?!.*\d{4,})[A-Za-z][A-Za-z0-9_.:-]{0,95}$',
+  );
+
+  static final RegExp _safeIdentifierPattern = RegExp(
+    r'^(?!.*\d{4,})(?=.*[A-Za-z])[A-Za-z0-9_.:/-]{1,160}$',
+  );
+
+  static final RegExp _otpDigitRun = RegExp(r'\d{4,}');
+
+  static final RegExp _safeMimePattern = RegExp(
+    r'^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$',
+  );
+
+  static final RegExp _safeLengthPreviewPattern = RegExp(r'^\d+ chars$');
+
+  static final RegExp _safeVersionPattern = RegExp(
+    r'^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$',
+  );
+
+  static final RegExp _safeSessionIdPattern = RegExp(
+    r'^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-'
+    r'[A-Za-z][A-Za-z0-9_-]{0,31}$',
+  );
+
+  static final RegExp _generatedMapKeyPattern = RegExp(
+    r'^<redacted-key>(?:#\d+)?$',
+  );
 
   static String redactString(String input) {
     if (input.isEmpty) return input;
     var out = input.replaceAll(_bearerPattern, redacted);
     out = out.replaceAll(_jwtPattern, redacted);
     out = out.replaceAll(_opaqueTokenPattern, redacted);
+    out = out.replaceAll(_emailPattern, redacted);
+    out = out.replaceAll(_phonePattern, redacted);
+    out = out.replaceAll(_longDigitRun, redacted);
     return out;
   }
 
-  static Map<String, Object?> redactHeaders(Map<String, Object?> headers) =>
-      DiagRedaction.redactHeaders(headers);
+  static Map<String, Object?> redactHeaders(Map<String, Object?> headers) {
+    final out = <String, Object?>{};
+    final budget = _RedactionBudget();
+    final activeLists = HashSet<Object>.identity();
+    var count = 0;
+    for (final entry in headers.entries) {
+      if (count >= maxCollectionEntries) {
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedHeaderKeyNames,
+            )] =
+            truncated;
+        break;
+      }
+      final key = entry.key;
+      final value = entry.value;
+      final outputKey = _sanitizedOutputKey(
+        key,
+        out,
+        auditedKeys: _auditedHeaderKeyNames,
+      );
+      if (outputKey != key) {
+        out[outputKey] = redacted;
+        count++;
+        continue;
+      }
+      final normalized = _normalizeKey(key);
+      if (DiagRedaction.isSensitiveHeader(key) || isSensitiveKey(key)) {
+        out[outputKey] = redacted;
+      } else if (_safeHeaderNames.contains(normalized)) {
+        out[outputKey] = _redactHeaderValue(
+          value,
+          normalized,
+          budget,
+          0,
+          activeLists,
+        );
+      } else {
+        out[outputKey] = redacted;
+      }
+      count++;
+    }
+    return out;
+  }
 
-  static Object? redactBody(Object? body, {required bool full}) =>
-      _redactValue(body, full);
+  /// [full] remains only for source compatibility. Both values apply the same
+  /// mandatory full-redaction policy.
+  static Object? redactBody(Object? body, {bool full = true}) =>
+      _redactValue(body, _RedactionBudget(), 0);
 
+  /// [full] is ignored intentionally; callers cannot relax redaction.
   static Object? redactAndTruncate(
     Object? body, {
-    required bool full,
+    bool full = true,
     required int maxBytes,
   }) {
-    final redactedBody = redactBody(body, full: full);
+    final redactedBody = redactBody(body);
     if (redactedBody == null) return null;
     final byteLength = _encodedByteLength(redactedBody);
     if (byteLength == null || byteLength <= maxBytes) return redactedBody;
     return '<truncated $byteLength bytes>';
   }
 
-  static String? redactLabel(String? label) =>
-      label == null ? null : redactString(label);
+  /// User-visible labels and prose are never diagnostic-safe. Stable semantic
+  /// identifiers remain available separately for interaction diagnosis.
+  static String? redactLabel(String? label) {
+    if (label == null || label.isEmpty) return label;
+    return redacted;
+  }
 
-  static Object? _redactValue(Object? value, bool full) {
+  static String? redactIdentifier(String? identifier) {
+    if (identifier == null || identifier.isEmpty) return identifier;
+    final scanned = redactString(identifier);
+    if (scanned != identifier) return redacted;
+    if (isSensitiveKey(identifier)) return redacted;
+    return _safeIdentifierPattern.hasMatch(identifier) ? identifier : redacted;
+  }
+
+  static String? redactInteractionIdentifier(String? identifier) {
+    if (identifier == null || identifier.isEmpty) return identifier;
+    final alias = kAuditedStaticInteractionAliases[identifier];
+    if (alias != null) return redactIdentifier(alias);
+    if (!kAuditedStaticInteractionIdentifiers.contains(identifier)) {
+      return redacted;
+    }
+    return redactIdentifier(identifier);
+  }
+
+  static String? redactPath(String? path) {
+    if (path == null || path.isEmpty) return path;
+    return _redactStringField('path', path);
+  }
+
+  /// Redacts app routes while retaining audited named routes such as `shell`.
+  /// Network paths and deep links remain slash-only via [redactPath].
+  static String? redactRoute(String? route) {
+    if (route == null || route.isEmpty) return route;
+    return _redactStringField('route', route);
+  }
+
+  /// Produces a diagnostic route template without retaining network
+  /// capabilities or user-controlled path segments.
+  ///
+  /// Absolute URLs outside [baseUrl]'s origin are signed/direct uploads from
+  /// the recorder's perspective. Their host and complete path are replaced by
+  /// one sentinel. Relative and same-origin URLs retain only the audited
+  /// endpoint vocabulary above.
+  static String? redactNetworkPath(String? path, {String? baseUrl}) {
+    if (path == null || path.isEmpty) return path;
+    final parsed = Uri.tryParse(path);
+    if (parsed == null) return '/$redactedPathSegment';
+    if (parsed.hasScheme || parsed.host.isNotEmpty) {
+      final base = baseUrl == null ? null : Uri.tryParse(baseUrl);
+      if (!_sameOrigin(parsed, base)) return externalUploadPath;
+      return _redactRelativeNetworkPath(parsed.path);
+    }
+    return _redactRelativeNetworkPath(parsed.path);
+  }
+
+  static Object? _redactValue(
+    Object? value,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    if (!budget.claimNode(depth)) return truncated;
+    return _redactClaimedValue(value, budget, depth);
+  }
+
+  static Object? _redactClaimedValue(
+    Object? value,
+    _RedactionBudget budget,
+    int depth,
+  ) {
     if (value == null) return null;
-    if (value is Map<String, Object?>) return _redactMap(value, full);
+    if (value is Map<String, Object?>) {
+      return _redactMap(value, budget, depth);
+    }
     if (value is Map) {
-      return _redactMap(value.map((k, v) => MapEntry(k.toString(), v)), full);
+      return _redactUntypedMap(value, budget, depth);
     }
     if (value is List) {
-      return value.map((e) => _redactValue(e, full)).toList();
+      return _redactList(value, budget, depth);
     }
-    if (value is String) return _redactStringValue(value, full);
-    return value;
+    if (value is String) {
+      return budget.claimString(value)
+          ? _generatedMarkerOrRedacted(value)
+          : truncated;
+    }
+    if (value is bool) return value;
+    return redacted;
+  }
+
+  static Map<String, Object?> _redactUntypedMap(
+    Map<Object?, Object?> map,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    final typed = <String, Object?>{};
+    var count = 0;
+    for (final entry in map.entries) {
+      if (count >= maxCollectionEntries) {
+        typed[_sanitizedOutputKey(
+              truncated,
+              typed,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
+        break;
+      }
+      final key = entry.key.toString();
+      if (!budget.claimString(key)) {
+        typed[truncated] = truncated;
+        break;
+      }
+      typed[_sanitizedOutputKey(
+            key,
+            typed,
+            auditedKeys: _auditedBodyKeyNames,
+          )] =
+          entry.value;
+      count++;
+    }
+    return _redactMap(typed, budget, depth, keysAlreadyClaimed: true);
+  }
+
+  static List<Object?> _redactList(
+    List<Object?> list,
+    _RedactionBudget budget,
+    int depth,
+  ) {
+    final out = <Object?>[];
+    var count = 0;
+    for (final value in list) {
+      if (count >= maxCollectionEntries) {
+        out.add(truncated);
+        break;
+      }
+      out.add(_redactValue(value, budget, depth + 1));
+      count++;
+    }
+    return out;
   }
 
   static Map<String, Object?> _redactMap(
     Map<String, Object?> map,
-    bool full,
-  ) {
+    _RedactionBudget budget,
+    int depth, {
+    bool keysAlreadyClaimed = false,
+  }) {
     final out = <String, Object?>{};
-    map.forEach((key, value) {
-      out[key] = isSensitiveKey(key)
-          ? DiagRedaction.redactToken(value?.toString())
-          : _redactValue(value, full);
-    });
+    var count = 0;
+    for (final entry in map.entries) {
+      if (count >= maxCollectionEntries) {
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
+        break;
+      }
+      final key = entry.key;
+      final value = entry.value;
+      if (!keysAlreadyClaimed && !budget.claimString(key)) {
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
+        break;
+      }
+      if (!budget.claimNode(depth + 1)) {
+        out[_sanitizedOutputKey(
+              truncated,
+              out,
+              auditedKeys: _auditedBodyKeyNames,
+            )] =
+            truncated;
+        break;
+      }
+      final outputKey = _sanitizedOutputKey(
+        key,
+        out,
+        auditedKeys: _auditedBodyKeyNames,
+      );
+      if (isSensitiveKey(key)) {
+        out[outputKey] = redacted;
+        count++;
+        continue;
+      }
+      if (value is String) {
+        out[outputKey] = budget.claimString(value)
+            ? _redactStringField(key, value)
+            : truncated;
+        count++;
+        continue;
+      }
+      if (value is num) {
+        out[outputKey] = _safeNumericKeys.contains(_normalizeKey(key))
+            ? value
+            : redacted;
+        count++;
+        continue;
+      }
+      out[outputKey] = _redactClaimedValue(value, budget, depth + 1);
+      count++;
+    }
     return out;
   }
 
-  static String _redactStringValue(String value, bool full) {
+  static Object? _redactHeaderValue(
+    Object? value,
+    String normalizedKey,
+    _RedactionBudget budget,
+    int depth,
+    HashSet<Object> activeLists,
+  ) {
+    if (!budget.claimNode(depth)) return truncated;
+    if (value is List) {
+      if (!activeLists.add(value)) return truncated;
+      final out = <Object?>[];
+      try {
+        for (final item in value) {
+          if (out.length >= maxCollectionEntries) {
+            out.add(truncated);
+            break;
+          }
+          out.add(
+            _redactHeaderValue(
+              item,
+              normalizedKey,
+              budget,
+              depth + 1,
+              activeLists,
+            ),
+          );
+        }
+      } finally {
+        activeLists.remove(value);
+      }
+      return out;
+    }
+    if (value is num) {
+      return normalizedKey == 'contentlength' && value >= 0 ? value : redacted;
+    }
+    if (value is! String) return redacted;
+    if (!budget.claimString(value)) return truncated;
     final scanned = redactString(value);
-    if (!full) return scanned;
-    return scanned.replaceAll(_longDigitRun, redacted);
+    if (scanned != value) return redacted;
+    return switch (normalizedKey) {
+      'contenttype' ||
+      'accept' => _safeMimePattern.hasMatch(value) ? value : redacted,
+      'contentlength' => int.tryParse(value) == null ? redacted : value,
+      'xrequestid' || 'xcorrelationid' => redactIdentifier(value),
+      _ => redacted,
+    };
+  }
+
+  static String _redactStringField(String key, String value) {
+    if (value.isEmpty) return value;
+    final marker = _generatedMarkerOrNull(value);
+    if (marker != null) return marker;
+    final normalized = _normalizeKey(key);
+    if (!_safeStringKeys.contains(normalized)) return redacted;
+    if (normalized == 'ts' && DateTime.tryParse(value) != null) return value;
+    if (normalized == 'sessionid' && _safeSessionIdPattern.hasMatch(value)) {
+      return value;
+    }
+    if (normalized == 'appversion' && _safeVersionPattern.hasMatch(value)) {
+      return value;
+    }
+    final scanned = redactString(value);
+    if (scanned != value) return redacted;
+    return switch (normalized) {
+      'route' || 'prev' || 'screen' =>
+        ((_safeCodePattern.hasMatch(value) || value.startsWith('/')) &&
+                !value.contains('?') &&
+                !value.contains('#') &&
+                !_otpDigitRun.hasMatch(value))
+            ? value
+            : redacted,
+      'path' || 'deeplink' =>
+        value.startsWith('/') &&
+                !value.contains('?') &&
+                !value.contains('#') &&
+                !_otpDigitRun.hasMatch(value)
+            ? value
+            : redacted,
+      'm' || 'method' =>
+        const {
+              'GET',
+              'POST',
+              'PUT',
+              'PATCH',
+              'DELETE',
+              'HEAD',
+              'OPTIONS',
+            }.contains(value.toUpperCase())
+            ? value.toUpperCase()
+            : redacted,
+      'sessionid' =>
+        _safeSessionIdPattern.hasMatch(value) ||
+                _safeCodePattern.hasMatch(value)
+            ? value
+            : redacted,
+      'reqid' ||
+      'messageid' ||
+      'buildsha' => redactIdentifier(value) ?? redacted,
+      'targetid' => redactInteractionIdentifier(value) ?? redacted,
+      'contenttype' ||
+      'accept' => _safeMimePattern.hasMatch(value) ? value : redacted,
+      'contentlength' => int.tryParse(value) == null ? redacted : value,
+      'valuepreview' =>
+        _safeLengthPreviewPattern.hasMatch(value) ? value : redacted,
+      'ts' => DateTime.tryParse(value) == null ? redacted : value,
+      'appversion' => _safeVersionPattern.hasMatch(value) ? value : redacted,
+      _ => _safeCodePattern.hasMatch(value) ? value : redacted,
+    };
+  }
+
+  static String _generatedMarkerOrRedacted(String value) =>
+      _generatedMarkerOrNull(value) ?? redacted;
+
+  static String? _generatedMarkerOrNull(String value) {
+    if (value == redacted) return redacted;
+    if (value == truncated) return truncated;
+    if (RegExp(r'^<truncated \d+ bytes>$').hasMatch(value)) return value;
+    if (value == '<non-serializable body>') return value;
+    return null;
+  }
+
+  static String _sanitizedOutputKey(
+    String key,
+    Map<String, Object?> output, {
+    required Set<String> auditedKeys,
+  }) {
+    final isGenerated =
+        key == truncated || _generatedMapKeyPattern.hasMatch(key);
+    final isAudited =
+        key.length <= maxStringCodeUnits &&
+        redactString(key) == key &&
+        auditedKeys.contains(_normalizeKey(key));
+    final candidate = isGenerated || isAudited ? key : redactedMapKey;
+    if (!output.containsKey(candidate)) return candidate;
+    for (var suffix = 2; suffix <= maxCollectionEntries + 1; suffix++) {
+      final unique = '$candidate#$suffix';
+      if (!output.containsKey(unique)) return unique;
+    }
+    return '$redactedMapKey#overflow';
   }
 
   static bool isSensitiveKey(String key) {
     if (DiagRedaction.isSensitiveKey(key)) return true;
-    return kExtraSensitiveKeys.contains(_normalizeKey(key));
+    final normalized = _normalizeKey(key);
+    return kSensitiveKeys.contains(normalized) ||
+        _sensitiveKeyFragments.any(normalized.contains);
   }
 
   static String _normalizeKey(String key) =>
       key.toLowerCase().replaceAll('_', '').replaceAll('-', '');
+
+  static String _redactRelativeNetworkPath(String rawPath) {
+    if (rawPath.isEmpty || rawPath == '/') return '/';
+    final segments = Uri.tryParse(rawPath)?.pathSegments ?? const <String>[];
+    if (segments.isEmpty) return '/$redactedPathSegment';
+    final sanitized = segments.map((segment) {
+      if (_safeNetworkTemplateSegments.contains(segment)) return segment;
+      return _safeNetworkPathSegments.contains(segment.toLowerCase())
+          ? segment
+          : redactedPathSegment;
+    });
+    return '/${sanitized.join('/')}';
+  }
+
+  static bool _sameOrigin(Uri absolute, Uri? base) {
+    if (base == null ||
+        !absolute.hasScheme ||
+        absolute.host.isEmpty ||
+        !base.hasScheme ||
+        base.host.isEmpty) {
+      return false;
+    }
+    return absolute.scheme.toLowerCase() == base.scheme.toLowerCase() &&
+        absolute.host.toLowerCase() == base.host.toLowerCase() &&
+        _effectivePort(absolute) == _effectivePort(base);
+  }
+
+  static int _effectivePort(Uri uri) {
+    if (uri.hasPort) return uri.port;
+    return switch (uri.scheme.toLowerCase()) {
+      'http' => 80,
+      'https' => 443,
+      _ => -1,
+    };
+  }
 
   static int? _encodedByteLength(Object? value) {
     try {
@@ -103,5 +1001,29 @@ abstract final class SecretRedactor {
     } catch (_) {
       return null;
     }
+  }
+}
+
+final class _RedactionBudget {
+  int _remainingNodes = SecretRedactor.maxTraversalNodes;
+  int _remainingBytes = SecretRedactor.maxInputBytes;
+
+  bool claimNode(int depth) {
+    if (depth > SecretRedactor.maxTraversalDepth || _remainingNodes <= 0) {
+      return false;
+    }
+    _remainingNodes--;
+    return true;
+  }
+
+  bool claimString(String value) {
+    if (value.length > SecretRedactor.maxStringCodeUnits ||
+        value.length > _remainingBytes ~/ 3) {
+      return false;
+    }
+    final bytes = utf8.encode(value).length;
+    if (bytes > _remainingBytes) return false;
+    _remainingBytes -= bytes;
+    return true;
   }
 }

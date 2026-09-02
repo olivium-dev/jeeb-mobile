@@ -58,6 +58,28 @@ void _expectBashPasses(String script, [List<String> arguments = const []]) {
 }
 
 void _registerAndroidContracts() {
+  test('production payload gates deny every local session-log marker', () {
+    const markers = <String>[
+      'JEEB_OBS_OVERLAY',
+      'obs_trace',
+      r'devtool\.session_logs',
+      'Session Logs',
+    ];
+    final androidInspector = _source('tool/inspect_android_release_payload.sh');
+    final androidNegative = _source(
+      'tool/test_inspect_android_release_payload.sh',
+    );
+    final iosInspector = _source('tool/inspect_unsigned_ios_release.sh');
+    _expectContainsAll(androidInspector, markers);
+    _expectContainsAll(iosInspector, markers);
+    _expectContainsAll(androidNegative, const <String>[
+      'JEEB_OBS_OVERLAY',
+      'obs_trace',
+      'devtool.session_logs',
+      'Session Logs',
+    ]);
+  });
+
   test('Android production signing inspects the certificate fingerprint', () {
     final gradle = _source('android/app/build.gradle');
     _expectContainsAll(gradle, [
@@ -865,6 +887,7 @@ void _registerCiContracts() {
       'main_android_internal\\.dart',
       'DevToolApp',
       'devtool_shake',
+      'devtool_launcher',
       'InternalDevToolApp',
       'internal_devtool_root',
       'Jeeb Internal QA',
@@ -885,6 +908,7 @@ void _registerCiContracts() {
       'main_android_internal.dart',
       'InternalDevToolApp',
       'devtool_shake',
+      'devtool_launcher',
       'internal_devtool_root',
       'JEEB_INTERNAL_RELEASE=true',
       'JEEB_DEVTOOL_ENABLED=true',

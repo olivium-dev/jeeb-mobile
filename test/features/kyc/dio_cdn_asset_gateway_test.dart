@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/idempotency/operation_id.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_dio_interceptor.dart';
+import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/features/kyc/data/dio_cdn_asset_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/cdn_asset_gateway.dart';
 
@@ -123,15 +125,18 @@ void main() {
     });
   });
 
-  group('DioCdnAssetGateway — dedicated interceptor-free upload Dio', () {
+  group('DioCdnAssetGateway — dedicated auth-free upload Dio', () {
     test(
-      'the default upload Dio is a DIFFERENT instance with NO interceptors',
+      'the default upload Dio is separate and only trace-observed when compiled',
       () {
         final broker = _BrokerRecorder();
         final gateway = DioCdnAssetGateway(broker.dio); // production default
 
         expect(identical(gateway.uploadDio, broker.dio), isFalse);
-        expect(gateway.uploadDio.interceptors, isEmpty);
+        expect(
+          gateway.uploadDio.interceptors.whereType<ObsDioInterceptor>(),
+          hasLength(kObsCompiledIn ? 1 : 0),
+        );
       },
     );
 

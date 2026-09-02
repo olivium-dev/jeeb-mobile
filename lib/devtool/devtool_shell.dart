@@ -7,7 +7,6 @@ import '../core/dev_flags.dart';
 import '../core/di/injection_container.dart';
 import '../core/diagnostics/gesture_log.dart';
 import '../core/observability/session_trace/observability_config.dart';
-import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/theme/app_theme.dart';
 import '../features/registration/data/super_login_demo_user.dart';
 import '../features/registration/data/super_login_service.dart';
@@ -16,6 +15,7 @@ import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
 import 'gateway/dev_gateway_client.dart';
 import 'location_simulation/location_simulator_page.dart';
+import 'session_logs/session_logs_page.dart';
 import 'users/fund_jeeber_wallet_picker_page.dart';
 import 'users/scenario_users_page.dart';
 import '../features/registration/presentation/super_login/super_login_sheet.dart';
@@ -42,6 +42,11 @@ enum DevToolSection {
     'Location Simulator',
     'Move an assigned Jeeber through a delivery route',
     Icons.route,
+  ),
+  sessionLogs(
+    'Session Logs',
+    'Start/stop local capture and export/share it',
+    Icons.receipt_long,
   ),
   walletFunding(
     'Fund Jeeber wallet',
@@ -121,11 +126,6 @@ class _DevToolAppState extends State<DevToolApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      // Session-trace observability tool (devtool-only): mounts the SAME
-      builder: (context, child) {
-        final content = child ?? const SizedBox.shrink();
-        return kObsCompiledIn ? ObsOverlayHost(child: content) : content;
-      },
       home: FutureBuilder<BootstrapResult>(
         future: _bootstrap,
         builder: (context, snapshot) {
@@ -153,6 +153,11 @@ class DevToolShell extends StatelessWidget {
   Widget build(BuildContext context) {
     // Defensive: this shell must only ever run inside a dev-tool-enabled build.
     assertDevToolOnly('DevToolShell');
+    final sections = DevToolSection.values
+        .where(
+          (section) => section != DevToolSection.sessionLogs || kObsCompiledIn,
+        )
+        .toList(growable: false);
     return Scaffold(
       appBar: const OMDSAppBar(title: 'Jeeber Dev Tool', centerTitle: false),
       body: Column(
@@ -162,10 +167,10 @@ class DevToolShell extends StatelessWidget {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: DevToolSection.values.length,
+              itemCount: sections.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
-                final section = DevToolSection.values[i];
+                final section = sections[i];
                 final l10n = AppLocalizations.of(context);
                 return OmdsSettingsRow(
                   identifier: section == DevToolSection.walletFunding
@@ -216,6 +221,10 @@ class DevToolShell extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (_) => const LocationSimulatorPage(),
           ),
+        );
+      case DevToolSection.sessionLogs:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SessionLogsPage()),
         );
       case DevToolSection.walletFunding:
         Navigator.of(context).push(

@@ -37,6 +37,7 @@ DEFINES=(
   --dart-define=JEEB_MOCK_BASE_URL="${MSI_GATEWAY}"
   --dart-define=JEEB_USE_MOCK_PREFIXES=false
   --dart-define=JEEB_DEVTOOL_ENABLED=true
+  --dart-define=JEEB_OBS_OVERLAY=true
   --dart-define=JEEB_REALTIME_TRACKING=true
   --dart-define=JEEB_REALTIME_SOCKET_URL="${MSI_REALTIME_SOCKET}"
 )

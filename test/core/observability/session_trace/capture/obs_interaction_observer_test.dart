@@ -6,6 +6,7 @@ import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dar
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — [kObsCompiledIn] is a hard
@@ -41,11 +42,13 @@ void _sendTap(
   router.route(
     PointerDownEvent(pointer: pointer, position: position, timeStamp: downAt),
   );
-  router.route(PointerUpEvent(
-    pointer: pointer,
-    position: upPosition ?? position,
-    timeStamp: upAt ?? downAt,
-  ));
+  router.route(
+    PointerUpEvent(
+      pointer: pointer,
+      position: upPosition ?? position,
+      timeStamp: upAt ?? downAt,
+    ),
+  );
 }
 
 List<ObsInteractionEvent> _interactions(_FakeSink sink) =>
@@ -115,15 +118,15 @@ void main() {
     });
 
     test(
-      'a quick, still tap emits gesture=tap at the down position',
+      'a quick, still tap emits gesture=tap without recoverable coordinates',
       () {
         _sendTap(const Offset(100, 200));
 
         expect(sink.events, hasLength(1));
         final event = _interactions(sink).single;
         expect(event.gesture, 'tap');
-        expect(event.dx, 100);
-        expect(event.dy, 200);
+        expect(event.toPayloadJson().containsKey('dx'), isFalse);
+        expect(event.toPayloadJson().containsKey('dy'), isFalse);
       },
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
@@ -184,23 +187,19 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'a tap far away shortly after another stays a plain tap '
-      '(double-tap distance slop)',
-      () {
-        _sendTap(const Offset(50, 50));
-        _sendTap(
-          const Offset(50 + kDoubleTapSlop * 2, 50),
-          downAt: const Duration(milliseconds: 50),
-          upAt: const Duration(milliseconds: 50),
-        );
+    test('a tap far away shortly after another stays a plain tap '
+        '(double-tap distance slop)', () {
+      _sendTap(const Offset(50, 50));
+      _sendTap(
+        const Offset(50 + kDoubleTapSlop * 2, 50),
+        downAt: const Duration(milliseconds: 50),
+        upAt: const Duration(milliseconds: 50),
+      );
 
-        final events = _interactions(sink);
-        expect(events, hasLength(2));
-        expect(events[1].gesture, 'tap');
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+      final events = _interactions(sink);
+      expect(events, hasLength(2));
+      expect(events[1].gesture, 'tap');
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
 
     test(
       'pointer cancel drops pending state without emitting',
@@ -256,17 +255,13 @@ void main() {
       skip: kObsCompiledIn ? false : _needsDevtoolDefine,
     );
 
-    test(
-      'with no semantics tree present, target resolution degrades to null '
-      'without throwing',
-      () {
-        _sendTap(const Offset(1, 1));
-        final event = _interactions(sink).single;
-        expect(event.targetId, isNull);
-        expect(event.targetLabel, isNull);
-      },
-      skip: kObsCompiledIn ? false : _needsDevtoolDefine,
-    );
+    test('with no semantics tree present, target resolution degrades to null '
+        'without throwing', () {
+      _sendTap(const Offset(1, 1));
+      final event = _interactions(sink).single;
+      expect(event.targetId, isNull);
+      expect(event.targetLabel, isNull);
+    }, skip: kObsCompiledIn ? false : _needsDevtoolDefine);
   });
 
   group('semantics-tree target resolution (compiled-in, widget-backed)', () {
@@ -275,19 +270,18 @@ void main() {
       observer.install();
     });
 
-    testWidgets(
-      'tapping a labeled/identified semantics target resolves both, '
-      'redacting a secret-shaped label',
-      (tester) async {
-        // Disposed synchronously at the end of THIS test body (not via
-        final handle = tester.ensureSemantics();
-        const secretLabel = 'Submit Bearer abc123def456ghi789jkl012';
+    testWidgets('tapping a labeled/identified semantics target resolves both, '
+        'redacting a secret-shaped label', (tester) async {
+      // Disposed synchronously at the end of THIS test body (not via
+      final handle = tester.ensureSemantics();
+      const secretLabel = 'Submit Bearer abc123def456ghi789jkl012';
 
-        await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(
+        MaterialApp(
           home: Scaffold(
             body: Center(
               child: Semantics(
-                identifier: 'submit-button',
+                identifier: 'client_home_retry_cta',
                 label: secretLabel,
                 container: true,
                 child: const SizedBox(
@@ -299,124 +293,219 @@ void main() {
               ),
             ),
           ),
-        ));
+        ),
+      );
 
-        await tester.tap(find.byKey(const Key('target')));
+      await tester.tap(find.byKey(const Key('target')));
+      await tester.pump();
+
+      final event = _interactions(sink).single;
+      expect(event.gesture, 'tap');
+      expect(event.targetId, 'client_home_retry_cta');
+      expect(event.targetLabel, SecretRedactor.redacted);
+
+      handle.dispose();
+    }, skip: !kObsCompiledIn);
+
+    testWidgets(
+      'two static actions on one screen retain distinct audited identifiers',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  for (final target in <({String id, Key key})>[
+                    (
+                      id: 'delivery_status_contact_cta',
+                      key: const Key('contact'),
+                    ),
+                    (
+                      id: 'delivery_status_cancel_cta',
+                      key: const Key('cancel'),
+                    ),
+                  ])
+                    Semantics(
+                      identifier: target.id,
+                      button: true,
+                      child: GestureDetector(
+                        key: target.key,
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                        child: const SizedBox(width: 120, height: 56),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('contact')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('cancel')));
         await tester.pump();
 
-        final event = _interactions(sink).single;
-        expect(event.gesture, 'tap');
-        expect(event.targetId, 'submit-button');
-        expect(event.targetLabel, isNotNull);
-        expect(event.targetLabel, isNot(contains('abc123def456ghi789jkl012')));
-
+        expect(_interactions(sink).map((event) => event.targetId), <String>[
+          'delivery_status_contact_cta',
+          'delivery_status_cancel_cta',
+        ]);
         handle.dispose();
       },
       skip: !kObsCompiledIn,
     );
-  });
-
-  group('focus-based text_focus / text_submit (compiled-in, widget-backed)', () {
-    setUp(() {
-      ObservabilityConfig.instance.enabled = true;
-      observer.install();
-    });
 
     testWidgets(
-      'focusing a text field emits text_focus with its redacted label',
+      'OTP keypad digits collapse to one fixed target and omit coordinates',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final fields = await _LoginForm.pump(tester);
+        final pressed = <String>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 360,
+                child: JeebNumericKeypad(
+                  identifierPrefix: 'phone_otp_keypad',
+                  backspaceLabel: 'Delete digit',
+                  onDigit: pressed.add,
+                  onBackspace: () {},
+                ),
+              ),
+            ),
+          ),
+        );
 
-        fields.email.requestFocus();
+        await tester.tap(find.bySemanticsIdentifier('phone_otp_keypad_3'));
         await tester.pump();
-
-        final event = _interactions(sink).single;
-        expect(event.gesture, 'text_focus');
-        expect(event.targetLabel, contains('Email'));
-        expect(event.valuePreview, isNull);
-
-        await fields.disposeCleanly(tester);
-        handle.dispose();
-      },
-      skip: !kObsCompiledIn,
-    );
-
-    testWidgets(
-      'moving focus away emits text_submit for the field just left',
-      (tester) async {
-        final handle = tester.ensureSemantics();
-        final fields = await _LoginForm.pump(tester);
-
-        fields.email.requestFocus();
-        await tester.pump();
-        fields.password.requestFocus();
+        await tester.tap(find.bySemanticsIdentifier('phone_otp_keypad_7'));
         await tester.pump();
 
         final events = _interactions(sink);
-        final submit = events.firstWhere((e) => e.gesture == 'text_submit');
-        expect(submit.targetLabel, contains('Email'));
-        final focusEvents = events.where((e) => e.gesture == 'text_focus');
-        expect(focusEvents, hasLength(2));
+        expect(pressed, <String>['3', '7']);
+        expect(events, hasLength(2));
+        for (final event in events) {
+          final payload = event.toPayloadJson();
+          expect(event.targetId, SecretRedactor.redacted);
+          expect(event.targetLabel, SecretRedactor.redacted);
+          expect(payload.containsKey('dx'), isFalse);
+          expect(payload.containsKey('dy'), isFalse);
+        }
+        expect(events[0].targetId, events[1].targetId);
 
-        await fields.disposeCleanly(tester);
-        handle.dispose();
-      },
-      skip: !kObsCompiledIn,
-    );
-
-    testWidgets(
-      'an obscured field always previews as <redacted>, never a length or '
-      'raw characters',
-      (tester) async {
-        final handle = tester.ensureSemantics();
-        final fields = await _LoginForm.pump(tester);
-
-        fields.password.requestFocus();
-        await tester.pump();
-        await tester.enterText(find.byType(TextField).last, 'hunter2');
-        // A settle frame so the semantics tree reflects the new text BEFORE
-        await tester.pump();
-        fields.email.requestFocus();
-        await tester.pump();
-
-        final submit = _interactions(sink)
-            .firstWhere((e) => e.gesture == 'text_submit');
-        expect(submit.valuePreview, SecretRedactor.redacted);
-
-        await fields.disposeCleanly(tester);
-        handle.dispose();
-      },
-      skip: !kObsCompiledIn,
-    );
-
-    testWidgets(
-      'a non-obscured field previews only a length — never the entered '
-      'characters',
-      (tester) async {
-        final handle = tester.ensureSemantics();
-        final fields = await _LoginForm.pump(tester);
-
-        fields.email.requestFocus();
-        await tester.pump();
-        await tester.enterText(find.byType(TextField).first, 'hello');
-        // A settle frame so the semantics tree reflects the new text BEFORE
-        await tester.pump();
-        fields.password.requestFocus();
-        await tester.pump();
-
-        final submit = _interactions(sink)
-            .firstWhere((e) => e.gesture == 'text_submit');
-        expect(submit.valuePreview, isNotNull);
-        expect(submit.valuePreview, isNot(contains('hello')));
-        expect(submit.valuePreview, '5 chars');
-
-        await fields.disposeCleanly(tester);
         handle.dispose();
       },
       skip: !kObsCompiledIn,
     );
   });
+
+  group(
+    'focus-based text_focus / text_submit (compiled-in, widget-backed)',
+    () {
+      setUp(() {
+        ObservabilityConfig.instance.enabled = true;
+        observer.install();
+      });
+
+      testWidgets(
+        'focusing a text field emits text_focus with its redacted label',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          final fields = await _LoginForm.pump(tester);
+
+          fields.email.requestFocus();
+          await tester.pump();
+
+          final event = _interactions(sink).single;
+          expect(event.gesture, 'text_focus');
+          expect(event.targetLabel, SecretRedactor.redacted);
+          expect(event.valuePreview, isNull);
+
+          await fields.disposeCleanly(tester);
+          handle.dispose();
+        },
+        skip: !kObsCompiledIn,
+      );
+
+      testWidgets(
+        'moving focus away emits text_submit for the field just left',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          final fields = await _LoginForm.pump(tester);
+
+          fields.email.requestFocus();
+          await tester.pump();
+          fields.password.requestFocus();
+          await tester.pump();
+
+          final events = _interactions(sink);
+          final submit = events.firstWhere((e) => e.gesture == 'text_submit');
+          expect(submit.targetLabel, SecretRedactor.redacted);
+          final focusEvents = events.where((e) => e.gesture == 'text_focus');
+          expect(focusEvents, hasLength(2));
+
+          await fields.disposeCleanly(tester);
+          handle.dispose();
+        },
+        skip: !kObsCompiledIn,
+      );
+
+      testWidgets(
+        'an obscured field always previews as <redacted>, never a length or '
+        'raw characters',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          final fields = await _LoginForm.pump(tester);
+
+          fields.password.requestFocus();
+          await tester.pump();
+          await tester.enterText(find.byType(TextField).last, 'hunter2');
+          // A settle frame so the semantics tree reflects the new text BEFORE
+          await tester.pump();
+          fields.email.requestFocus();
+          await tester.pump();
+
+          final submit = _interactions(
+            sink,
+          ).firstWhere((e) => e.gesture == 'text_submit');
+          expect(submit.valuePreview, SecretRedactor.redacted);
+
+          await fields.disposeCleanly(tester);
+          handle.dispose();
+        },
+        skip: !kObsCompiledIn,
+      );
+
+      testWidgets(
+        'a non-obscured field previews only a length — never the entered '
+        'characters',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          final fields = await _LoginForm.pump(tester);
+
+          fields.email.requestFocus();
+          await tester.pump();
+          await tester.enterText(find.byType(TextField).first, 'hello');
+          // A settle frame so the semantics tree reflects the new text BEFORE
+          await tester.pump();
+          fields.password.requestFocus();
+          await tester.pump();
+
+          final submit = _interactions(
+            sink,
+          ).firstWhere((e) => e.gesture == 'text_submit');
+          expect(submit.valuePreview, isNotNull);
+          expect(submit.valuePreview, isNot(contains('hello')));
+          expect(submit.valuePreview, '5 chars');
+
+          await fields.disposeCleanly(tester);
+          handle.dispose();
+        },
+        skip: !kObsCompiledIn,
+      );
+    },
+  );
 }
 
 /// A tiny email/password form used only by the focus-based tests. Bundles
@@ -433,21 +522,25 @@ class _LoginForm {
       FocusNode(debugLabel: 'email'),
       FocusNode(debugLabel: 'password'),
     );
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Column(children: [
-          TextField(
-            focusNode: form.email,
-            decoration: const InputDecoration(labelText: 'Email'),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              TextField(
+                focusNode: form.email,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              TextField(
+                focusNode: form.password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password'),
+              ),
+            ],
           ),
-          TextField(
-            focusNode: form.password,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Password'),
-          ),
-        ]),
+        ),
       ),
-    ));
+    );
     return form;
   }
 
