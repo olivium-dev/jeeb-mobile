@@ -23,7 +23,7 @@ grep -Fq 'FLUTTER_SWIFT_PACKAGE_MANAGER=true' \
   "${REPO_ROOT}/tool/build_unsigned_ios_release_contract.sh" ||
   fail 'unsigned release contract does not force SwiftPM'
 grep -Fq 'FLUTTER_SWIFT_PACKAGE_MANAGER:' \
-  "${REPO_ROOT}/.github/workflows/ci.yml" ||
+  "${REPO_ROOT}/.github/workflows/ci-ios-stage.yml" ||
   fail 'CI does not force SwiftPM'
 
 tracked_resolutions="$(
