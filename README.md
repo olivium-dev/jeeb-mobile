@@ -165,8 +165,10 @@ an `iphoneos26.*` SDK.
 
 Before signing, the RC policy gate verifies that the requested commit is the
 exact protected `main` head and that every named release check succeeded for
-that commit. The contexts include the stable `CI ready` aggregate, the blocking
-79% coverage floor, localization parity, and
+that commit. It requires the latest `push` run of `.github/workflows/ci.yml` on
+`main` to have completed successfully, rather than trusting the `CI ready`
+label alone. The remaining contexts include the blocking 79% coverage floor,
+localization parity, and
 `release-security.yml`. The latter scans
 the complete commit range introduced by each pull request or `main` push with
 checksum-pinned Gitleaks 8.30.1 and blocks known Ruby release-tooling

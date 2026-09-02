@@ -20,6 +20,15 @@ def require(source: str, fragment: str, location: str) -> None:
         fail(f"{location} is missing {fragment!r}")
 
 
+def job_block(source: str, job: str) -> str:
+    match = re.search(rf"^  {re.escape(job)}:\s*$", source, re.M)
+    if match is None:
+        fail(f"ci.yml is missing job {job!r}")
+    remainder = source[match.end() :]
+    next_job = re.search(r"^  [A-Za-z0-9_-]+:\s*$", remainder, re.M)
+    return remainder[: next_job.start()] if next_job else remainder
+
+
 def main() -> int:
     orchestrator = (WORKFLOWS / "ci.yml").read_text()
     stages = {
@@ -29,25 +38,54 @@ def main() -> int:
     }
 
     for job, filename in stages.items():
+        call = job_block(orchestrator, job)
         require(
-            orchestrator,
+            call,
             f"uses: ./.github/workflows/{filename}",
-            "ci.yml",
+            f"ci.yml job {job}",
         )
-        require(orchestrator, f"{job}:", "ci.yml")
 
         stage = (WORKFLOWS / filename).read_text()
         require(stage, "workflow_call:", filename)
         if re.search(r"^  (?:push|pull_request|workflow_dispatch):", stage, re.M):
             fail(f"{filename} must only be callable by ci.yml")
 
-    require(orchestrator, "name: CI ready", "ci.yml")
-    require(orchestrator, "needs: [flutter, android, ios]", "ci.yml")
-    for result in ("FLUTTER_RESULT", "ANDROID_RESULT", "IOS_RESULT"):
-        require(orchestrator, f'[[ "${{{result}}}" == success ]]', "ci.yml")
+    for platform in ("android", "ios"):
+        require(
+            job_block(orchestrator, platform),
+            "needs: flutter",
+            f"ci.yml job {platform}",
+        )
+
+    ready = job_block(orchestrator, "ready")
+    require(ready, "name: CI ready", "ci.yml job ready")
+    require(ready, "if: ${{ always() }}", "ci.yml job ready")
+    require(ready, "needs: [flutter, android, ios]", "ci.yml job ready")
+    results = {
+        "FLUTTER_RESULT": "flutter",
+        "ANDROID_RESULT": "android",
+        "IOS_RESULT": "ios",
+    }
+    for result, dependency in results.items():
+        require(
+            ready,
+            f"{result}: ${{{{ needs.{dependency}.result }}}}",
+            "ci.yml job ready",
+        )
+        require(ready, f'[[ "${{{result}}}" == success ]]', "ci.yml job ready")
 
     release = (WORKFLOWS / "trusted-mobile-rc.yml").read_text()
-    require(release, '"CI ready"', "trusted-mobile-rc.yml")
+    for fragment in (
+        "actions/workflows/ci.yml/runs?",
+        '.head_branch == "main"',
+        '.event == "push"',
+        '.path == ".github/workflows/ci.yml"',
+        "max_by(.run_number)",
+        '.conclusion == "success"',
+    ):
+        require(release, fragment, "trusted-mobile-rc.yml")
+    if '"CI ready"' in release:
+        fail("release policy must bind the CI workflow, not trust a check name")
     for old_context in (
         '"Analyze"',
         '"Test"',
