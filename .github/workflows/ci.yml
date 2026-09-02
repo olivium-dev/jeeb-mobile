@@ -13,247 +13,38 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
-
 jobs:
-  analyze:
-    name: Analyze
+  flutter:
+    name: Flutter stage
+    uses: ./.github/workflows/ci-flutter-stage.yml
+    secrets: inherit
+
+  android:
+    name: Android stage
+    needs: flutter
+    uses: ./.github/workflows/ci-android-stage.yml
+    secrets: inherit
+
+  ios:
+    name: iOS stage
+    needs: flutter
+    uses: ./.github/workflows/ci-ios-stage.yml
+    secrets: inherit
+
+  ready:
+    name: CI ready
+    if: ${{ always() }}
+    needs: [flutter, android, ios]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Install dependencies
-        id: pub_get
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: firebase_core pin gate
-        run: bash tool/check_firebase_core_pin.sh
-
-      - name: Analyze
-        # `dart analyze` instead of `flutter analyze`: flutter analyze crashes
-        # with exit code 64 while bootstrapping native-assets in CI. dart analyze
-        # performs the same static analysis without that codepath. --fatal-infos
-        # preserves the previous strictness (infos + warnings fail the build).
-        run: dart analyze --fatal-infos .
-
-  test:
-    name: Test
-    runs-on: ubuntu-24.04
-    # The current Flutter suite exceeds ten minutes on hosted runners.
-    timeout-minutes: 20
-    needs: analyze
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Install dependencies
-        id: pub_get
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: firebase_core pin gate
-        run: bash tool/check_firebase_core_pin.sh
-
-      - name: Run tests
-        # `capture` tags the two golden-PNG harnesses: review tooling, not gates,
-        # and host-rendered, so they cannot pass on a Linux runner.
-        run: flutter test --exclude-tags capture --reporter=expanded
-
-  build-apk:
-    name: Build APK (dev)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: test
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Install dependencies
-        id: pub_get
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: firebase_core pin gate
-        run: bash tool/check_firebase_core_pin.sh
-
-      - name: Skip dev FCM APK for fork PR
-        if: github.event_name == 'pull_request'
-        run: echo "Secret-dependent dev FCM APK build is skipped; analyze and tests already ran."
-
-      - name: Validate Maps API key
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Require every CI stage to pass
         env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-        run: |
-          if [ -z "$MAPS_API_KEY" ]; then
-            echo "::error::Required repository secret MAPS_API_KEY is not configured."
-            exit 1
-          fi
-
-      - name: Build APK with protected dev Firebase config
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
-          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
-          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
-          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
-        run: >-
-          bash tool/run_with_dev_firebase_config.sh
-          flutter build apk --flavor dev --debug
-          --dart-define=APP_FLAVOR=dev
-          --dart-define=REQUIRE_REAL_PUSH=true
-
-  android-release-contracts:
-    name: Android release signing contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: analyze
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Verify the official Gradle 8.14 wrapper JAR
-        run: |
-          echo '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  android/gradle/wrapper/gradle-wrapper.jar' | \
-            sha256sum --check --strict
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Resolve locked Flutter dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: Prove production signing fails closed without approved material
-        run: bash tool/test_android_release_signing.sh
-
-      - name: Validate protected Android Firebase injection contract
-        run: bash tool/test_android_firebase_config.sh
-
-  ios-release-contracts:
-    name: iOS release contracts
-    runs-on: macos-26
-    timeout-minutes: 30
-    needs: analyze
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
+          FLUTTER_RESULT: ${{ needs.flutter.result }}
+          ANDROID_RESULT: ${{ needs.android.result }}
+          IOS_RESULT: ${{ needs.ios.result }}
         run: |
           set -euo pipefail
-          xcode_path=/Applications/Xcode_26.6.app/Contents/Developer
-          test -d "${xcode_path}"
-          sudo xcode-select --switch "${xcode_path}"
-          xcode_version="$(xcodebuild -version)"
-          grep -Fxq 'Xcode 26.6' <<<"${xcode_version}"
-          sdk_inventory="$(xcodebuild -showsdks)"
-          grep -Eq -- '-sdk iphoneos26\.[0-9]+' <<<"${sdk_inventory}"
-          iphoneos_version="$(xcrun --sdk iphoneos --show-sdk-version)"
-          grep -Eq '^26\.[0-9]+' <<<"${iphoneos_version}"
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Resolve locked Flutter dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: Resolve non-SPM CocoaPods plugins from the lock
-        run: cd ios && pod install --deployment
-
-      - name: Enforce CocoaPods and SwiftPM dependency ownership
-        run: bash tool/check_ios_dependency_ownership.sh
-
-      - name: Validate protected iOS Firebase injection contract
-        run: bash tool/test_ios_firebase_config.sh
-
-      - name: Validate signed iOS inspector negative contracts
-        run: bash tool/test_inspect_signed_ios_release.sh
-
-      - name: Validate entitlement files
-        run: |
-          plutil -lint ios/Runner/Runner.entitlements
-          plutil -lint ios/Runner/Runner.Release.entitlements
-
-      - name: Resolve canonical release identity and entitlements
-        run: |
-          settings="$(xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -showBuildSettings)"
-          printf '%s\n' "$settings" | grep -Eq \
-            '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = com\.olivium\.jeeb$'
-          printf '%s\n' "$settings" | grep -Eq \
-            '^[[:space:]]*DEVELOPMENT_TEAM = K5RDQ8J7AN$'
-          printf '%s\n' "$settings" | grep -Eq \
-            '^[[:space:]]*CODE_SIGN_ENTITLEMENTS = Runner/Runner\.Release\.entitlements$'
-
-      - name: Compile and inspect synthetic unsigned iOS release
-        run: bash tool/build_unsigned_ios_release_contract.sh
+          [[ "${FLUTTER_RESULT}" == success ]]
+          [[ "${ANDROID_RESULT}" == success ]]
+          [[ "${IOS_RESULT}" == success ]]

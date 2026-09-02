@@ -15,3 +15,5 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Reject deployment reversion paths
         run: python3 tool/check_fail_closed_deployment.py
+      - name: Verify maintainable CI topology
+        run: python3 tool/check_ci_topology.py

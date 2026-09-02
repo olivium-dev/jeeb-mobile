@@ -116,8 +116,15 @@ interceptor is a safety net, not the migration.
 
 ## CI
 
-Three GitHub Actions workflows gate `main`: `ci.yml` (analyze → test → build APK),
-`flutter-ci.yml` (the same plus coverage) and `mobile-ci.yml` (the l10n parity gate).
+The small `ci.yml` orchestrator calls three reusable stages:
+`ci-flutter-stage.yml` (analyze → test), `ci-android-stage.yml` (development APK
+and release-signing contracts), and `ci-ios-stage.yml` (native release
+contracts). Android and iOS run in parallel after Flutter succeeds. The stable
+`CI ready` result fails unless every stage passes, so release policy does not
+depend on internal job names. `flutter-ci.yml` remains the blocking 79%
+coverage lane, and `mobile-ci.yml` remains the localization parity gate.
+`tool/check_ci_topology.py` prevents stage wiring or the aggregate gate from
+silently drifting.
 
 **CI is expected green. There is no standing waiver** — a red run is a real
 failure, not inherited noise. If a check cannot pass, fix it or skip the single
@@ -158,8 +165,8 @@ an `iphoneos26.*` SDK.
 
 Before signing, the RC policy gate verifies that the requested commit is the
 exact protected `main` head and that every named release check succeeded for
-that commit. The contexts include Flutter test/analysis, the blocking 79%
-coverage floor, native release contracts, localization parity, and
+that commit. The contexts include the stable `CI ready` aggregate, the blocking
+79% coverage floor, localization parity, and
 `release-security.yml`. The latter scans
 the complete commit range introduced by each pull request or `main` push with
 checksum-pinned Gitleaks 8.30.1 and blocks known Ruby release-tooling
