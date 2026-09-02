@@ -210,16 +210,27 @@ read-only credential used to fetch the exact `.omds-revision`:
   `APP_STORE_KEY_ID`, `APP_STORE_ISSUER_ID`, and
   `APP_STORE_KEY_CONTENT_B64`, plus `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`,
   `IOS_FIREBASE_EXPECTED_APP_ID`, `IOS_FIREBASE_EXPECTED_CLIENT_ID`,
-  `IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, and `IOS_GOOGLE_MAPS_API_KEY`.
+  `IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, `IOS_GOOGLE_MAPS_API_KEY`,
+  `IOS_DEVELOPMENT_CERTIFICATE_P12_B64`,
+  `IOS_DEVELOPMENT_CERTIFICATE_PASSWORD`, and
+  `IOS_DEVELOPMENT_CERTIFICATE_SHA256`.
 
-The iOS RC decodes the App Store Connect private key only into a mode-`0600`
-temporary file, validates it without printing it, and removes it on every exit.
-Xcode automatic signing uses that key to create or update Apple provisioning
-assets when necessary; the RC export remains local, preserves the requested
-version/build, sets `testFlightInternalTestingOnly`, and never uploads to App
-Store Connect. Release runs fail closed when protected-branch policy, retained
-provenance, successful check contexts, monotonic store build numbers, or any
-named credential is absent. Credentials must never be committed.
+The iOS RC decodes the App Store Connect private key and protected Apple
+Development P12 only into mode-`0600` temporary files. It imports that identity
+into an ephemeral keychain, validates its subject, team, certificate type,
+expiry, and pinned fingerprint without printing secret material, and removes
+the keychain and temporary files on every exit. Xcode automatic signing uses
+the protected development identity for the archive and Apple's cloud-managed
+distribution identity for App Store Connect export while authenticated
+provisioning updates remain enabled. The RC export remains local, preserves the
+requested version/build, sets
+`testFlightInternalTestingOnly`, and never uploads to App Store Connect.
+`IOS_DEVELOPMENT_CERTIFICATE_SHA256` pins the leaf certificate fingerprint,
+not the PKCS#12 file checksum. The development identity is additionally pinned
+to `Apple Development: Ouday Khaled (3T9KFY9HYY)` and its verified SHA-1.
+Release runs fail closed when protected-branch policy, retained provenance,
+successful check contexts, monotonic store build numbers, or any named
+credential is absent. Credentials must never be committed.
 
 ## License
 

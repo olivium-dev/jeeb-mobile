@@ -161,31 +161,34 @@ void main() {
     });
   });
 
-  test('uses the directory as an honest role-unknown fallback', () async {
-    final adapter = _RosterAdapter((options) {
-      if (options.path == '/api/User/super-login/users') {
-        return _json(<String, Object?>{'title': 'unavailable'}, status: 503);
-      }
-      return _json(<String, Object?>{
-        'users': <Object?>[
-          <String, Object?>{
-            'userId': 'flat-driver',
-            'username': 'Flat Driver',
-            'role': 'driver',
-          },
-        ],
+  test(
+    'uses the directory singular role as a legacy Jeeber fallback',
+    () async {
+      final adapter = _RosterAdapter((options) {
+        if (options.path == '/api/User/super-login/users') {
+          return _json(<String, Object?>{'title': 'unavailable'}, status: 503);
+        }
+        return _json(<String, Object?>{
+          'users': <Object?>[
+            <String, Object?>{
+              'userId': 'flat-driver',
+              'username': 'Flat Driver',
+              'role': 'driver',
+            },
+          ],
+        });
       });
-    });
-    final dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'))
-      ..httpClientAdapter = adapter;
+      final dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'))
+        ..httpClientAdapter = adapter;
 
-    final users = await DevGatewayClient(dio: dio).listUsers();
+      final users = await DevGatewayClient(dio: dio).listUsers();
 
-    expect(users.single.role, 'driver');
-    expect(users.single.roles, isEmpty);
-    expect(users.single.isJeeber, isFalse);
-    expect(users.single.roleForOfferInitiation, 'driver');
-  });
+      expect(users.single.role, 'driver');
+      expect(users.single.roles, isEmpty);
+      expect(users.single.isJeeber, isTrue);
+      expect(users.single.roleForOfferInitiation, 'driver');
+    },
+  );
 
   test('customer-only users cannot be treated as offer initiators', () {
     const user = DevUser(

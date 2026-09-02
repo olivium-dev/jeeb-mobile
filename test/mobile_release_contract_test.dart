@@ -244,6 +244,7 @@ void _registerIosContracts() {
     );
     final signedInspector = _source('tool/inspect_signed_ios_release.sh');
     final exportOptions = _source('ios/ExportOptions.Internal.plist');
+    final project = _source('ios/Runner.xcodeproj/project.pbxproj');
     _expectContainsAll(signedBuilder, [
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
@@ -255,6 +256,12 @@ void _registerIosContracts() {
       'EXPECTED_FIREBASE_CLIENT_ID',
       'EXPECTED_FIREBASE_REVERSED_CLIENT_ID',
       'CODE_SIGN_STYLE=Automatic',
+      r'OTHER_CODE_SIGN_FLAGS="--keychain ${SIGNING_KEYCHAIN_PATH}"',
+      'IOS_SIGNING_KEYCHAIN_PATH',
+      'IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1',
+      'protected iOS signing keychain is missing',
+      'protected iOS development identity fingerprint is malformed',
+      'protected iOS development identity is unavailable',
       '-allowProvisioningUpdates',
       '-authenticationKeyPath',
       '-authenticationKeyID',
@@ -272,6 +279,15 @@ void _registerIosContracts() {
       'IOS_BUILD_NUMBER must be explicit and valid',
       r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
     ]);
+    expect(
+      project,
+      isNot(
+        contains(
+          '"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";',
+        ),
+      ),
+    );
+    expect(signedBuilder, isNot(contains('CODE_SIGN_IDENTITY=')));
     expect(signedBuilder, isNot(contains('CODE_SIGN_STYLE=Manual')));
     expect(
       signedBuilder,
@@ -288,6 +304,10 @@ void _registerIosContracts() {
       'K5RDQ8J7AN.com.olivium.jeeb',
       'aps-environment',
       'applinks:app.jeeb.fds-1.com',
+      ':com.apple.developer.applesignin',
+      r'Print ${entitlement_path}:0',
+      "'signed app'",
+      "'embedded provisioning profile'",
       'IOS_BUILD_NAME must be explicit',
       'IOS_BUILD_NUMBER must be explicit',
       r'[[ "${expected_build_name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
@@ -596,7 +616,18 @@ void _registerCiContracts() {
       'secrets.APP_STORE_KEY_ID',
       'secrets.APP_STORE_ISSUER_ID',
       'secrets.APP_STORE_KEY_CONTENT_B64',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_P12_B64',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_PASSWORD',
+      'secrets.IOS_DEVELOPMENT_CERTIFICATE_SHA256',
       'APP_STORE_CONNECT_API_KEY_PATH',
+      'IOS_SIGNING_KEYCHAIN_PATH',
+      'IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1',
+      'security create-keychain',
+      'security set-key-partition-list',
+      'security delete-keychain',
+      'Protected iOS keychain must contain exactly one usable development identity.',
+      '1.2.840.113635.100.6.1.2',
+      'Protected iOS development certificate fingerprint drifted.',
       'unset APP_STORE_KEY_CONTENT_B64',
       r'chmod 0600 "${firebase_plist}" "${maps_key_file}" "${api_key_path}"',
       'trap cleanup EXIT HUP INT TERM',
@@ -688,9 +719,26 @@ void _registerCiContracts() {
       expect(ios, contains('secrets.APP_STORE_KEY_ID'));
       expect(ios, contains('secrets.APP_STORE_ISSUER_ID'));
       expect(ios, contains('secrets.APP_STORE_KEY_CONTENT_B64'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_P12_B64'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_PASSWORD'));
+      expect(ios, contains('secrets.IOS_DEVELOPMENT_CERTIFICATE_SHA256'));
       expect(ios, contains('APP_STORE_CONNECT_API_KEY_PATH'));
+      expect(ios, contains('IOS_SIGNING_KEYCHAIN_PATH'));
+      expect(ios, contains('IOS_DEVELOPMENT_SIGNING_IDENTITY_SHA1'));
+      expect(ios, contains('Apple Development: Ouday Khaled (3T9KFY9HYY)'));
+      expect(ios, contains('B76F89AC9D9C87A1E1446CE31E8513A8173D38FD'));
+      expect(
+        ios,
+        isNot(
+          contains(
+            'Apple Development: khaledouday1990@gmail.com '
+            '(3T9KFY9HYY)',
+          ),
+        ),
+      );
       expect(ios, contains('signingStyle string automatic'));
       expect(ios, contains('uploadSymbols bool false'));
+      expect(ios, isNot(contains('secrets.IOS_SIGNING_CERTIFICATE_')));
       expect(ios, isNot(contains('IOS_DISTRIBUTION_CERT_P12_B64')));
       expect(ios, isNot(contains('IOS_PROVISIONING_PROFILE_B64')));
       expect(ios, isNot(contains('secrets.ANDROID_')));

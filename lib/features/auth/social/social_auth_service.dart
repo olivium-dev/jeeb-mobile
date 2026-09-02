@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -37,6 +39,12 @@ typedef SocialAuthSeamResolver = SocialAuthResult? Function(
   SocialProvider provider,
 );
 
+typedef AppleCredentialRequester = Future<AuthorizationCredentialAppleID>
+    Function({
+  required List<AppleIDAuthorizationScopes> scopes,
+  required String nonce,
+});
+
 class DefaultSocialAuthService implements SocialAuthService {
   DefaultSocialAuthService({
     required Dio dio,
@@ -44,6 +52,8 @@ class DefaultSocialAuthService implements SocialAuthService {
     FirebaseAuth? firebaseAuth,
     Future<void> Function()? firebaseInitializer,
     bool Function()? isApplePlatform,
+    AppleCredentialRequester? appleCredentialRequester,
+    String Function()? appleNonceGenerator,
     SocialAuthSeamResolver? seamResolver,
   })  : _dio = dio,
         _google = googleSignIn ?? GoogleSignIn(scopes: const ['email']),
@@ -51,6 +61,9 @@ class DefaultSocialAuthService implements SocialAuthService {
         _firebaseInitializer =
             firebaseInitializer ?? _defaultFirebaseInitializer,
         _isApplePlatform = isApplePlatform ?? _defaultIsApplePlatform,
+        _appleCredentialRequester =
+            appleCredentialRequester ?? _defaultAppleCredentialRequester,
+        _appleNonceGenerator = appleNonceGenerator ?? generateNonce,
         _seamResolver = seamResolver;
 
   final Dio _dio;
@@ -58,6 +71,8 @@ class DefaultSocialAuthService implements SocialAuthService {
   final FirebaseAuth? _firebaseAuth;
   final Future<void> Function() _firebaseInitializer;
   final bool Function() _isApplePlatform;
+  final AppleCredentialRequester _appleCredentialRequester;
+  final String Function() _appleNonceGenerator;
 
   final SocialAuthSeamResolver? _seamResolver;
 
@@ -173,19 +188,44 @@ class DefaultSocialAuthService implements SocialAuthService {
     if (!_isApplePlatform()) {
       return null;
     }
-    final credential = await SignInWithApple.getAppleIDCredential(
+
+    final rawNonce = _appleNonceGenerator();
+    if (rawNonce.isEmpty) {
+      throw const _InvalidTokenException();
+    }
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    final credential = await _appleCredentialRequester(
       scopes: const [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
+      nonce: hashedNonce,
     );
-    final token = credential.identityToken;
-    if (token == null || token.isEmpty) {
+    final appleIdToken = credential.identityToken;
+    if (appleIdToken == null || appleIdToken.isEmpty) {
+      throw const _InvalidTokenException();
+    }
+
+    await _firebaseInitializer();
+    final appleCredential = AppleAuthProvider.credentialWithIDToken(
+      appleIdToken,
+      rawNonce,
+      AppleFullPersonName(
+        givenName: credential.givenName,
+        familyName: credential.familyName,
+      ),
+    );
+    final firebaseCredential = await (_firebaseAuth ?? FirebaseAuth.instance)
+        .signInWithCredential(appleCredential);
+    final user = firebaseCredential.user;
+    if (user == null) throw const _InvalidTokenException();
+    final firebaseIdToken = await user.getIdToken();
+    if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
       throw const _InvalidTokenException();
     }
     return _SocialCredential(
-      socialId: credential.userIdentifier ?? 'apple',
-      socialToken: token,
+      socialId: user.uid,
+      socialToken: firebaseIdToken,
     );
   }
 
@@ -299,6 +339,17 @@ class DefaultSocialAuthService implements SocialAuthService {
       if (e.code == 'duplicate-app') return;
       rethrow;
     }
+  }
+
+  static Future<AuthorizationCredentialAppleID>
+      _defaultAppleCredentialRequester({
+    required List<AppleIDAuthorizationScopes> scopes,
+    required String nonce,
+  }) {
+    return SignInWithApple.getAppleIDCredential(
+      scopes: scopes,
+      nonce: nonce,
+    );
   }
 
   static const _googleCancelCodes = {

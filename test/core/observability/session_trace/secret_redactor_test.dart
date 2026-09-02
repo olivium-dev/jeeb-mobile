@@ -620,6 +620,8 @@ void main() {
     test('semantic text fields are always explicitly denied', () {
       for (final identifier in <String>[
         'chat_detail_message_input',
+        'devtool.scenarioUsers.username',
+        'devtool.walletFunding.amount',
         'order_chat_composer_input',
         'support_body',
         'support_order_link',
@@ -696,6 +698,18 @@ void main() {
             'charge_info_store_step',
             'charge_info_identity_step',
             'charge_info_pay_cash_step',
+          ],
+          <String>[
+            'devtool.scenarioUsers.approveKyc',
+            'devtool.scenarioUsers.create',
+            'devtool.scenarioUsers.makeOnlineReady',
+            'devtool.scenarioUsers.scenario',
+          ],
+          <String>[
+            'devtool.walletFunding.cleanup',
+            'devtool.walletFunding.home',
+            'devtool.walletFunding.lastCreated',
+            'devtool.walletFunding.submit',
           ],
         ];
         for (final sourceIds in actionGroups) {

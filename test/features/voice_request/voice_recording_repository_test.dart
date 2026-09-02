@@ -70,6 +70,32 @@ void main() {
         greaterThanOrEqualTo(const Duration(seconds: 30)),
       );
     });
+
+    test('reads the durable snake_case status contract', () async {
+      final adapter = _DelayedJsonAdapter(
+        body: const <String, Object?>{
+          'audio_id': 'audio-queued-1',
+          'status': 'completed',
+          'transcript': 'جيب ماء',
+          'language': 'ar',
+          'reason': null,
+        },
+      );
+      final dio = _dioWith(adapter);
+      addTearDown(() => dio.close(force: true));
+      final repository = HttpVoiceRecordingRepository(dio: dio);
+
+      final result = await repository.getTranscriptionStatus('audio queued/1');
+
+      expect(
+        adapter.lastRequest?.path,
+        '/transcribe/status/audio%20queued%2F1',
+      );
+      expect(result.id, 'audio-queued-1');
+      expect(result.status, 'completed');
+      expect(result.transcript, 'جيب ماء');
+      expect(result.language, 'ar');
+    });
   });
 }
 

@@ -43,6 +43,33 @@ validate_ios_versions() {
   }
 }
 
+validate_apple_signin_entitlement() {
+  local plist_path="$1"
+  local evidence_label="$2"
+  local entitlement_path="${3:-:com.apple.developer.applesignin}"
+  local first_value
+
+  [[ -s "${plist_path}" ]] || {
+    fail "${evidence_label} entitlement evidence is missing"
+    return 1
+  }
+  first_value="$(/usr/libexec/PlistBuddy -c \
+    "Print ${entitlement_path}:0" "${plist_path}" 2>/dev/null)" || {
+    fail "${evidence_label} Apple Sign-In entitlement is missing"
+    return 1
+  }
+  [[ "${first_value}" == Default ]] || {
+    fail "${evidence_label} Apple Sign-In entitlement is not Default"
+    return 1
+  }
+  if /usr/libexec/PlistBuddy -c \
+    "Print ${entitlement_path}:1" "${plist_path}" \
+    >/dev/null 2>&1; then
+    fail "${evidence_label} Apple Sign-In entitlement has unexpected values"
+    return 1
+  fi
+}
+
 main() {
   local ipa_path="${1:-}"
   local firebase_config="${2:-}"
@@ -105,6 +132,8 @@ main() {
     "${signed_entitlements}" 2>/dev/null |
     grep -Fq 'applinks:app.jeeb.fds-1.com' ||
     fail 'signed associated domain is missing'
+  validate_apple_signin_entitlement \
+    "${signed_entitlements}" 'signed app'
 
   embedded_profile="${app_path}/embedded.mobileprovision"
   [[ -s "${embedded_profile}" ]] ||
@@ -115,6 +144,9 @@ main() {
     'Print :Entitlements:application-identifier' "${profile_plist}")"
   [[ "${profile_app_identifier}" == K5RDQ8J7AN.com.olivium.jeeb ]] ||
     fail 'provisioning profile application identifier drifted'
+  validate_apple_signin_entitlement \
+    "${profile_plist}" 'embedded provisioning profile' \
+    ':Entitlements:com.apple.developer.applesignin'
 
   bash "${REPO_ROOT}/tool/inspect_unsigned_ios_release.sh" \
     "${app_path}" "${firebase_config}" "${maps_key_file}" \
@@ -124,7 +156,7 @@ main() {
     "${INFO_PATH}" "${expected_build_name}" "${expected_build_number}"
 
   printf '%s\n' \
-    'Signed iOS identity, entitlements, versions, Firebase, Maps, and endpoint contracts passed.'
+    'Signed iOS identity, Apple Sign-In entitlements, versions, Firebase, Maps, and endpoint contracts passed.'
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
