@@ -97,11 +97,6 @@ jobs:
           tmp_dir="$(mktemp -d)"
           trap 'rm -rf -- "${tmp_dir}"' EXIT HUP INT TERM
           required_contexts='[
-            "Analyze",
-            "Test",
-            "Build APK (dev)",
-            "Android release signing contracts",
-            "iOS release contracts",
             "Flutter CI + coverage (79%)",
             "L10n parity gate (T-MOB-FIX-002)",
             "Release security scans"
@@ -124,6 +119,26 @@ jobs:
           api_get \
             "commits/${REVIEWED_SHA}/check-runs?filter=latest&per_page=100" \
             "${tmp_dir}/checks.json"
+          api_get \
+            "actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=${REVIEWED_SHA}&per_page=100" \
+            "${tmp_dir}/ci-runs.json"
+          jq -e \
+            --arg sha "${REVIEWED_SHA}" '
+            [.workflow_runs[]? | select(
+              .head_sha == $sha
+              and .head_branch == "main"
+              and .event == "push"
+              and .path == ".github/workflows/ci.yml"
+            )] as $runs
+            | ($runs | length) > 0
+            and (($runs | max_by(.run_number)) | (
+              .status == "completed"
+              and .conclusion == "success"
+            ))
+          ' "${tmp_dir}/ci-runs.json" >/dev/null || {
+            echo '::error::Authoritative CI run did not succeed.'
+            exit 1
+          }
           jq -e \
             --arg sha "${REVIEWED_SHA}" \
             --argjson required "${required_contexts}" '
@@ -147,7 +162,7 @@ jobs:
             exit 1
           }
           printf '%s\n' \
-            'Exact protected-main release checks and branch policy verified.'
+            'Exact protected-main CI, release checks, and branch policy verified.'
 
   android-candidate:
     name: Signed production AAB (staging runtime)

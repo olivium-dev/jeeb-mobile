@@ -30,10 +30,10 @@ String _onTriggerBlock(String workflow) {
 void main() {
   group('workflow re-enable readiness (Phase P depends on these surviving)', () {
     test(
-      'ci.yml and flutter-ci.yml keep the strict analyze + capture-excluded test gates',
+      'Flutter stage and coverage lane keep strict analyze + test gates',
       () {
         for (final path in const <String>[
-          '.github/workflows/ci.yml',
+          '.github/workflows/ci-flutter-stage.yml',
           '.github/workflows/flutter-ci.yml',
         ]) {
           final workflow = File(path).readAsStringSync();
@@ -56,10 +56,11 @@ void main() {
     );
 
     test(
-      'ci.yml, flutter-ci.yml, and mobile-ci.yml keep the firebase_core pin gate',
+      'Flutter, Android, coverage, and mobile stages keep the pin gate',
       () {
         for (final path in const <String>[
-          '.github/workflows/ci.yml',
+          '.github/workflows/ci-flutter-stage.yml',
+          '.github/workflows/ci-android-stage.yml',
           '.github/workflows/flutter-ci.yml',
           '.github/workflows/mobile-ci.yml',
         ]) {
@@ -77,10 +78,10 @@ void main() {
     );
 
     test(
-      'ci.yml and flutter-ci.yml build through protected dev config wrapper',
+      'Android stage and coverage lane use the protected dev config wrapper',
       () {
         for (final path in const <String>[
-          '.github/workflows/ci.yml',
+          '.github/workflows/ci-android-stage.yml',
           '.github/workflows/flutter-ci.yml',
         ]) {
           final workflow = File(path).readAsStringSync();
@@ -110,7 +111,7 @@ void main() {
     );
 
     test(
-      'ci.yml, flutter-ci.yml, and mobile-ci.yml still gate pull_request, not just push to main',
+      'top-level workflows still gate pull requests, not just main pushes',
       () {
         for (final path in const <String>[
           '.github/workflows/ci.yml',

@@ -1,0 +1,70 @@
+name: CI · Flutter stage
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
+      - name: Analyze
+        # `dart analyze` avoids the native-assets bootstrap path that makes
+        # `flutter analyze` exit 64 in CI. Fatal infos preserve strictness.
+        run: dart analyze --fatal-infos .
+
+  test:
+    name: Test
+    needs: analyze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
+      - name: Run tests
+        # Capture-tagged golden PNGs are local review tools, not Linux gates.
+        run: flutter test --exclude-tags capture --reporter=expanded

@@ -1,0 +1,82 @@
+name: CI · iOS stage
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
+
+jobs:
+  release-contracts:
+    name: iOS release contracts
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
+        run: |
+          set -euo pipefail
+          xcode_path=/Applications/Xcode_26.6.app/Contents/Developer
+          test -d "${xcode_path}"
+          sudo xcode-select --switch "${xcode_path}"
+          xcode_version="$(xcodebuild -version)"
+          grep -Fxq 'Xcode 26.6' <<<"${xcode_version}"
+          sdk_inventory="$(xcodebuild -showsdks)"
+          grep -Eq -- '-sdk iphoneos26\.[0-9]+' <<<"${sdk_inventory}"
+          iphoneos_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          grep -Eq '^26\.[0-9]+' <<<"${iphoneos_version}"
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Resolve locked Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: Resolve non-SPM CocoaPods plugins from the lock
+        run: cd ios && pod install --deployment
+
+      - name: Enforce CocoaPods and SwiftPM dependency ownership
+        run: bash tool/check_ios_dependency_ownership.sh
+
+      - name: Validate protected iOS Firebase injection contract
+        run: bash tool/test_ios_firebase_config.sh
+
+      - name: Validate signed iOS inspector negative contracts
+        run: bash tool/test_inspect_signed_ios_release.sh
+
+      - name: Validate entitlement files
+        run: |
+          plutil -lint ios/Runner/Runner.entitlements
+          plutil -lint ios/Runner/Runner.Release.entitlements
+
+      - name: Resolve canonical release identity and entitlements
+        run: |
+          settings="$(xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -showBuildSettings)"
+          printf '%s\n' "${settings}" | grep -Eq \
+            '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = com\.olivium\.jeeb$'
+          printf '%s\n' "${settings}" | grep -Eq \
+            '^[[:space:]]*DEVELOPMENT_TEAM = K5RDQ8J7AN$'
+          printf '%s\n' "${settings}" | grep -Eq \
+            '^[[:space:]]*CODE_SIGN_ENTITLEMENTS = Runner/Runner\.Release\.entitlements$'
+
+      - name: Compile and inspect synthetic unsigned iOS release
+        run: bash tool/build_unsigned_ios_release_contract.sh

@@ -487,9 +487,10 @@ void _registerCiContracts() {
   });
 
   test('CI compiles synthetic unsigned iOS and executes Android negatives', () {
-    final workflow = _source('.github/workflows/ci.yml');
-    _expectContainsAll(workflow, [
-      'bash tool/test_android_release_signing.sh',
+    final android = _source('.github/workflows/ci-android-stage.yml');
+    final ios = _source('.github/workflows/ci-ios-stage.yml');
+    _expectContainsAll(android, ['bash tool/test_android_release_signing.sh']);
+    _expectContainsAll(ios, [
       'bash tool/build_unsigned_ios_release_contract.sh',
       'bash tool/check_ios_dependency_ownership.sh',
       'bash tool/test_inspect_signed_ios_release.sh',
@@ -500,8 +501,10 @@ void _registerCiContracts() {
       'sdk_inventory="\$(xcodebuild -showsdks)"',
       "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
     ]);
-    expect(workflow, isNot(contains('flutter build ipa')));
-    expect(workflow, isNot(contains('upload-artifact')));
+    for (final workflow in [android, ios]) {
+      expect(workflow, isNot(contains('flutter build ipa')));
+      expect(workflow, isNot(contains('upload-artifact')));
+    }
   });
 
   test('Flutter and Gradle toolchains are repository-pinned', () {
@@ -513,7 +516,9 @@ void _registerCiContracts() {
       'subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2',
     ]);
     for (final path in [
-      '.github/workflows/ci.yml',
+      '.github/workflows/ci-flutter-stage.yml',
+      '.github/workflows/ci-android-stage.yml',
+      '.github/workflows/ci-ios-stage.yml',
       '.github/workflows/flutter-ci.yml',
       '.github/workflows/mobile-ci.yml',
       '.github/workflows/trusted-mobile-rc.yml',
@@ -563,7 +568,9 @@ void _registerCiContracts() {
     'ordinary CI regenerates source and gates the measured coverage floor',
     () {
       for (final path in [
-        '.github/workflows/ci.yml',
+        '.github/workflows/ci-flutter-stage.yml',
+        '.github/workflows/ci-android-stage.yml',
+        '.github/workflows/ci-ios-stage.yml',
         '.github/workflows/flutter-ci.yml',
         '.github/workflows/mobile-ci.yml',
       ]) {
@@ -599,6 +606,11 @@ void _registerCiContracts() {
       'Flutter CI + coverage (79%)',
       'Release security scans',
       'check-runs?filter=latest&per_page=100',
+      'actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=',
+      '.path == ".github/workflows/ci.yml"',
+      'max_by(.run_number)',
+      '.status == "completed"',
+      '.conclusion == "success"',
       'REVIEWED_SHA: \${{ inputs.reviewed_sha }}',
       r'[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]',
       r'[[ "${BUILD_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]',
