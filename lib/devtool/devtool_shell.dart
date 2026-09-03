@@ -13,6 +13,8 @@ import '../features/registration/data/super_login_service.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
+import 'diagnostics/chat_push_diagnostics_page.dart';
+import 'diagnostics/dev_base_url_banner.dart';
 import 'gateway/dev_gateway_client.dart';
 import 'location_simulation/location_simulator_page.dart';
 import 'session_logs/session_logs_page.dart';
@@ -63,6 +65,11 @@ enum DevToolSection {
     'Scenario Users',
     'Create users in a specific scenario',
     Icons.person_add,
+  ),
+  chatPushDiagnostics(
+    'Chat & Push diagnostics',
+    'Base URL + source, socket, Firebase, Firestore db, FCM, seam',
+    Icons.health_and_safety_outlined,
   );
 
   const DevToolSection(this.title, this.subtitle, this.icon);
@@ -162,6 +169,7 @@ class DevToolShell extends StatelessWidget {
       appBar: const OMDSAppBar(title: 'Jeeber Dev Tool', centerTitle: false),
       body: Column(
         children: [
+          const DevBaseUrlBanner(),
           const _GestureLoggingSwitch(),
           const Divider(height: 1),
           Expanded(
@@ -235,6 +243,12 @@ class DevToolShell extends StatelessWidget {
       case DevToolSection.users:
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const ScenarioUsersPage()),
+        );
+      case DevToolSection.chatPushDiagnostics:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const ChatPushDiagnosticsPage(),
+          ),
         );
     }
   }

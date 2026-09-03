@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../diagnostics/chat_diagnostics.dart';
 import '../../network/auth_token_store.dart';
 import 'push_transport.dart';
 
@@ -160,6 +161,7 @@ class DeviceTokenRegistrar {
         debugPrint('[push][register] ($reason) '
             'PUT $_registerPath -> $code');
       }
+      PushRegistrationDiagnostics.record(reason: reason, status: code);
       if (code >= 200 && code < 300) {
         _lastRegisteredKey = key;
         _lastRegisteredAt = _clock();
@@ -173,9 +175,18 @@ class DeviceTokenRegistrar {
             'PUT $_registerPath -> ${e.response?.statusCode} '
             'body=${e.response?.data}');
       }
+      PushRegistrationDiagnostics.record(
+        reason: reason,
+        status: e.response?.statusCode,
+        error: e.type.name,
+      );
       return false;
     } catch (e) {
       if (kDebugMode) debugPrint('[push][register] FAILED ($reason): $e');
+      PushRegistrationDiagnostics.record(
+        reason: reason,
+        error: e.runtimeType.toString(),
+      );
       return false;
     }
   }

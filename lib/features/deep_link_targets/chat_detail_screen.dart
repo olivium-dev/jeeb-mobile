@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,6 +9,8 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/diagnostics/chat_diagnostics.dart';
+import '../../core/firebase/jeeb_firestore.dart';
 import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
@@ -988,9 +989,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!conversationResolved ||
         conversationId.isEmpty ||
         conversationId == kComposeConversationSentinel) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.wrap,
+        reason: conversationResolved
+            ? 'unresolved_conversation_id'
+            : 'conversation_not_resolved',
+        conversationId: conversationId,
+      );
       return inner;
     }
-    if (currentUserId.isEmpty) return inner;
+    if (currentUserId.isEmpty) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.wrap,
+        reason: 'no_current_user',
+        conversationId: conversationId,
+      );
+      return inner;
+    }
     // THE AUCTION GATE — RETIRED 2026-07-30. Now telemetry, not a refusal.
     //
     // It existed because the ruleset it was written against
@@ -1044,6 +1059,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         'conversation_id': conversationId,
         'reason': 'no_firebase_app',
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.wrap,
+        reason: 'no_firebase_app',
+        conversationId: conversationId,
+      );
       return inner;
     }
     _httpGateway = inner;
@@ -1053,7 +1073,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         // Lazy BY CONTRACT: the source resolves this only after the identity
         // check passes, so "no identity" means Firestore is never reached
         // rather than "reached and refused".
-        firestore: () => FirebaseFirestore.instance,
+        firestore: JeebFirestore.instance,
         identity: FirebaseCustomTokenIdentity(
           auth: FirebaseAuth.instance,
           minter: GatewayChatFirebaseTokenMinter(dio: dio),
