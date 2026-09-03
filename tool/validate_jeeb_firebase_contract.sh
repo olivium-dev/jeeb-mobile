@@ -20,14 +20,25 @@ else
 fi
 
 search_quiet() {
-  local pattern="$1"
+  local pattern="$1" search_status
   shift
 
   if [[ "${has_rg}" == true ]]; then
-    rg -q -- "${pattern}" "$@"
+    if rg -q -- "${pattern}" "$@"; then
+      return 0
+    else
+      search_status=$?
+    fi
   else
-    grep -E -R -q -- "${pattern}" "$@"
+    if grep -E -R -q -- "${pattern}" "$@"; then
+      return 0
+    else
+      search_status=$?
+    fi
   fi
+
+  [[ "${search_status}" -eq 1 ]] && return 1
+  fail 'source scan failed'
 }
 
 command -v jq >/dev/null 2>&1 || fail 'jq is required'
