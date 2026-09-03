@@ -86,9 +86,7 @@ ResolvedBaseUrl resolveBaseUrlForBuild({required String? override}) =>
       developmentBuild: kDebugMode || AppConfig.isDevelopmentFlavor,
     );
 
-/// Boot tripwire: one greppable line naming the layer that actually won, so a
-/// persisted `dev.base_url_override` — which survives a reinstall and outranks
-/// every dart-define — is never invisible again.
+/// Boot tripwire: one greppable line naming the layer that actually won.
 void logEffectiveBaseUrl(String? override) {
   if (!kDebugMode) return;
   final resolved = resolveBaseUrlForBuild(override: override);

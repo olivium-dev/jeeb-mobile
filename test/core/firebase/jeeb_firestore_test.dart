@@ -26,6 +26,15 @@ void main() {
   test('the default database id is Firestore\'s unnamed database', () {
     expect(JeebFirestore.defaultDatabaseId, '(default)');
     expect(JeebFirestore.usesDefaultDatabase, isTrue);
+    expect(JeebFirestore.effectiveDatabaseId, JeebFirestore.defaultDatabaseId);
+  });
+
+  // An unset CI variable interpolated into a build command yields '', which
+  // instanceFor passes through as the database named "".
+  test('an empty database id resolves to the contract default, never ""', () {
+    expect(JeebFirestore.resolveDatabaseId(''), '(default)');
+    expect(JeebFirestore.resolveDatabaseId('  '), '(default)');
+    expect(JeebFirestore.resolveDatabaseId('chat-staging'), 'chat-staging');
   });
 
   test('no source file in lib/ resolves Firestore outside the seam', () {

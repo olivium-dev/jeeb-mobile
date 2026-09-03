@@ -5,10 +5,8 @@ import '../../core/config/base_url_source.dart';
 import '../../core/config/dev_base_url.dart';
 import '../../core/di/injection_container.dart';
 
-/// Persistent notice that `dev.base_url_override` is in force and disagrees
-/// with the build. The override outranks every dart-define and survives
-/// `adb install -r`, so a phone can sit on a different backend for days while
-/// every screen looks normal. Deliberately does NOT auto-clear.
+/// `dev.base_url_override` outranks every dart-define and survives
+/// `adb install -r`. Shown when it diverges; deliberately does NOT auto-clear.
 class DevBaseUrlBanner extends StatelessWidget {
   const DevBaseUrlBanner({super.key, this.preferences});
 

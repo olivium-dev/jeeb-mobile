@@ -96,9 +96,8 @@ void main() {
         isTrue,
         reason: '$path must stay ignored so a transient injection cannot land.',
       );
-      // Regime, not outcome: `android/app/build.gradle` needs this file to
-      // build, so the only tree in which absence holds is a tree that cannot
-      // build an APK. CI enforces it; a local checkout is allowed to hold one.
+      // Regime, not outcome: the build needs this file, so only CI can
+      // demand its absence. A local checkout is allowed to hold one.
       if (_isCi) {
         expect(
           File(path).existsSync(),

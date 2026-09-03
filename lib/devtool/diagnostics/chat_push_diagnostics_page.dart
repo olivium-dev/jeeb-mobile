@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/base_url_source.dart';
@@ -11,9 +12,8 @@ import '../../core/diagnostics/chat_diagnostics.dart';
 import '../../core/firebase/jeeb_firestore.dart';
 import '../../core/realtime/realtime_socket_policy.dart';
 
-/// Read-only snapshot of everything that decides whether chat and push can
-/// work on this install. Every value here has silently disagreed with its
-/// neighbour in a real outage at least once.
+/// Read-only snapshot of every value that decides whether chat and push work
+/// on this install. Each has silently disagreed with its neighbour in an outage.
 class ChatPushDiagnosticsPage extends StatefulWidget {
   const ChatPushDiagnosticsPage({super.key, this.seamChannel});
 
@@ -35,12 +35,14 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
   String? _fcmToken;
   String _fcmStatus = 'reading…';
   String _seamStatus = 'reading…';
+  String _applicationId = 'reading…';
 
   @override
   void initState() {
     super.initState();
     _loadFcmToken();
     _loadSeamPresence();
+    _loadApplicationId();
   }
 
   Future<void> _loadFcmToken() async {
@@ -57,6 +59,19 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
       _fcmToken = token;
       _fcmStatus = status;
     });
+  }
+
+  // FirebaseOptions carries no Android package name (androidClientId is the
+  // OAuth client id), so the real application id comes from the platform.
+  Future<void> _loadApplicationId() async {
+    var value = 'unavailable';
+    try {
+      value = (await PackageInfo.fromPlatform()).packageName;
+    } catch (error) {
+      value = 'unavailable (${error.runtimeType})';
+    }
+    if (!mounted) return;
+    setState(() => _applicationId = value);
   }
 
   Future<void> _loadSeamPresence() async {
@@ -135,8 +150,8 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
             rows: <_Row>[
               _Row('Apps initialised', '${Firebase.apps.length}'),
               _Row('Project id', _firebaseValue((o) => o.projectId)),
-              _Row('Package / bundle', _firebaseValue(_packageOf)),
               _Row('App id', _firebaseValue((o) => o.appId)),
+              _Row('Application id', _applicationId),
               _Row('Sender id', _firebaseValue((o) => o.messagingSenderId)),
             ],
           ),
@@ -201,9 +216,6 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
       return 'unavailable (${error.runtimeType})';
     }
   }
-
-  static String? _packageOf(FirebaseOptions options) =>
-      options.androidClientId ?? options.iosBundleId;
 
   static String _maskToken(String? token) {
     if (token == null || token.isEmpty) return 'none';

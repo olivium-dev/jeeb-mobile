@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Proves every OUTCOME guard in tool/firebase_doctor.sh actually turns red.
-# Each case mutates one value in a scratch copy of the repo, asserts the doctor
-# fails with the expected message, and restores. Run: bash tool/firebase_doctor_mutations.sh
+# Proves every OUTCOME guard in tool/firebase_doctor.sh actually turns red:
+# mutate one value, require a FAIL carrying the expected message, restore.
 
 set -euo pipefail
 
@@ -26,7 +25,7 @@ restore_all() {
   done
   RESTORE=()
 }
-trap restore_all EXIT
+trap restore_all EXIT HUP INT TERM
 
 stash() {
   local path="$1"
@@ -182,7 +181,7 @@ set -e
 restore_all
 ci_caught=1
 printf '%s' "$ci_out" \
-  | grep -Fq "exists outside an active protected wrapper invocation" && ci_caught=0
+  | grep -Fq "is on disk in CI" && ci_caught=0
 if [ "$ci_caught" -eq 0 ]; then
   echo "MUTATION PROVEN: the same config on disk FAILS under CI=true"
   PASSES=$((PASSES + 1))

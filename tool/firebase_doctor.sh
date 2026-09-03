@@ -111,9 +111,9 @@ check_protected_config() {
   # tree that can build an APK, so locally it warns and CI alone enforces it.
   if [ -e "$f" ]; then
     if [ "$IS_CI" = "yes" ]; then
-      fail "$f exists outside an active protected wrapper invocation"
+      fail "$f is on disk in CI; it must exist only for the duration of a tool/run_with_*_firebase_config.sh command, so a wrapper's cleanup did not run"
     else
-      warn "$f is present locally; it must be injected only by tool/run_with_*_firebase_config.sh (CI fails on this, local builds need it)"
+      warn "$f is on disk; inject it only through tool/run_with_*_firebase_config.sh (CI fails on this, a local build needs the file)"
     fi
   else
     pass "$f is absent after wrapper cleanup"

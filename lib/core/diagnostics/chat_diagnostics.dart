@@ -32,14 +32,8 @@ class ChatDiagnosticEvent {
       '${conversationId == null ? '' : ' conversation=$conversationId'}';
 }
 
-/// In-memory ring of the last [capacity] chat degradations.
-///
-/// Every `return null` in the chain (mint, sign-in, uid mismatch, descriptor
-/// parse, socket join, the `_wrapRealtime` refusal ladder) is silent by
-/// construction and degrades to plain HTTP chat. This records WHY, so the Dev
-/// Tool can show it and logcat carries one greppable line. It changes no
-/// control flow: callers record and then take exactly the branch they took
-/// before.
+/// Ring of the last [capacity] silent chat degradations. Records WHY only —
+/// every caller still takes exactly the branch it took before.
 abstract final class ChatDiagnostics {
   static const int capacity = 40;
 
@@ -90,9 +84,8 @@ abstract final class ChatDiagnostics {
   }
 }
 
-/// Last outcome of `PUT /api/PushNotification/register`, for the Dev Tool.
-/// Registration failure is the silent half of "push is dead" that no screen
-/// surfaces today.
+/// Last outcome of `PUT /api/PushNotification/register` — the silent half of
+/// "push is dead" that no screen surfaces today.
 @immutable
 class PushRegistrationOutcome {
   const PushRegistrationOutcome({
