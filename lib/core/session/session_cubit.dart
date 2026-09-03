@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../diagnostics/diag.dart';
 import '../network/auth_token_store.dart';
+import '../network/jwt_expiry.dart';
 import 'auth_loss_signals.dart';
 import 'session_gate.dart';
 import 'session_state.dart';
@@ -51,7 +51,7 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     if (token == null || token.trim().isEmpty) {
       return SessionStatus.unauthenticated;
     }
-    final exp = _jwtExpiry(token);
+    final exp = jwtExpiry(token);
     if (exp == null) {
       return SessionStatus.unauthenticated;
     }
@@ -59,26 +59,6 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     return isExpired
         ? SessionStatus.unauthenticated
         : SessionStatus.authenticated;
-  }
-
-  static DateTime? _jwtExpiry(String token) {
-    final parts = token.split('.');
-    if (parts.length != 3) return null;
-    try {
-      final payloadRaw = utf8.decode(
-        base64Url.decode(base64Url.normalize(parts[1])),
-      );
-      final decoded = jsonDecode(payloadRaw);
-      if (decoded is! Map) return null;
-      final exp = decoded['exp'];
-      if (exp is! num) return null;
-      return DateTime.fromMillisecondsSinceEpoch(
-        (exp * 1000).toInt(),
-        isUtc: true,
-      );
-    } catch (_) {
-      return null;
-    }
   }
 
   @override
