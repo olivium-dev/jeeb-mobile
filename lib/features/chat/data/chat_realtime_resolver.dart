@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/realtime/realtime_socket_policy.dart';
 import '../domain/chat_socket.dart';
 import 'live_realtime_chat_socket.dart';
@@ -58,9 +59,20 @@ class ChatRealtimeResolver {
         '/v1/realtime/jeeb:chat:$conversationId',
       );
       return _parse(conversationId, response.data);
-    } on DioException {
+    } on DioException catch (error) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.descriptor,
+        reason: 'http_${error.type.name}',
+        status: error.response?.statusCode,
+        conversationId: conversationId,
+      );
       return null;
-    } catch (_) {
+    } catch (error) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.descriptor,
+        reason: 'threw_${error.runtimeType}',
+        conversationId: conversationId,
+      );
       return null;
     }
   }
@@ -69,12 +81,26 @@ class ChatRealtimeResolver {
     final descriptor = await resolve(conversationId);
     if (descriptor == null) return null;
     if (!_nonBlank(descriptor.connectToken) || !_nonBlank(descriptor.ticket)) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.socket,
+        reason: 'descriptor_missing_credentials',
+        conversationId: conversationId,
+      );
       return null;
     }
     final socketUri = _socketPolicy.configuredUri(
       developmentOverride: _socketBaseUriOverride,
     );
-    if (socketUri == null) return null;
+    if (socketUri == null) {
+      // JEEB_REALTIME_SOCKET_URL is compile-time only, so a REST base-URL
+      // switch never moves it — the silent half of the split-brain trap.
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.socket,
+        reason: 'no_configured_socket_url',
+        conversationId: conversationId,
+      );
+      return null;
+    }
     final factory = _socketFactory ?? _buildSocket;
     return factory(conversationId, descriptor, socketUri);
   }
@@ -83,7 +109,14 @@ class ChatRealtimeResolver {
     String conversationId,
     Map<String, dynamic>? data,
   ) {
-    if (data == null) return null;
+    if (data == null) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.descriptor,
+        reason: 'empty_body',
+        conversationId: conversationId,
+      );
+      return null;
+    }
     final returnedId =
         (data['conversationId'] ?? data['conversation_id']) as String?;
     final viewerId = data['viewerId'] as String?;
@@ -91,7 +124,14 @@ class ChatRealtimeResolver {
     final role = (data['roleInConvo'] ?? data['role_in_convo']) as String?;
     final connectToken = data['token'] as String?;
     final ticket = (data['ticket'] ?? data['Ticket']) as String?;
-    if (topic == null || topic.isEmpty) return null;
+    if (topic == null || topic.isEmpty) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.descriptor,
+        reason: 'no_topic',
+        conversationId: conversationId,
+      );
+      return null;
+    }
     if (!_bindingAllowed(
       conversationId,
       returnedId,
@@ -101,6 +141,11 @@ class ChatRealtimeResolver {
       connectToken,
       ticket,
     )) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.descriptor,
+        reason: 'binding_refused',
+        conversationId: conversationId,
+      );
       return null;
     }
     return RealtimeChannelDescriptor(

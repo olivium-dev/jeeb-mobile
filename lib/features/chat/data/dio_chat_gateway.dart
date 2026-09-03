@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../../client_offers/domain/offers_repository.dart'
     show OfferAcceptResult, acceptResponseDeliveryId;
@@ -409,7 +410,13 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         'ref': '1',
       });
       socket.events.listen(_handleFrame);
-    } catch (_) {}
+    } catch (error) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.socket,
+        reason: 'join_threw_${error.runtimeType}',
+        conversationId: conversationId,
+      );
+    }
   }
 
   void _handleFrame(Map<String, Object?> frame) {

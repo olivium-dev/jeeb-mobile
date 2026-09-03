@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../domain/chat_firebase_identity.dart';
 
@@ -23,6 +24,10 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
       Diag.event('chat_firebase_identity', <String, Object?>{
         'result': 'no_jeeb_user',
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.identity,
+        reason: 'no_jeeb_user',
+      );
       return null;
     }
     try {
@@ -32,6 +37,10 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'uid_mismatch',
         });
+        ChatDiagnostics.degraded(
+          stage: ChatDiagStage.identity,
+          reason: 'stale_uid_signed_out',
+        );
         await _auth.signOut();
       }
       final token = await _minter.mintCustomToken();
@@ -39,6 +48,10 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'no_token',
         });
+        ChatDiagnostics.degraded(
+          stage: ChatDiagStage.identity,
+          reason: 'no_token',
+        );
         return null;
       }
       final credential = await _auth.signInWithCustomToken(token);
@@ -47,12 +60,20 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'no_user',
         });
+        ChatDiagnostics.degraded(
+          stage: ChatDiagStage.identity,
+          reason: 'sign_in_returned_no_user',
+        );
         return null;
       }
       if (user.uid != _jeebUserId) {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'minted_uid_mismatch',
         });
+        ChatDiagnostics.degraded(
+          stage: ChatDiagStage.identity,
+          reason: 'minted_uid_mismatch',
+        );
         await _auth.signOut();
         return null;
       }
@@ -65,6 +86,10 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         'result': 'failed',
         'error': error.runtimeType.toString(),
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.identity,
+        reason: 'threw_${error.runtimeType}',
+      );
       return null;
     }
   }

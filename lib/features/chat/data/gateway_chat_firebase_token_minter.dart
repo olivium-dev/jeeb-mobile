@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../domain/chat_firebase_identity.dart';
 
@@ -22,6 +23,11 @@ class GatewayChatFirebaseTokenMinter implements ChatFirebaseTokenMinter {
           'result': 'no_token',
           'status': response.statusCode,
         });
+        ChatDiagnostics.degraded(
+          stage: ChatDiagStage.mint,
+          reason: 'no_token',
+          status: response.statusCode,
+        );
         return null;
       }
       Diag.event('chat_firebase_mint', <String, Object?>{
@@ -35,12 +41,21 @@ class GatewayChatFirebaseTokenMinter implements ChatFirebaseTokenMinter {
         'status': error.response?.statusCode,
         'type': error.type.name,
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.mint,
+        reason: 'http_${error.type.name}',
+        status: error.response?.statusCode,
+      );
       return null;
     } catch (error) {
       Diag.event('chat_firebase_mint', <String, Object?>{
         'result': 'failed',
         'error': error.runtimeType.toString(),
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.mint,
+        reason: 'threw_${error.runtimeType}',
+      );
       return null;
     }
   }
