@@ -152,6 +152,8 @@ jobs:
           ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
           ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
           MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
+          # Env-index decrypt key; empty secret hides the Server URL preset list.
+          JEEB_ENV_INDEX_KEY: ${{ secrets.JEEB_ENV_INDEX_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -211,7 +213,8 @@ jobs:
                 --dart-define=JEEB_CLARITY_ENABLED=false \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
                 --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
-                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
+                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}" \
+                --dart-define="JEEB_ENV_INDEX_KEY=${JEEB_ENV_INDEX_KEY}"
           test ! -e android/app/google-services.json
           aab="$(bash tool/android_internal_candidate_integrity.sh \
             select-aab build/app/outputs/bundle/internalReleaseRelease)"
