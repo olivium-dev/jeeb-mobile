@@ -25,6 +25,7 @@ import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../config/base_url_source.dart';
 import '../config/app_config.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
@@ -164,6 +165,8 @@ void configureDependencies({
 
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
+
+  logEffectiveBaseUrl(DevBaseUrl.read(sharedPreferences));
 
   sl.registerLazySingleton<Dio>(
     () => MockGatewayClient.createDio(
