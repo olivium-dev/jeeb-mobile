@@ -42,6 +42,11 @@ DEFINES=(
   --dart-define=JEEB_REALTIME_SOCKET_URL="${MSI_REALTIME_SOCKET}"
 )
 
+# Env-index decrypt key comes from the shell, never from this file (public repo).
+if [[ -n "${JEEB_ENV_INDEX_KEY:-}" ]]; then
+  DEFINES+=(--dart-define=JEEB_ENV_INDEX_KEY="${JEEB_ENV_INDEX_KEY}")
+fi
+
 fail() {
   echo "[run_msi_dual] ERROR: $*" >&2
   exit 1
