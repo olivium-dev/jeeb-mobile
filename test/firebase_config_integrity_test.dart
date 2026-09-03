@@ -40,9 +40,9 @@ Future<bool> _isIgnored(String path) async {
 }
 
 Map<String, String> _syntheticDevEnvironment() {
-  const projectNumber = '123456789012';
-  const projectId = 'jeeb-test';
-  const appId = '1:123456789012:android:abcdef0123456789';
+  const projectNumber = '1051234312170';
+  const projectId = 'jeeb-5a293';
+  const appId = '1:1051234312170:android:146d7f24f109e38523dc93';
   final apiKey = 'AIza${List<String>.filled(35, 'A').join()}';
   final config = <String, Object>{
     'project_info': <String, String>{
@@ -71,9 +71,6 @@ Map<String, String> _syntheticDevEnvironment() {
     'DEV_GOOGLE_SERVICES_JSON_B64': base64Encode(
       utf8.encode(jsonEncode(config)),
     ),
-    'DEV_FIREBASE_EXPECTED_PROJECT_NUMBER': projectNumber,
-    'DEV_FIREBASE_EXPECTED_PROJECT_ID': projectId,
-    'DEV_FIREBASE_EXPECTED_APP_ID': appId,
   };
 }
 
@@ -134,6 +131,7 @@ void main() {
     for (final path in const <String>[
       'tool/run_with_android_firebase_config.sh',
       'tool/run_with_dev_firebase_config.sh',
+      'tool/run_with_ios_dev_firebase_config.sh',
       'tool/run_with_ios_firebase_config.sh',
       'docs/firebase-invariants.md',
     ]) {

@@ -30,17 +30,8 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    #if JEEB_DEV
-    // The isolated dev flavor intentionally ships without production Firebase
-    // credentials. Firebase-backed features use their existing fallbacks until
-    // a dedicated app.jeeb.jeebMobile.dev configuration is provisioned.
-    //
-    // UIKit otherwise treats a shake as "Undo Typing" and puts a system alert
-    // on screen before our motion handler is useful. Dev flavor only.
-    application.applicationSupportsShakeToEdit = false
-    #else
-    // Production remains fail-loud: configure the required bundled plist
-    // before any plugin can touch Firebase.
+    // Every flavor is fail-loud: the protected native config must be bundled
+    // and Firebase must be configured before any Flutter plugin can touch it.
     guard
       let mapsAPIKey = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,
       mapsAPIKey.hasPrefix("AIza"),
@@ -50,6 +41,11 @@ import UIKit
       fatalError("Required iOS Maps configuration is missing or invalid.")
     }
     FirebaseApp.configure()
+
+    #if JEEB_DEV
+    // UIKit otherwise treats a shake as "Undo Typing" and puts a system alert
+    // on screen before our motion handler is useful. Dev flavor only.
+    application.applicationSupportsShakeToEdit = false
     #endif
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

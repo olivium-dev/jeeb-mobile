@@ -71,6 +71,17 @@ lock_version() {
 section "1. native Firebase configs — protected injection boundary"
 # =============================================================================
 
+if bash tool/validate_jeeb_firebase_contract.sh; then
+  pass "canonical Jeeb Firebase contract"
+else
+  fail "canonical Jeeb Firebase contract drifted"
+fi
+if bash tool/test_jeeb_firebase_contract.sh; then
+  pass "canonical Jeeb Firebase contract negative controls"
+else
+  fail "canonical Jeeb Firebase contract negative controls failed"
+fi
+
 check_protected_config() {
   local f="$1"
   if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -319,10 +330,16 @@ section "8. protected Firebase validators and wrappers"
 # =============================================================================
 
 for protected_tool in \
+  tool/validate_jeeb_firebase_contract.sh \
+  tool/test_jeeb_firebase_contract.sh \
   tool/validate_android_google_services.sh \
   tool/validate_dev_google_services.sh \
   tool/run_with_android_firebase_config.sh \
   tool/run_with_dev_firebase_config.sh \
+  tool/build_ios_dev_firebase_contract.sh \
+  tool/inspect_ios_dev_firebase_artifact.sh \
+  tool/test_inspect_ios_dev_firebase_artifact.sh \
+  tool/run_with_ios_dev_firebase_config.sh \
   tool/run_with_ios_firebase_config.sh; do
   if [ -f "$protected_tool" ]; then
     pass "$protected_tool is present"
@@ -332,11 +349,11 @@ for protected_tool in \
 done
 
 # =============================================================================
-section "9. known gaps (informational, non-blocking)"
+section "9. live acceptance gates (informational, non-blocking)"
 # =============================================================================
 
 warn "staging and production share canonical package com.olivium.jeeb; store-delivered Firebase behavior remains a live acceptance gate"
-warn "iOS dev configs (Release-dev/Debug-dev/Profile-dev) exclude GoogleService-Info.plist by design — iOS dev builds ship with no Firebase"
+warn "source validation cannot prove receiver-side FCM delivery; retain the physical-device nonce gate"
 
 # =============================================================================
 section "Summary"

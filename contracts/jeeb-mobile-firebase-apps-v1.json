@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "contract": "jeeb-firebase-v1",
+  "android": {
+    "dev": {
+      "packageName": "app.jeeb.mobile.dev",
+      "appId": "1:1051234312170:android:146d7f24f109e38523dc93"
+    },
+    "store": {
+      "packageName": "com.olivium.jeeb",
+      "appId": "1:1051234312170:android:85bc801430c9006623dc93"
+    }
+  },
+  "ios": {
+    "dev": {
+      "bundleId": "app.jeeb.jeebMobile.dev",
+      "appId": "1:1051234312170:ios:30f909a175df7f5b23dc93"
+    },
+    "store": {
+      "bundleId": "com.olivium.jeeb",
+      "appId": "1:1051234312170:ios:1036d2eaaf63036a23dc93"
+    }
+  },
+  "environments": {
+    "dev": {
+      "androidApp": "dev",
+      "iosApp": "dev",
+      "firestoreDatabaseId": "(default)"
+    },
+    "staging": {
+      "androidApp": "store",
+      "iosApp": "store",
+      "firestoreDatabaseId": "(default)"
+    },
+    "production": {
+      "androidApp": "store",
+      "iosApp": "store",
+      "firestoreDatabaseId": "(default)"
+    }
+  }
+}

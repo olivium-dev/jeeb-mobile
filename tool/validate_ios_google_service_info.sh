@@ -4,10 +4,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/ios/Runner/GoogleService-Info.plist}"
-REQUIRED_PROJECT_ID="jeeb-5a293"
-REQUIRED_PROJECT_NUMBER="1051234312170"
-REQUIRED_BUNDLE_ID="com.olivium.jeeb"
-EXPECTED_APP_ID="${IOS_FIREBASE_EXPECTED_APP_ID:-}"
+CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
+APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
+FIREBASE_VARIANT="${IOS_FIREBASE_VARIANT:-store}"
 EXPECTED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}"
 EXPECTED_REVERSED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}"
 
@@ -23,14 +22,24 @@ fi
 if [[ ! -x /usr/libexec/PlistBuddy ]]; then
   fail 'PlistBuddy is required for structural validation'
 fi
+command -v jq >/dev/null 2>&1 || fail 'jq is required for contract validation'
+bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
+
+case "${FIREBASE_VARIANT}" in
+  dev | store) ;;
+  *) fail "unknown iOS Firebase variant '${FIREBASE_VARIANT}'" ;;
+esac
+REQUIRED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
+REQUIRED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
+REQUIRED_BUNDLE_ID="$(jq -r --arg variant "${FIREBASE_VARIANT}" \
+  '.ios[$variant].bundleId' "${APPS}")"
+EXPECTED_APP_ID="$(jq -r --arg variant "${FIREBASE_VARIANT}" \
+  '.ios[$variant].appId' "${APPS}")"
 
 if ! plutil -lint "${CONFIG_PATH}" >/dev/null 2>&1; then
   fail 'config is not a valid plist'
 fi
 
-if [[ -z "${EXPECTED_APP_ID}" ]]; then
-  fail 'protected expected Firebase app identity is missing'
-fi
 [[ "${EXPECTED_CLIENT_ID}" =~ ^${REQUIRED_PROJECT_NUMBER}-[0-9A-Za-z_-]+\.apps\.googleusercontent\.com$ ]] ||
   fail 'protected approved Google Sign-In client identity is missing or malformed'
 expected_client_subject="${EXPECTED_CLIENT_ID%.apps.googleusercontent.com}"
@@ -91,7 +100,7 @@ client_subject="${client_id%.apps.googleusercontent.com}"
 [[ "${reversed_client_id}" == "com.googleusercontent.apps.${client_subject}" ]] ||
   fail 'Google Sign-In client ids do not form a matching pair'
 [[ "${signin_enabled}" == "true" ]] ||
-  fail 'Google Sign-In must be enabled in the production config'
+  fail 'Google Sign-In must be enabled in the selected config'
 
 if grep -Eiq 'TODO_|PLACEHOLDER|CHANGEME|REPLACE[_ -]?ME|NOT[_ -]?REAL' \
   "${CONFIG_PATH}"; then
@@ -99,4 +108,4 @@ if grep -Eiq 'TODO_|PLACEHOLDER|CHANGEME|REPLACE[_ -]?ME|NOT[_ -]?REAL' \
 fi
 
 printf '%s\n' \
-  'iOS Firebase project, bundle, app, and protected Google client pair match.'
+  "iOS Firebase ${FIREBASE_VARIANT} project, bundle, app, and protected Google client pair match."

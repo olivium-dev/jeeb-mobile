@@ -212,17 +212,25 @@ read-only credential used to fetch the exact `.omds-revision`:
   `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`,
   `ANDROID_UPLOAD_STORE_PASSWORD`, `ANDROID_UPLOAD_CERT_SHA1`,
   `ANDROID_UPLOAD_CERT_SHA256`, `ANDROID_GOOGLE_SERVICES_JSON_B64`,
-  `ANDROID_FIREBASE_EXPECTED_APP_ID`,
   `ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID`,
   `ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID`, `ANDROID_MAPS_API_KEY`,
 - `mobile-internal-distribution`: `GOOGLE_PLAY_JSON_KEY`,
   `APP_STORE_KEY_ID`, `APP_STORE_ISSUER_ID`, and
   `APP_STORE_KEY_CONTENT_B64`, plus `IOS_GOOGLE_SERVICE_INFO_PLIST_B64`,
-  `IOS_FIREBASE_EXPECTED_APP_ID`, `IOS_FIREBASE_EXPECTED_CLIENT_ID`,
+  `IOS_FIREBASE_EXPECTED_CLIENT_ID`,
   `IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, `IOS_GOOGLE_MAPS_API_KEY`,
   `IOS_DEVELOPMENT_CERTIFICATE_P12_B64`,
   `IOS_DEVELOPMENT_CERTIFICATE_PASSWORD`, and
   `IOS_DEVELOPMENT_CERTIFICATE_SHA256`.
+
+Main-branch dev CI additionally uses repository secrets
+`DEV_GOOGLE_SERVICES_JSON_B64`, `IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64`,
+`IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID`, and
+`IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID`, plus `MAPS_API_KEY` for both
+native dev builds. Project, project number, native app IDs, packages, and bundle
+IDs are public invariants read only from the committed Firebase contracts; they
+must never be supplied by secrets. Store/internal iOS candidates continue to
+use the environment-scoped `IOS_GOOGLE_MAPS_API_KEY` listed above.
 
 The iOS RC decodes the App Store Connect private key and protected Apple
 Development P12 only into mode-`0600` temporary files. It imports that identity

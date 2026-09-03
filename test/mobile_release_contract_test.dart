@@ -132,10 +132,11 @@ void _registerAndroidContracts() {
     final validator = _source('tool/validate_android_google_services.sh');
     final wrapper = _source('tool/run_with_android_firebase_config.sh');
     _expectContainsAll(validator, [
-      'REQUIRED_PROJECT_ID="jeeb-5a293"',
-      'REQUIRED_PROJECT_NUMBER="1051234312170"',
-      'REQUIRED_PACKAGE="com.olivium.jeeb"',
-      'ANDROID_FIREBASE_EXPECTED_APP_ID',
+      'contracts/jeeb-firebase-v1.json',
+      'contracts/jeeb-mobile-firebase-apps-v1.json',
+      "'.projectId'",
+      "'.projectNumber'",
+      "'.android.store.appId'",
       'ANDROID_UPLOAD_CERT_SHA1',
       'ANDROID_UPLOAD_CERT_SHA256',
       'ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID',
@@ -206,12 +207,15 @@ void _registerIosContracts() {
     final validator = _source('tool/validate_ios_google_service_info.sh');
     final mapsValidator = _source('tool/validate_ios_maps_api_key.sh');
     final wrapper = _source('tool/run_with_ios_firebase_config.sh');
+    final devWrapper = _source('tool/run_with_ios_dev_firebase_config.sh');
+    final devInspector = _source('tool/inspect_ios_dev_firebase_artifact.sh');
     _expectContainsAll(validator, [
       'CLIENT_ID',
       'REVERSED_CLIENT_ID',
       'IS_SIGNIN_ENABLED',
-      'REQUIRED_BUNDLE_ID="com.olivium.jeeb"',
-      'REQUIRED_PROJECT_NUMBER="1051234312170"',
+      'contracts/jeeb-firebase-v1.json',
+      'contracts/jeeb-mobile-firebase-apps-v1.json',
+      'IOS_FIREBASE_VARIANT',
       'IOS_FIREBASE_EXPECTED_CLIENT_ID',
       'IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID',
     ]);
@@ -220,21 +224,46 @@ void _registerIosContracts() {
     expect(wrapper, contains('ProtectedFirebase.xcconfig'));
     expect(wrapper, contains('GOOGLE_MAPS_API_KEY'));
     expect(wrapper, contains('trap cleanup EXIT HUP INT TERM'));
+    expect(devWrapper, contains('IOS_FIREBASE_VARIANT=dev'));
+    expect(devWrapper, contains('IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64'));
+    _expectContainsAll(devInspector, [
+      'GoogleService-Info.plist',
+      'FirebaseApp.configure()',
+      'native init is conditional on non-dev',
+      "'.ios.dev.bundleId'",
+      "'.ios.dev.appId'",
+    ]);
+    expect(
+      _source('ios/Runner.xcodeproj/project.pbxproj'),
+      isNot(
+        contains('EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info.plist"'),
+      ),
+    );
     expect(mapsValidator, contains(r'^AIza[A-Za-z0-9_-]{35}$'));
     expect(mapsValidator, contains(r'[[ "${key_mode}" == 600 ]]'));
   });
 
-  test('iOS Release/Profile fail closed and initialize Google Maps', () {
+  test('all iOS flavors fail closed and initialize Firebase and Maps', () {
     final release = _source('ios/Flutter/Release.xcconfig');
     final profile = _source('ios/Flutter/Profile.xcconfig');
+    final debugDev = _source('ios/Flutter/Debug-dev.xcconfig');
+    final releaseDev = _source('ios/Flutter/Release-dev.xcconfig');
+    final profileDev = _source('ios/Flutter/Profile-dev.xcconfig');
     final plist = _source('ios/Runner/Info.plist');
+    final devPlist = _source('ios/Runner/Info-dev.plist');
     final appDelegate = _source('ios/Runner/AppDelegate.swift');
-    expect(release, contains('#include "ProtectedFirebase.xcconfig"'));
-    expect(profile, contains('#include "ProtectedFirebase.xcconfig"'));
-    expect(release, isNot(contains('#include? "ProtectedFirebase.xcconfig"')));
-    expect(profile, isNot(contains('#include? "ProtectedFirebase.xcconfig"')));
+    for (final config in [release, profile, debugDev, releaseDev, profileDev]) {
+      expect(config, contains('#include "ProtectedFirebase.xcconfig"'));
+      expect(config, isNot(contains('#include? "ProtectedFirebase.xcconfig"')));
+    }
     expect(plist, contains(r'<string>$(GOOGLE_MAPS_API_KEY)</string>'));
+    expect(devPlist, contains(r'<string>$(GOOGLE_MAPS_API_KEY)</string>'));
+    expect(
+      devPlist,
+      contains(r'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>'),
+    );
     _expectContainsAll(appDelegate, [
+      'FirebaseApp.configure()',
       'import GoogleMaps',
       'GMSServices.provideAPIKey(mapsAPIKey)',
       'Required iOS Maps configuration is missing or invalid.',
@@ -493,6 +522,11 @@ void _registerCiContracts() {
     _expectContainsAll(ios, [
       'bash tool/build_unsigned_ios_release_contract.sh',
       'bash tool/check_ios_dependency_ownership.sh',
+      'bash tool/build_ios_dev_firebase_contract.sh',
+      'bash tool/test_inspect_ios_dev_firebase_artifact.sh',
+      'bash tool/inspect_ios_dev_firebase_artifact.sh',
+      'build/ios/iphonesimulator/Runner.app',
+      '--dart-define=REQUIRE_REAL_PUSH=true',
       'bash tool/test_inspect_signed_ios_release.sh',
       'pod install --deployment',
       "FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'",
@@ -500,6 +534,12 @@ void _registerCiContracts() {
       '/Applications/Xcode_26.6.app/Contents/Developer',
       'sdk_inventory="\$(xcodebuild -showsdks)"',
       "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
+    ]);
+    expect(ios, contains('secrets.MAPS_API_KEY'));
+    expect(ios, isNot(contains('secrets.IOS_GOOGLE_MAPS_API_KEY')));
+    _expectContainsAll(_source('lib/app/app.dart'), [
+      "bool.fromEnvironment('REQUIRE_REAL_PUSH')",
+      'Real push is required but Firebase/FCM initialization failed.',
     ]);
     for (final workflow in [android, ios]) {
       expect(workflow, isNot(contains('flutter build ipa')));
@@ -706,6 +746,37 @@ void _registerCiContracts() {
       );
       expect(source, isNot(contains('JEEB_CLARITY_ENABLED=true')));
       expect(source, isNot(contains('JEEB_CLARITY_PROJECT_ID=')));
+    }
+  });
+
+  test('every protected Firebase candidate refuses fake push fallback', () {
+    final candidateCommands = <String, (String, String)>{
+      '.github/workflows/trusted-mobile-rc.yml': (
+        'flutter build appbundle --flavor production --release --no-pub',
+        'aab_count=',
+      ),
+      '.github/workflows/trusted-android-internal-devtool-rc.yml': (
+        'flutter build appbundle',
+        'test ! -e android/app/google-services.json',
+      ),
+      'tool/build_signed_ios_internal_candidate.sh': (
+        r'"${FLUTTER_BIN}" build ios',
+        'xcodebuild',
+      ),
+    };
+
+    for (final MapEntry(key: path, value: markers)
+        in candidateCommands.entries) {
+      final source = _source(path);
+      final start = source.indexOf(markers.$1);
+      final end = source.indexOf(markers.$2, start);
+      expect(start, greaterThanOrEqualTo(0), reason: path);
+      expect(end, greaterThan(start), reason: path);
+      expect(
+        source.substring(start, end),
+        contains('--dart-define=REQUIRE_REAL_PUSH=true'),
+        reason: path,
+      );
     }
   });
 

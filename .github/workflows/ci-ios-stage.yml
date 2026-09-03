@@ -53,7 +53,51 @@ jobs:
         run: bash tool/check_ios_dependency_ownership.sh
 
       - name: Validate protected iOS Firebase injection contract
-        run: bash tool/test_ios_firebase_config.sh
+        run: |
+          bash tool/test_ios_firebase_config.sh
+          bash tool/test_inspect_ios_dev_firebase_artifact.sh
+
+      - name: Compile and inspect synthetic iOS dev Firebase artifact
+        run: bash tool/build_ios_dev_firebase_contract.sh
+
+      - name: Build iOS dev with canonical protected Firebase config
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+          IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID }}
+          IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
+          IOS_GOOGLE_MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          set -euo pipefail
+          required=(
+            IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64
+            IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID
+            IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID
+            IOS_GOOGLE_MAPS_API_KEY
+          )
+          for variable in "${required[@]}"; do
+            [[ -n "${!variable:-}" ]] || {
+              echo "::error::Required iOS dev protected input is absent: ${variable}"
+              exit 1
+            }
+          done
+          maps_key_file="$(mktemp)"
+          cleanup() {
+            rm -f -- "${maps_key_file}"
+          }
+          trap cleanup EXIT HUP INT TERM
+          printf '%s\n' "${IOS_GOOGLE_MAPS_API_KEY}" >"${maps_key_file}"
+          chmod 0600 "${maps_key_file}"
+          unset IOS_GOOGLE_MAPS_API_KEY
+          IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key_file}" \
+            bash tool/run_with_ios_dev_firebase_config.sh \
+              flutter build ios --flavor dev --debug --simulator --no-pub \
+              --dart-define=APP_FLAVOR=dev \
+              --dart-define=REQUIRE_REAL_PUSH=true
+          bash tool/inspect_ios_dev_firebase_artifact.sh \
+            build/ios/iphonesimulator/Runner.app
+          test ! -e ios/Runner/GoogleService-Info.plist
+          test ! -e ios/Flutter/ProtectedFirebase.xcconfig
 
       - name: Validate signed iOS inspector negative contracts
         run: bash tool/test_inspect_signed_ios_release.sh
