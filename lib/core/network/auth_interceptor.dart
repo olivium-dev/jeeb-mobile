@@ -19,6 +19,9 @@ class BearerAuthInterceptor extends Interceptor {
         final token = await _tokenStore.accessToken;
         if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
+          // Only bearers WE attached are session tokens; callers that pin
+          // their own (act-as/admin devtool flows) must never be rotated.
+          options.extra[TokenRefreshInterceptor.sessionBearerFlag] = true;
         }
       } catch (_) {}
     }
@@ -35,6 +38,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     // expiry. Preconditions in docs/adr/0002-v1-unversioned-compat-window.md.
     this.refreshPath = '/v1/auth/refresh',
     this.proactiveWindow = const Duration(seconds: 60),
+    this.transientCooldown = const Duration(seconds: 20),
     DateTime Function()? clock,
     Future<void> Function()? onUnauthenticated,
   }) : _retryClient = retryClient,
@@ -51,6 +55,10 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
   /// A bearer whose `exp` falls inside this window is rotated before send.
   final Duration proactiveWindow;
 
+  /// After a transient refresh failure, no new attempt starts inside this
+  /// window — queued lanes are serial, so retries would stack 15s stalls.
+  final Duration transientCooldown;
+
   final DateTime Function() _clock;
   final Future<void> Function()? _onUnauthenticated;
 
@@ -58,7 +66,14 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
   /// concurrent callers await one physical refresh instead of racing rotation.
   Future<String?>? _inFlight;
 
+  DateTime? _cooldownUntil;
+
   static const String _retriedFlag = 'jeeb.auth.retried';
+
+  /// Set by [BearerAuthInterceptor] when it attaches the stored session
+  /// token. Requests without it carry a caller-owned bearer (or none) and
+  /// must pass through both lanes untouched.
+  static const String sessionBearerFlag = 'jeeb.auth.session_bearer';
 
   @override
   Future<void> onRequest(
@@ -66,7 +81,9 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     RequestInterceptorHandler handler,
   ) async {
     final sent = _bearerOf(options);
-    if (sent == null || options.path.contains('auth/refresh')) {
+    if (sent == null ||
+        options.extra[sessionBearerFlag] != true ||
+        options.path.contains('auth/refresh')) {
       handler.next(options);
       return;
     }
@@ -82,9 +99,9 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
       handler.next(options);
       return;
     }
-    // On failure the stale bearer goes out anyway; the reactive 401 path stays
-    // authoritative and owns the terminal-versus-transient decision.
-    final fresh = await _refreshSession();
+    // On failure the stale bearer goes out anyway; only the reactive 401
+    // lane may declare the session dead — never a pre-send optimization.
+    final fresh = await _refreshSession(allowTerminal: false);
     if (fresh != null) {
       options.headers['Authorization'] = 'Bearer $fresh';
     }
@@ -100,17 +117,26 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     final options = err.requestOptions;
 
     if (status != 401 ||
+        options.extra[sessionBearerFlag] != true ||
         options.path.contains('auth/refresh') ||
         options.extra[_retriedFlag] == true) {
       handler.next(err);
       return;
     }
 
+    // A consumed one-shot body cannot be replayed; refresh still runs so the
+    // session heals for later requests, but the caller keeps the 401.
+    final replayable = options.data is! FormData && options.data is! Stream;
+
     // Generation check: when storage already holds a different token, an
     // earlier queued 401 refreshed for us — retry, do not refresh again.
     final sent = _bearerOf(options);
     final stored = await _safeRead(() => _tokenStore.accessToken);
     if (stored != null && stored.isNotEmpty && stored != sent) {
+      if (!replayable) {
+        handler.next(err);
+        return;
+      }
       await _retryWith(stored, options, handler);
       return;
     }
@@ -122,8 +148,8 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
       return;
     }
 
-    final fresh = await _refreshSession();
-    if (fresh == null) {
+    final fresh = await _refreshSession(allowTerminal: true);
+    if (fresh == null || !replayable) {
       // Terminal failures already logged out inside; transient ones keep the
       // tokens. Either way the caller sees the original 401.
       handler.next(err);
@@ -148,18 +174,24 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     }
   }
 
-  Future<String?> _refreshSession() {
+  Future<String?> _refreshSession({required bool allowTerminal}) {
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
-    final started = _doRefresh().whenComplete(() => _inFlight = null);
+    final until = _cooldownUntil;
+    if (until != null && _clock().toUtc().isBefore(until)) {
+      return Future<String?>.value(null);
+    }
+    final started = _doRefresh(
+      allowTerminal: allowTerminal,
+    ).whenComplete(() => _inFlight = null);
     _inFlight = started;
     return started;
   }
 
-  Future<String?> _doRefresh() async {
+  Future<String?> _doRefresh({required bool allowTerminal}) async {
     final refreshToken = await _safeRead(() => _tokenStore.refreshToken);
     if (refreshToken == null || refreshToken.isEmpty) {
-      await _logout();
+      if (allowTerminal) await _logout();
       return null;
     }
 
@@ -170,36 +202,49 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
         data: {'refreshToken': refreshToken},
       );
     } on DioException catch (refreshErr) {
-      // Only a definitive 4xx verdict (e.g. auth/invalid_refresh) is terminal;
-      // network failures and 5xx must never log out an offline user.
+      // Only the gateway's own auth verdict is terminal. 429/408/404, edge
+      // 403-less noise, 5xx and network failures must never destroy tokens.
       final refreshStatus = refreshErr.response?.statusCode;
-      if (refreshStatus != null && refreshStatus >= 400 && refreshStatus < 500) {
+      if (allowTerminal && (refreshStatus == 401 || refreshStatus == 403)) {
         await _logout();
+      } else {
+        _cooldownUntil = _clock().toUtc().add(transientCooldown);
       }
       return null;
     }
 
-    final body = refreshResponse.data;
-    final newAccess = body is Map<String, dynamic>
-        ? body['accessToken'] as String?
-        : null;
-    final newRefresh = body is Map<String, dynamic>
-        ? body['refreshToken'] as String?
-        : null;
-    if (newAccess == null || newAccess.isEmpty) {
-      await _logout();
+    // Parse + persist may throw (malformed body, keystore write failure).
+    // An escaped async error would wedge dio's serialized lane — never throw.
+    try {
+      final body = refreshResponse.data;
+      final newAccess = body is Map<String, dynamic>
+          ? body['accessToken'] as String?
+          : null;
+      final newRefresh = body is Map<String, dynamic>
+          ? body['refreshToken'] as String?
+          : null;
+      if (newAccess == null || newAccess.isEmpty) {
+        if (allowTerminal) {
+          await _logout();
+        } else {
+          _cooldownUntil = _clock().toUtc().add(transientCooldown);
+        }
+        return null;
+      }
+      final existingUserId = await _safeRead(() => _tokenStore.userId);
+      await _tokenStore.save(
+        accessToken: newAccess,
+        refreshToken: (newRefresh != null && newRefresh.isNotEmpty)
+            ? newRefresh
+            : refreshToken,
+        userId: existingUserId,
+      );
+      _cooldownUntil = null;
+      return newAccess;
+    } catch (_) {
+      _cooldownUntil = _clock().toUtc().add(transientCooldown);
       return null;
     }
-
-    final existingUserId = await _safeRead(() => _tokenStore.userId);
-    await _tokenStore.save(
-      accessToken: newAccess,
-      refreshToken: (newRefresh != null && newRefresh.isNotEmpty)
-          ? newRefresh
-          : refreshToken,
-      userId: existingUserId,
-    );
-    return newAccess;
   }
 
   String? _bearerOf(RequestOptions options) {
