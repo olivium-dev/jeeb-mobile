@@ -50,7 +50,21 @@ expect_contract_file_failure() {
   fi
 }
 
+without_rg_path() {
+  local bin_dir="${TMP_DIR}/without-rg-bin"
+  mkdir -p "${bin_dir}"
+
+  local tool tool_path
+  for tool in bash dirname grep jq shasum awk; do
+    tool_path="$(command -v "${tool}")"
+    ln -sf "${tool_path}" "${bin_dir}/${tool}"
+  done
+
+  printf '%s\n' "${bin_dir}"
+}
+
 bash "${VALIDATOR}" >/dev/null
+PATH="$(without_rg_path)" bash "${VALIDATOR}" >/dev/null
 reformatted_contract="${TMP_DIR}/reformatted.json"
 jq -c . "${CANONICAL_CONTRACT}" >"${reformatted_contract}"
 expect_contract_file_failure reformatted-contract "${reformatted_contract}"

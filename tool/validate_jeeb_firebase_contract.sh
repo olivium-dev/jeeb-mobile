@@ -12,8 +12,25 @@ fail() {
   exit 1
 }
 
+has_rg=false
+if command -v rg >/dev/null 2>&1; then
+  has_rg=true
+else
+  command -v grep >/dev/null 2>&1 || fail 'rg or grep is required'
+fi
+
+search_quiet() {
+  local pattern="$1"
+  shift
+
+  if [[ "${has_rg}" == true ]]; then
+    rg -q -- "${pattern}" "$@"
+  else
+    grep -E -R -q -- "${pattern}" "$@"
+  fi
+}
+
 command -v jq >/dev/null 2>&1 || fail 'jq is required'
-command -v rg >/dev/null 2>&1 || fail 'rg is required'
 command -v shasum >/dev/null 2>&1 || fail 'shasum is required'
 [[ -s "${CONTRACT}" ]] || fail 'contracts/jeeb-firebase-v1.json is missing'
 [[ -s "${APPS}" ]] || fail 'mobile app registration contract is missing'
@@ -83,26 +100,26 @@ jq -e '
 jq -e '.projects.default == "jeeb-5a293"' \
   "${REPO_ROOT}/.firebaserc" >/dev/null || fail '.firebaserc default project drifted'
 
-rg -q 'applicationId "app\.jeeb\.mobile\.dev"' \
+search_quiet 'applicationId "app\.jeeb\.mobile\.dev"' \
   "${REPO_ROOT}/android/app/build.gradle" || fail 'Android dev package drifted'
-rg -q 'applicationId "com\.olivium\.jeeb"' \
+search_quiet 'applicationId "com\.olivium\.jeeb"' \
   "${REPO_ROOT}/android/app/build.gradle" || fail 'Android store package drifted'
-rg -q 'PRODUCT_BUNDLE_IDENTIFIER = app\.jeeb\.jeebMobile\.dev;' \
+search_quiet 'PRODUCT_BUNDLE_IDENTIFIER = app\.jeeb\.jeebMobile\.dev;' \
   "${REPO_ROOT}/ios/Runner.xcodeproj/project.pbxproj" || fail 'iOS dev bundle drifted'
-rg -q 'PRODUCT_BUNDLE_IDENTIFIER = com\.olivium\.jeeb;' \
+search_quiet 'PRODUCT_BUNDLE_IDENTIFIER = com\.olivium\.jeeb;' \
   "${REPO_ROOT}/ios/Runner.xcodeproj/project.pbxproj" || fail 'iOS store bundle drifted'
 
-if rg -q 'EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info\.plist"' \
+if search_quiet 'EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info\.plist"' \
   "${REPO_ROOT}/ios/Runner.xcodeproj/project.pbxproj"; then
   fail 'an iOS build configuration excludes Firebase'
 fi
 
-if rg -q 'FirebaseFirestore\.instanceFor|databaseId[[:space:]]*:' \
+if search_quiet 'FirebaseFirestore\.instanceFor|databaseId[[:space:]]*:' \
   "${REPO_ROOT}/lib"; then
   fail 'mobile code selects a named Firestore database'
 fi
 
-if rg -q 'DEV_FIREBASE_EXPECTED_PROJECT_(ID|NUMBER)|FIREBASE_EXPECTED_APP_ID' \
+if search_quiet 'DEV_FIREBASE_EXPECTED_PROJECT_(ID|NUMBER)|FIREBASE_EXPECTED_APP_ID' \
   "${REPO_ROOT}/.github/workflows" \
   "${REPO_ROOT}/tool/run_with_android_firebase_config.sh" \
   "${REPO_ROOT}/tool/run_with_dev_firebase_config.sh" \
