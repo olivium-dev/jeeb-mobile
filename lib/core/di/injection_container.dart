@@ -168,6 +168,7 @@ void configureDependencies({
   sl.registerLazySingleton<Dio>(
     () => MockGatewayClient.createDio(
       baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
+      tokenStore: sl<AuthTokenStore>(),
       // b02 P0: rate limit window trailing edge — screen holds pre-429 snapshot
       onRateLimitWindowClosed: () {
         if (!sl.isRegistered<PushRefreshSignals>()) return;

@@ -4,7 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/dev_base_url.dart';
 import '../network/auth_token_store.dart';
+import '../network/jwt_expiry.dart';
 import '../network/mock_gateway_client.dart';
 import '../onboarding/onboarding_cubit.dart';
 import '../role/role_cubit.dart';
@@ -94,29 +96,38 @@ class SessionSeamBootstrap {
           await _completeOnboarding(prefs);
           await _setRole(prefs, _superLoginRole());
           final realToken = DevSeam.current.superLoginToken;
-          if (realToken.isNotEmpty) {
-            final refreshToken =
-                DevSeam.current.superLoginRefreshToken.isNotEmpty
-                ? DevSeam.current.superLoginRefreshToken
-                : realToken; // fallback: use access token as refresh placeholder
-            final userId = DevSeam.current.superLoginUserId.isNotEmpty
-                ? DevSeam.current.superLoginUserId
-                : null; // null → AuthTokenStore.save skips writing userId
-            await tokens.save(
-              accessToken: realToken,
-              refreshToken: refreshToken,
-              userId: userId,
-            );
-            debugPrint(
-              'SessionSeamBootstrap super_login_plus: real gateway token '
-              'written for userId=$userId',
-            );
-          } else {
+          if (realToken.isEmpty) {
             debugPrint(
               'SessionSeamBootstrap super_login_plus: no token supplied '
               '(jeeb.seam.super_login_token absent) — landing on /login',
             );
+            break;
           }
+          // A stale seam file (it survives uninstall) must not fake a live
+          // session: prove the token against the gateway before trusting it.
+          final verdict = await _verifySeamToken(realToken, prefs);
+          if (verdict == SeamTokenVerdict.rejected) {
+            debugPrint(
+              'SessionSeamBootstrap super_login_plus: seam token REJECTED '
+              '(expired or revoked) — ignoring it, landing on /login',
+            );
+            break;
+          }
+          // Never substitute the access token for a missing refresh token —
+          // an empty value cleanly routes the refresh logic to logout.
+          final refreshToken = DevSeam.current.superLoginRefreshToken;
+          final userId = DevSeam.current.superLoginUserId.isNotEmpty
+              ? DevSeam.current.superLoginUserId
+              : null; // null → AuthTokenStore.save skips writing userId
+          await tokens.save(
+            accessToken: realToken,
+            refreshToken: refreshToken,
+            userId: userId,
+          );
+          debugPrint(
+            'SessionSeamBootstrap super_login_plus: real gateway token '
+            'written for userId=$userId (${verdict.name})',
+          );
       }
       if (seed != SessionSeed.none) {
         debugPrint('SessionSeamBootstrap seeded session: ${seed.name}');
@@ -142,6 +153,65 @@ class SessionSeamBootstrap {
       debugPrint('$stack');
     }
   }
+
+  /// One cheap authed probe with a hard timeout. Only a definitive 401/403
+  /// (or a locally expired exp) rejects; offline development stays fail-open.
+  @visibleForTesting
+  static Future<SeamTokenVerdict> verifySeamToken(
+    String token, {
+    required Uri? Function() resolveBase,
+    Dio? client,
+    DateTime Function()? clock,
+  }) async {
+    final exp = jwtExpiry(token);
+    final now = (clock ?? DateTime.now)().toUtc();
+    if (exp != null && !exp.isAfter(now)) return SeamTokenVerdict.rejected;
+    try {
+      final base = resolveBase();
+      // `.invalid` is the deliberately unroutable dev placeholder — probing it
+      // only stalls boot, so treat it as "cannot verify".
+      if (base == null || base.host.endsWith('.invalid')) {
+        return SeamTokenVerdict.unverified;
+      }
+      final dio =
+          client ??
+          Dio(
+            BaseOptions(
+              baseUrl: base.toString(),
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 5),
+            ),
+          );
+      final response = await dio.get<Object?>(
+        MockGatewayClient.rewritePath('/v1/users/me'),
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          validateStatus: (_) => true,
+        ),
+      );
+      final status = response.statusCode ?? 0;
+      if (status >= 200 && status < 300) return SeamTokenVerdict.verified;
+      if (status == 401 || status == 403) return SeamTokenVerdict.rejected;
+      return SeamTokenVerdict.unverified;
+    } catch (_) {
+      return SeamTokenVerdict.unverified;
+    }
+  }
+
+  static Future<SeamTokenVerdict> _verifySeamToken(
+    String token,
+    SharedPreferences prefs,
+  ) => verifySeamToken(
+    token,
+    resolveBase: () {
+      try {
+        final override = DevBaseUrl.read(prefs);
+        return Uri.parse(override ?? MockGatewayClient.mockBaseUrl);
+      } catch (_) {
+        return null; // transport-policy violation → cannot probe, fail open
+      }
+    },
+  );
 
   static Future<void> _seedMockState({
     required SessionSeed seed,
@@ -297,6 +367,8 @@ class SessionSeamBootstrap {
     await tokens.clear();
   }
 }
+
+enum SeamTokenVerdict { verified, rejected, unverified }
 
 class SeededAccountStatusGate implements AccountStatusGate {
   SeededAccountStatusGate(SharedPreferences prefs)
