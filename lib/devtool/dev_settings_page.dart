@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config/dev_base_url.dart';
 import '../core/di/injection_container.dart';
 import '../core/network/mock_gateway_client.dart';
+import 'env_index/env_index_client.dart';
+import 'env_index/published_environments_section.dart';
 
 const String kConfiguredDevGatewayBaseUrl = String.fromEnvironment(
   'JEEB_DEV_GATEWAY_BASE_URL',
@@ -101,6 +103,17 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
                 ),
             ],
           ),
+          const SizedBox(height: 24),
+          if (EnvIndexClient.isConfigured)
+            PublishedEnvironmentsSection(
+              onPick: (url) => setState(() => _controller.text = url),
+            )
+          else
+            Text(
+              'Published environment index disabled '
+              '(JEEB_ENV_INDEX_KEY not set).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           const SizedBox(height: 16),
           FilledButton(onPressed: _save, child: const Text('Save')),
           const SizedBox(height: 8),
