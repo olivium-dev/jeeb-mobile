@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../config/app_config.dart';
 import '../diagnostics/diag_dio_interceptor.dart';
 import '../observability/session_trace/capture/obs_dio_interceptor.dart';
+import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
@@ -109,23 +110,45 @@ class MockGatewayClient {
       ? '/users/$userId/saved-locations'
       : '/api/users/me/saved-locations';
 
+  static BaseOptions _baseOptions(String baseUrl) => BaseOptions(
+    baseUrl: baseUrl,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+  );
+
   static Dio createDio({
     String? baseUrl,
     void Function()? onRateLimitWindowClosed,
+    AuthTokenStore? tokenStore,
   }) {
     final effectiveBaseUrl = baseUrl ?? mockBaseUrl;
+    final store = tokenStore ?? AuthTokenStore();
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: effectiveBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+    final dio = Dio(_baseOptions(effectiveBaseUrl));
+
+    // Refresh runs on a bare client so it can never recurse into auth
+    // handling; the scoped fallback keeps the /v1 flag-day twin reachable.
+    final refreshClient = Dio(_baseOptions(effectiveBaseUrl));
+    ObsDioInterceptor.attachTo(refreshClient);
+    refreshClient.interceptors.add(
+      UnversionedPathFallbackInterceptor(
+        refreshClient,
+        scopedToSubtrees: const <String>['/v1/auth'],
       ),
     );
+
+    // Retries must NOT replay through `dio`: its queued error lane is still
+    // held by the refresh task, so a failing retry would deadlock the client.
+    final retryClient = Dio(_baseOptions(effectiveBaseUrl));
+    ObsDioInterceptor.attachTo(retryClient);
+    retryClient.interceptors.add(const DiagDioInterceptor());
+    if (kDebugMode) {
+      retryClient.interceptors.add(const RedactingLogInterceptor());
+    }
 
     dio.interceptors.add(
       RateLimitInterceptor(onBackoffWindowClosed: onRateLimitWindowClosed),
@@ -135,7 +158,7 @@ class MockGatewayClient {
       dio.interceptors.add(_PathRewriteInterceptor());
     }
 
-    dio.interceptors.add(_AuthInterceptor());
+    dio.interceptors.add(BearerAuthInterceptor(store));
 
     dio.interceptors.add(const DiagDioInterceptor());
 
@@ -143,6 +166,16 @@ class MockGatewayClient {
     // it. The replay then traverses this interceptor again and gets its own
     // capture, so `/v1/...` 404 + unversioned 200 remain distinct attempts.
     ObsDioInterceptor.attachTo(dio);
+
+    // 401 -> refresh -> retry; must sit before the unversioned fallback so an
+    // auth failure is never masked by a compat replay.
+    dio.interceptors.add(
+      TokenRefreshInterceptor(
+        retryClient: retryClient,
+        refreshClient: refreshClient,
+        tokenStore: store,
+      ),
+    );
 
     // W6-02 compat window: a 404/405 on `/v1/...` is retried unversioned.
     dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
@@ -194,35 +227,5 @@ class _PathRewriteInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     options.path = MockGatewayClient.rewritePath(options.path);
     handler.next(options);
-  }
-}
-
-class _AuthInterceptor extends Interceptor {
-  String? _token;
-
-  void setToken(String token) => _token = token;
-
-  final AuthTokenStore _tokenStore = AuthTokenStore();
-
-  @override
-  Future<void> onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) async {
-    if (!options.headers.containsKey('Authorization')) {
-      final token = _token ?? await _readStoreToken();
-      if (token != null && token.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-    }
-    handler.next(options);
-  }
-
-  Future<String?> _readStoreToken() async {
-    try {
-      return await _tokenStore.accessToken;
-    } catch (_) {
-      return null;
-    }
   }
 }

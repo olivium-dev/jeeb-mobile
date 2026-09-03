@@ -70,12 +70,21 @@ ResponseBody _json(Map<String, dynamic> body, int status) =>
       },
     );
 
+/// Unsigned JWT whose payload carries only `exp`, for proactive-window tests.
+String _jwtWithExp(DateTime exp) {
+  String seg(Map<String, Object?> claims) =>
+      base64Url.encode(utf8.encode(jsonEncode(claims))).replaceAll('=', '');
+  return '${seg({'alg': 'none'})}.'
+      '${seg({'exp': exp.toUtc().millisecondsSinceEpoch ~/ 1000})}.sig';
+}
+
 void main() {
   late _MockTokenStore store;
 
   // Defaults used by the happy-refresh path; individual tests override.
   setUp(() {
     store = _MockTokenStore();
+    when(() => store.accessToken).thenAnswer((_) async => null);
     when(() => store.refreshToken).thenAnswer((_) async => 'old-refresh');
     when(() => store.userId).thenAnswer((_) async => 'user-1');
     when(
@@ -468,6 +477,194 @@ void main() {
       expect(h.retryAdapter.callCount, 0);
       verify(() => store.clear()).called(1);
       expect(h.logoutCalls, ['logout']);
+    });
+  });
+
+  group('terminal vs transient refresh failure', () {
+    test('a network failure during refresh keeps tokens: NO logout', () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (options) => throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        ),
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
+      );
+
+      // An offline device must never lose its session over a blip.
+      expect(h.refreshAdapter.callCount, 1);
+      expect(h.retryAdapter.callCount, 0);
+      verifyNever(() => store.clear());
+      expect(h.logoutCalls, isEmpty);
+    });
+
+    test('a 503 from refresh keeps tokens: NO logout', () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'error': 'unavailable'}, 503),
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
+        throwsA(isA<DioException>()),
+      );
+
+      // A gateway outage is not a verdict on the session.
+      verifyNever(() => store.clear());
+      expect(h.logoutCalls, isEmpty);
+    });
+  });
+
+  group('single-flight and generation check', () {
+    test('a rotated store token skips refresh and retries directly', () async {
+      when(() => store.accessToken).thenAnswer((_) async => 'rotated-access');
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'data': 'fresh'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
+
+      final res = await h.mainDio.get<dynamic>(
+        '/v1/jeeb/wallet',
+        options: Options(headers: {'Authorization': 'Bearer stale-access'}),
+      );
+
+      expect(res.statusCode, 200);
+      expect(h.refreshAdapter.callCount, 0);
+      expect(h.retryAdapter.callCount, 1);
+      expect(
+        h.retryAdapter.requests.single.headers['Authorization'],
+        'Bearer rotated-access',
+      );
+      verifyNever(() => store.clear());
+    });
+
+    test('ten concurrent 401s trigger exactly ONE refresh', () async {
+      var access = 'stale-access';
+      var refresh = 'old-refresh';
+      when(() => store.accessToken).thenAnswer((_) async => access);
+      when(() => store.refreshToken).thenAnswer((_) async => refresh);
+      when(
+        () => store.save(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+          userId: any(named: 'userId'),
+        ),
+      ).thenAnswer((invocation) async {
+        access = invocation.namedArguments[#accessToken] as String;
+        refresh = invocation.namedArguments[#refreshToken] as String;
+      });
+
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'ok': true}, 200),
+        refreshResponder: (_) => _json({
+          'accessToken': 'new-access',
+          'refreshToken': 'new-refresh',
+        }, 200),
+      );
+
+      final results = await Future.wait(
+        List.generate(
+          10,
+          (i) => h.mainDio.get<dynamic>(
+            '/v1/jeeb/wallet/$i',
+            options: Options(headers: {'Authorization': 'Bearer stale-access'}),
+          ),
+        ),
+      );
+
+      expect(results.map((r) => r.statusCode), everyElement(200));
+      // The leader refreshes; the nine followers see the rotated generation
+      // in storage and go straight to retry.
+      expect(h.refreshAdapter.callCount, 1);
+      expect(h.retryAdapter.callCount, 10);
+      for (final retried in h.retryAdapter.requests) {
+        expect(retried.headers['Authorization'], 'Bearer new-access');
+      }
+      expect(h.logoutCalls, isEmpty);
+    });
+  });
+
+  group('proactive refresh before expiry', () {
+    test('a bearer expiring inside the window is rotated pre-send', () async {
+      final nearExpiry = _jwtWithExp(
+        DateTime.now().add(const Duration(seconds: 30)),
+      );
+      when(() => store.accessToken).thenAnswer((_) async => nearExpiry);
+      final h = buildHarness(
+        mainResponder: (_) => _json({'ok': true}, 200),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({
+          'accessToken': 'new-access',
+          'refreshToken': 'new-refresh',
+        }, 200),
+      );
+
+      final res = await h.mainDio.get<dynamic>(
+        '/v1/jeeb/wallet',
+        options: Options(headers: {'Authorization': 'Bearer $nearExpiry'}),
+      );
+
+      expect(res.statusCode, 200);
+      expect(h.refreshAdapter.callCount, 1);
+      // The wire never saw the dying token.
+      expect(
+        h.mainAdapter.requests.single.headers['Authorization'],
+        'Bearer new-access',
+      );
+      expect(h.retryAdapter.callCount, 0);
+    });
+
+    test('a far-expiry bearer goes out unchanged, no refresh', () async {
+      final healthy = _jwtWithExp(DateTime.now().add(const Duration(hours: 1)));
+      final h = buildHarness(
+        mainResponder: (_) => _json({'ok': true}, 200),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
+
+      final res = await h.mainDio.get<dynamic>(
+        '/v1/jeeb/wallet',
+        options: Options(headers: {'Authorization': 'Bearer $healthy'}),
+      );
+
+      expect(res.statusCode, 200);
+      expect(h.refreshAdapter.callCount, 0);
+      expect(
+        h.mainAdapter.requests.single.headers['Authorization'],
+        'Bearer $healthy',
+      );
+    });
+
+    test('an opaque (non-JWT) bearer is never proactively refreshed', () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'ok': true}, 200),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
+
+      final res = await h.mainDio.get<dynamic>(
+        '/v1/jeeb/wallet',
+        options: Options(
+          headers: {'Authorization': 'Bearer mock-jwt-access-user-client-001'},
+        ),
+      );
+
+      expect(res.statusCode, 200);
+      expect(h.refreshAdapter.callCount, 0);
     });
   });
 }
