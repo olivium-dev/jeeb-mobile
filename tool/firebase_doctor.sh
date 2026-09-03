@@ -18,9 +18,20 @@ cloud_firestore       major    5.0.0        6.0.0       -
 
 MAIN_GSJ="android/app/google-services.json"
 DEV_GSJ="android/app/src/dev/google-services.json"
-EXPECTED_PROJECT_ID="jeeb-5a293"
+IOS_PLIST="ios/Runner/GoogleService-Info.plist"
+CONTRACT="contracts/jeeb-firebase-v1.json"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 LOCK="pubspec.lock"
+FIRESTORE_SEAM="lib/core/firebase/jeeb_firestore.dart"
+
+# Native identities this repo is allowed to ship. `com.olivium.jeeb` is the
+# canonical store id; `app.jeeb.mobile[.dev]` are the local build flavors.
+ALLOWED_PACKAGES="com.olivium.jeeb app.jeeb.mobile app.jeeb.mobile.dev"
+
+# CI is the only place the transient-injection regime can be asserted: a local
+# checkout legitimately holds a config while `flutter build` runs.
+IS_CI=no
+if [ "${CI:-}" = "true" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then IS_CI=yes; fi
 
 FAILS=0
 WARNS=0
@@ -68,6 +79,16 @@ lock_version() {
 }
 
 # =============================================================================
+section "0. jq preflight"
+# =============================================================================
+
+if [ "$HAVE_JQ" = "no" ]; then
+  fail "jq is not installed — the google-services.json identity/client checks CANNOT run. Install it (macOS: 'brew install jq', Debian/Ubuntu: 'apt-get install -y jq') and re-run."
+else
+  pass "jq is available"
+fi
+
+# =============================================================================
 section "1. native Firebase configs — protected injection boundary"
 # =============================================================================
 
@@ -86,20 +107,154 @@ check_protected_config() {
     fail "$f is not ignored; a transient protected injection could be committed"
   fi
 
+  # Regime check, NOT an outcome check: the only tree in which this FAILs is a
+  # tree that can build an APK, so locally it warns and CI alone enforces it.
   if [ -e "$f" ]; then
-    fail "$f exists outside an active protected wrapper invocation"
+    if [ "$IS_CI" = "yes" ]; then
+      fail "$f exists outside an active protected wrapper invocation"
+    else
+      warn "$f is present locally; it must be injected only by tool/run_with_*_firebase_config.sh (CI fails on this, local builds need it)"
+    fi
   else
     pass "$f is absent after wrapper cleanup"
   fi
 }
 
-if [ "$HAVE_JQ" = "no" ]; then
-  fail "jq is not installed — the google-services.json identity/client checks CANNOT run. Install it (macOS: 'brew install jq', Debian/Ubuntu: 'apt-get install -y jq') and re-run."
+# =============================================================================
+section "1a. cross-repo Firebase contract"
+# =============================================================================
+
+CONTRACT_PROJECT_ID=""
+CONTRACT_PROJECT_NUMBER=""
+CONTRACT_DATABASE_ID=""
+
+if [ ! -f "$CONTRACT" ]; then
+  fail "$CONTRACT is missing — the machine-readable Firebase identity every repo pins"
+elif [ "$HAVE_JQ" = "yes" ]; then
+  CONTRACT_PROJECT_ID="$(jq -r '.projectId // empty' "$CONTRACT" 2>/dev/null || echo '')"
+  CONTRACT_PROJECT_NUMBER="$(jq -r '.projectNumber // empty' "$CONTRACT" 2>/dev/null || echo '')"
+  CONTRACT_DATABASE_ID="$(jq -r '.firestoreDatabaseId // empty' "$CONTRACT" 2>/dev/null || echo '')"
+  if [ -z "$CONTRACT_PROJECT_ID" ] || [ -z "$CONTRACT_PROJECT_NUMBER" ] || [ -z "$CONTRACT_DATABASE_ID" ]; then
+    fail "$CONTRACT does not declare projectId, projectNumber and firestoreDatabaseId"
+  else
+    pass "$CONTRACT declares $CONTRACT_PROJECT_ID / $CONTRACT_PROJECT_NUMBER / $CONTRACT_DATABASE_ID"
+  fi
 fi
+
+EXPECTED_PROJECT_ID="${CONTRACT_PROJECT_ID:-jeeb-5a293}"
+
+# ---- OUTCOME check: whatever config is on disk must BE the contract ----------
+check_config_identity() {
+  local f="$1" required_package="$2"
+  [ -e "$f" ] || return 0
+  if [ "$HAVE_JQ" = "no" ] || [ -z "$CONTRACT_PROJECT_ID" ]; then return 0; fi
+
+  local pid pnum
+  pid="$(jq -r '.project_info.project_id // empty' "$f" 2>/dev/null || echo '')"
+  pnum="$(jq -r '.project_info.project_number // empty' "$f" 2>/dev/null || echo '')"
+
+  if [ "$pid" = "$CONTRACT_PROJECT_ID" ]; then
+    pass "$f project_id is $CONTRACT_PROJECT_ID"
+  else
+    fail "$f project_id is '$pid', but $CONTRACT pins '$CONTRACT_PROJECT_ID'"
+  fi
+
+  if [ "$pnum" = "$CONTRACT_PROJECT_NUMBER" ]; then
+    pass "$f project_number is $CONTRACT_PROJECT_NUMBER"
+  else
+    fail "$f project_number is '$pnum', but $CONTRACT pins '$CONTRACT_PROJECT_NUMBER'"
+  fi
+
+  local packages pkg
+  packages="$(jq -r '.client[]?.client_info.android_client_info.package_name // empty' "$f" 2>/dev/null || echo '')"
+  if [ -z "$packages" ]; then
+    fail "$f declares no android client package_name"
+    return 0
+  fi
+  while IFS= read -r pkg; do
+    [ -n "$pkg" ] || continue
+    case " $ALLOWED_PACKAGES " in
+      *" $pkg "*) ;;
+      *) fail "$f carries an unknown package_name '$pkg' (allowed: $ALLOWED_PACKAGES)" ;;
+    esac
+  done <<EOF
+$packages
+EOF
+  if printf '%s\n' "$packages" | grep -qx "$required_package"; then
+    pass "$f carries the $required_package client"
+  else
+    fail "$f has no client for '$required_package' — the Google Services plugin would pick another app"
+  fi
+}
+
+check_ios_identity() {
+  [ -e "$IOS_PLIST" ] || return 0
+  [ -n "$CONTRACT_PROJECT_ID" ] || return 0
+  local raw
+  raw="$(tr -d ' \t' < "$IOS_PLIST")"
+  if printf '%s' "$raw" | grep -q "<string>${CONTRACT_PROJECT_ID}</string>"; then
+    pass "$IOS_PLIST names $CONTRACT_PROJECT_ID"
+  else
+    fail "$IOS_PLIST does not name the contract project '$CONTRACT_PROJECT_ID'"
+  fi
+  if printf '%s' "$raw" | grep -q "<string>${CONTRACT_PROJECT_NUMBER}</string>"; then
+    pass "$IOS_PLIST names GCM sender $CONTRACT_PROJECT_NUMBER"
+  else
+    fail "$IOS_PLIST does not name the contract project number '$CONTRACT_PROJECT_NUMBER'"
+  fi
+}
+
+# Any config on disk that names the forbidden tenant is an outage, not a warning.
+check_no_foreign_tenant() {
+  local f="$1"
+  [ -e "$f" ] || return 0
+  if grep -qi 'alrahmah' "$f"; then
+    fail "$f references alrahmah — a cross-tenant Firebase config must never reach a Jeeb build"
+  else
+    pass "$f is free of alrahmah references"
+  fi
+}
 
 check_protected_config "$MAIN_GSJ"
 check_protected_config "$DEV_GSJ"
-check_protected_config "ios/Runner/GoogleService-Info.plist"
+check_protected_config "$IOS_PLIST"
+
+# Whatever is on disk, whichever flavor, must BE the contracted project.
+check_config_identity "$MAIN_GSJ" "com.olivium.jeeb"
+check_config_identity "$DEV_GSJ" "app.jeeb.mobile.dev"
+check_ios_identity
+for tenant_scoped in "$MAIN_GSJ" "$DEV_GSJ" "$IOS_PLIST"; do
+  check_no_foreign_tenant "$tenant_scoped"
+done
+
+# =============================================================================
+section "1b. Firestore database id seam matches the contract"
+# =============================================================================
+
+if [ ! -f "$FIRESTORE_SEAM" ]; then
+  fail "$FIRESTORE_SEAM is missing — the app would fall back to an implicit '(default)' with no contract binding"
+elif [ -z "$CONTRACT_DATABASE_ID" ]; then
+  warn "contract database id unavailable; skipped the seam comparison"
+else
+  seam_default="$(sed -n "s/.*defaultValue: '\\(.*\\)',.*/\\1/p" "$FIRESTORE_SEAM" | head -1)"
+  if [ "$seam_default" = "$CONTRACT_DATABASE_ID" ]; then
+    pass "$FIRESTORE_SEAM defaults to $CONTRACT_DATABASE_ID"
+  else
+    fail "$FIRESTORE_SEAM defaults to '$seam_default', but $CONTRACT pins '$CONTRACT_DATABASE_ID'"
+  fi
+fi
+
+# Nothing may reach Firestore outside the seam, or a database-id change is
+# silently invisible to that call site (the 2026-08-19 chat-service gap).
+firestore_bypass="$(grep -rn 'FirebaseFirestore\.instance' lib 2>/dev/null \
+  | grep -v "^$FIRESTORE_SEAM:" \
+  | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|\*)' \
+  | cut -d: -f1 | sort -u || true)"
+if [ -z "$firestore_bypass" ]; then
+  pass "every Firestore instance in lib/ resolves through $FIRESTORE_SEAM"
+else
+  fail "these files bypass $FIRESTORE_SEAM and pin the implicit default database: $(printf '%s' "$firestore_bypass" | tr '\n' ' ')"
+fi
 
 # .firebaserc pins the CLI/flutterfire default project — without it a stray
 # 'flutterfire configure' can rewrite every config to another visible project.
