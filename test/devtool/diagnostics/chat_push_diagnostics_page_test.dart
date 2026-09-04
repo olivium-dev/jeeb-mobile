@@ -183,5 +183,36 @@ void main() {
       );
       expect(find.textContaining('Survives reinstall'), findsOneWidget);
     });
+
+    // The Dev Tool shell can open before DI bootstrap registers prefs.
+    testWidgets('renders nothing when GetIt has no SharedPreferences', (
+      tester,
+    ) async {
+      expect(GetIt.instance.isRegistered<SharedPreferences>(), isFalse);
+      await pump(tester, const DevBaseUrlBanner());
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey('devtool.baseUrlOverrideBanner')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('reads the override out of GetIt when registered', (
+      tester,
+    ) async {
+      final prefs = await _prefsWith(<String, Object>{
+        DevBaseUrl.prefsKey: 'https://msi.olivium.space/gateway',
+      });
+      GetIt.instance.registerSingleton<SharedPreferences>(prefs);
+      await pump(tester, const DevBaseUrlBanner());
+      expect(
+        find.byKey(const ValueKey('devtool.baseUrlOverrideBanner')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('https://msi.olivium.space/gateway'),
+        findsOneWidget,
+      );
+    });
   });
 }

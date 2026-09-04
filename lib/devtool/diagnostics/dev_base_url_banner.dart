@@ -14,7 +14,10 @@ class DevBaseUrlBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final prefs = preferences ?? sl<SharedPreferences>();
+    // The Dev Tool shell can open before DI bootstrap; no prefs = no override
+    // to report, so render nothing rather than throwing out of build().
+    final prefs = preferences ?? _registeredPreferences();
+    if (prefs == null) return const SizedBox.shrink();
     final resolved = resolveBaseUrlForBuild(override: DevBaseUrl.read(prefs));
     if (!resolved.overrideDivergesFromBuild) return const SizedBox.shrink();
 
@@ -47,3 +50,7 @@ class DevBaseUrlBanner extends StatelessWidget {
     );
   }
 }
+
+/// Null before `configureDependencies` has registered SharedPreferences.
+SharedPreferences? _registeredPreferences() =>
+    sl.isRegistered<SharedPreferences>() ? sl<SharedPreferences>() : null;
