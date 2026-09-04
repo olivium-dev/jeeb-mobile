@@ -15,8 +15,6 @@ fail() {
 
 [[ $# -gt 0 ]] || fail 'a build or validation command is required'
 [[ -n "${ENCODED_CONFIG}" ]] || fail 'protected plist input is missing'
-[[ -n "${IOS_FIREBASE_EXPECTED_APP_ID:-}" ]] ||
-  fail 'protected expected Firebase app identity is missing'
 [[ -n "${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}" ]] ||
   fail 'protected approved Google Sign-In client identity is missing'
 [[ -n "${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}" ]] ||
@@ -77,9 +75,9 @@ printf 'GOOGLE_REVERSED_CLIENT_ID = %s\nGOOGLE_MAPS_API_KEY = %s\n' \
 created_xcconfig=true
 chmod 0600 "${PROTECTED_XCCONFIG_PATH}"
 unset reversed_client_id maps_api_key MAPS_KEY_FILE
-unset IOS_FIREBASE_EXPECTED_APP_ID
 unset IOS_FIREBASE_EXPECTED_CLIENT_ID
 unset IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID
+unset IOS_FIREBASE_VARIANT
 unset IOS_GOOGLE_MAPS_API_KEY_FILE
 
 "$@"

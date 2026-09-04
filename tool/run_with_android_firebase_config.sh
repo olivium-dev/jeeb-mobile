@@ -13,8 +13,6 @@ fail() {
 
 [[ $# -gt 0 ]] || fail 'a build or validation command is required'
 [[ -n "${ENCODED_CONFIG}" ]] || fail 'protected JSON input is missing'
-[[ -n "${ANDROID_FIREBASE_EXPECTED_APP_ID:-}" ]] ||
-  fail 'protected expected Firebase app identity is missing'
 [[ -n "${ANDROID_UPLOAD_CERT_SHA1:-}" ]] ||
   fail 'approved upload SHA-1 fingerprint is missing'
 [[ -n "${ANDROID_UPLOAD_CERT_SHA256:-}" ]] ||

@@ -1,5 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-dev.xcconfig"
 #include "Generated.xcconfig"
+#include "ProtectedFirebase.xcconfig"
 
 // Appended to Flutter's live DART_DEFINES by the Runner build phase so CLI
 // defines (gateway URL, build SHA, and similar) remain intact.

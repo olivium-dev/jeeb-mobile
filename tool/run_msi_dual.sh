@@ -6,8 +6,8 @@
 # (192.168.2.39:10090) — NOT the Express mock — and installs it on the two
 # acceptance phones simultaneously:
 #
-#   Galaxy S24 = CLIENT  (Nour,  role customer -> client)
-#   Galaxy A33 = JEEBER  (Karim, role driver   -> jeeber)
+#   first attached physical phone  = CLIENT
+#   second attached physical phone = JEEBER
 #
 # The acceptance gate REQUIRES USE_MOCK_GATEWAY=false: pointing the "done" run
 # at the mock (:4010) is a false PASS (the mock chat-service emits no push).
@@ -15,20 +15,19 @@
 # This script does NOT log in for you and never touches the super-admin
 # passcode — read it on MSI at run time from ~/iter5-runtime/keys and drive
 # super-login per device from the adb loop (see CODEX-MAESTRO-TESTING-KB.md).
-# Firebase: the real dev google-services.json (project jeeb-5a293) must already
-# be in android/app/src/dev/ + android/app/ via `git update-index --skip-worktree`
-# (never committed — the secret hook does NOT catch Firebase assets).
+# Firebase: provide the real dev config only through
+# `DEV_GOOGLE_SERVICES_JSON_B64`; the protected wrapper validates the canonical
+# identity, installs it mode 0600 for the build, and removes it on every exit.
 #
 # Prereqs: two physical Android devices attached and authorized; the dev
-# google-services.json in place; MSI gateway reachable (ufw 10090 open).
+# protected dev Firebase input available; MSI gateway reachable (ufw 10090).
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MSI_GATEWAY="${MSI_GATEWAY:-http://192.168.2.39:10090}"
 MSI_REALTIME_SOCKET="${MSI_REALTIME_SOCKET:-ws://192.168.2.39:5804/socket/websocket}"
 CLIENT_SERIAL="${CLIENT_SERIAL:-}"
 JEEBER_SERIAL="${JEEBER_SERIAL:-}"
-S24_SERIAL="${S24_SERIAL:-RFCX306JSRT}"
-A33_SERIAL="${A33_SERIAL:-RZCT505K7WF}"
 PKG="app.jeeb.mobile.dev"
 ADB="${ADB:-$HOME/Library/Android/sdk/platform-tools/adb}"
 
@@ -40,6 +39,7 @@ DEFINES=(
   --dart-define=JEEB_OBS_OVERLAY=true
   --dart-define=JEEB_REALTIME_TRACKING=true
   --dart-define=JEEB_REALTIME_SOCKET_URL="${MSI_REALTIME_SOCKET}"
+  --dart-define=REQUIRE_REAL_PUSH=true
 )
 
 # Env-index decrypt key comes from the shell, never from this file (public repo).
@@ -90,21 +90,21 @@ select_devices() {
   done < <(discover_physical_serials)
 
   if [[ -n "${CLIENT_SERIAL}" ]] && ! is_ready_device "${CLIENT_SERIAL}"; then
-    fail "CLIENT_SERIAL '${CLIENT_SERIAL}' is not an attached, authorized device."
+    fail 'CLIENT_SERIAL does not select an attached, authorized device.'
   fi
   if [[ -n "${JEEBER_SERIAL}" ]] && ! is_ready_device "${JEEBER_SERIAL}"; then
-    fail "JEEBER_SERIAL '${JEEBER_SERIAL}' is not an attached, authorized device."
+    fail 'JEEBER_SERIAL does not select an attached, authorized device.'
   fi
 
   if [[ -z "${CLIENT_SERIAL}" ]]; then
     CLIENT_SERIAL="$(
-      pick_physical_serial "${S24_SERIAL}" "${JEEBER_SERIAL}" \
+      pick_physical_serial '' "${JEEBER_SERIAL}" \
         "${physical_serials[@]}"
-    )" || fail "No physical device is available for CLIENT_SERIAL. Attach and authorize the S24/A33, or set an explicit serial."
+    )" || fail 'No physical device is available for CLIENT_SERIAL. Attach and authorize two phones, or set an explicit serial.'
   fi
   if [[ -z "${JEEBER_SERIAL}" ]]; then
     JEEBER_SERIAL="$(
-      pick_physical_serial "${A33_SERIAL}" "${CLIENT_SERIAL}" \
+      pick_physical_serial '' "${CLIENT_SERIAL}" \
         "${physical_serials[@]}"
     )" || fail "No second physical device is available for JEEBER_SERIAL. Attach and authorize two phones, or set an explicit serial."
   fi
@@ -114,21 +114,28 @@ select_devices() {
 }
 
 main() {
+  cd "${REPO_ROOT}"
+  if ! DEV_GOOGLE_SERVICES_JSON_B64="${DEV_GOOGLE_SERVICES_JSON_B64:-}" \
+    bash tool/run_with_dev_firebase_config.sh true >/dev/null 2>&1; then
+    fail 'Dev Firebase config preflight failed before device selection.'
+  fi
   select_devices
-  echo "[run_msi_dual] devices: CLIENT=${CLIENT_SERIAL} JEEBER=${JEEBER_SERIAL}"
+  echo '[run_msi_dual] two distinct physical devices selected.'
   echo "[run_msi_dual] MSI gateway target: ${MSI_GATEWAY}"
   echo "[run_msi_dual] pre-flight: gateway /health"
   curl -fsS -o /dev/null -w "  /health -> HTTP %{http_code}\n" --max-time 8 "${MSI_GATEWAY}/health" \
     || { echo "  MSI gateway unreachable — abort"; exit 1; }
 
   echo "[run_msi_dual] building dev-debug APK (MSI-targeted, real FCM)…"
-  flutter build apk --flavor dev --debug \
-    --android-project-arg=jeeb.devtool=true "${DEFINES[@]}"
+  DEV_GOOGLE_SERVICES_JSON_B64="${DEV_GOOGLE_SERVICES_JSON_B64}" \
+    bash tool/run_with_dev_firebase_config.sh \
+      flutter build apk --flavor dev --debug \
+      --android-project-arg=jeeb.devtool=true "${DEFINES[@]}"
   APK="build/app/outputs/flutter-apk/app-dev-debug.apk"
   [ -f "${APK}" ] || { echo "APK not found at ${APK}"; exit 1; }
 
   for SERIAL in "${CLIENT_SERIAL}" "${JEEBER_SERIAL}"; do
-    echo "[run_msi_dual] installing on ${SERIAL}…"
+    echo '[run_msi_dual] installing on one selected acceptance device…'
     "${ADB}" -s "${SERIAL}" install -r -d "${APK}"
     # Pre-compile to speed-class to avoid first-launch JIT/dexopt ANR (HARNESS,
     # not a product NO-GO — see testing KB).
@@ -137,9 +144,9 @@ main() {
     "${ADB}" -s "${SERIAL}" shell pm grant "${PKG}" android.permission.POST_NOTIFICATIONS || true
   done
 
-  echo "[run_msi_dual] done. Drive super-login per device via adb:"
-  echo "  CLIENT  ${CLIENT_SERIAL}: userId d1000000-0000-4000-8000-000000000001 (Nour)"
-  echo "  JEEBER  ${JEEBER_SERIAL}: userId d1000000-0000-4000-8000-000000000002 (Karim)"
+  echo '[run_msi_dual] done. Drive super-login by role without logging device IDs:'
+  echo '  CLIENT: userId d1000000-0000-4000-8000-000000000001 (Nour)'
+  echo '  JEEBER: userId d1000000-0000-4000-8000-000000000002 (Karim)'
   echo "  POST ${MSI_GATEWAY}/api/User/user-id-login {userId, superAdminPassCode}"
   echo "  (passcode: read on MSI from ~/iter5-runtime/keys/super_admin_passcode — never print/commit)"
 }

@@ -69,21 +69,27 @@ exit 0
     );
     expect(script, contains('--dart-define=JEEB_OBS_OVERLAY=true'));
     expect(script, contains('--dart-define=JEEB_REALTIME_TRACKING=true'));
+    expect(script, contains('--dart-define=REQUIRE_REAL_PUSH=true'));
+    expect(script, contains('bash tool/run_with_dev_firebase_config.sh'));
+    expect(script, isNot(contains(r'CLIENT=${CLIENT_SERIAL}')));
+    expect(script, isNot(contains(r'installing on ${SERIAL}')));
+    expect(script, isNot(contains('S24_SERIAL')));
+    expect(script, isNot(contains('A33_SERIAL')));
     expect(script, isNot(contains('--dart-define=GATEWAY_BASE_URL=')));
     expect(script, isNot(contains('MAPS_API_KEY')));
     expect(script, isNot(contains('emulator-5554')));
     expect(script, isNot(contains('emulator-5556')));
   });
 
-  test('defaults to attached physical S24 and A33 devices', () async {
+  test('defaults to the first two attached physical devices', () async {
     final result = await selectDevices('''List of devices attached
 emulator-5554 device product:sdk_gphone model:sdk_gphone
-RZCT505K7WF device product:a33 model:SM-A336B
-RFCX306JSRT device product:s24 model:SM-S921B
+physical-first device product:phone_one model:Phone_One
+physical-second device product:phone_two model:Phone_Two
 ''');
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(result.stdout, 'RFCX306JSRT|RZCT505K7WF');
+    expect(result.stdout, 'physical-first|physical-second');
   });
 
   test('preserves explicit attached serial overrides', () async {
@@ -113,7 +119,7 @@ physical-two device product:phone_two model:Phone_Two
 
   test('fails clearly when a second physical device is unavailable', () async {
     final result = await selectDevices('''List of devices attached
-RFCX306JSRT device product:s24 model:SM-S921B
+physical-only device product:phone_one model:Phone_One
 emulator-5554 device product:sdk_gphone model:sdk_gphone
 ''');
 

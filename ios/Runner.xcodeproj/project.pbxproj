@@ -1020,7 +1020,6 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = K5RDQ8J7AN;
 				ENABLE_BITCODE = NO;
-				EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info.plist";
 				INFOPLIST_FILE = "Runner/Info-dev.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1046,7 +1045,6 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = K5RDQ8J7AN;
 				ENABLE_BITCODE = NO;
-				EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info.plist";
 				INFOPLIST_FILE = "Runner/Info-dev.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1071,7 +1069,6 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = K5RDQ8J7AN;
 				ENABLE_BITCODE = NO;
-				EXCLUDED_SOURCE_FILE_NAMES = "GoogleService-Info.plist";
 				INFOPLIST_FILE = "Runner/Info-dev.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

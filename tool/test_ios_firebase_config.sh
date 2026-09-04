@@ -6,10 +6,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VALIDATOR="${REPO_ROOT}/tool/validate_ios_google_service_info.sh"
 MAPS_VALIDATOR="${REPO_ROOT}/tool/validate_ios_maps_api_key.sh"
 WRAPPER="${REPO_ROOT}/tool/run_with_ios_firebase_config.sh"
+DEV_WRAPPER="${REPO_ROOT}/tool/run_with_ios_dev_firebase_config.sh"
 TARGET="${REPO_ROOT}/ios/Runner/GoogleService-Info.plist"
 PROTECTED_XCCONFIG="${REPO_ROOT}/ios/Flutter/ProtectedFirebase.xcconfig"
 SYNTHETIC_SENDER_ID="1051234312170"
-EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:0123456789abcdef0123456789abcdef"
+EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:1036d2eaaf63036a23dc93"
+DEV_EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:30f909a175df7f5b23dc93"
+STORE_BUNDLE_ID="com.olivium.jeeb"
+DEV_BUNDLE_ID="app.jeeb.jeebMobile.dev"
 SYNTHETIC_CLIENT_ID="${SYNTHETIC_SENDER_ID}-syntheticfixture.apps.googleusercontent.com"
 SYNTHETIC_REVERSED_CLIENT_ID="com.googleusercontent.apps.${SYNTHETIC_SENDER_ID}-syntheticfixture"
 SYNTHETIC_API_KEY="AIza$(printf 'A%.0s' {1..35})"
@@ -23,12 +27,15 @@ trap cleanup EXIT HUP INT TERM
 
 write_valid_fixture() {
   local path="$1"
+  local bundle_id="${2:-${STORE_BUNDLE_ID}}"
+  local app_id="${3:-${EXPECTED_APP_ID}}"
   cp "${REPO_ROOT}/ios/Runner/GoogleService-Info.plist.template" "${path}"
   /usr/libexec/PlistBuddy -c "Set :API_KEY ${SYNTHETIC_API_KEY}" "${path}"
   /usr/libexec/PlistBuddy -c "Set :GCM_SENDER_ID ${SYNTHETIC_SENDER_ID}" "${path}"
   /usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-5a293' "${path}"
   /usr/libexec/PlistBuddy -c 'Set :STORAGE_BUCKET jeeb-5a293.appspot.com' "${path}"
-  /usr/libexec/PlistBuddy -c "Set :GOOGLE_APP_ID ${EXPECTED_APP_ID}" "${path}"
+  /usr/libexec/PlistBuddy -c "Set :BUNDLE_ID ${bundle_id}" "${path}"
+  /usr/libexec/PlistBuddy -c "Set :GOOGLE_APP_ID ${app_id}" "${path}"
   /usr/libexec/PlistBuddy -c "Set :CLIENT_ID ${SYNTHETIC_CLIENT_ID}" "${path}"
   /usr/libexec/PlistBuddy -c \
     "Set :REVERSED_CLIENT_ID ${SYNTHETIC_REVERSED_CLIENT_ID}" "${path}"
@@ -38,8 +45,7 @@ write_valid_fixture() {
 expect_failure() {
   local label="$1"
   local path="$2"
-  if IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
-    IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  if IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
     IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
     bash "${VALIDATOR}" "${path}" >/dev/null 2>&1; then
     printf 'Expected validator failure: %s\n' "${label}" >&2
@@ -49,17 +55,14 @@ expect_failure() {
 
 valid="${TMP_DIR}/valid.plist"
 write_valid_fixture "${valid}"
-IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
-  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
   IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
   bash "${VALIDATOR}" "${valid}" >/dev/null
 
 for missing_input in \
-  IOS_FIREBASE_EXPECTED_APP_ID \
   IOS_FIREBASE_EXPECTED_CLIENT_ID \
   IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID; do
   if (
-    export IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}"
     export IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}"
     export IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}"
     unset "${missing_input}"
@@ -70,6 +73,13 @@ for missing_input in \
     exit 1
   fi
 done
+
+valid_dev="${TMP_DIR}/valid-dev.plist"
+write_valid_fixture "${valid_dev}" "${DEV_BUNDLE_ID}" "${DEV_EXPECTED_APP_ID}"
+IOS_FIREBASE_VARIANT=dev \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
+  bash "${VALIDATOR}" "${valid_dev}" >/dev/null
 
 maps_key="${TMP_DIR}/maps-api-key"
 printf '%s\n' "${SYNTHETIC_MAPS_KEY}" >"${maps_key}"
@@ -159,7 +169,6 @@ encoded_fixture="$(base64 <"${valid}" | tr -d '\n')"
 if (
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_fixture}" \
-  IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
   IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
   IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
     bash "${WRAPPER}" true >/dev/null 2>&1
@@ -170,13 +179,11 @@ fi
 (
   cd "${REPO_ROOT}"
   IOS_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_fixture}" \
-  IOS_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
   IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
   IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
   IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key}" \
     bash "${WRAPPER}" bash -c '
       [[ -z "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]]
-      [[ -z "${IOS_FIREBASE_EXPECTED_APP_ID:-}" ]]
       [[ -z "${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}" ]]
       [[ -z "${IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID:-}" ]]
       [[ -z "${IOS_GOOGLE_MAPS_API_KEY_FILE:-}" ]]
@@ -201,5 +208,29 @@ fi
   exit 1
 }
 
+encoded_dev_fixture="$(base64 <"${valid_dev}" | tr -d '\n')"
+(
+  cd "${REPO_ROOT}"
+  IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_dev_fixture}" \
+  IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
+  IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
+  IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key}" \
+    bash "${DEV_WRAPPER}" bash -c '
+      test -s ios/Runner/GoogleService-Info.plist
+      bundle_id="$(/usr/libexec/PlistBuddy -c \
+        "Print :BUNDLE_ID" ios/Runner/GoogleService-Info.plist)"
+      [[ "${bundle_id}" == app.jeeb.jeebMobile.dev ]]
+    '
+)
+unset encoded_dev_fixture
+[[ ! -e "${TARGET}" ]] || {
+  printf '%s\n' 'Protected iOS dev wrapper did not clean the injected plist.' >&2
+  exit 1
+}
+[[ ! -e "${PROTECTED_XCCONFIG}" ]] || {
+  printf '%s\n' 'Protected iOS dev wrapper did not clean build settings.' >&2
+  exit 1
+}
+
 printf '%s\n' \
-  'iOS Firebase/Maps validators and protected wrapper cleanup passed.'
+  'iOS store/dev Firebase validators and protected wrapper cleanup passed.'

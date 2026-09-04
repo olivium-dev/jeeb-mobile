@@ -57,9 +57,6 @@ jobs:
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
           DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
-          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
-          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
-          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
         run: >-
           bash tool/run_with_dev_firebase_config.sh
           flutter build apk --flavor dev --debug

@@ -99,6 +99,8 @@ class JeebApp extends StatefulWidget {
     this.sessionGate,
     this.clarityController,
     this.consumeDevToolInitialOpen,
+    this.requireRealPush = const bool.fromEnvironment('REQUIRE_REAL_PUSH'),
+    this.requiredPushFailureHandler,
   });
 
   final SharedPreferences preferences;
@@ -138,6 +140,16 @@ class JeebApp extends StatefulWidget {
   /// (a genuine bridge failure must never crash the app). Only exercised when
   /// [pushTransport] is null.
   final Future<PushTransport> Function()? fcmTransportBuilder;
+
+  /// Fail-loud build contract for CI/internal candidates. Normal local and
+  /// store builds retain the bounded fake fallback for resilience; builds
+  /// compiled with `REQUIRE_REAL_PUSH=true` cannot silently pass through that
+  /// fallback when native Firebase/FCM initialization is broken.
+  final bool requireRealPush;
+
+  /// Test-only observation seam for the fail-loud required-push branch. A real
+  /// build leaves this null, so the failure is thrown and cannot be hidden.
+  final void Function(StateError failure)? requiredPushFailureHandler;
 
   /// Optional override for the device-token registrar. When supplied it is wired
   /// through [PushNotificationHandler.onToken] so the boot/refresh FCM token is
@@ -312,7 +324,6 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
 
   /// F6: mirrors DeviceTokenRegistrar's prefs key. Read-only here — the
   /// tripwire never mints an id, it only reports one if already present.
-  static const String _pushDeviceIdPrefsKey = 'push.deviceId';
 
   /// BUG-1: subscription to the owned [SessionCubit] so a successful login
   /// (OTP verify / super-login calls `session.refresh()`, transitioning the
@@ -367,8 +378,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _bindNetworkReachability();
     SchedulerBinding.instance.addPostFrameCallback((_) {
       // FIX-1: the push chain is async — it awaits the Firebase-init gate before
-      // building the real transport. Fire-and-forget; failures degrade to the
-      // in-memory fake inside [_initPushChainAsync] and never crash cold start.
+      // building the real transport. Normal builds degrade to the in-memory
+      // fake; REQUIRE_REAL_PUSH candidates surface an initialization failure.
       unawaited(_initPushChainAsync());
       // BUG-1: resolve `available_roles` from getMe after the first frame
       // paints (never blocks cold start). A returning dual-role jeeber lands on
@@ -512,7 +523,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// Now the chain AWAITS the Firebase-init gate ([firebaseInitializer]) BEFORE
   /// building the real transport ([fcmTransportBuilder]). An injected
   /// [pushTransport] short-circuits both (the test seam is used verbatim). A
-  /// genuine build failure still degrades to the fake so the app never crashes.
+  /// A genuine build failure degrades to the fake unless the build explicitly
+  /// requires real push, in which case the failure is surfaced.
   Future<void> _initPushChainAsync() async {
     if (!mounted) return;
     final override = widget.pushTransport;
@@ -556,6 +568,17 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         }
       }
       if (built == null) {
+        if (widget.requireRealPush) {
+          final failure = StateError(
+            'Real push is required but Firebase/FCM initialization failed.',
+          );
+          final handler = widget.requiredPushFailureHandler;
+          if (handler != null) {
+            handler(failure);
+            return;
+          }
+          throw failure;
+        }
         if (kDebugMode) {
           debugPrint('[push] FCM transport unavailable; using fake');
         }
@@ -632,15 +655,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     });
   }
 
-  /// F6 runtime tripwire for the silent-degrade class: one greppable line so
-  /// a field push outage is correlatable by deviceId (never the FCM token).
+  /// F6 runtime tripwire for the silent-degrade class. It deliberately emits
+  /// no token, device identifier, or other persistent per-device value.
   void _logPushDegraded(String reason, String stage) {
     if (!kDebugMode) return;
-    final deviceId = widget.preferences.getString(_pushDeviceIdPrefsKey);
-    debugPrint(
-      'JEEB-PUSH-DEGRADED reason=$reason stage=$stage '
-      'deviceId=${deviceId ?? 'unknown'}',
-    );
+    debugPrint('JEEB-PUSH-DEGRADED reason=$reason stage=$stage');
   }
 
   /// Classifies the failed step for [_logPushDegraded]; stage 'token' means
