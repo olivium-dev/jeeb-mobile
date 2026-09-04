@@ -6,6 +6,18 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application>
+        <!-- Two LAUNCHER activities made getLaunchIntentForPackage (used by the
+             FCM tap intent and flutter_local_notifications) resolve ambiguously
+             to the Dev Tool, so notification taps never reached MainActivity.
+             PackageManager prefers a CATEGORY_INFO activity as the package's
+             front door when several launcher entries exist, so declaring one
+             here makes the tap deterministic while keeping BOTH home icons. -->
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.INFO"/>
+            </intent-filter>
+        </activity>
         <!-- The legacy full developer tool remains a debug-source-set only
              launcher. Production and internal release graphs cannot reference it. -->
         <activity

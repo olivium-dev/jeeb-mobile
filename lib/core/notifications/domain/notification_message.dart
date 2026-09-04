@@ -92,6 +92,18 @@ enum NotificationCategory {
   }
 }
 
+/// An open that did not come from a tray notification (the in-app banner).
+const String kPushOpenSourceInApp = 'inapp';
+
+/// The FCM tray notification the OS displayed (onMessageOpenedApp).
+const String kPushOpenSourceFcm = 'fcm';
+
+/// A notification this app posted itself via flutter_local_notifications.
+const String kPushOpenSourceLocal = 'local';
+
+/// A cold start: the process was launched BY the notification tap.
+const String kPushOpenSourceLaunch = 'launch';
+
 class NotificationMessage extends Equatable {
   const NotificationMessage({
     required this.id,
@@ -100,6 +112,7 @@ class NotificationMessage extends Equatable {
     required this.body,
     required this.receivedAt,
     this.data = const <String, String>{},
+    this.openSource = kPushOpenSourceInApp,
   });
 
   final String id;
@@ -110,6 +123,20 @@ class NotificationMessage extends Equatable {
   final DateTime receivedAt;
 
   final Map<String, String> data;
+
+  /// Which tap surface opened this message: fcm | local | launch | inapp.
+  /// Transport metadata, deliberately NOT part of the wire `data` contract.
+  final String openSource;
+
+  NotificationMessage withOpenSource(String source) => NotificationMessage(
+    id: id,
+    category: category,
+    title: title,
+    body: body,
+    receivedAt: receivedAt,
+    data: data,
+    openSource: source,
+  );
 
   @override
   List<Object?> get props => [id, category, title, body, receivedAt, data];

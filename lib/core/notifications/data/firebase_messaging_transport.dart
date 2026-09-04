@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -143,18 +144,67 @@ class FirebaseMessagingTransport implements PushTransport {
 
     _onMessageSub = FirebaseMessaging.onMessage.listen(_handleForeground);
     _onOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((msg) {
-      _opened.add(_toDomain(msg));
+      _opened.add(_toDomain(msg).withOpenSource(kPushOpenSourceFcm));
     });
   }
 
   final Map<String, NotificationMessage> _foregroundShown = {};
 
+  @visibleForTesting
+  void debugHandleLocalTap(NotificationResponse response) =>
+      _onLocalNotificationTap(response);
+
   void _onLocalNotificationTap(NotificationResponse response) {
-    final id = response.payload;
-    if (id == null) return;
-    final message = _foregroundShown.remove(id);
-    if (message != null) _opened.add(message);
+    final message = _fromLocalPayload(response.payload);
+    if (message == null) return;
+    _foregroundShown.remove(message.id);
+    _opened.add(message.withOpenSource(kPushOpenSourceLocal));
   }
+
+  /// notification survives process death, unlike the in-memory map (which is
+  /// still read so payloads written by an older build keep routing).
+  NotificationMessage? _fromLocalPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    if (!payload.startsWith('{')) return _foregroundShown[payload];
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) return null;
+      final rawData = decoded['data'];
+      final data = <String, String>{
+        if (rawData is Map)
+          for (final e in rawData.entries)
+            e.key.toString(): e.value?.toString() ?? '',
+      };
+      final id = decoded['id']?.toString() ?? '';
+      if (id.isEmpty) return null;
+      return NotificationMessage(
+        id: id,
+        category: NotificationCategory.fromData(data),
+        title: decoded['title']?.toString() ?? '',
+        body: decoded['body']?.toString() ?? '',
+        receivedAt:
+            DateTime.tryParse(decoded['ts']?.toString() ?? '') ??
+            DateTime.now(),
+        data: data,
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('[push] bad local payload: $error');
+      return null;
+    }
+  }
+
+  @visibleForTesting
+  static String debugLocalPayload(NotificationMessage message) =>
+      _toLocalPayload(message);
+
+  static String _toLocalPayload(NotificationMessage message) =>
+      jsonEncode(<String, Object?>{
+        'id': message.id,
+        'title': message.title,
+        'body': message.body,
+        'ts': message.receivedAt.toUtc().toIso8601String(),
+        'data': message.data,
+      });
 
   @visibleForTesting
   void debugHandleForeground(RemoteMessage message) =>
@@ -182,7 +232,7 @@ class FirebaseMessagingTransport implements PushTransport {
             priority: Priority.high,
           ),
         ),
-        payload: domain.id,
+        payload: _toLocalPayload(domain),
       );
       // Session-trace observability tool (devtool-only, Module 3): richer,
       if (kObsCompiledIn) {
@@ -223,7 +273,26 @@ class FirebaseMessagingTransport implements PushTransport {
   @override
   Future<NotificationMessage?> initialMessage() async {
     final msg = await _messaging.getInitialMessage();
-    return msg == null ? null : _toDomain(msg);
+    if (msg != null) {
+      return _toDomain(msg).withOpenSource(kPushOpenSourceLaunch);
+    }
+    // A cold start from an app-POSTED notification never reaches FCM's
+    // getInitialMessage; flutter_local_notifications holds that launch intent.
+    try {
+      final details = await _localNotifications
+          .getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp ?? false) {
+        final local = _fromLocalPayload(
+          details?.notificationResponse?.payload,
+        );
+        if (local != null) {
+          return local.withOpenSource(kPushOpenSourceLaunch);
+        }
+      }
+    } catch (error) {
+      if (kDebugMode) debugPrint('[push] launch details failed: $error');
+    }
+    return null;
   }
 
   @override
