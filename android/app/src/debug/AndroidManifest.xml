@@ -6,6 +6,14 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application>
+        <!-- getLaunchIntentForPackage (FCM taps, flutter_local_notifications) picked
+             the Dev Tool; a CATEGORY_INFO front door wins. Both home icons remain. -->
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.INFO"/>
+            </intent-filter>
+        </activity>
         <!-- The legacy full developer tool remains a debug-source-set only
              launcher. Production and internal release graphs cannot reference it. -->
         <activity

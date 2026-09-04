@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../diagnostics/diag.dart';
@@ -40,15 +42,42 @@ class NotificationDispatcher {
     await _initialFuture;
   }
 
+  /// FCM cold-start and the local-notification launch intent can BOTH surface
+  /// the same tap; routing it twice would fight the user's own navigation.
+  final Queue<String> _routedIds = Queue<String>();
+  static const int _routedIdsLimit = 32;
+
   void _route(NotificationMessage message) {
     final role = _roleResolver?.call();
+    final source = message.openSource;
+    // The in-app banner is a SEPARATE surface from the tray entry the same push
+    // posts, so it neither consumes nor records the id — see R13/F1.
+    final dedupe = source != kPushOpenSourceInApp;
+    if (dedupe && _routedIds.contains(message.id)) {
+      Diag.event('push_tap_deduped', <String, Object?>{
+        'id': message.id,
+        'category': message.category.name,
+        'src': source,
+      });
+      return;
+    }
+    if (dedupe) {
+      _routedIds.addLast(message.id);
+      while (_routedIds.length > _routedIdsLimit) {
+        _routedIds.removeFirst();
+      }
+    }
     final path = deepLinkForMessage(message, role: role);
+    if (kDebugMode) {
+      debugPrint('[push] tap route=${path ?? 'none'} src=$source');
+    }
     Diag.event('push_tapped', <String, Object?>{
       'id': message.id,
       'category': message.category.name,
       'deepLink': path,
       'resolved': path != null,
       'role': role?.name,
+      'src': source,
     });
     // Session-trace observability tool (devtool-only, Module 3): richer,
     if (kObsCompiledIn) {
