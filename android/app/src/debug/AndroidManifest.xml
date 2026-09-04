@@ -6,12 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application>
-        <!-- Two LAUNCHER activities made getLaunchIntentForPackage (used by the
-             FCM tap intent and flutter_local_notifications) resolve ambiguously
-             to the Dev Tool, so notification taps never reached MainActivity.
-             PackageManager prefers a CATEGORY_INFO activity as the package's
-             front door when several launcher entries exist, so declaring one
-             here makes the tap deterministic while keeping BOTH home icons. -->
+        <!-- getLaunchIntentForPackage (FCM taps, flutter_local_notifications) picked
+             the Dev Tool; a CATEGORY_INFO front door wins. Both home icons remain. -->
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>

@@ -32,13 +32,8 @@ final List<RegExp> _kPushRouteAllowList = <RegExp>[
   RegExp(r'^/jeeber/deliveries/[^/]+/active$'),
 ];
 
-/// Folds a push `deepLink` into a canonical in-app path.
-///
-/// Accepts an already-canonical `/path` and the `jeeb://<host>/<rest>` custom
-/// scheme (the host is the first path segment, matching the router's own
-/// `normalizeJeebSchemeDeepLink`). Returns `null` when the value is absent,
-/// malformed, or names no registered route — `jeeb://offers/<offerId>` is the
-/// live example: no route is keyed by OFFER id, so it must not be honoured.
+/// Folds a push `deepLink` (a `/path`, or `jeeb://<host>/<rest>` with the host as
+/// first segment) into a canonical route, else null — no route is keyed by offer id.
 String? routeFromPushDeepLink(String? raw) {
   final trimmed = raw?.trim() ?? '';
   if (trimmed.isEmpty) return null;

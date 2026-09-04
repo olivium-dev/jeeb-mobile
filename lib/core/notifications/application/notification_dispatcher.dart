@@ -48,13 +48,25 @@ class NotificationDispatcher {
   static const int _routedIdsLimit = 32;
 
   void _route(NotificationMessage message) {
-    if (_routedIds.contains(message.id)) return;
-    _routedIds.addLast(message.id);
-    while (_routedIds.length > _routedIdsLimit) {
-      _routedIds.removeFirst();
-    }
     final role = _roleResolver?.call();
     final source = message.openSource;
+    // The in-app banner is a SEPARATE surface from the tray entry the same push
+    // posts, so it neither consumes nor records the id — see R13/F1.
+    final dedupe = source != kPushOpenSourceInApp;
+    if (dedupe && _routedIds.contains(message.id)) {
+      Diag.event('push_tap_deduped', <String, Object?>{
+        'id': message.id,
+        'category': message.category.name,
+        'src': source,
+      });
+      return;
+    }
+    if (dedupe) {
+      _routedIds.addLast(message.id);
+      while (_routedIds.length > _routedIdsLimit) {
+        _routedIds.removeFirst();
+      }
+    }
     final path = deepLinkForMessage(message, role: role);
     if (kDebugMode) {
       debugPrint('[push] tap route=${path ?? 'none'} src=$source');

@@ -161,8 +161,8 @@ class FirebaseMessagingTransport implements PushTransport {
     _opened.add(message.withOpenSource(kPushOpenSourceLocal));
   }
 
-  /// notification survives process death, unlike the in-memory map (which is
-  /// still read so payloads written by an older build keep routing).
+  /// Decodes the JSON envelope, which survives process death; a bare id still
+  /// reads the in-memory map so payloads from an older build keep routing.
   NotificationMessage? _fromLocalPayload(String? payload) {
     if (payload == null || payload.isEmpty) return null;
     if (!payload.startsWith('{')) return _foregroundShown[payload];

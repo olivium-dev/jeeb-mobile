@@ -73,6 +73,17 @@ void main() {
       );
     });
 
+    test('accepts the producer shapes the notification centre can emit', () {
+      expect(
+        routeFromPushDeepLink('jeeb://requests/req-1/offers'),
+        '/requests/req-1/offers',
+      );
+      expect(
+        routeFromPushDeepLink('jeeb://jeeber/deliveries/req-1/active'),
+        '/jeeber/deliveries/req-1/active',
+      );
+    });
+
     test('preserves a query string', () {
       expect(
         routeFromPushDeepLink('jeeb://orders/d-1/tracking?deliveryId=x'),
@@ -262,6 +273,63 @@ void main() {
       );
       expect(tapped, contains('"src":"local"'));
       expect(tapped, contains('"deepLink":"/requests/R/offers"'));
+    });
+
+    // R13/F1: one foreground push posts BOTH an in-app banner and a tray entry.
+    testWidgets('a tray tap still routes after an in-app banner tap of the '
+        'SAME push', (tester) async {
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+      final message = _msg(NotificationCategory.chat, const {
+        'chat_id': 'c-1',
+      }, id: 'banner-then-tray');
+
+      transport.emitForeground(message);
+      await tester.pumpAndSettle();
+      handler.tapBanner();
+      await tester.pumpAndSettle();
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/chat/c-1',
+      );
+
+      router.go('/');
+      await tester.pumpAndSettle();
+      await emitOpened(tester, message.withOpenSource(kPushOpenSourceLocal));
+
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/chat/c-1',
+      );
+    });
+
+    testWidgets('a swallowed duplicate emits a push_tap_deduped diag',
+        (tester) async {
+      final lines = <String>[];
+      final priorSink = Diag.sink;
+      final priorEnabled = Diag.enabledOverride;
+      Diag.sink = lines.add;
+      Diag.enabledOverride = true;
+      addTearDown(() {
+        Diag.sink = priorSink;
+        Diag.enabledOverride = priorEnabled;
+      });
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+      final message = _msg(NotificationCategory.chat, const {
+        'chat_id': 'c-1',
+      }, id: 'dedupe-diag');
+      await emitOpened(tester, message.withOpenSource(kPushOpenSourceFcm));
+      await emitOpened(tester, message.withOpenSource(kPushOpenSourceLaunch));
+
+      final deduped = lines.firstWhere(
+        (l) => l.contains('"name":"push_tap_deduped"'),
+        orElse: () => '',
+      );
+      expect(deduped, contains('"src":"launch"'));
     });
 
     testWidgets('the same tap delivered twice routes once', (tester) async {
