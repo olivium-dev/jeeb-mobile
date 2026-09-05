@@ -393,8 +393,8 @@ void main() {
       expect(find.bySemanticsIdentifier('waiting_error_state'), findsOneWidget);
       expect(
         find.text(
-          'Your request status came back in an unexpected format. '
-          'This is a server problem, not your connection.',
+          'Your request status came back in a form we couldn\'t read. '
+          'Try again in a moment.',
         ),
         findsOneWidget,
       );

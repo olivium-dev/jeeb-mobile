@@ -121,13 +121,17 @@ void main() {
     );
   });
 
+  // NET-19: `dio_client.dart` (the dead twin this also used to assert on) was
+  // deleted with WP-0A; `createDio` below is the one product factory left.
   test('product Dio observes main and refresh attempts before recovery', () {
-    final source = File('lib/core/network/dio_client.dart').readAsStringSync();
+    final source = File(
+      'lib/core/network/mock_gateway_client.dart',
+    ).readAsStringSync();
     final refreshObs = source.indexOf(
       'ObsDioInterceptor.attachTo(refreshClient);',
     );
     final refreshFallback = source.indexOf(
-      'refreshClient.interceptors.add(',
+      'UnversionedPathFallbackInterceptor(',
       refreshObs,
     );
     final mainObs = source.indexOf('ObsDioInterceptor.attachTo(dio);');
@@ -142,17 +146,6 @@ void main() {
     expect(mainObs, greaterThanOrEqualTo(0));
     expect(tokenRefresh, greaterThan(mainObs));
     expect(mainFallback, greaterThan(mainObs));
-
-    final mockSource = File(
-      'lib/core/network/mock_gateway_client.dart',
-    ).readAsStringSync();
-    final mockObs = mockSource.indexOf('ObsDioInterceptor.attachTo(dio);');
-    final mockFallback = mockSource.indexOf(
-      'UnversionedPathFallbackInterceptor(dio)',
-      mockObs,
-    );
-    expect(mockObs, greaterThanOrEqualTo(0));
-    expect(mockFallback, greaterThan(mockObs));
   });
 
   test(

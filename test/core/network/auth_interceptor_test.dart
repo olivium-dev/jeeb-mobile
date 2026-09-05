@@ -5,9 +5,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/app_failure_mapper.dart';
 import 'package:jeeb_mobile/core/network/auth_interceptor.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/network/unversioned_path_fallback_interceptor.dart';
+import 'package:jeeb_mobile/core/session/auth_loss_signals.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
@@ -858,6 +861,148 @@ void main() {
       // Never a logout on transient failures.
       verifyNever(() => store.clear());
       expect(h.logoutCalls, isEmpty);
+    });
+  });
+
+  group('NET-02: an unreadable token store is classified, not terminal', () {
+    test('BearerAuthInterceptor marks the request instead of swallowing',
+        () async {
+      when(() => store.accessToken).thenThrow(Exception('keystore locked'));
+      final adapter = _ScriptedAdapter((_) => _json({'ok': true}, 200));
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost:4010'))
+        ..httpClientAdapter = adapter
+        ..interceptors.add(BearerAuthInterceptor(store));
+
+      await dio.get<dynamic>('/v1/jeeb/wallet');
+
+      final sent = adapter.requests.single;
+      expect(sent.headers.containsKey('Authorization'), isFalse);
+      expect(sent.extra[BearerAuthInterceptor.storeUnavailableFlag], isTrue);
+      expect(sent.extra[TokenRefreshInterceptor.sessionBearerFlag], isNull);
+    });
+
+    test('a 401 on a store-unavailable request keeps the session intact',
+        () async {
+      final reasons = <AuthLossReason>[];
+      final sub = AuthLossSignals.instance.stream.listen(reasons.add);
+      addTearDown(sub.cancel);
+
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>(
+          '/v1/jeeb/wallet',
+          options: Options(
+            extra: <String, dynamic>{
+              BearerAuthInterceptor.storeUnavailableFlag: true,
+            },
+          ),
+        ),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(h.refreshAdapter.callCount, 0, reason: 'refresh cannot help');
+      expect(h.retryAdapter.callCount, 0);
+      // A locked keychain must never destroy a session the gateway still honours.
+      expect(h.logoutCalls, isEmpty);
+      verifyNever(() => store.clear());
+      expect(reasons, isEmpty);
+    });
+
+    test('the classified failure names the store, not an expired session',
+        () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'should': 'never-run'}, 200),
+      );
+      h.mainDio.interceptors.add(const AppFailureInterceptor());
+
+      Object? classified;
+      try {
+        await h.mainDio.get<dynamic>(
+          '/v1/jeeb/wallet',
+          options: Options(
+            extra: <String, dynamic>{
+              BearerAuthInterceptor.storeUnavailableFlag: true,
+            },
+          ),
+        );
+      } on DioException catch (e) {
+        classified = e.error;
+      }
+      expect(classified, isA<UnauthorizedFailure>());
+      expect((classified! as UnauthorizedFailure).storeUnavailable, isTrue);
+      expect((classified as UnauthorizedFailure).recovering, isFalse);
+    });
+  });
+
+  group('NET-17: a 401 inside the cooldown is marked as recovering', () {
+    test('the second 401 carries the flag and classifies as recovering',
+        () async {
+      var now = DateTime.utc(2026, 9, 3, 12);
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (options) => throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        ),
+        clock: () => now,
+      );
+      h.mainDio.interceptors.add(const AppFailureInterceptor());
+
+      Future<UnauthorizedFailure> fire() async {
+        try {
+          await h.mainDio.get<dynamic>(
+            '/v1/jeeb/wallet',
+            options: _asSession('stale-access'),
+          );
+        } on DioException catch (e) {
+          return e.error! as UnauthorizedFailure;
+        }
+        fail('the 401 must reach the caller');
+      }
+
+      // The refresh could not be completed, so the session is unverified —
+      // not rejected. Every 401 in that state says "recovering".
+      final first = await fire();
+      expect(first.recovering, isTrue);
+
+      final second = await fire();
+      expect(second.recovering, isTrue);
+      expect(h.refreshAdapter.callCount, 1, reason: 'no second stall');
+
+      now = now.add(const Duration(seconds: 21));
+      await fire();
+      expect(h.refreshAdapter.callCount, 2, reason: 'the window reopened');
+      expect(h.logoutCalls, isEmpty, reason: 'transient never destroys tokens');
+    });
+
+    test('a gateway-rejected refresh is terminal, never "recovering"',
+        () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'error': 'invalid_grant'}, 401),
+      );
+      h.mainDio.interceptors.add(const AppFailureInterceptor());
+
+      Object? classified;
+      try {
+        await h.mainDio.get<dynamic>(
+          '/v1/jeeb/wallet',
+          options: _asSession('stale-access'),
+        );
+      } on DioException catch (e) {
+        classified = e.error;
+      }
+      expect((classified! as UnauthorizedFailure).recovering, isFalse);
+      expect(h.logoutCalls, ['logout']);
     });
   });
 }

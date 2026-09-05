@@ -2,9 +2,10 @@ import "dart:io" show Platform;
 import "dart:math" show Random;
 
 import "package:dio/dio.dart";
-import "package:flutter/foundation.dart";
 import "package:flutter_secure_storage/flutter_secure_storage.dart";
 
+import "../../diagnostics/diag.dart";
+import "../../network/app_failure.dart";
 import "../../network/auth_token_store.dart";
 
 class PushDeviceRegistrar {
@@ -44,22 +45,17 @@ class PushDeviceRegistrar {
       final code = res.statusCode ?? 0;
       if (code >= 200 && code < 300) {
         _lastRegisteredKey = key;
-        if (kDebugMode) {
-          debugPrint("[push] device registered with gateway ($code)");
-        }
-      } else if (kDebugMode) {
-        debugPrint("[push] device register non-2xx: $code");
       }
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-          "[push] device register failed: ${e.response?.statusCode} ${e.type}",
-        );
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("[push] device register error: ${e.runtimeType}");
-      }
+      Diag.event("push_device_register", <String, Object?>{
+        "status": code,
+        "ok": code >= 200 && code < 300,
+      });
+    } catch (error) {
+      // NET-31: silent in release before; a device that never registers is
+      // exactly the outage class this needs to be visible for.
+      Diag.event("push_device_register_failed", <String, Object?>{
+        "kind": AppFailure.of(error).kind.name,
+      });
     }
   }
 

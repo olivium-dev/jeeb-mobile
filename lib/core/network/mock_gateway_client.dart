@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart';
 import '../config/app_config.dart';
 import '../diagnostics/diag_dio_interceptor.dart';
 import '../observability/session_trace/capture/obs_dio_interceptor.dart';
+import 'app_failure_mapper.dart';
 import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
+import 'request_id_interceptor.dart';
+import 'retry_interceptor.dart';
 import 'unversioned_path_fallback_interceptor.dart';
 
 class MockGatewayClient {
@@ -114,6 +117,8 @@ class MockGatewayClient {
     baseUrl: baseUrl,
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
+    // NET-07: without this every upload stalls on the connect budget instead.
+    sendTimeout: const Duration(seconds: 30),
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -133,6 +138,10 @@ class MockGatewayClient {
     // Refresh runs on a bare client so it can never recurse into auth
     // handling; the scoped fallback keeps the /v1 flag-day twin reachable.
     final refreshClient = Dio(_baseOptions(effectiveBaseUrl));
+    // NET-29: the side clients rewrite too, or mock mode reaches no route.
+    if (useMockPrefixes) {
+      refreshClient.interceptors.add(_PathRewriteInterceptor());
+    }
     ObsDioInterceptor.attachTo(refreshClient);
     refreshClient.interceptors.add(
       UnversionedPathFallbackInterceptor(
@@ -144,21 +153,28 @@ class MockGatewayClient {
     // Retries must NOT replay through `dio`: its queued error lane is still
     // held by the refresh task, so a failing retry would deadlock the client.
     final retryClient = Dio(_baseOptions(effectiveBaseUrl));
+    if (useMockPrefixes) {
+      retryClient.interceptors.add(_PathRewriteInterceptor());
+    }
     ObsDioInterceptor.attachTo(retryClient);
     retryClient.interceptors.add(const DiagDioInterceptor());
     if (kDebugMode) {
       retryClient.interceptors.add(const RedactingLogInterceptor());
     }
 
-    dio.interceptors.add(
-      RateLimitInterceptor(onBackoffWindowClosed: onRateLimitWindowClosed),
+    final rateLimiter = RateLimitInterceptor(
+      onBackoffWindowClosed: onRateLimitWindowClosed,
     );
+    dio.interceptors.add(rateLimiter);
 
     if (useMockPrefixes) {
       dio.interceptors.add(_PathRewriteInterceptor());
     }
 
     dio.interceptors.add(BearerAuthInterceptor(store));
+
+    // NET-27: the correlation id must exist before diagnostics reads it.
+    dio.interceptors.add(RequestIdInterceptor());
 
     dio.interceptors.add(const DiagDioInterceptor());
 
@@ -180,11 +196,38 @@ class MockGatewayClient {
     // W6-02 compat window: a 404/405 on `/v1/...` is retried unversioned.
     dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
 
+    // NET-06: last recovery step, so only genuinely transient failures reach it.
+    dio.interceptors.add(
+      // The replay client carries no rate-limit/auth chain (QueuedInterceptor
+      // deadlock), so a 429 or 401 on a replay is surfaced, never healed.
+      RetryInterceptor(retryClient: retryClient, rateLimiter: rateLimiter),
+    );
+
     if (kDebugMode) {
       dio.interceptors.add(const RedactingLogInterceptor());
     }
 
+    // NET-01: appended LAST so every consumer sees `e.error is AppFailure`.
+    dio.interceptors.add(const AppFailureInterceptor());
+
+    _companions[dio] = <Dio>[refreshClient, retryClient];
     return dio;
+  }
+
+  /// The side clients a [createDio] result owns, so closing it closes them.
+  static final Expando<List<Dio>> _companions = Expando<List<Dio>>();
+
+  /// Closes [dio], its refresh/retry clients and the back-off catch-up timer.
+  static void disposeDio(Dio dio) {
+    for (final RateLimitInterceptor limiter
+        in dio.interceptors.whereType<RateLimitInterceptor>()) {
+      limiter.dispose();
+    }
+    for (final Dio companion in _companions[dio] ?? const <Dio>[]) {
+      companion.close(force: true);
+    }
+    _companions[dio] = null;
+    dio.close(force: true);
   }
 
   static const String realtimeBaseUrl = String.fromEnvironment(

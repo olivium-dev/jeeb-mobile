@@ -140,9 +140,27 @@ import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
 
+/// Cached: a fresh client per call would leak a catch-up timer and two side
+/// clients with no disposer.
+Dio? _fallbackDio;
+
 Dio resolveGatewayDio() {
   if (sl.isRegistered<Dio>()) return sl<Dio>();
-  return MockGatewayClient.createDio();
+  // NET-25: an un-DI'd caller still gets the configured base URL and the one
+  // token store, so its client cannot diverge from the product client.
+  return _fallbackDio ??= MockGatewayClient.createDio(
+    baseUrl: sl.isRegistered<SharedPreferences>()
+        ? DevBaseUrl.read(sl<SharedPreferences>())
+        : null,
+    tokenStore: sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>() : null,
+  );
+}
+
+/// Closes the fallback client; the registered one is disposed by GetIt.
+void disposeFallbackGatewayDio() {
+  final Dio? dio = _fallbackDio;
+  _fallbackDio = null;
+  if (dio != null) MockGatewayClient.disposeDio(dio);
 }
 
 Stream<void>? resolvePushRefreshStream({Set<RefreshTopic>? topics}) {
@@ -178,9 +196,15 @@ void configureDependencies({
         sl<PushRefreshSignals>().signalStatusChange();
       },
     ),
+    // NET-30: the catch-up timer and the two side clients outlive
+    // `sl.reset()` otherwise.
+    dispose: MockGatewayClient.disposeDio,
   );
 
-  sl.registerLazySingleton<SingleFlightGet>(() => SingleFlightGet(sl<Dio>()));
+  sl.registerLazySingleton<SingleFlightGet>(
+    () => SingleFlightGet(sl<Dio>()),
+    dispose: (coalescer) => coalescer.dispose(),
+  );
 
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 

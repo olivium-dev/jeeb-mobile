@@ -12,15 +12,17 @@ import '../../../core/previews/jeeb_preview.dart';
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key});
 
+  /// True while the notice occupies the top inset, so the host can stop the
+  /// content below reserving that same status-bar gap a second time.
+  static bool showsFor(OfflineState state) =>
+      state.status != ConnectivityStatus.online && !state.bannerDismissed;
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
-        if (state.status == ConnectivityStatus.online ||
-            state.bannerDismissed) {
-          return const SizedBox.shrink();
-        }
-        return const _OfflineMaterialBanner();
+        if (!showsFor(state)) return const SizedBox.shrink();
+        return const SafeArea(bottom: false, child: _OfflineMaterialBanner());
       },
     );
   }

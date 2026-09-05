@@ -54,6 +54,22 @@ const _arabicCases = <_PluralCase>[
     'homeRequestsRepliesBadge',
     _repliesBadge,
   ),
+  // WP-0B: the three sanctioned `l10n.x(n)` sets of the failure copy family.
+  _PluralCase(
+    'errorRateLimitedRetryIn',
+    'errorRateLimitedRetryIn',
+    _rateLimitedRetryIn,
+  ),
+  _PluralCase(
+    'registrationOtpRateLimitedSeconds',
+    'registrationOtpRateLimitedSeconds',
+    _otpRateLimitedSeconds,
+  ),
+  _PluralCase(
+    'otpHandoverAttemptsRemaining',
+    'otpHandoverAttemptsRemaining',
+    _handoverAttemptsRemaining,
+  ),
 ];
 
 String _availability(AppLocalizations l, int n) =>
@@ -68,6 +84,12 @@ String _photos(AppLocalizations l, int n) => l.requestSummaryPhotosAttached(n);
 String _filterApply(AppLocalizations l, int n) => l.filterSheetApplyCta(n);
 String _repliesBadge(AppLocalizations l, int n) =>
     l.homeRequestsRepliesBadge(n);
+String _rateLimitedRetryIn(AppLocalizations l, int n) =>
+    l.errorRateLimitedRetryIn(n);
+String _otpRateLimitedSeconds(AppLocalizations l, int n) =>
+    l.registrationOtpRateLimitedSeconds(n);
+String _handoverAttemptsRemaining(AppLocalizations l, int n) =>
+    l.otpHandoverAttemptsRemaining(n);
 
 String _expectedForm(int n) {
   if (n == 0) return 'Zero';

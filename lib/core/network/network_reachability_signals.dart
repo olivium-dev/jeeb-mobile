@@ -19,6 +19,9 @@ class NetworkReachabilitySignals {
   final StreamController<void> _controller =
       StreamController<void>.broadcast(sync: true);
 
+  final StreamController<void> _offlineController =
+      StreamController<void>.broadcast(sync: true);
+
   StreamSubscription<bool>? _sourceSub;
 
   bool? _online;
@@ -29,7 +32,16 @@ class NetworkReachabilitySignals {
 
   int suppressedCount = 0;
 
+  int offlineEmitCount = 0;
+
+  /// Offline -> online edge.
   Stream<void> get stream => _controller.stream;
+
+  /// OFF-18: the opposite edge, for the banner and the deferred-refresh gates.
+  Stream<void> get offlineStream => _offlineController.stream;
+
+  /// Unknown reads as online: never blame connectivity without evidence.
+  bool get isOnline => _online ?? true;
 
   bool? get debugOnline => _online;
 
@@ -50,7 +62,7 @@ class NetworkReachabilitySignals {
   Future<void> _applySeed(Future<bool> seed) async {
     try {
       final online = await seed;
-      _online ??= online;
+      if (_online == null) _observe(online);
     } catch (error) {
       Diag.event('network_reachability_seed_failed', <String, Object?>{
         'error': '$error',
@@ -61,7 +73,12 @@ class NetworkReachabilitySignals {
   void _observe(bool online) {
     final previous = _online;
     _online = online;
-    if (previous != false || !online) return;
+    if (!online) {
+      if (previous == false) return;
+      _emitOffline();
+      return;
+    }
+    if (previous != false) return;
 
     final now = _now();
     final last = _lastEmit;
@@ -84,6 +101,15 @@ class NetworkReachabilitySignals {
     _controller.add(null);
   }
 
+  void _emitOffline() {
+    if (_offlineController.isClosed) return;
+    offlineEmitCount++;
+    Diag.event('network_unreachable', <String, Object?>{
+      'count': offlineEmitCount,
+    });
+    _offlineController.add(null);
+  }
+
   @visibleForTesting
   void debugObserve({required bool online}) => _observe(online);
 
@@ -91,6 +117,7 @@ class NetworkReachabilitySignals {
     await _sourceSub?.cancel();
     _sourceSub = null;
     await _controller.close();
+    await _offlineController.close();
   }
 
   static NetworkReachabilitySignals? _instance;

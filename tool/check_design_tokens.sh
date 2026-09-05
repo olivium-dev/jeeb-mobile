@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Design token compliance gate for lib/features/
 #
-# Greps lib/features/**/*.dart for forbidden raw Material widgets, literal
-# colors, and literal dimensions. Exits non-zero on any violation so it can
-# be wired into CI to prevent design system regression.
+# Greps Dart sources under lib/features/ for forbidden raw Material widgets,
+# literal colors, literal dimensions and the banned failure surfaces. Exits
+# non-zero on any violation so it can be wired into CI.
+#
+# SCOPE: this branch's changed lib/features files vs $DESIGN_TOKENS_BASE plus
+# dirty ones (on a push to main that scope is empty); --all is audit-only.
 #
 # Run locally:
-#   bash tool/check_design_tokens.sh
+#   bash tool/check_design_tokens.sh          # this branch's changes
+#   bash tool/check_design_tokens.sh --all    # the whole tree (audit mode)
 #
-# Wire into CI (.github/workflows/<workflow>.yml):
-#   - name: Design token compliance gate
+# Wire into CI with fetch-depth: 0 so the base ref resolves:
+#   - name: Design token compliance gate (diff-scoped)
 #     run: bash tool/check_design_tokens.sh
 #
 # Exemptions (intentional, documented):
@@ -29,19 +33,74 @@
 set -euo pipefail
 
 FEATURES_DIR="lib/features"
+BASE_REF="${DESIGN_TOKENS_BASE:-origin/main}"
+MODE="diff"
 EXIT_CODE=0
 VIOLATION_COUNT=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all) MODE="all" ;;
+    --diff) MODE="diff" ;;
+    --base) BASE_REF="${2:?--base needs a ref}"; shift ;;
+    -h|--help)
+      sed -n '2,35p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1 (expected --all, --diff or --base <ref>)" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 if [[ ! -d "$FEATURES_DIR" ]]; then
   echo "Error: $FEATURES_DIR not found. Run this script from the jeeb-mobile repo root." >&2
   exit 2
 fi
 
+# --- Scope resolution ------------------------------------------------------
+# Emits the newline-separated list of files to check on stdout.
+resolve_scope() {
+  if [[ "$MODE" == "all" ]]; then
+    find "$FEATURES_DIR" -name '*.dart' -type f | sort
+    return
+  fi
+
+  local diff_base=""
+  if git rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1; then
+    diff_base=$(git merge-base "$BASE_REF" HEAD 2>/dev/null || echo "$BASE_REF")
+  else
+    echo "WARN: base ref '$BASE_REF' not found — checking working-tree changes only." >&2
+  fi
+
+  {
+    if [[ -n "$diff_base" ]]; then
+      git diff --name-only --diff-filter=ACMR "$diff_base" -- "$FEATURES_DIR" || true
+    fi
+    git diff --name-only --diff-filter=ACMR HEAD -- "$FEATURES_DIR" || true
+    git ls-files --others --exclude-standard -- "$FEATURES_DIR" || true
+  } | { grep -E '\.dart$' || true; } | sort -u | while read -r f; do
+    [[ -f "$f" ]] && echo "$f"
+  done
+  return 0
+}
+
+SCOPE_FILE=$(mktemp)
+trap 'rm -f "$SCOPE_FILE"' EXIT
+resolve_scope > "$SCOPE_FILE"
+FILE_COUNT=$(wc -l < "$SCOPE_FILE" | tr -d ' ')
+
+if [[ "$FILE_COUNT" -eq 0 ]]; then
+  echo "OK: no changed Dart files under $FEATURES_DIR — nothing to check."
+  exit 0
+fi
+
 # check_pattern <label> <regex> [exclude_regex]
 #
-# Greps recursively under $FEATURES_DIR for files matching <regex>, then
-# strips any line matching <exclude_regex> (line-level filter). Prints
-# matches and bumps the violation counter.
+# Greps the in-scope files for <regex>, then strips any line matching
+# <exclude_regex> (line-level filter). Prints matches and bumps the counter.
 check_pattern() {
   local label="$1"
   local pattern="$2"
@@ -49,14 +108,15 @@ check_pattern() {
 
   local matches
   if [[ -n "$exclude_pattern" ]]; then
-    matches=$(grep -rn --include="*.dart" -E "$pattern" "$FEATURES_DIR" \
-      | grep -v -E '^\s*//' \
-      | grep -v -E '///|//' \
+    matches=$(grep -nE "" -- $(cat "$SCOPE_FILE") /dev/null \
+      | sed -E 's#//.*$##' \
+      | grep -E "$pattern" \
       | grep -v -E "$exclude_pattern" \
       || true)
   else
-    matches=$(grep -rn --include="*.dart" -E "$pattern" "$FEATURES_DIR" \
-      | grep -v -E '///|//' \
+    matches=$(grep -nE "" -- $(cat "$SCOPE_FILE") /dev/null \
+      | sed -E 's#//.*$##' \
+      | grep -E "$pattern" \
       || true)
   fi
 
@@ -69,7 +129,11 @@ check_pattern() {
   fi
 }
 
-echo "Checking design token compliance in $FEATURES_DIR..."
+if [[ "$MODE" == "all" ]]; then
+  echo "Checking design token compliance across all of $FEATURES_DIR ($FILE_COUNT files)..."
+else
+  echo "Checking design token compliance in $FILE_COUNT changed file(s) under $FEATURES_DIR..."
+fi
 
 # --- Color violations ------------------------------------------------------
 # Apple/Google brand colors in social_sign_in_button.dart are exempt.
@@ -129,14 +193,31 @@ check_pattern \
   '\bTextFormField\('
 
 check_pattern \
-  "Raw RefreshIndicator     ->  use OmdsPullToRefresh" \
+  "Raw RefreshIndicator     ->  use JeebPullToRefresh" \
   '\bRefreshIndicator\('
+
+# --- Failure-surface violations (WP-0B kit) --------------------------------
+check_pattern \
+  "Bare OmdsPullToRefresh   ->  use JeebPullToRefresh (bakes the LR-20 spinner ink)" \
+  '\bOmdsPullToRefresh\('
+
+check_pattern \
+  "showOmdsErrorSnackbar    ->  use showJeebErrorSnack (2.79:1 ink, no identifier)" \
+  '\bshowOmdsErrorSnackbar\('
+
+check_pattern \
+  "Raw showSnackBar         ->  use showJeebSnack / showJeebErrorSnack" \
+  '\.showSnackBar\('
+
+check_pattern \
+  "OmdsErrorState/LoadingState -> use JeebFailureBlock / JeebEmptyState" \
+  '\bOmds(ErrorState|LoadingState)\('
 
 echo ""
 if [[ $EXIT_CODE -eq 0 ]]; then
   echo "OK: all design token checks passed."
 else
-  echo "FAIL: found $VIOLATION_COUNT violation(s) in $FEATURES_DIR. Fix before merging."
+  echo "FAIL: found $VIOLATION_COUNT violation(s). Fix before merging."
 fi
 
 exit $EXIT_CODE

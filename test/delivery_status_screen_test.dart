@@ -165,7 +165,7 @@ void main() {
       (tester) async {
     // A gateway that throws on subscribe pushes the stream into the error
     await _pumpScreen(tester, gateway: _BrokenGateway());
-    expect(find.text('Connection lost'), findsOneWidget);
+    expect(find.text("Couldn't load the status"), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
   });
 }

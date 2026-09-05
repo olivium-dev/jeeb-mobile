@@ -6,6 +6,8 @@ import '../../motion/jeeb_motion.dart';
 import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../previews/jeeb_preview.dart';
 import 'jeeb_avatar.dart';
 
 /// The composed illustration a [JeebEmptyState] draws — all four of §2.7's
@@ -50,6 +52,42 @@ enum JeebEmptyStateStatus {
 
   /// Same illustration, danger-tinted centre.
   error,
+}
+
+/// WHY the block shows, which [JeebEmptyStateStatus] cannot say: "no rows yet"
+/// and "none matching your filter" are one status and two different screens.
+enum JeebEmptyStateReason {
+  /// A completed read returned nothing, and nothing is filtering it.
+  nothingYet,
+
+  /// A filter or date range is hiding rows — needs a clear-filters action.
+  filtered,
+
+  /// A search returned nothing for the current query.
+  noResults,
+
+  /// There is no transport, so this surface has nothing to show.
+  offline,
+
+  /// The subject itself is gone (404/410).
+  notFound,
+
+  /// The read failed.
+  failed,
+
+  /// The read is still in flight.
+  loading;
+
+  /// The rung this reason renders on.
+  JeebEmptyStateStatus get status => switch (this) {
+    JeebEmptyStateReason.nothingYet ||
+    JeebEmptyStateReason.filtered ||
+    JeebEmptyStateReason.noResults => JeebEmptyStateStatus.empty,
+    JeebEmptyStateReason.offline ||
+    JeebEmptyStateReason.notFound ||
+    JeebEmptyStateReason.failed => JeebEmptyStateStatus.error,
+    JeebEmptyStateReason.loading => JeebEmptyStateStatus.loading,
+  };
 }
 
 /// The four drawn subjects of E1's ring — "bring me anything".
@@ -143,16 +181,27 @@ class JeebEmptyState extends StatelessWidget {
     this.body,
     this.variant = JeebEmptyStateVariant.e1,
     this.status = JeebEmptyStateStatus.empty,
+    this.reason,
     this.center,
     this.medallions,
     this.action,
+    this.secondaryAction,
+    this.liveRegion,
     this.illustrationSize = defaultIllustrationSize,
     this.padding = defaultPadding,
     this.identifier,
     this.headlineIdentifier,
     this.bodyIdentifier,
     this.semanticLabel,
-  }) : compact = false;
+  }) : compact = false,
+       assert(
+         identifier == null || identifier.length > 0,
+         'An empty identifier is an unfindable node — pass null or a real id.',
+       ),
+       assert(
+         reason != JeebEmptyStateReason.filtered || secondaryAction != null,
+         'A filtered empty must offer a way to clear the filter.',
+       );
 
   /// The inline form — a half-size illustration, tighter gaps and the `h2`
   /// headline, for an empty block sitting INSIDE a form or a card rather than
@@ -163,16 +212,27 @@ class JeebEmptyState extends StatelessWidget {
     this.body,
     this.variant = JeebEmptyStateVariant.e1,
     this.status = JeebEmptyStateStatus.empty,
+    this.reason,
     this.center,
     this.medallions,
     this.action,
+    this.secondaryAction,
+    this.liveRegion,
     this.illustrationSize = compactIllustrationSize,
     this.padding = compactPadding,
     this.identifier,
     this.headlineIdentifier,
     this.bodyIdentifier,
     this.semanticLabel,
-  }) : compact = true;
+  }) : compact = true,
+       assert(
+         identifier == null || identifier.length > 0,
+         'An empty identifier is an unfindable node — pass null or a real id.',
+       ),
+       assert(
+         reason != JeebEmptyStateReason.filtered || secondaryAction != null,
+         'A filtered empty must offer a way to clear the filter.',
+       );
 
   /// The board's illustration width (E1 draws a 300×280 viewBox at 300px).
   static const double defaultIllustrationSize = 300;
@@ -238,8 +298,15 @@ class JeebEmptyState extends StatelessWidget {
   /// Which illustration to compose.
   final JeebEmptyStateVariant variant;
 
-  /// Empty, loading or error.
+  /// Empty, loading or error. Ignored when [reason] is set.
   final JeebEmptyStateStatus status;
+
+  /// Why the block is showing. When set it decides the rung, so a call site
+  /// never has to keep [status] and its copy in agreement by hand.
+  final JeebEmptyStateReason? reason;
+
+  /// The rung actually painted: [reason]'s, or [status] when there is none.
+  JeebEmptyStateStatus get effectiveStatus => reason?.status ?? status;
 
   /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the Ø94 mic),
   /// [JeebEmptyStateVariant.radar] (the Ø58 broadcast core),
@@ -259,6 +326,14 @@ class JeebEmptyState extends StatelessWidget {
 
   /// Optional CTA, hidden while loading.
   final Widget? action;
+
+  /// The second, quieter act under [action] — "Clear filters" on a filtered
+  /// empty. Hidden while loading, exactly like [action].
+  final Widget? secondaryAction;
+
+  /// Announce the block when it appears. Defaults to true on the error rung —
+  /// a failure that arrives silently is a failure a screen reader never hears.
+  final bool? liveRegion;
 
   /// Illustration width, clamped to the incoming constraints.
   final double illustrationSize;
@@ -283,21 +358,33 @@ class JeebEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _Ink ink = _Ink.of(context, status);
+    final JeebEmptyStateStatus rung = effectiveStatus;
+    final _Ink ink = _Ink.of(context, rung);
     final JeebTextStyles text = context.jeebText;
     final String? bodyText = body;
-    final Widget? cta = status == JeebEmptyStateStatus.loading ? null : action;
+    final bool loading = rung == JeebEmptyStateStatus.loading;
+    final Widget? cta = loading ? null : action;
+    final Widget? secondCta = loading ? null : secondaryAction;
     final TextStyle headlineStyle = compact ? text.h2 : text.h1;
     // D4: scaled text must reclaim art space, not push the body off the fold.
     final double textScale = MediaQuery.textScalerOf(
       context,
     ).scale(1).clamp(1.0, 1.6);
 
+    final bool announce = liveRegion ?? (rung == JeebEmptyStateStatus.error);
+    // explicitChildNodes leaves this node text-less, so an announced block has
+    // to carry its own copy or the reader says nothing at all.
+    final String? label = semanticLabel ??
+        (announce
+            ? <String?>[headline, bodyText].whereType<String>().join('. ')
+            : null);
+
     return Semantics(
       identifier: identifier,
-      label: semanticLabel,
+      label: label,
       container: true,
       explicitChildNodes: true,
+      liveRegion: announce,
       child: Padding(
         padding: padding,
         child: Column(
@@ -306,7 +393,7 @@ class JeebEmptyState extends StatelessWidget {
           children: <Widget>[
             _Illustration(
               variant: variant,
-              status: status,
+              status: rung,
               ink: ink,
               center: center,
               medallions: medallions ?? medallionsFor(variant),
@@ -336,6 +423,14 @@ class JeebEmptyState extends StatelessWidget {
             if (cta != null) ...<Widget>[
               SizedBox(height: compact ? compactActionGap : actionGap),
               cta,
+            ],
+            if (secondCta != null) ...<Widget>[
+              SizedBox(
+                height: cta == null
+                    ? (compact ? compactActionGap : actionGap)
+                    : (compact ? compactBodyGap : bodyGap),
+              ),
+              secondCta,
             ],
           ],
         ),
@@ -2430,3 +2525,43 @@ void _drawBeaconHeadlight(Canvas canvas, _Ink ink, {required bool start}) {
       _fillPaint(ink.semantic.amber.withValues(alpha: 0.15)),
     );
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for the preview
+// canvas and the preview tests.
+
+/// Phone box tall enough for the illustration plus two stacked acts.
+const Size _jeebEmptyStateBox = Size(390, 720);
+
+/// The reason a filtered empty exists: rows are hidden, not absent, so the
+/// second act has to offer the way back.
+@JeebPreview(
+  group: 'core',
+  name: 'Filtered (clear filters)',
+  size: _jeebEmptyStateBox,
+  matrix: true,
+)
+Widget jeebEmptyStateFiltered() => const JeebEmptyState(
+  headline: 'No orders in this range',
+  body: 'Nothing matches the filter you picked.',
+  reason: JeebEmptyStateReason.filtered,
+  identifier: 'preview_empty',
+  action: Text('New request'),
+  secondaryAction: Text('Clear filters'),
+);
+
+/// The error rung carrying both acts, so the gap logic under a second CTA is
+/// visible on the canvas.
+@JeebPreview(
+  group: 'core',
+  name: 'Error + second act',
+  size: _jeebEmptyStateBox,
+)
+Widget jeebEmptyStateErrorWithSecondAct() => const JeebEmptyState(
+  headline: 'Something went wrong',
+  body: 'Check your connection and try again.',
+  reason: JeebEmptyStateReason.failed,
+  identifier: 'preview_error',
+  action: Text('Try again'),
+  secondaryAction: Text('Contact support'),
+);
