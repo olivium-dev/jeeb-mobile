@@ -1,18 +1,24 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../case_evidence/domain/case_evidence.dart';
@@ -21,6 +27,7 @@ import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/support_cubit.dart';
 import '../application/support_state.dart';
 import '../data/stub_support_repository.dart';
+import '../data/unavailable_support_repository.dart';
 import '../domain/support_repository.dart';
 
 /// Token sheet §5: the 24 screen gutter, 16 above the first block. The docked
@@ -115,9 +122,12 @@ class SupportTicketScreen extends StatelessWidget {
         ? extra.trim()
         : null;
     final sl = GetIt.instance;
+    // A release build must never confirm a fabricated ticket (WP7-N4).
     final repository = sl.isRegistered<SupportRepository>()
         ? sl<SupportRepository>()
-        : const StubSupportRepository();
+        : kDebugMode
+        ? const StubSupportRepository()
+        : const UnavailableSupportRepository();
     return BlocProvider<SupportCubit>(
       create: (_) => SupportCubit(repository, initialOrderRef: initialOrderRef),
       child: _SupportTicketView(photoPicker: photoPicker),
@@ -265,10 +275,7 @@ class _CategoryField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // l10n KEY REQUEST (50_ROUTE_REQUESTS): `supportCategoryLabel` not in
-          // the ARB yet — reuse the closest existing label. The identifier is
-          // the contract, not the visible text.
-          JeebSectionLabel(l10n.customerProfileSectionSupport),
+          JeebSectionLabel(l10n.supportCategoryLabel),
           const SizedBox(height: Spacing.xSmall),
           Wrap(
             spacing: Spacing.xSmall,
@@ -328,23 +335,19 @@ class _CategoryTile extends StatelessWidget {
   }
 
   String _label(AppLocalizations l10n, SupportCategory c) {
-    // l10n KEY REQUEST (50_ROUTE_REQUESTS): dedicated `supportCategory*` labels
-    // are not in the ARB yet (integrator-owned). Reuse the closest existing
-    // localized strings — Maestro asserts on `support_category*`, not the
-    // visible label, so this is cosmetic.
     switch (c) {
       case SupportCategory.account:
-        return l10n.customerProfileSectionSupport;
+        return l10n.supportCategoryAccount;
       case SupportCategory.payment:
-        return l10n.navEarnings;
+        return l10n.supportCategoryPayment;
       case SupportCategory.delivery:
-        return l10n.navDelivery;
+        return l10n.supportCategoryDelivery;
       case SupportCategory.kycAppeal:
-        return l10n.kycRejectedAppealCta;
+        return l10n.supportCategoryKycAppeal;
       case SupportCategory.dispute:
-        return l10n.disputeStatusSupportCta;
+        return l10n.supportCategoryDispute;
       case SupportCategory.other:
-        return l10n.escalateReasonOther;
+        return l10n.supportCategoryOther;
     }
   }
 }
@@ -388,15 +391,12 @@ class _BodyFieldState extends State<_BodyField> {
       identifier: 'support_body',
       textField: true,
       container: true,
-      // l10n KEY REQUEST: `supportBodyLabel` not in ARB — reuse the escalate
-      // free-text label (`support_body` identifier is the contract).
-      //
       // The kit has no input primitive; OmdsTextField already reads the Wave-0
       // theme, so it stays — swapping it would be churn, not migration
       // (same call the redesigned profile-edit screen makes).
       child: OmdsTextField(
         controller: _controller,
-        labelText: l10n.escalateCommentLabel,
+        labelText: l10n.supportBodyLabel,
         maxLines: 5,
         minLines: 3,
         maxLength: 2000,
@@ -447,11 +447,8 @@ class _OrderLinkFieldState extends State<_OrderLinkField> {
       identifier: 'support_order_link',
       textField: true,
       container: true,
-      // l10n KEY REQUEST: `supportOrderLinkLabel` not in ARB — reuse the orders
-      // title as the field label (`support_order_link` identifier is the
-      // contract).
       child: OmdsTextField(
-        labelText: l10n.ordersTitle,
+        labelText: l10n.supportOrderLinkLabel,
         controller: _controller,
         prefixIcon: const Icon(Icons.receipt_long_outlined),
         onChanged: (v) => context.read<SupportCubit>().setOrderRef(v),
@@ -472,9 +469,7 @@ class _AttachSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // l10n KEY REQUEST: `supportAttachLabel`/`supportAttachItem` not in ARB
-        // — reuse the escalate photo label + count copy.
-        JeebSectionLabel(l10n.escalatePhotoLabel),
+        JeebSectionLabel(l10n.supportAttachLabel),
         const SizedBox(height: Spacing.xSmall),
         if (paths.isNotEmpty)
           Wrap(
@@ -491,7 +486,7 @@ class _AttachSection extends StatelessWidget {
                     button: true,
                     child: JeebSelectChip(
                       role: JeebChipRole.inlineAction,
-                      label: l10n.escalatePhotoAttached(e.$1 + 1),
+                      label: l10n.supportThreadAttachmentIndexLabel(e.$1 + 1),
                       selected: true,
                       onTap: () =>
                           context.read<SupportCubit>().removeAttachment(e.$2),
@@ -506,10 +501,8 @@ class _AttachSection extends StatelessWidget {
             identifier: 'support_attach',
             button: true,
             container: true,
-            // l10n KEY REQUEST: `supportAttachCta` not in ARB — reuse the photo
-            // attachment add label (`support_attach` identifier is the contract).
             child: JeebCtaButton.outline(
-              label: l10n.photoAttachmentAddLabel,
+              label: l10n.supportAttachCta,
               leadingIcon: Icons.attach_file,
               onTap: () => _pickAttachment(context),
             ),
@@ -532,12 +525,14 @@ class _AttachSection extends StatelessWidget {
       if (!context.mounted || error.failure == PhotoPickFailure.cancelled) {
         return;
       }
-      final message = error.failure == PhotoPickFailure.permissionDenied
-          ? AppLocalizations.of(context).voiceRecordingErrorPermission
-          : AppLocalizations.of(context).escalateErrorServer;
-      ScaffoldMessenger.of(
+      final l10n = AppLocalizations.of(context);
+      showJeebErrorSnack(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+        identifier: 'support_attach_error',
+        message: error.failure == PhotoPickFailure.permissionDenied
+            ? l10n.supportPhotoPermissionDenied
+            : l10n.supportAttachmentFailed,
+      );
     }
   }
 }
@@ -613,7 +608,7 @@ class _SubmittingView extends StatelessWidget {
               status: JeebEmptyStateStatus.loading,
               variant: _kEmptyVariant,
               medallions: _kNoMedallions,
-              headline: l10n.escalateSubmitting,
+              headline: l10n.supportSubmitting,
             ),
             if (state.uploads.isNotEmpty) ...[
               const SizedBox(height: Spacing.large),
@@ -661,10 +656,8 @@ class _ConfirmationView extends StatelessWidget {
                 color: context.jeebRoles.success,
               ),
               const SizedBox(height: Spacing.large),
-              // l10n KEY REQUEST: `supportConfirmation*` not in ARB — reuse the
-              // escalate confirmation copy (same "we received it" semantics).
               Text(
-                l10n.escalateConfirmationTitle,
+                l10n.supportConfirmationTitle,
                 style: context.jeebText.h1.copyWith(
                   color: theme.colorScheme.onSurface,
                 ),
@@ -672,7 +665,7 @@ class _ConfirmationView extends StatelessWidget {
               ),
               const SizedBox(height: Spacing.small),
               Text(
-                l10n.escalateConfirmationBody,
+                l10n.supportConfirmationBody,
                 style: context.jeebText.body.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -684,11 +677,7 @@ class _ConfirmationView extends StatelessWidget {
                   identifier: 'support_view_thread_cta',
                   button: true,
                   child: JeebCtaButton(
-                    label: _supportCopy(
-                      context,
-                      'View support conversation',
-                      'عرض محادثة الدعم',
-                    ),
+                    label: l10n.supportConfirmationViewThreadCta,
                     onTap: () => context.goNamed(
                       'support-ticket-detail',
                       pathParameters: <String, String>{'id': ticketId!},
@@ -736,71 +725,58 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // `support_error` re-homed onto the kit block, which draws the same
-    // illustration danger-tinted; the OMDS error slab it replaces is gone.
-    return Semantics(
-      liveRegion: true,
-      child: Center(
-        child: SingleChildScrollView(
-          child: JeebEmptyState(
-            status: JeebEmptyStateStatus.error,
-            variant: _kEmptyVariant,
-            medallions: _kNoMedallions,
-            headline: _message(context, l10n, state.failure),
-            body: state.hasUploadFailures
-                ? _supportCopy(
-                    context,
-                    'An attachment did not upload. Retry uses the same operation and will not create another ticket.',
-                    'تعذر رفع أحد المرفقات. تستخدم إعادة المحاولة العملية نفسها ولن تنشئ تذكرة أخرى.',
-                  )
-                : null,
-            identifier: 'support_error',
-            action: Semantics(
-              identifier: 'support_retry_cta',
-              button: true,
-              container: true,
-              // retryLabel: no dedicated `supportRetryCta` ARB key yet
-              // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
-              child: JeebCtaButton.outline(
-                label: l10n.supportSubmitCta,
-                leadingIcon: Icons.refresh,
-                expand: false,
-                onTap: () => context.read<SupportCubit>().retryFromError(),
-              ),
-            ),
-          ),
-        ),
+    final AppFailure failure = state.appFailure ?? const UnknownFailure();
+    final kind = state.failure;
+    final terminal =
+        kind == SupportFailure.unauthorized || kind == SupportFailure.notFound;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'support_error',
+        variant: _kEmptyVariant,
+        headlineOverride: _headline(l10n, kind),
+        bodyOverride: state.hasUploadFailures
+            ? l10n.supportUploadFailedBody
+            : kind == SupportFailure.unauthorized
+            ? l10n.supportErrorUnauthorized
+            : null,
+        onRetry: !terminal && failure.isRetryable
+            ? () => context.read<SupportCubit>().retryFromError()
+            : null,
+        onExit: () => _exit(context, kind),
+        exitLabel: kind == SupportFailure.unauthorized
+            ? l10n.actionSignIn
+            : l10n.actionBack,
+        exitIdentifier: kind == SupportFailure.unauthorized
+            ? 'support_error_signin_cta'
+            : null,
+        retryIdentifier: 'support_retry_cta',
       ),
     );
   }
 
-  String _message(
-    BuildContext context,
-    AppLocalizations l10n,
-    SupportFailure? f,
-  ) {
-    // Reuse the escalate error copy until dedicated `supportError*` keys land
-    // (50_ROUTE_REQUESTS l10n request). Maestro asserts on `support_error`.
-    switch (f) {
-      case SupportFailure.network:
-        return l10n.escalateErrorNetwork;
-      case SupportFailure.upload:
-        return _supportCopy(
-          context,
-          'Some attachments could not be uploaded.',
-          'تعذر رفع بعض المرفقات.',
-        );
-      case SupportFailure.conflict:
-        return _supportCopy(
-          context,
-          'This ticket changed. Refresh it before trying again.',
-          'تم تحديث هذه التذكرة. حدّثها قبل المحاولة مرة أخرى.',
-        );
-      case SupportFailure.notFound:
-      case SupportFailure.unauthorized:
-      case SupportFailure.unknown:
-      case null:
-        return l10n.escalateErrorServer;
+  /// Only the jeeb-specific arms override the copy family; the rest reads
+  /// through `failureCopy`.
+  String? _headline(AppLocalizations l10n, SupportFailure? kind) =>
+      switch (kind) {
+        SupportFailure.upload => l10n.supportErrorUpload,
+        SupportFailure.conflict => l10n.supportErrorConflict,
+        SupportFailure.unauthorized ||
+        SupportFailure.network ||
+        SupportFailure.notFound ||
+        SupportFailure.unknown ||
+        null => null,
+      };
+
+  void _exit(BuildContext context, SupportFailure? kind) {
+    if (kind == SupportFailure.unauthorized) {
+      context.goNamed('login');
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.goNamed('customer-profile');
     }
   }
 }
@@ -812,6 +788,7 @@ class _SupportUploadList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'support_upload_progress',
       container: true,
@@ -825,38 +802,61 @@ class _SupportUploadList extends StatelessWidget {
               final complete =
                   progress.state == CaseAttachmentUploadState.uploaded;
               final percent = (progress.fraction * 100).round();
+              final label = l10n.supportThreadAttachmentIndexLabel(
+                entry.$1 + 1,
+              );
               return Semantics(
                 identifier: 'support_upload_${entry.$1}',
                 liveRegion: true,
                 label:
-                    '${_supportCopy(context, 'Attachment', 'المرفق')} '
-                    '${entry.$1 + 1}, ${failed ? _supportCopy(context, 'failed', 'فشل') : '$percent%'}',
+                    '$label, ${failed ? l10n.supportUploadFailed : '$percent%'}',
                 child: Padding(
                   padding: const EdgeInsetsDirectional.only(
                     bottom: Spacing.small,
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        failed
-                            ? Icons.error_outline
-                            : complete
-                            ? Icons.check_circle_outline
-                            : Icons.upload_file,
-                        size: 20,
+                      Row(
+                        children: [
+                          Icon(
+                            failed
+                                ? Icons.error_outline
+                                : complete
+                                ? Icons.check_circle_outline
+                                : Icons.upload_file,
+                            size: 20,
+                          ),
+                          const SizedBox(width: Spacing.small),
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: complete
+                                  ? 1
+                                  : (progress.totalBytes > 0
+                                        ? progress.fraction
+                                        : null),
+                            ),
+                          ),
+                          const SizedBox(width: Spacing.small),
+                          if (!failed) Text('$percent%'),
+                        ],
                       ),
-                      const SizedBox(width: Spacing.small),
-                      Expanded(
-                        child: LinearProgressIndicator(
-                          value: complete
-                              ? 1
-                              : (progress.totalBytes > 0
-                                    ? progress.fraction
-                                    : null),
+                      if (failed) ...[
+                        const SizedBox(height: Spacing.xSmall),
+                        JeebInfoNote.error(
+                          identifier: 'support_upload_${entry.$1}_error',
+                          icon: Icons.error,
+                          text: l10n.supportAttachmentFailed,
                         ),
-                      ),
-                      const SizedBox(width: Spacing.small),
-                      Text(failed ? '!' : '$percent%'),
+                        const SizedBox(height: Spacing.xSmall),
+                        JeebCtaButton.text(
+                          label: l10n.supportAttachmentRetry,
+                          expand: false,
+                          identifier: 'support_upload_${entry.$1}_retry',
+                          onTap: () =>
+                              context.read<SupportCubit>().retryFromError(),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -867,6 +867,3 @@ class _SupportUploadList extends StatelessWidget {
     );
   }
 }
-
-String _supportCopy(BuildContext context, String en, String ar) =>
-    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;

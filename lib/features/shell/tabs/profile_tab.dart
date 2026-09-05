@@ -3,9 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/locale/locale_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/presentation/screens/settings_screen.dart';
 import '../../settings/presentation/widgets/become_jeeber_card.dart';
@@ -50,6 +52,7 @@ class ProfileTab extends StatelessWidget {
                   .read<LocaleCubit>()
                   .setLocale(const Locale('ar')),
             ),
+            const _LanguageSyncPendingNote(),
           ],
         ),
         OmdsSettingsSection(
@@ -93,7 +96,41 @@ class ProfileTab extends StatelessWidget {
 
   void _openKycFlow(BuildContext context) {
     final router = GoRouter.maybeOf(context);
-    router?.goNamed('kyc-status');
+    if (router == null) {
+      // The card only mounts inside the shell, so this is unreachable in
+      // production — but a silent no-op must still be traceable.
+      Diag.event('profile_tab_kyc_nav_unavailable');
+      return;
+    }
+    router.goNamed('kyc-status');
+  }
+}
+
+/// LANG-01: the local language change has not reached the server yet, so the
+/// row's selection is honest but not synced.
+class _LanguageSyncPendingNote extends StatelessWidget {
+  const _LanguageSyncPendingNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: context.read<LocaleCubit>().languagePushPending,
+      builder: (BuildContext context, bool pending, _) {
+        if (!pending) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.medium,
+            vertical: Spacing.xSmall,
+          ),
+          child: Semantics(
+            identifier: 'language_sync_pending_note',
+            container: true,
+            child: JeebInfoNote.muted(text: l10n.languageSyncPendingBody),
+          ),
+        );
+      },
+    );
   }
 }
 

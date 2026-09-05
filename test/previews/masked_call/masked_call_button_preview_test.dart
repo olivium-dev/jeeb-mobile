@@ -104,7 +104,13 @@ void main() {
 
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text(_failed), findsOneWidget);
+      // The id is how QA and the ratchet find this failure, not the copy.
+      expect(
+        find.bySemanticsIdentifier('masked_call_error'),
+        findsOneWidget,
+      );
       await drain(tester);
+      expect(find.bySemanticsIdentifier('masked_call_error'), findsNothing);
     });
 
     testWidgets('localizes: no English leaks into the AR reading', (
@@ -112,6 +118,10 @@ void main() {
     ) async {
       await pumpSnackbar(tester, locale: const Locale('ar'));
 
+      expect(
+        find.bySemanticsIdentifier('masked_call_error'),
+        findsOneWidget,
+      );
       expect(find.text(_failedAr), findsOneWidget);
       expect(find.text(_failed), findsNothing);
       expect(find.text(_callAr), findsOneWidget);
@@ -130,7 +140,9 @@ void main() {
 
       // While it is up, the pill underneath already reads as a plain, live
       expect(find.text(_call), findsOneWidget);
-      expect(_cubitOf(tester).state.failed, isTrue);
+      // MC-02: the flag is acknowledged as soon as the snack is shown, so a
+      // rebuild cannot re-fire it. The snack IS the only trace.
+      expect(_cubitOf(tester).state.failed, isFalse);
 
       await drain(tester);
 

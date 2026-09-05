@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/prohibited_acknowledgment_repository.dart';
 import '../domain/prohibited_item.dart';
 
@@ -26,13 +27,21 @@ class DioProhibitedAcknowledgmentRepository
 
   @override
   Future<List<ProhibitedItem>> fetchItems() async {
-    final response = await _dio.get<dynamic>(_itemsPath);
-    return _parseItems(response.data);
+    try {
+      final response = await _dio.get<dynamic>(_itemsPath);
+      return _parseItems(response.data);
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
+    }
   }
 
   @override
   Future<void> acknowledge() async {
-    await _dio.post<dynamic>(_ackPath);
+    try {
+      await _dio.post<dynamic>(_ackPath);
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
+    }
   }
 
   @override
@@ -52,7 +61,9 @@ class DioProhibitedAcknowledgmentRepository
     } else if (data is List) {
       raw = data;
     } else {
-      return const [];
+      // A catalogue we cannot read is not an empty catalogue: acknowledging a
+      // blank policy is worse than failing.
+      throw const UnknownFailure(parse: true);
     }
     return raw
         .whereType<Map<String, dynamic>>()

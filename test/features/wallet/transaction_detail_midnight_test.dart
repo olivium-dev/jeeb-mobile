@@ -185,12 +185,19 @@ void main() {
       final JeebEmptyState block = tester.widget<JeebEmptyState>(
         find.byType(JeebEmptyState),
       );
-      expect(block.status, JeebEmptyStateStatus.error);
+      expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(block.reason, JeebEmptyStateReason.failed);
       expect(block.action, isNotNull);
-      // R19's money mark, not E1's client mic + shopping medallions.
-      expect(block.center, isA<WalletStateMark>());
-      expect(block.medallions, isEmpty);
+      // `parcel` draws no medallion ring, so E1's client mic + shopping set
+      // never reaches this money surface.
+      expect(block.variant, JeebEmptyStateVariant.parcel);
+      expect(find.byType(WalletStateMark), findsNothing);
       expect(find.bySemanticsIdentifier('txn_detail_root'), findsOneWidget);
+      // ES-18: the rung itself is findable now.
+      expect(find.bySemanticsIdentifier('txn_detail_error'), findsOneWidget);
+      // R6/F14: a 404 gets the way out, never an inert Retry.
+      expect(find.bySemanticsIdentifier('txn_detail_exit_cta'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('txn_detail_retry_cta'), findsNothing);
     });
   });
 }

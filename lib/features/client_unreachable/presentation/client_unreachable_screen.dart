@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -26,8 +27,29 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// neighbour `live_tracking_screen.dart` already uses. Same flow, same actions,
 /// same order, same copy, same identifiers.
 class ClientUnreachableScreen extends StatelessWidget {
-  const ClientUnreachableScreen({super.key, required this.deliveryId});
+  const ClientUnreachableScreen({
+    super.key,
+    required this.deliveryId,
+    this.onCallAgain,
+  });
+
   final String deliveryId;
+
+  /// Placing the masked call. Null routes to the order hub, which owns every
+  /// contact affordance — the control was `onTap: () {}` before.
+  final VoidCallback? onCallAgain;
+
+  void _callAgain(BuildContext context) {
+    final handler = onCallAgain;
+    if (handler != null) {
+      handler();
+      return;
+    }
+    context.pushNamed(
+      'order-detail',
+      pathParameters: <String, String>{'id': deliveryId},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +91,7 @@ class ClientUnreachableScreen extends StatelessWidget {
                         child: JeebCtaButton.outline(
                           label: copy.callAgainCta,
                           leadingIcon: Icons.phone,
-                          onTap: () {},
+                          onTap: () => _callAgain(context),
                         ),
                       ),
                       const SizedBox(height: Spacing.small),
@@ -80,7 +102,10 @@ class ClientUnreachableScreen extends StatelessWidget {
                         child: JeebCtaButton.outline(
                           label: copy.chatCta,
                           leadingIcon: Icons.chat,
-                          onTap: () {},
+                          onTap: () => context.pushNamed(
+                            'chat-detail',
+                            pathParameters: <String, String>{'id': deliveryId},
+                          ),
                         ),
                       ),
                     ],

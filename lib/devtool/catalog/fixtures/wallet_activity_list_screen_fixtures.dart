@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_ledger_repository.dart';
 
 /// Canned [WalletLedgerRepository] — every page resolves to [entries], and the
@@ -34,6 +35,68 @@ class WalletActivityListScreenFakeRepository implements WalletLedgerRepository {
       entries: entries,
       page: page,
       totalPages: totalPages,
+    );
+  }
+}
+
+/// A first page that lands and a second that fails — the load-more footer's
+/// kind-aware failure, and the guard that stops a scroll re-firing it.
+class WalletActivityListScreenLoadMoreFailingRepository
+    implements WalletLedgerRepository {
+  const WalletActivityListScreenLoadMoreFailingRepository(this.entries);
+
+  final List<WalletLedgerEntry> entries;
+
+  @override
+  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+    if (page > 1) {
+      throw const WalletLedgerRepositoryException(
+        WalletLedgerFailure.network,
+        cause: NetworkFailure(),
+      );
+    }
+    return WalletLedgerPage(entries: entries, page: 1, totalPages: 2);
+  }
+}
+
+/// A cold load that lands and every refresh after it that fails — the note
+/// above the rows, which stay on screen (LR-08).
+class WalletActivityListScreenRefreshFailingRepository
+    implements WalletLedgerRepository {
+  WalletActivityListScreenRefreshFailingRepository(this.entries);
+
+  final List<WalletLedgerEntry> entries;
+
+  bool _served = false;
+
+  @override
+  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+    if (_served) {
+      throw const WalletLedgerRepositoryException(
+        WalletLedgerFailure.network,
+        cause: NetworkFailure(),
+      );
+    }
+    _served = true;
+    return WalletLedgerPage(entries: entries, page: 1, totalPages: 1);
+  }
+}
+
+/// A page whose gateway body carried a row with neither `sign` nor a known
+/// `type`: it is dropped and counted, never rendered with a guessed direction.
+class WalletActivityListScreenUnrenderableRowRepository
+    implements WalletLedgerRepository {
+  const WalletActivityListScreenUnrenderableRowRepository(this.entries);
+
+  final List<WalletLedgerEntry> entries;
+
+  @override
+  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+    return WalletLedgerPage(
+      entries: entries,
+      page: 1,
+      totalPages: 1,
+      unrenderableCount: 1,
     );
   }
 }

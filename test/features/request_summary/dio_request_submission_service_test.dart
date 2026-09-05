@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/request_summary/data/dio_request_submission_service.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/recipient_phone_resolver.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
@@ -35,8 +36,8 @@ Dio _dioRespond(Object? body, {int status = 201}) {
   return dio;
 }
 
-/// Rejects every request with [type] (and optional [status]).
-Dio _dioError(DioExceptionType type, {int? status}) {
+/// Rejects every request with [type] (and optional [status]/[body]).
+Dio _dioError(DioExceptionType type, {int? status, Object? body}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
     InterceptorsWrapper(
@@ -46,7 +47,7 @@ Dio _dioError(DioExceptionType type, {int? status}) {
           type: type,
           response: status != null
               ? Response(
-                  data: null,
+                  data: body,
                   statusCode: status,
                   requestOptions: options,
                 )
@@ -292,7 +293,10 @@ void main() {
       expect(capturedBody?.containsKey('recipientPhone'), isFalse);
     });
 
-    test('throws server failure when 201 body has no id', () async {
+    // EP-23: the enum stays, the PROSE goes — the classified parse failure
+    // rides on appFailure instead of 'missing id in 201 response'.
+    test('throws server failure with a parse AppFailure when 201 has no id',
+        () async {
       final service = _service(
         _dioRespond({'status': 'pending'}),
       );
@@ -301,7 +305,11 @@ void main() {
         service.submit(_draft),
         throwsA(
           predicate<RequestSubmissionException>(
-            (e) => e.failure == RequestSubmissionFailure.server,
+            (e) =>
+                e.failure == RequestSubmissionFailure.server &&
+                e.appFailure is UnknownFailure &&
+                (e.appFailure! as UnknownFailure).parse &&
+                e.message == null,
           ),
         ),
       );
@@ -353,7 +361,7 @@ void main() {
       );
     });
 
-    test('maps 4xx to invalidInput failure', () async {
+    test('maps 422 to invalidInput failure', () async {
       final service = _service(
         _dioError(DioExceptionType.badResponse, status: 422),
       );
@@ -362,10 +370,174 @@ void main() {
         service.submit(_draft),
         throwsA(
           predicate<RequestSubmissionException>(
-            (e) => e.failure == RequestSubmissionFailure.invalidInput,
+            (e) =>
+                e.failure == RequestSubmissionFailure.invalidInput &&
+                e.appFailure is ValidationFailure,
           ),
         ),
       );
+    });
+
+    // AE-01/NET-15: every non-401 4xx used to bucket into `invalidInput` with
+    // a stringified 'HTTP <status>' the UI could never render honestly.
+    for (final int status in <int>[403, 404, 410, 429]) {
+      test('maps $status to SERVER, not invalidInput, carrying its kind',
+          () async {
+        final service = _service(
+          _dioError(DioExceptionType.badResponse, status: status),
+        );
+
+        await expectLater(
+          service.submit(_draft),
+          throwsA(
+            predicate<RequestSubmissionException>(
+              (e) =>
+                  e.failure == RequestSubmissionFailure.server &&
+                  e.appFailure != null &&
+                  e.appFailure is! ValidationFailure,
+            ),
+          ),
+        );
+      });
+    }
+
+    test('a 409 that is NOT a moderation suffix stays a server failure',
+        () async {
+      final service = _service(
+        _dioError(
+          DioExceptionType.badResponse,
+          status: 409,
+          body: <String, dynamic>{'type': 'https://jeeb/errors/duplicate'},
+        ),
+      );
+
+      await expectLater(
+        service.submit(_draft),
+        throwsA(
+          predicate<RequestSubmissionException>(
+            (e) =>
+                e is! RequestModerationRequired &&
+                e.failure == RequestSubmissionFailure.server,
+          ),
+        ),
+      );
+    });
+
+    // AE-01: the two moderation suffixes are their OWN exception.
+    test('a 409 prohibited-item-requires-ack becomes RequestModerationRequired '
+        'carrying the flagged keywords', () async {
+      final service = _service(
+        _dioError(
+          DioExceptionType.badResponse,
+          status: 409,
+          body: <String, dynamic>{
+            'type': 'https://jeeb/errors/prohibited-item-requires-ack',
+            'matches': <dynamic>[
+              <String, dynamic>{'keyword': 'knife'},
+            ],
+          },
+        ),
+      );
+
+      await expectLater(
+        service.submit(_draft),
+        throwsA(
+          predicate<RequestModerationRequired>(
+            (e) => !e.blocked && e.matches.contains('knife'),
+          ),
+        ),
+      );
+    });
+
+    test('a 409 prohibited-item-blocked is TERMINAL', () async {
+      final service = _service(
+        _dioError(
+          DioExceptionType.badResponse,
+          status: 409,
+          body: <String, dynamic>{
+            'type': 'https://jeeb/errors/prohibited-item-blocked',
+            'matches': <dynamic>['firearm'],
+          },
+        ),
+      );
+
+      await expectLater(
+        service.submit(_draft),
+        throwsA(
+          predicate<RequestModerationRequired>(
+            (e) => e.blocked && e.matches.contains('firearm'),
+          ),
+        ),
+      );
+    });
+
+    // A RequestModerationRequired is still a RequestSubmissionException, so
+    // every existing `on RequestSubmissionException catch` keeps working.
+    test('RequestModerationRequired is caught by the legacy catch', () async {
+      final service = _service(
+        _dioError(
+          DioExceptionType.badResponse,
+          status: 409,
+          body: <String, dynamic>{
+            'type': 'https://jeeb/errors/prohibited-item-requires-ack',
+          },
+        ),
+      );
+
+      await expectLater(
+        service.submit(_draft),
+        throwsA(isA<RequestSubmissionException>()),
+      );
+    });
+
+    // NET-12: without the header a retried create can mint a second request.
+    test('sends the draft operationId as the Idempotency-Key', () async {
+      Map<String, dynamic>? headers;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            headers = options.headers;
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                data: <String, dynamic>{'id': 'req-1'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      await _service(dio).submit(
+        const RequestDraft(description: 'x', operationId: 'op-abc'),
+      );
+
+      expect(headers?['Idempotency-Key'], 'op-abc');
+    });
+
+    test('sends NO Idempotency-Key when the draft carries no operationId',
+        () async {
+      Map<String, dynamic>? headers;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            headers = options.headers;
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                data: <String, dynamic>{'id': 'req-1'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      await _service(dio).submit(const RequestDraft(description: 'x'));
+
+      expect(headers?.containsKey('Idempotency-Key'), isFalse);
     });
 
     test('maps 5xx to server failure', () async {

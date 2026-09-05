@@ -130,12 +130,13 @@ class JeebMoneyField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final hasError = errorText != null;
 
-    final markStyle =
-        context.jeebText.price.copyWith(color: semantics.mutedText);
+    final markStyle = context.jeebText.price.copyWith(
+      color: semantics.mutedText,
+    );
     final amountStyle = context.jeebText.h1.copyWith(
       fontWeight: FontWeight.w800,
       color: scheme.onSurface,
@@ -222,7 +223,9 @@ class JeebMoneyField extends StatelessWidget {
     return Semantics(
       identifier: identifier,
       textField: true,
-      child: TextField( // EXEMPT(flutter-omds-design-system-usage): see class doc.
+      // Raw field is deliberate — see the class doc. The marker sits inline
+      // because `dart format` relocates a trailing `//` after an open paren.
+      child: /* EXEMPT(flutter-omds-design-system-usage) */ TextField(
         controller: controller,
         onChanged: onChanged,
         style: amountStyle,

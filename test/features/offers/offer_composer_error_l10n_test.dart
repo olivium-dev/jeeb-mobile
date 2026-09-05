@@ -1,4 +1,5 @@
-// JEBV4-246 + JEBV4-243: the offer-composer error snack must render LOCALIZED
+// JEBV4-246 + JEBV4-243 + UX-41: the offer-composer failure is a PERSISTENT
+// note, localized, and the draft survives it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -60,7 +61,6 @@ Future<void> _submitValidDraft(WidgetTester tester) async {
   await tester.tap(find.bySemanticsIdentifier('offer_composer_eta_option_0'));
   await tester.pumpAndSettle();
   await tester.tap(find.bySemanticsIdentifier('offer_composer_send_cta'));
-  // Do NOT pumpAndSettle — the transient snack would auto-dismiss first.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
 }
@@ -77,8 +77,14 @@ void main() {
 
       await _submitValidDraft(tester);
 
+      // UX-41: a persistent note, not a snack that vanishes while the Jeeber
+      // is looking away.
       expect(
-        find.text('No connection. Check your network and try again.'),
+        find.bySemanticsIdentifier('offer_composer_error_note'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Check your connection and try again.'),
         findsOneWidget,
       );
       // The previously-shipped hardcoded English is gone.
@@ -106,8 +112,40 @@ void main() {
       await _submitValidDraft(tester);
 
       expect(
-        find.text('لا يوجد اتصال. تحقق من شبكتك وحاول مجدداً.'),
+        find.bySemanticsIdentifier('offer_composer_error_note'),
         findsOneWidget,
+      );
+      expect(find.text('تحقّق من اتصالك وحاول مجددًا.'), findsOneWidget);
+
+      handle.dispose();
+    });
+
+    testWidgets('the note survives until the draft is edited (UX-41)',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(_ThrowingRepo(OfferSubmissionFailure.network)),
+      );
+      await tester.pumpAndSettle();
+
+      await _submitValidDraft(tester);
+      expect(
+        find.bySemanticsIdentifier('offer_composer_error_note'),
+        findsOneWidget,
+      );
+
+      // Several seconds later it is still there — a snack would be gone.
+      await tester.pump(const Duration(seconds: 8));
+      expect(
+        find.bySemanticsIdentifier('offer_composer_error_note'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.byType(EditableText).first, '9');
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('offer_composer_error_note'),
+        findsNothing,
       );
 
       handle.dispose();

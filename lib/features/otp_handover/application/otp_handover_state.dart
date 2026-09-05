@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../domain/handover_arrival.dart';
+import '../domain/otp_handover_repository.dart';
 
 enum OtpHandoverViewMode { loading, ready, submitting, success, error }
 
@@ -8,7 +9,10 @@ class OtpHandoverState extends Equatable {
   const OtpHandoverState({
     this.mode = OtpHandoverViewMode.loading,
     this.handoverCode,
-    this.errorMessage,
+    this.errorKind,
+    this.attemptsRemaining,
+    this.escalationId,
+    this.lockedAt,
     this.wrongAttempts = 0,
     this.shakeKey = 0,
     this.escalate = false,
@@ -20,7 +24,17 @@ class OtpHandoverState extends Equatable {
 
   final OtpHandoverViewMode mode;
   final String? handoverCode;
-  final String? errorMessage;
+
+  /// The typed failure the screen renders. Replaces the token strings the
+  /// screen used to string-compare against.
+  final OtpHandoverErrorKind? errorKind;
+
+  /// Server-reported attempts left; preferred over the local subtraction.
+  final int? attemptsRemaining;
+
+  /// The case the gateway already opened on a 423 lockout.
+  final String? escalationId;
+  final DateTime? lockedAt;
 
   /// Screen 13's arrival banner payload. Null is the normal case — the read is
   /// best-effort garnish over a surface whose reason to exist is the code, so
@@ -61,7 +75,10 @@ class OtpHandoverState extends Equatable {
   OtpHandoverState copyWith({
     OtpHandoverViewMode? mode,
     String? handoverCode,
-    String? errorMessage,
+    OtpHandoverErrorKind? errorKind,
+    int? attemptsRemaining,
+    String? escalationId,
+    DateTime? lockedAt,
     bool clearError = false,
     int? wrongAttempts,
     int? shakeKey,
@@ -74,7 +91,11 @@ class OtpHandoverState extends Equatable {
     return OtpHandoverState(
       mode: mode ?? this.mode,
       handoverCode: handoverCode ?? this.handoverCode,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      errorKind: clearError ? null : (errorKind ?? this.errorKind),
+      attemptsRemaining:
+          clearError ? null : (attemptsRemaining ?? this.attemptsRemaining),
+      escalationId: clearError ? null : (escalationId ?? this.escalationId),
+      lockedAt: clearError ? null : (lockedAt ?? this.lockedAt),
       wrongAttempts: wrongAttempts ?? this.wrongAttempts,
       shakeKey: shakeKey ?? this.shakeKey,
       escalate: escalate ?? this.escalate,
@@ -89,7 +110,10 @@ class OtpHandoverState extends Equatable {
   List<Object?> get props => [
         mode,
         handoverCode,
-        errorMessage,
+        errorKind,
+        attemptsRemaining,
+        escalationId,
+        lockedAt,
         wrongAttempts,
         shakeKey,
         escalate,

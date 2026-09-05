@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/tier_selection/cubit/tier_selection_cubit.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
@@ -26,6 +27,17 @@ class RequestTypeScreenEmptyTierRepository implements TierRepository {
 
   @override
   Future<List<Tier>> fetchTiers() async => const <Tier>[];
+}
+
+/// A tier read that throws a classified [AppFailure], so the error rung's
+/// kind-aware copy is reviewable.
+class RequestTypeScreenFailingTierRepository implements TierRepository {
+  const RequestTypeScreenFailingTierRepository(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Future<List<Tier>> fetchTiers() async => throw failure;
 }
 
 /// The served three tiers with every gateway-owned NUMBER changed — and copy
@@ -101,6 +113,24 @@ abstract final class RequestTypeScreenPreviewFixtures {
   /// Both members of [TierLoadFailure] are reachable and the screen renders the
   static TierRepository failing(TierLoadFailure failure) =>
       DevtoolTierRepository(failWith: failure);
+
+  /// The read throws a classified failure: kind-aware copy, reviewable.
+  static TierRepository failingWith(AppFailure failure) =>
+      RequestTypeScreenFailingTierRepository(failure);
+
+  /// 503 — retryable.
+  static TierRepository unavailable() =>
+      const RequestTypeScreenFailingTierRepository(ServerFailure(status: 503));
+
+  /// 403 — not retryable.
+  static TierRepository forbidden() =>
+      const RequestTypeScreenFailingTierRepository(ForbiddenFailure());
+
+  /// No transport.
+  static TierRepository offline() =>
+      const RequestTypeScreenFailingTierRepository(
+        NetworkFailure(offline: true),
+      );
 
   /// A cubit already carrying a selection, for the `cubit:` seam.
   /// Same mechanism the Screen Catalog has always used: `selectTier` is a no-op

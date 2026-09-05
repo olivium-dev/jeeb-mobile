@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
@@ -471,4 +473,46 @@ void main() {
       );
     });
   });
+
+  group('the three rungs carry the identifier triple', () {
+    testWidgets('loading and error each have their own id', (tester) async {
+      final _StalledRepo repo = _StalledRepo();
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('pending_loading_state'),
+        findsOneWidget,
+      );
+
+      repo.fail();
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('pending_error_state'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('pending_retry_cta'), findsOneWidget);
+      // The grandfathered empty id must not appear on a failure.
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_root'),
+        findsNothing,
+      );
+    });
+  });
+}
+
+/// Stalls the cold load until [fail] releases it with a failure.
+class _StalledRepo implements ClientHomeRepository {
+  _StalledRepo();
+
+  Completer<ClientHomeSnapshot> _pending = Completer<ClientHomeSnapshot>();
+
+  void fail() => _pending.complete(
+    const ClientHomeSnapshot(
+      requestsFailure: NetworkFailure(offline: true),
+      inProgressFailure: NetworkFailure(offline: true),
+    ),
+  );
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() {
+    if (_pending.isCompleted) _pending = Completer<ClientHomeSnapshot>();
+    return _pending.future;
+  }
 }

@@ -16,6 +16,7 @@ import '../../application/offer_accept_state.dart';
 import '../../data/fake_offers_repository.dart';
 import '../../domain/offer.dart';
 import '../../domain/offers_repository.dart';
+import '../offers_failure_copy.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
@@ -214,7 +215,12 @@ class _OfferAcceptView extends StatelessWidget {
                               const SizedBox(width: Spacing.small),
                               Expanded(
                                 child: Text(
-                                  _failureCopy(l10n, state.error!),
+                                  offersFailureCopy(
+                                    l10n,
+                                    state.error,
+                                    phase: OffersErrorPhase.accept,
+                                    appFailure: state.appFailure,
+                                  ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: theme.colorScheme.onErrorContainer,
                                   ),
@@ -275,21 +281,6 @@ class _OfferAcceptView extends StatelessWidget {
     );
   }
 
-  static String _failureCopy(AppLocalizations l10n, OffersFailure failure) {
-    switch (failure) {
-      case OffersFailure.network:
-        return l10n.offersErrorNetwork;
-      case OffersFailure.requestNotOpen:
-        return l10n.offersErrorRequestNotOpen;
-      case OffersFailure.offerNotPending:
-        return l10n.offersErrorOfferNotPending;
-      case OffersFailure.jeeberAtCapacity:
-        return l10n.offersErrorJeeberAtCapacity;
-      case OffersFailure.rateLimited:
-      case OffersFailure.unknown:
-        return l10n.offersErrorGeneric;
-    }
-  }
 }
 
 class _SheetDragHandle extends StatelessWidget {

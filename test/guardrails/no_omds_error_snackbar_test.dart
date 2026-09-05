@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'guardrail_sources.dart';
 
 /// Sites on `origin/main` the day WP-0B landed. Stage 2 drives both to 0.
-const int _kOmdsErrorSnackbarFloor = 12;
-const int _kRawSnackBarFloor = 19;
+const int _kOmdsErrorSnackbarFloor = 3;
+const int _kRawSnackBarFloor = 0;
 
 void main() {
   test('showOmdsErrorSnackbar does not spread', () {

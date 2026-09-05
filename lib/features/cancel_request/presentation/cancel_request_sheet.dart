@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_scrim.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/cancel_request_cubit.dart';
 import '../application/cancel_request_state.dart';
@@ -37,13 +40,15 @@ class CancelRequestSheet extends StatelessWidget {
 
   final VoidCallback? onKept;
 
-  CancelRequestRepository _resolveRepository() {
+  /// Null when nothing is registered: the fake used to fabricate a SUCCESSFUL
+  /// cancel in release for a request the gateway never heard about.
+  CancelRequestRepository? _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
     if (sl.isRegistered<CancelRequestRepository>()) {
       return sl<CancelRequestRepository>();
     }
-    return FakeCancelRequestRepository();
+    return null;
   }
 
   static Future<bool?> show(
@@ -74,9 +79,13 @@ class CancelRequestSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolved = _resolveRepository();
+    if (resolved == null) {
+      return _CancelRequestUnavailable(onKept: onKept);
+    }
     return BlocProvider<CancelRequestCubit>(
       create: (_) => CancelRequestCubit(
-        repository: _resolveRepository(),
+        repository: resolved,
         requestId: requestId,
         initialState: initialState,
       ),
@@ -97,10 +106,28 @@ class _CancelRequestView extends StatelessWidget {
   ) {
     return switch (failure) {
       CancelRequestFailure.conflict => l10n.cancelRequestErrorConflict,
-      CancelRequestFailure.network => l10n.loginNetworkError,
+      CancelRequestFailure.network =>
+        failureCopy(l10n, const NetworkFailure()).body,
+      CancelRequestFailure.forbidden => l10n.errorForbiddenBody,
+      CancelRequestFailure.notFound => l10n.errorNotFoundBody,
       _ => l10n.cancelRequestErrorGeneric,
     };
   }
+
+  void _closeAfterTerminal(BuildContext context) {
+    context.read<CancelRequestCubit>().acknowledgeError();
+    if (sl.isRegistered<PushRefreshSignals>()) {
+      sl<PushRefreshSignals>().signalStatusChange();
+    }
+    onKept?.call();
+  }
+
+  /// 409/403/404 are terminal: re-firing the destructive act can only fail
+  /// again, so the confirm CTA is replaced by a way out.
+  static bool _isTerminal(CancelRequestFailure? failure) =>
+      failure == CancelRequestFailure.conflict ||
+      failure == CancelRequestFailure.forbidden ||
+      failure == CancelRequestFailure.notFound;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +146,8 @@ class _CancelRequestView extends StatelessWidget {
       },
       builder: (context, state) {
         final inFlight = state.isInFlight;
+        final terminal = state.status == CancelRequestStatus.failed &&
+            _isTerminal(state.error);
         return Semantics(
           identifier: 'cancel_request_sheet',
           explicitChildNodes: true,
@@ -178,6 +207,22 @@ class _CancelRequestView extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: Spacing.twoXLarge),
+                  if (terminal)
+                    Semantics(
+                      identifier: 'cancel_request_close_cta',
+                      container: true,
+                      button: true,
+                      label: l10n.actionClose,
+                      onTap: () => _closeAfterTerminal(context),
+                      child: ExcludeSemantics(
+                        child: OmdsPrimaryButton(
+                          key: const Key('cancel-request-close-cta'),
+                          text: l10n.actionClose,
+                          onTap: () => _closeAfterTerminal(context),
+                        ),
+                      ),
+                    )
+                  else
                   Semantics(
                     identifier: 'cancel_request_confirm_cta',
                     container: true,
@@ -203,7 +248,8 @@ class _CancelRequestView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: Spacing.small),
+                  if (!terminal) const SizedBox(height: Spacing.small),
+                  if (!terminal)
                   Semantics(
                     identifier: 'cancel_request_keep_cta',
                     container: true,
@@ -236,6 +282,62 @@ class _CancelRequestView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The sheet with no repository wired: an honest inline failure and a disabled
+/// confirm, never a fabricated success.
+class _CancelRequestUnavailable extends StatelessWidget {
+  const _CancelRequestUnavailable({this.onKept});
+
+  final VoidCallback? onKept;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'cancel_request_sheet',
+      explicitChildNodes: true,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.small,
+            Spacing.xLarge,
+            Spacing.xLarge,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SheetDragHandle(),
+              const SizedBox(height: Spacing.large),
+              JeebInfoNote.error(
+                identifier: 'cancel_request_unavailable',
+                icon: Icons.error_outline,
+                text: l10n.cancelRequestErrorGeneric,
+              ),
+              const SizedBox(height: Spacing.large),
+              Semantics(
+                identifier: 'cancel_request_keep_cta',
+                container: true,
+                button: true,
+                label: l10n.deliveryCancelDialogDismiss,
+                onTap: () => onKept?.call(),
+                child: ExcludeSemantics(
+                  child: OmdsPrimaryButton(
+                    text: l10n.deliveryCancelDialogDismiss,
+                    variant: OmdsButtonVariant.outlined,
+                    onTap: () => onKept?.call(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

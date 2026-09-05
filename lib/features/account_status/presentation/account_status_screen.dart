@@ -5,10 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
@@ -157,12 +163,17 @@ class _AccountStatusView extends StatelessWidget {
                         case AccountStatusScreenStatus.loading:
                           return _LoadingBody(copy: copy);
                         case AccountStatusScreenStatus.failed:
-                          return _FailedBody(copy: copy);
+                          return _FailedBody(
+                            failure:
+                                state.appFailure ?? const UnknownFailure(),
+                            copy: copy,
+                          );
                         case AccountStatusScreenStatus.loaded:
                           return _BlockedBody(
                             value: state.value,
                             serverReason: state.reason,
                             serverReasonCode: state.reasonCode,
+                            refreshError: state.refreshError,
                             copy: copy,
                           );
                       }
@@ -190,10 +201,10 @@ class _LoadingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return JeebStateHost(
       child: JeebEmptyState(
         variant: JeebEmptyStateVariant.radar,
-        status: JeebEmptyStateStatus.loading,
+        reason: JeebEmptyStateReason.loading,
         medallions: const <JeebEmptyMedallion>[],
         identifier: AccountStatusScreen.loadingIdentifier,
         headline: copy.loadingHeadline,
@@ -205,25 +216,32 @@ class _LoadingBody extends StatelessWidget {
 /// The failed read. Same illustration, danger-tinted centre (kit ruling 1), and
 /// the retry is the glass pill — never an orange act the board does not draw.
 class _FailedBody extends StatelessWidget {
-  const _FailedBody({required this.copy});
+  const _FailedBody({required this.failure, required this.copy});
 
+  final AppFailure failure;
   final AccountStatusL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: JeebEmptyState(
+    return JeebStateHost(
+      // A 401/403 here is terminal: the block offers the sign-out exit, never
+      // a Retry the user cannot win.
+      child: JeebFailureBlock(
+        failure: failure,
         variant: JeebEmptyStateVariant.radar,
-        status: JeebEmptyStateStatus.error,
-        medallions: const <JeebEmptyMedallion>[],
         identifier: AccountStatusScreen.loadErrorIdentifier,
-        headline: copy.loadErrorTitle,
-        body: copy.loadError,
-        action: JeebCtaButton.outline(
-          label: copy.retry,
-          expand: false,
-          identifier: AccountStatusScreen.retryIdentifier,
-          onTap: () => context.read<AccountStatusCubit>().refresh(),
+        retryIdentifier: AccountStatusScreen.retryIdentifier,
+        // `failureCopy` owns the headline: a 401 must not read "couldn't load"
+        // over a body that says the session expired.
+        headlineOverride:
+            failureCopy(AppLocalizations.of(context), failure).retryable
+                ? copy.loadErrorTitle
+                : null,
+        onRetry: () => context.read<AccountStatusCubit>().refresh(),
+        exitLabel: copy.signoutCta,
+        onExit: () => LogoutDeleteConfirmSheet.show(
+          context,
+          mode: LogoutDeleteMode.logout,
         ),
       ),
     );
@@ -271,12 +289,17 @@ class _BlockedBody extends StatelessWidget {
     required this.value,
     required this.serverReason,
     required this.serverReasonCode,
+    required this.refreshError,
     required this.copy,
   });
 
-  final AccountStatusValue value;
+  /// UX-43: null until an authoritative read lands — a not-yet-known status
+  /// must never be labelled `suspended`.
+  final AccountStatusValue? value;
+
   final String? serverReason;
   final String? serverReasonCode;
+  final AppFailure? refreshError;
   final AccountStatusL10n copy;
 
   @override
@@ -285,12 +308,31 @@ class _BlockedBody extends StatelessWidget {
     // D16 precedence: an operator's typed prose (already human-safe) wins;
     // else the ban-policy key looked up in the viewer's language; else the
     // localized per-state copy. A raw `Label{{...}}` never reaches here.
-    final reason = serverReason ??
-        copy.reasonForCode(serverReasonCode) ??
-        copy.defaultReason(value);
+    final AccountStatusValue? value = this.value;
+    final String? reason = value == null
+        ? null
+        : (serverReason ??
+            copy.reasonForCode(serverReasonCode) ??
+            copy.defaultReason(value));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              0,
+              Spacing.xLarge,
+              Spacing.small,
+            ),
+            child: JeebRefreshFailedNote(
+              failure: refreshError!,
+              identifier: 'account_status_refresh_failed_note',
+              onRetry: () => context.read<AccountStatusCubit>().refresh(),
+              onDismiss: () =>
+                  context.read<AccountStatusCubit>().dismissRefreshError(),
+            ),
+          ),
         Expanded(
           // Scrolls rather than overflows when a long server reason meets a
           // large text scale; the residual space stays top-aligned on the field.
@@ -299,27 +341,30 @@ class _BlockedBody extends StatelessWidget {
             children: [
               // WHICH-blocked-state panel (D5). Glyph is danger-SOFT, never
               // full-strength `error` — R22's ruling, and §9 gates only that pair.
-              Semantics(
-                identifier: 'account_status_banner',
-                container: true,
-                child: JeebInfoNote.error(
-                  icon: value == AccountStatusValue.locked
-                      ? Icons.lock_outline_rounded
-                      : Icons.pause_circle_outline_rounded,
-                  iconColor: scheme.onErrorContainer,
-                  title: copy.banner(value),
+              if (value != null)
+                Semantics(
+                  identifier: 'account_status_banner',
+                  container: true,
+                  child: JeebInfoNote.error(
+                    icon: value == AccountStatusValue.locked
+                        ? Icons.lock_outline_rounded
+                        : Icons.pause_circle_outline_rounded,
+                    iconColor: scheme.onErrorContainer,
+                    title: copy.banner(value),
+                  ),
                 ),
-              ),
-              const SizedBox(height: Spacing.small),
-              // Reason — operator prose verbatim, else the localized lookup,
-              // on R23's glass info strip.
-              Semantics(
-                identifier: 'account_status_reason',
-                // Without container the id merges up into account_status_root
-                // and is folded away (JM-049 merge class).
-                container: true,
-                child: JeebInfoNote.muted(label: _ReasonLine(reason: reason)),
-              ),
+              if (reason != null) ...[
+                const SizedBox(height: Spacing.small),
+                // Reason — operator prose verbatim, else the localized lookup,
+                // on R23's glass info strip.
+                Semantics(
+                  identifier: 'account_status_reason',
+                  // Without container the id merges up into
+                  // account_status_root and is folded away (JM-049 merge).
+                  container: true,
+                  child: JeebInfoNote.muted(label: _ReasonLine(reason: reason)),
+                ),
+              ],
             ],
           ),
         ),

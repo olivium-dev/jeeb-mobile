@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'client_home_request.dart';
 import 'recent_delivery_summary.dart';
 
@@ -9,8 +10,11 @@ class ClientHomeSnapshot {
     this.recentDeliveries = const [],
     this.offerStatusRequests = const [],
     this.rateLimited = false,
-    this.loadFailed = false,
     this.retryAfter,
+    this.inProgressFailure,
+    this.requestsFailure,
+    this.recentFailure,
+    this.probeFailure,
     List<ClientHomeRequest>? activeRequests,
   }) : _activeRequestsOverride = activeRequests;
 
@@ -22,9 +26,14 @@ class ClientHomeSnapshot {
 
   final bool rateLimited;
 
-  /// True iff EVERY primary read of this load failed on transport (non-429
-  /// [DioException]) and none succeeded — an honest "nothing loaded", not empty.
-  final bool loadFailed;
+  /// Per-bucket classified failures: one dead read no longer erases the reads
+  /// that succeeded, so a partial load renders rows plus a per-bucket error.
+  final AppFailure? inProgressFailure;
+  final AppFailure? requestsFailure;
+  final AppFailure? recentFailure;
+
+  /// The best-effort offer probe; never blocks a load, but is not swallowed.
+  final AppFailure? probeFailure;
 
   final Duration? retryAfter;
 
@@ -32,6 +41,22 @@ class ClientHomeSnapshot {
 
   List<ClientHomeRequest> get activeRequests =>
       _activeRequestsOverride ?? inProgress;
+
+  bool get anyBucketFailed =>
+      requestsFailure != null ||
+      inProgressFailure != null ||
+      recentFailure != null;
+
+  AppFailure? get firstFailure =>
+      requestsFailure ?? inProgressFailure ?? recentFailure;
+
+  /// True iff both TAB-BEARING reads failed — an honest "nothing loaded".
+  /// `recent` is a supporting rail, never on its own a failed home.
+  bool get allPrimaryFailed =>
+      requestsFailure != null && inProgressFailure != null;
+
+  /// Legacy alias kept so existing callers and fixtures compile unchanged.
+  bool get loadFailed => allPrimaryFailed;
 }
 
 abstract class ClientHomeRepository {

@@ -289,3 +289,50 @@ class _NotificationPreferencesScreenPreviewHostState
     );
   }
 }
+
+/// F22/F23: the three failure rungs the screen could not draw before.
+class NotificationPreferencesScreenThrowingRepository
+    implements NotificationPrefsRepository {
+  const NotificationPreferencesScreenThrowingRepository(this.failure);
+
+  /// A `{}` body used to read as "everything on"; it is now `malformed`.
+  static const NotificationPreferencesScreenThrowingRepository malformedBody =
+      NotificationPreferencesScreenThrowingRepository(
+    NotificationPrefsFailure.malformed,
+  );
+
+  static const NotificationPreferencesScreenThrowingRepository unauthorized =
+      NotificationPreferencesScreenThrowingRepository(
+    NotificationPrefsFailure.unauthorized,
+  );
+
+  final NotificationPrefsFailure failure;
+
+  @override
+  Future<NotificationPrefs> fetch() async =>
+      throw NotificationPrefsRepositoryException(failure);
+
+  @override
+  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async =>
+      throw NotificationPrefsRepositoryException(failure);
+}
+
+/// A read that lands and a PATCH that does not: the toggle reverts and
+/// `notif_prefs_save_error_snack` carries a Retry.
+class NotificationPreferencesScreenSaveFailingRepository
+    implements NotificationPrefsRepository {
+  const NotificationPreferencesScreenSaveFailingRepository({
+    this.prefs = const NotificationPrefs(),
+  });
+
+  final NotificationPrefs prefs;
+
+  @override
+  Future<NotificationPrefs> fetch() async => prefs;
+
+  @override
+  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async =>
+      throw const NotificationPrefsRepositoryException(
+        NotificationPrefsFailure.serverError,
+      );
+}

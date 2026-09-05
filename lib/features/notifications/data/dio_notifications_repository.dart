@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
 import '../domain/notification_kind_mapping.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/notifications_repository.dart';
 
 class DioNotificationsRepository implements NotificationsRepository {
@@ -35,7 +36,11 @@ class DioNotificationsRepository implements NotificationsRepository {
       }
       return out;
     } on DioException catch (e) {
-      throw NotificationsRepositoryException(_map(e), e.message);
+      throw NotificationsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 
@@ -44,7 +49,11 @@ class DioNotificationsRepository implements NotificationsRepository {
     try {
       await _dio.patch<void>('/v1/notifications/$id/read');
     } on DioException catch (e) {
-      throw NotificationsRepositoryException(_map(e), e.message);
+      throw NotificationsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 

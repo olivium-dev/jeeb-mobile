@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/availability_inactivity_policy.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/services/availability_gateway.dart';
@@ -52,15 +53,33 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
         status: snapshot,
       ));
       _restartIdleTickerIfOnline();
-    } on AvailabilityGatewayException {
-      emit(state.copyWith(loadPhase: AvailabilityLoadPhase.loadError));
+    } on AvailabilityGatewayException catch (e) {
+      emit(e.notRegistered
+          ? state.copyWith(
+              loadPhase: AvailabilityLoadPhase.notRegistered,
+              loadError: null,
+            )
+          : state.copyWith(
+              loadPhase: AvailabilityLoadPhase.loadError,
+              loadError: e.failure ?? AppFailure.of(e),
+            ));
+    } catch (e) {
+      // JHOME-04: a parse TypeError would otherwise pin the home on loading.
+      emit(state.copyWith(
+        loadPhase: AvailabilityLoadPhase.loadError,
+        loadError: AppFailure.of(e),
+      ));
     }
   }
 
   Future<void> toggle() async {
     if (state.isToggleInFlight) return;
     final goOnline = !state.status.isOnline;
-    emit(state.copyWith(isToggleInFlight: true, toggleError: false));
+    emit(state.copyWith(
+      isToggleInFlight: true,
+      toggleError: false,
+      toggleFailure: null,
+    ));
     try {
       final result = await _gateway.toggle(goOnline: goOnline);
       emit(state.copyWith(
@@ -72,8 +91,19 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
             : GoOnlineLocationOutcome.notApplicable,
       ));
       _restartIdleTickerIfOnline();
-    } on AvailabilityGatewayException {
-      emit(state.copyWith(isToggleInFlight: false, toggleError: true));
+    } on AvailabilityGatewayException catch (e) {
+      emit(state.copyWith(
+        isToggleInFlight: false,
+        toggleError: true,
+        toggleFailure: e.failure ?? AppFailure.of(e),
+      ));
+    } catch (e) {
+      // Without this the toggle stays in-flight forever on a parse error.
+      emit(state.copyWith(
+        isToggleInFlight: false,
+        toggleError: true,
+        toggleFailure: AppFailure.of(e),
+      ));
     }
   }
 
@@ -96,6 +126,8 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
       await _gateway.refreshLocation();
     } on AvailabilityGatewayException {
       // Best-effort: a failed resume refresh must not surface an error.
+    } catch (_) {
+      // Same contract for an untyped failure — silent by design.
     } finally {
       _locationRefreshInFlight = false;
     }
@@ -110,6 +142,10 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
       final outcome = await _gateway.refreshLocation();
       if (!isClosed) emit(state.copyWith(locationOutcome: outcome));
     } on AvailabilityGatewayException {
+      if (!isClosed) {
+        emit(state.copyWith(locationOutcome: GoOnlineLocationOutcome.fixFailed));
+      }
+    } catch (_) {
       if (!isClosed) {
         emit(state.copyWith(locationOutcome: GoOnlineLocationOutcome.fixFailed));
       }

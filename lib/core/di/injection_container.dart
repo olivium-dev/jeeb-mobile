@@ -21,10 +21,15 @@ import '../../features/client_offers/data/dio_offers_repository.dart';
 import '../../features/client_offers/domain/offers_repository.dart';
 import '../../features/chat/domain/chat_gateway.dart';
 import '../../features/chat/data/dio_chat_gateway.dart';
+import '../../features/chat/chat_di.dart';
 import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../../features/delivery_man_profile/delivery_man_profile_di.dart';
+import '../../features/goods_cost/goods_cost_di.dart';
+import '../../features/request_summary/request_summary_di.dart';
+import '../../features/settings/settings_di.dart';
 import '../config/base_url_source.dart';
 import '../config/app_config.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
@@ -36,6 +41,7 @@ import '../session/profile_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
+import '../../features/jeeber_request_detail/jeeber_request_detail_di.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_cdn_asset_gateway.dart';
@@ -529,4 +535,13 @@ void configureDependencies({
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
   );
+
+  // Stage 2: feature-owned registrations. Each is idempotent and resolves
+  // lazily, so ordering against the block above does not matter.
+  registerChatDependencies(sl);
+  registerDeliveryManProfileDependencies(sl);
+  registerGoodsCostDependencies(sl);
+  registerJeeberRequestDetailDependencies(sl);
+  registerRequestSummaryDependencies(sl);
+  registerSettingsDependencies(sl);
 }

@@ -281,7 +281,8 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
       }
       delay = _doubleBounded(delay, _maxPollingInterval);
     }
-    throw const VoiceUploadException(VoiceUploadFailure.network);
+    // A queue that outlived the poll budget is a timeout, not an outage.
+    throw const VoiceUploadException(VoiceUploadFailure.timeout);
   }
 
   bool _isCurrentSend(int generation) =>
@@ -400,6 +401,14 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
         return VoiceRecordingError.uploadServer;
       case VoiceUploadFailure.unknown:
         return VoiceRecordingError.uploadUnknown;
+      case VoiceUploadFailure.timeout:
+        return VoiceRecordingError.uploadTimeout;
+      case VoiceUploadFailure.tooLarge:
+        return VoiceRecordingError.uploadTooLarge;
+      case VoiceUploadFailure.unsupportedFormat:
+        return VoiceRecordingError.uploadUnsupported;
+      case VoiceUploadFailure.unavailable:
+        return VoiceRecordingError.uploadUnavailable;
     }
   }
 }

@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/dispute_status/application/dispute_status_cubit.dart';
 import 'package:jeeb_mobile/features/dispute_status/application/dispute_status_state.dart';
 import 'package:jeeb_mobile/features/dispute_status/domain/dispute_status_repository.dart';
@@ -97,6 +98,51 @@ void main() {
 
     expect(cubit.state.status, DisputeStatusViewStatus.loaded);
     expect(cubit.state.error, isNull);
+    await cubit.close();
+  });
+
+  test('a refresh failure over a loaded dispute keeps it (WP7-N1)', () async {
+    final repo = _ScriptedRepository(dispute: _dispute('dsp-1'));
+    final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
+    await cubit.load();
+    expect(cubit.state.status, DisputeStatusViewStatus.loaded);
+
+    repo.fetchThrows = DisputeStatusFailure.network;
+    await cubit.refresh();
+
+    expect(cubit.state.status, DisputeStatusViewStatus.loaded);
+    expect(cubit.state.dispute, isNotNull);
+    expect(cubit.state.refreshError, isNotNull);
+    cubit.acknowledgeRefreshError();
+    expect(cubit.state.refreshError, isNull);
+    await cubit.close();
+  });
+
+  test('load() can run again from failed (the cold retry path)', () async {
+    final repo = _ScriptedRepository(
+      dispute: _dispute('dsp-1'),
+      fetchThrows: DisputeStatusFailure.network,
+    );
+    final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
+    await cubit.load();
+    expect(cubit.state.status, DisputeStatusViewStatus.failed);
+
+    repo.fetchThrows = null;
+    await cubit.load();
+
+    expect(cubit.state.status, DisputeStatusViewStatus.loaded);
+    expect(repo.calls, 2);
+    await cubit.close();
+  });
+
+  test('a blank id is terminal, and carries a NotFoundFailure', () async {
+    final repo = _ScriptedRepository(dispute: _dispute('dsp-1'));
+    final cubit = DisputeStatusCubit(repository: repo, disputeId: '  ');
+    await cubit.load();
+
+    expect(cubit.state.status, DisputeStatusViewStatus.failed);
+    expect(cubit.state.failure, isA<NotFoundFailure>());
+    expect(cubit.state.failure!.isRetryable, isFalse);
     await cubit.close();
   });
 

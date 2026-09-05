@@ -10,7 +10,11 @@ bool isBlockingVoiceError(VoiceRecordingError error) =>
 bool isUploadVoiceError(VoiceRecordingError error) =>
     error == VoiceRecordingError.uploadNetwork ||
     error == VoiceRecordingError.uploadServer ||
-    error == VoiceRecordingError.uploadUnknown;
+    error == VoiceRecordingError.uploadUnknown ||
+    error == VoiceRecordingError.uploadTimeout ||
+    error == VoiceRecordingError.uploadTooLarge ||
+    error == VoiceRecordingError.uploadUnsupported ||
+    error == VoiceRecordingError.uploadUnavailable;
 
 bool isTransientVoiceError(VoiceRecordingError error) =>
     !isBlockingVoiceError(error) && !isUploadVoiceError(error);
@@ -33,5 +37,13 @@ String voiceErrorCopy(AppLocalizations l10n, VoiceRecordingError error) {
       return l10n.voiceRecordingErrorUploadServer;
     case VoiceRecordingError.uploadUnknown:
       return l10n.voiceRecordingErrorUploadGeneric;
+    case VoiceRecordingError.uploadTimeout:
+      return l10n.voiceErrorTranscriptionTimeout;
+    case VoiceRecordingError.uploadTooLarge:
+      return l10n.voiceErrorTooLong;
+    case VoiceRecordingError.uploadUnsupported:
+      return l10n.voiceErrorUnsupportedFormat;
+    case VoiceRecordingError.uploadUnavailable:
+      return l10n.voiceErrorTranscriptionUnavailable;
   }
 }

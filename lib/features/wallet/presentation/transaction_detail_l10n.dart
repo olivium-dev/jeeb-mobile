@@ -114,13 +114,10 @@ class TransactionDetailL10n {
     return '$whole%';
   }
 
-  String get loadErrorNotFound => _pick(
-    'This transaction could not be found.',
-    'تعذّر العثور على هذه المعاملة.',
-  );
-  String get loadErrorGeneric => _pick(
-    'We couldn’t load this transaction. Please try again.',
-    'تعذّر تحميل هذه المعاملة. حاول مرة أخرى.',
-  );
-  String get retry => _pick('Retry', 'إعادة المحاولة');
+  String get loadErrorNotFound => _l10n.errorNotFoundBody;
+  String get loadErrorGeneric => _l10n.errorGenericBody;
+  String get retry => _l10n.actionRetry;
+
+  /// The way out of an unrecoverable rung — a 404 gets this, never a Retry.
+  String get back => _l10n.actionBack;
 }

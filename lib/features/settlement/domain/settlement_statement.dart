@@ -41,8 +41,15 @@ class SettlementDeliveryLine extends Equatable {
   final String currency;
 
   @override
-  List<Object?> get props =>
-      [deliveryId, date, tier, fare, commission, net, currency];
+  List<Object?> get props => [
+    deliveryId,
+    date,
+    tier,
+    fare,
+    commission,
+    net,
+    currency,
+  ];
 }
 
 class SettlementStatement extends Equatable {
@@ -60,9 +67,8 @@ class SettlementStatement extends Equatable {
     final rawDeliveries = json['deliveries'] as List<dynamic>? ?? [];
     return SettlementStatement(
       id: json['id'] as String? ?? '',
-      weekLabel: json['weekLabel'] as String? ??
-          json['periodLabel'] as String? ??
-          '',
+      weekLabel:
+          json['weekLabel'] as String? ?? json['periodLabel'] as String? ?? '',
       totalPayout: (json['totalPayout'] as num?)?.toDouble() ?? 0.0,
       currency: json['currency'] as String? ?? 'USD',
       status: SettlementStatusX.fromApi(rawStatus),
@@ -81,6 +87,12 @@ class SettlementStatement extends Equatable {
   final List<SettlementDeliveryLine> deliveries;
 
   @override
-  List<Object?> get props =>
-      [id, weekLabel, totalPayout, currency, status, deliveries];
+  List<Object?> get props => [
+    id,
+    weekLabel,
+    totalPayout,
+    currency,
+    status,
+    deliveries,
+  ];
 }

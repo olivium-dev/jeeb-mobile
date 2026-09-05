@@ -2,6 +2,9 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
+import '../../../features/jeeber_request_feed/cubit/submitted_offers_cubit.dart';
+import '../../../features/jeeber_request_feed/cubit/submitted_offers_state.dart';
 import '../../../features/jeeber_request_feed/domain/submitted_offer.dart';
 import '../../../features/jeeber_request_feed/domain/submitted_offers_repository.dart';
 
@@ -191,3 +194,52 @@ class JeeberPendingOffersScreenOffers {
     ),
   ];
 }
+
+/// Throws the CLASSIFIED failure from `listSubmitted()`, so the failure block
+/// shows the kind's copy family rather than the generic one.
+class FailingSubmittedOffersRepository implements SubmittedOffersRepository {
+  const FailingSubmittedOffersRepository(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Future<List<SubmittedOffer>> listSubmitted() async => throw failure;
+
+  @override
+  Future<bool> withdraw(String offerId) async => throw failure;
+}
+
+/// Lists fine, but every withdraw throws — the UX-04 snack rung.
+class WithdrawFailingSubmittedOffersRepository
+    implements SubmittedOffersRepository {
+  const WithdrawFailingSubmittedOffersRepository(this.offers, this.failure);
+
+  final List<SubmittedOffer> offers;
+  final AppFailure failure;
+
+  @override
+  Future<List<SubmittedOffer>> listSubmitted() async => offers;
+
+  @override
+  Future<bool> withdraw(String offerId) async => throw failure;
+}
+
+/// Rows on screen plus a warm failure — the refresh-failed note.
+class RefreshFailedSubmittedOffersCubit extends SubmittedOffersCubit {
+  RefreshFailedSubmittedOffersCubit(
+    List<SubmittedOffer> offers,
+    AppFailure failure,
+  ) : super(repository: JeeberPendingOffersScreenStaticOffers(offers)) {
+    emit(SubmittedOffersState(
+      status: SubmittedOffersStatus.ready,
+      offers: offers,
+      refreshError: failure,
+    ));
+  }
+}
+
+/// Builder form, matching the other fixture entry points in this file.
+SubmittedOffersCubit refreshFailedSubmittedOffersCubit(
+  List<SubmittedOffer> offers,
+  AppFailure failure,
+) => RefreshFailedSubmittedOffersCubit(offers, failure);

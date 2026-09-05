@@ -53,6 +53,16 @@ Widget _offerComposerSubmitting() => OfferSubmissionScreen(
       cubit: OfferSubmissionScreenPreviewFixtures.submittingCubit(),
     );
 
+/// One rung per gateway refusal, already settled before the first frame.
+Widget _offerComposerFailed(ScriptedOfferSubmissionRepository repository) =>
+    OfferSubmissionScreen(
+      requestId: OfferSubmissionScreenPreviewFixtures.validationRequestId,
+      submissionService: const Object(),
+      onWithdrawn: OfferSubmissionScreenPreviewFixtures.noop,
+      walletRepository: OfferSubmissionScreenPreviewFixtures.walletRepository,
+      cubit: OfferSubmissionScreenPreviewFixtures.failedCubit(repository),
+    );
+
 Widget _offerComposerValidationErrors() => OfferSubmissionScreen(
       requestId: OfferSubmissionScreenPreviewFixtures.validationRequestId,
       submissionService: const Object(),
@@ -114,6 +124,24 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
               ),
             ),
           ),
+          CatalogState(
+            'Malformed body — no longer read as "everything on"',
+            (_) => _notifPrefsScreen(
+              NotificationPreferencesScreenThrowingRepository.malformedBody,
+            ),
+          ),
+          CatalogState(
+            'Unauthorized — sign-in exit',
+            (_) => _notifPrefsScreen(
+              NotificationPreferencesScreenThrowingRepository.unauthorized,
+            ),
+          ),
+          CatalogState(
+            'Save failed — the toggle reverts, snack carries Retry',
+            (_) => _notifPrefsScreen(
+              const NotificationPreferencesScreenSaveFailingRepository(),
+            ),
+          ),
         ],
       ),
       CatalogEntry(
@@ -142,6 +170,30 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
             'Load Failed',
             (_) => _notificationsScreen(
               NotificationsListScreenPreviewFixtures.networkFailure(),
+            ),
+          ),
+          CatalogState(
+            'Degraded — showing cached (NOTIF-02)',
+            (_) => _notificationsScreen(
+              NotificationsListScreenPreviewFixtures.degradedInbox(),
+            ),
+          ),
+          CatalogState(
+            'Mark-read failed — the flip rolls back (NOTIF-03)',
+            (_) => _notificationsScreen(
+              NotificationsListScreenPreviewFixtures.markReadFailure(),
+            ),
+          ),
+          CatalogState(
+            'Ref-less rows — every tap says it cannot open (NOTIF-04)',
+            (_) => _notificationsScreen(
+              NotificationsListScreenPreviewFixtures.refLessInbox(),
+            ),
+          ),
+          CatalogState(
+            'Error — unauthorized (sign-in exit)',
+            (_) => _notificationsScreen(
+              NotificationsListScreenPreviewFixtures.unauthorizedFailure(),
             ),
           ),
         ],
@@ -182,6 +234,10 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
             'Status Read Failed',
             (_) => _offerKycGate(const OfferKycGateScreenFailingGateway()),
           ),
+          CatalogState(
+            'Status read failed — classified, with retry',
+            (_) => _offerKycGate(const OfferKycGateScreenThrowingGateway()),
+          ),
         ],
       ),
       CatalogEntry(
@@ -200,6 +256,60 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
           CatalogState(
             'Validation Errors',
             (_) => _offerComposerValidationErrors(),
+          ),
+          CatalogState(
+            'Duplicate offer — withdraw and re-bid',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.duplicateRepository,
+            ),
+          ),
+          CatalogState(
+            'Fee too low — the PRICE slot',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.feeTooLowRepository,
+            ),
+          ),
+          CatalogState(
+            'ETA invalid — the ETA slot',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.etaInvalidRepository,
+            ),
+          ),
+          CatalogState(
+            'Note too long — the note slot',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.noteTooLongRepository,
+            ),
+          ),
+          CatalogState(
+            'Out of range',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.outOfRangeRepository,
+            ),
+          ),
+          CatalogState(
+            'Same-role violation',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.sameRoleRepository,
+            ),
+          ),
+          CatalogState(
+            'Request not open — terminal',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.requestNotOpenRepository,
+            ),
+          ),
+          CatalogState(
+            '402 with figures',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.insufficientRepository,
+            ),
+          ),
+          CatalogState(
+            '402 with an EMPTY body — no fabricated zero',
+            (_) => _offerComposerFailed(
+              OfferSubmissionScreenPreviewFixtures.insufficientUnknownRepository,
+            ),
           ),
         ],
       ),

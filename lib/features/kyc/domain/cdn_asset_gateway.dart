@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../../../core/network/app_failure.dart';
+
 enum CdnUploadSlot {
   idDocumentFront,
   idDocumentBack,
@@ -29,19 +31,42 @@ abstract class CdnAssetGateway {
   Future<Uint8List> fetchAsset(String objectRef);
 }
 
-class CdnUploadException implements Exception {
-  const CdnUploadException(this.message);
+/// NET-13: the retry-safe upload. A caller that owns a multi-slot submission
+/// mints ONE operation id so a replay reuses the same key per slot.
+abstract class IdempotentCdnAssetGateway implements CdnAssetGateway {
+  Future<String> uploadAssetIdempotent({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    required String operationId,
+    String contentType = 'image/jpeg',
+  });
+}
 
+class CdnUploadException implements Exception {
+  const CdnUploadException(this.message, {this.failure, this.status});
+
+  /// A stable non-user-facing label (`cdn_broker_ticket`, `cdn_signed_put`).
+  /// Never rendered — read [failure] for copy.
   final String message;
+
+  /// The classified transport failure, when there was one.
+  final AppFailure? failure;
+
+  /// The HTTP status, which [ValidationFailure] itself does not carry — 413
+  /// and 415 are the two the upload flows must tell apart.
+  final int? status;
 
   @override
   String toString() => 'CdnUploadException: $message';
 }
 
 class CdnFetchException implements Exception {
-  const CdnFetchException(this.message);
+  const CdnFetchException(this.message, {this.failure});
 
+  /// A stable non-user-facing label. Never rendered.
   final String message;
+
+  final AppFailure? failure;
 
   @override
   String toString() => 'CdnFetchException: $message';

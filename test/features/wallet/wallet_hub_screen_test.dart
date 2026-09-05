@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/jeeb_commission.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
@@ -352,6 +353,17 @@ void main() {
     expect(find.bySemanticsIdentifier('wallet_loading'), findsOneWidget);
   });
 
+  // ES-17: the loading rung has its OWN headline; the app-bar title is not it.
+  testWidgets('the loading headline is walletHubLoadingHeadline, never the '
+      'app-bar title', (tester) async {
+    await pump(tester, repo: const _NeverWalletRepository());
+
+    expect(find.text('Loading your fee balance…'), findsOneWidget);
+    // The top bar still carries the title, so it is found exactly once — as a
+    // title, never twice as a headline as well.
+    expect(find.text('Jeeber fee balance'), findsOneWidget);
+  });
+
   testWidgets('R4: the error state is the JeebEmptyState family with a retry', (
     tester,
   ) async {
@@ -360,6 +372,60 @@ void main() {
       repo: _ScriptedWalletRepository(_balance(), throws: true),
     );
     expect(find.bySemanticsIdentifier('wallet_load_error'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('wallet_retry_cta'), findsOneWidget);
   });
+
+  // The retry used to call `refresh()`, which cannot leave `failed` — so the
+  // second attempt was a silent no-op.
+  testWidgets('the retry re-runs the COLD load, so a second failure shows the '
+      'error rung again', (tester) async {
+    final repo = _CountingFailingWalletRepository();
+    await pump(tester, repo: repo);
+
+    expect(repo.reads, 1);
+    await tester.tap(find.bySemanticsIdentifier('wallet_retry_cta'));
+    await tester.pumpAndSettle();
+
+    expect(repo.reads, 2);
+    expect(find.bySemanticsIdentifier('wallet_load_error'), findsOneWidget);
+  });
+
+  testWidgets('an UnauthorizedFailure gets the way out, never an inert retry', (
+    tester,
+  ) async {
+    await pump(tester, repo: const _UnauthorizedWalletRepository());
+
+    expect(find.bySemanticsIdentifier('wallet_load_error'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('wallet_retry_cta'), findsNothing);
+    // The way OUT, not a dead screen: an inert Retry and no CTA at all are
+    // both failures of R6.
+    expect(find.bySemanticsIdentifier('wallet_exit_cta'), findsOneWidget);
+  });
+}
+
+/// Always fails; counts the reads so a retry is observable.
+class _CountingFailingWalletRepository implements WalletRepository {
+  int reads = 0;
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    reads++;
+    throw const WalletRepositoryException(
+      WalletFailure.network,
+      cause: NetworkFailure(),
+    );
+  }
+}
+
+/// A 401 — the one kind whose Retry could never win.
+class _UnauthorizedWalletRepository implements WalletRepository {
+  const _UnauthorizedWalletRepository();
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    throw const WalletRepositoryException(
+      WalletFailure.unauthorized,
+      cause: UnauthorizedFailure(),
+    );
+  }
 }

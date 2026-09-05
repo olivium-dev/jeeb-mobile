@@ -191,6 +191,11 @@ void main() {
       expect(find.byType(JeebEmptyState), findsOneWidget);
       expect(find.textContaining('Window closes'), findsNothing);
       expect(find.text('Broadcasting to nearby Jeebers…'), findsOneWidget);
+      // ES-18: the three rungs no longer share ONE identifier.
+      expect(
+        find.bySemanticsIdentifier('offer_review_loading_state'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the failure form swaps the core for the no-signal disc', (
@@ -211,9 +216,24 @@ void main() {
       expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
       expect(find.text("Couldn't load offers"), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('offer_review_error_state'),
+        findsOneWidget,
+      );
       // The radar around it stays — only the centre changed.
       expect(inBlock(JArcPulse), findsNWidgets(3));
       expect(find.text('K'), findsOneWidget);
+    });
+
+    testWidgets('the EMPTY rung keeps its frozen identifier', (tester) async {
+      await tester.pumpWidget(
+        harness(const OffersWaitingState(blockKey: Key('offer-empty-state'))),
+      );
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('offer_review_empty_state'),
+        findsOneWidget,
+      );
     });
   });
 }

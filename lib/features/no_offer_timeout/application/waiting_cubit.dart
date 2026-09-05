@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/waiting_repository.dart';
 import '../domain/waiting_request.dart';
 import 'waiting_state.dart';
@@ -71,30 +72,62 @@ class WaitingCubit extends Cubit<WaitingState> {
         return;
       }
       emit(
-        state.copyWith(status: WaitingScreenStatus.failed, error: e.failure),
+        state.copyWith(
+          status: WaitingScreenStatus.failed,
+          error: e.failure,
+          appFailure: e.appFailure,
+        ),
       );
-    } catch (_) {
+    } catch (e) {
       if (isClosed) return;
       emit(
         state.copyWith(
           status: WaitingScreenStatus.failed,
           error: WaitingFailure.unknown,
+          appFailure: AppFailure.of(e),
         ),
       );
     }
+  }
+
+  /// Clears the warm refresh band after the user dismisses it.
+  void acknowledgeRefreshError() {
+    if (state.refreshError == null) return;
+    emit(state.copyWith(clearRefreshError: true));
+  }
+
+  /// A single blip is noise; two in a row is a state worth telling the user
+  /// about.
+  static const int _refreshFailureThreshold = 2;
+  int _consecutiveRefreshFailures = 0;
+
+  void _recordRefreshFailure(String event, Object error) {
+    final AppFailure failure = error is WaitingException
+        ? error.appFailure
+        : AppFailure.of(error);
+    Diag.event(event, <String, Object?>{'kind': failure.kind.name});
+    _consecutiveRefreshFailures++;
+    if (isClosed || _consecutiveRefreshFailures < _refreshFailureThreshold) {
+      return;
+    }
+    emit(state.copyWith(refreshError: failure));
   }
 
   Future<void> _enrichWithOffers() async {
     final request = state.request;
     if (request == null || request.phase.isTerminal) return;
     try {
-      final offerCount = await _repository.fetchOfferCount(
-        _requestId,
-        fallback: request.offerCount,
-      );
+      final offerCount = await _repository.fetchOfferCount(_requestId);
       if (isClosed) return;
+      if (offerCount == null) {
+        // UX-34: unknown, never a fabricated count.
+        emit(state.copyWith(offerCountUnavailable: true));
+        return;
+      }
+      _consecutiveRefreshFailures = 0;
       final latest = state.request;
       if (latest == null || latest.phase.isTerminal) return;
+      emit(state.copyWith(offerCountUnavailable: false));
       if (offerCount <= latest.offerCount) return;
       emit(
         state.copyWith(
@@ -107,8 +140,9 @@ class WaitingCubit extends Cubit<WaitingState> {
       );
       await _refreshSubscription?.cancel();
       _refreshSubscription = null;
-    } catch (_) {
-      /* swallow — broadcast state stays up */
+    } catch (e) {
+      if (isClosed) return;
+      _recordRefreshFailure('waiting_offer_enrich_failed', e);
     }
   }
 
@@ -117,6 +151,14 @@ class WaitingCubit extends Cubit<WaitingState> {
     unawaited(_refreshFromPush());
   }
 
+  /// Warm retry from the refresh band: re-reads in place, keeping the request
+  /// on screen. R6 — refresh never flips the screen back to loading.
+  Future<void> refresh() async {
+    if (isClosed || state.status != WaitingScreenStatus.loaded) return;
+    await _refreshFromPush();
+  }
+
+  /// Cold retry from the failed rung: rebuilds the screen from scratch.
   Future<void> retry() async {
     if (isClosed) return;
     await _refreshSubscription?.cancel();
@@ -146,8 +188,16 @@ class WaitingCubit extends Cubit<WaitingState> {
     try {
       final request = await _repository.fetchWaiting(_requestId);
       if (isClosed) return;
+      _consecutiveRefreshFailures = 0;
       final observedAt = _now();
-      emit(state.copyWith(request: request, now: observedAt));
+      emit(
+        state.copyWith(
+          request: request,
+          now: observedAt,
+          offerCountUnavailable: !request.offerCountIsProbed,
+          clearRefreshError: true,
+        ),
+      );
       if (request.phase.isTerminal) {
         await _stopStreams();
         return;
@@ -161,8 +211,9 @@ class WaitingCubit extends Cubit<WaitingState> {
         await _failContract(e);
         return;
       }
-    } catch (_) {
-      /* same — swallow */
+      _recordRefreshFailure('waiting_push_refresh_failed', e);
+    } catch (e) {
+      _recordRefreshFailure('waiting_push_refresh_failed', e);
     } finally {
       _pollInFlight = false;
     }
@@ -179,6 +230,7 @@ class WaitingCubit extends Cubit<WaitingState> {
       state.copyWith(
         status: WaitingScreenStatus.failed,
         error: WaitingFailure.contractViolation,
+        appFailure: UnknownFailure(cause: e, parse: true),
       ),
     );
   }

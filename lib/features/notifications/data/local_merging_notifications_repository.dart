@@ -1,8 +1,10 @@
+import '../../../core/network/app_failure.dart';
 import '../../../core/notifications/domain/local_push_inbox.dart';
 import '../domain/notification_kind_mapping.dart';
 import '../domain/notifications_repository.dart';
 
-class LocalMergingNotificationsRepository implements NotificationsRepository {
+class LocalMergingNotificationsRepository
+    implements NotificationsRepository, DegradableNotificationsRepository {
   LocalMergingNotificationsRepository({
     required NotificationsRepository remote,
     required LocalPushInbox localInbox,
@@ -14,7 +16,11 @@ class LocalMergingNotificationsRepository implements NotificationsRepository {
   Set<String> _provenLegacyLocalOnlyIds = const <String>{};
 
   @override
-  Future<List<NotificationItem>> fetchNotifications() async {
+  Future<List<NotificationItem>> fetchNotifications() async =>
+      (await fetchSnapshot()).items;
+
+  @override
+  Future<NotificationsSnapshot> fetchSnapshot() async {
     final localItems = (await _localInbox.readAll())
         .map(_toItem)
         .toList(growable: false);
@@ -23,9 +29,14 @@ class LocalMergingNotificationsRepository implements NotificationsRepository {
     List<NotificationItem> serverItems;
     try {
       serverItems = await _remote.fetchNotifications();
-    } on NotificationsRepositoryException {
+    } on NotificationsRepositoryException catch (error) {
       if (localItems.isEmpty) rethrow;
-      return List<NotificationItem>.unmodifiable(localItems);
+      // A local subset is NOT a complete inbox; say so (NOTIF-02).
+      return (
+        items: List<NotificationItem>.unmodifiable(localItems),
+        degraded: true,
+        failure: error.appFailure ?? AppFailure.of(error),
+      );
     }
 
     final serverNewRequestRefs = serverItems
@@ -52,7 +63,11 @@ class LocalMergingNotificationsRepository implements NotificationsRepository {
         .map((item) => item.id)
         .toSet();
     final merged = <NotificationItem>[...retainedLocalItems, ...serverItems];
-    return List<NotificationItem>.unmodifiable(merged);
+    return (
+      items: List<NotificationItem>.unmodifiable(merged),
+      degraded: false,
+      failure: null,
+    );
   }
 
   @override

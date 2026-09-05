@@ -3,6 +3,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_state.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
@@ -64,14 +65,14 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
-    // Distinct from the generic server/network error: it carries a heading and
-    expect(cubit.state.errorTitle, 'Delivery not found');
-    expect(cubit.state.errorMessage, isNot(contains('Server error')));
-    expect(cubit.state.errorMessage, contains("can't find this delivery"));
+    // Distinct from the generic server/network error: the typed failure is
+    // what the copy family switches on — no English lives on the state.
+    expect(cubit.state.errorKind, LiveTrackingErrorKind.notFound);
+    expect(cubit.state.failure, isA<NotFoundFailure>());
     await cubit.close();
   });
 
-  test('S9: a generic server error carries no errorTitle', () async {
+  test('S9: a generic server error carries the server failure', () async {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.server));
 
@@ -79,8 +80,8 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
-    expect(cubit.state.errorTitle, isNull);
-    expect(cubit.state.errorMessage, 'Server error. Please try again.');
+    expect(cubit.state.errorKind, LiveTrackingErrorKind.server);
+    expect(cubit.state.failure, isA<ServerFailure>());
     await cubit.close();
   });
 

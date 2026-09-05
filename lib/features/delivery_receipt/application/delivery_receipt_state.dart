@@ -12,6 +12,7 @@ class DeliveryReceiptState extends Equatable {
     this.status = DeliveryReceiptStatus.initial,
     this.receipt,
     this.error,
+    this.refreshError,
     this.confirmStatus = ReceiptConfirmStatus.idle,
     this.confirmError,
   });
@@ -19,6 +20,10 @@ class DeliveryReceiptState extends Equatable {
   final DeliveryReceiptStatus status;
   final DeliveryReceipt? receipt;
   final DeliveryReceiptFailure? error;
+
+  /// A warm refresh failed with a receipt already on screen: a dismissible
+  /// note, never a rung — [error] was written here and rendered nowhere.
+  final DeliveryReceiptFailure? refreshError;
 
   final ReceiptConfirmStatus confirmStatus;
   final DeliveryReceiptFailure? confirmError;
@@ -29,15 +34,19 @@ class DeliveryReceiptState extends Equatable {
     DeliveryReceiptStatus? status,
     DeliveryReceipt? receipt,
     DeliveryReceiptFailure? error,
+    DeliveryReceiptFailure? refreshError,
     ReceiptConfirmStatus? confirmStatus,
     DeliveryReceiptFailure? confirmError,
     bool clearError = false,
+    bool clearRefreshError = false,
     bool clearConfirmError = false,
   }) =>
       DeliveryReceiptState(
         status: status ?? this.status,
         receipt: receipt ?? this.receipt,
         error: clearError ? null : (error ?? this.error),
+        refreshError:
+            clearRefreshError ? null : (refreshError ?? this.refreshError),
         confirmStatus: confirmStatus ?? this.confirmStatus,
         confirmError:
             clearConfirmError ? null : (confirmError ?? this.confirmError),
@@ -45,5 +54,5 @@ class DeliveryReceiptState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [status, receipt, error, confirmStatus, confirmError];
+      [status, receipt, error, refreshError, confirmStatus, confirmError];
 }

@@ -55,6 +55,7 @@ class _EmptyReviews extends StatelessWidget {
       padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
       child: JeebEmptyState.compact(
         key: const Key('delivery-man-profile-reviews-empty'),
+        identifier: 'delivery_man_profile_reviews_empty',
         variant: JeebEmptyStateVariant.parcel,
         headline: l10n.deliveryManProfileEmptyReviewsTitle,
         body: l10n.deliveryManProfileEmptyReviewsSubtitle,

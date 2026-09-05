@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 
 enum SupportCategory { account, payment, delivery, kycAppeal, dispute, other }
@@ -169,11 +170,23 @@ class SupportRepositoryException implements Exception {
     this.failure, [
     this.message,
     this.latestTicket,
-  ]);
+  ]) : appFailure = null;
+
+  const SupportRepositoryException.classified(
+    this.failure, {
+    this.message,
+    this.latestTicket,
+    required this.appFailure,
+  });
 
   final SupportFailure failure;
+
+  /// DIAGNOSTIC ONLY — never rendered.
   final String? message;
   final SupportTicket? latestTicket;
+
+  /// The classified transport failure, when the thrower could produce one.
+  final AppFailure? appFailure;
 
   @override
   String toString() => 'SupportRepositoryException($failure, $message)';

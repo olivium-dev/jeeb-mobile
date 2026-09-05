@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
@@ -17,7 +18,7 @@ class DioLocationSelectRepository implements LocationSelectRepository {
       );
       return _parseList(res.data);
     } on DioException catch (e) {
-      throw LocationSelectException(_map(e), e.message);
+      throw AppFailure.of(e);
     }
   }
 
@@ -28,7 +29,7 @@ class DioLocationSelectRepository implements LocationSelectRepository {
     } else if (data is Map && data['items'] is List) {
       raw = data['items'] as List<dynamic>;
     } else {
-      return const [];
+      throw const UnknownFailure(parse: true);
     }
     return raw
         .whereType<Map<String, dynamic>>()
@@ -72,12 +73,4 @@ class DioLocationSelectRepository implements LocationSelectRepository {
     }
     return SavedLocationCategory.other;
   }
-
-  LocationSelectFailure _map(DioException e) =>
-      (e.type == DioExceptionType.connectionError ||
-              e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.receiveTimeout ||
-              e.type == DioExceptionType.sendTimeout)
-          ? LocationSelectFailure.network
-          : LocationSelectFailure.unknown;
 }

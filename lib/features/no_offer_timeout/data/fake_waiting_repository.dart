@@ -37,6 +37,6 @@ class FakeWaitingRepository implements WaitingRepository {
   }
 
   @override
-  Future<int> fetchOfferCount(String requestId, {int fallback = 0}) async =>
+  Future<int?> fetchOfferCount(String requestId) async =>
       _snapshot(requestId).offerCount;
 }

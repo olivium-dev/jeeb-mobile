@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
@@ -31,6 +34,18 @@ class DioRatingRepository implements RatingRepository {
           if (comment != null && comment.isNotEmpty) 'comment': comment,
           if (tags != null && tags.isNotEmpty) 'tags': tags,
         },
+        options: Options(
+          headers: <String, Object?>{
+            'Idempotency-Key': ratingIdempotencyKey(
+              deliveryId: deliveryId,
+              raterId: raterId,
+              stars: stars,
+              isClient: isClient,
+              comment: comment,
+              tags: tags,
+            ),
+          },
+        ),
       );
     } on DioException catch (e) {
       throw RatingRepositoryException(_map(e));
@@ -50,13 +65,27 @@ class DioRatingRepository implements RatingRepository {
     }
   }
 
-  RatingFailure _map(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      return RatingFailure.network;
-    }
-    return RatingFailure.unknown;
-  }
+  RatingFailure _map(DioException e) => ratingFailureOf(e);
+}
+
+/// Derived from the rating itself, so a transport replay and the user's Retry
+/// of the SAME rating cannot post it twice.
+String ratingIdempotencyKey({
+  required String deliveryId,
+  required String? raterId,
+  required int stars,
+  required bool isClient,
+  String? comment,
+  List<String>? tags,
+}) {
+  final scope = <String>[
+    'rating',
+    deliveryId,
+    raterId ?? '',
+    '$stars',
+    isClient ? 'client' : 'jeeber',
+    comment ?? '',
+    (tags ?? const <String>[]).join(','),
+  ].join(':');
+  return sha256.convert(utf8.encode(scope)).toString();
 }

@@ -4,18 +4,24 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_stepper.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/dispute_status_cubit.dart';
 import '../application/dispute_status_state.dart';
 import '../data/empty_dispute_status_repository.dart';
@@ -152,10 +158,11 @@ class _DisputeStatusView extends StatelessWidget {
                         case DisputeStatusViewStatus.loading:
                           return _LoadingBody(copy: copy);
                         case DisputeStatusViewStatus.failed:
-                          return _ErrorBody(copy: copy, failure: state.error);
+                          return _ErrorBody(state: state);
                         case DisputeStatusViewStatus.loaded:
                           return _LoadedBody(
                             copy: copy,
+                            state: state,
                             dispute: state.dispute!,
                           );
                       }
@@ -223,84 +230,75 @@ class _LoadingBody extends StatelessWidget {
 /// `JeebEmptyState` resolves error ink to `error` / `onErrorContainer`), and a
 /// glass retry: R13's one non-orange act is the glass pill, never a lit CTA.
 class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.copy, required this.failure});
+  const _ErrorBody({required this.state});
 
-  final DisputeStatusL10n copy;
-  final DisputeStatusFailure? failure;
+  final DisputeStatusState state;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      child: Center(
-        child: SingleChildScrollView(
-          child: JeebEmptyState(
-            variant: JeebEmptyStateVariant.radar,
-            status: JeebEmptyStateStatus.error,
-            medallions: const <JeebEmptyMedallion>[],
-            identifier: 'dispute_status_error',
-            headline: _message(copy, failure),
-            action: Semantics(
-              identifier: 'dispute_status_retry_cta',
-              button: true,
-              container: true,
-              child: JeebCtaButton.outline(
-                label: copy.retry,
-                leadingIcon: Icons.refresh,
-                // R13's glass pill runs the full content box; the pass-1
-                // `expand: false` never hugged (see the kit note in the report).
-                expand: true,
-                onTap: () => context.read<DisputeStatusCubit>().refresh(),
-              ),
-            ),
-          ),
-        ),
+    final l10n = AppLocalizations.of(context);
+    final AppFailure failure = state.failure ?? const UnknownFailure();
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'dispute_status_error',
+        variant: JeebEmptyStateVariant.radar,
+        onRetry: failure.isRetryable
+            ? () => context.read<DisputeStatusCubit>().refresh()
+            : null,
+        onExit: () => context.goNamed('shell'),
+        exitLabel: l10n.disputeStatusBackToOrders,
       ),
     );
-  }
-
-  static String _message(DisputeStatusL10n copy, DisputeStatusFailure? f) {
-    switch (f) {
-      case DisputeStatusFailure.network:
-        return copy.networkError;
-      case DisputeStatusFailure.notFound:
-        return copy.notFoundError;
-      case DisputeStatusFailure.unauthorized:
-      case DisputeStatusFailure.unknown:
-      case null:
-        return copy.loadError;
-    }
   }
 }
 
 class _LoadedBody extends StatelessWidget {
-  const _LoadedBody({required this.copy, required this.dispute});
+  const _LoadedBody({
+    required this.copy,
+    required this.state,
+    required this.dispute,
+  });
 
   final DisputeStatusL10n copy;
+  final DisputeStatusState state;
   final DisputeStatus dispute;
 
   @override
   Widget build(BuildContext context) {
+    final cubit = context.read<DisputeStatusCubit>();
+    final AppFailure? refreshError = state.refreshError;
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: _kBodyPadding,
-            children: [
-              _StatusStepper(copy: copy, dispute: dispute),
-              const SizedBox(height: Spacing.large),
-              _StateCard(copy: copy, dispute: dispute),
-              const SizedBox(height: Spacing.large),
-              _ResolutionCard(copy: copy, dispute: dispute),
-              const SizedBox(height: Spacing.large),
-              // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
-              // `dispute_status_evidence_summary`.
-              _EvidenceCard(copy: copy, evidence: dispute.evidence),
-              if (dispute.statusHistory.isNotEmpty) ...[
+          child: JeebPullToRefresh(
+            onRefresh: cubit.refresh,
+            child: ListView(
+              padding: _kBodyPadding,
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                if (refreshError != null) ...[
+                  JeebRefreshFailedNote(
+                    failure: refreshError,
+                    identifier: 'dispute_status_refresh_error',
+                    onDismiss: cubit.acknowledgeRefreshError,
+                    onRetry: cubit.refresh,
+                  ),
+                  const SizedBox(height: Spacing.large),
+                ],
+                _StatusStepper(copy: copy, dispute: dispute),
+                const SizedBox(height: Spacing.large),
+                _StateCard(copy: copy, dispute: dispute),
+                const SizedBox(height: Spacing.large),
+                _ResolutionCard(copy: copy, dispute: dispute),
+                const SizedBox(height: Spacing.large),
+                // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
+                // `dispute_status_evidence_summary`.
+                _EvidenceCard(copy: copy, evidence: dispute.evidence),
                 const SizedBox(height: Spacing.large),
                 _HistoryCard(copy: copy, entries: dispute.statusHistory),
               ],
-            ],
+            ),
           ),
         ),
         // The board docks the two edges (12 `tpl 782`) instead of letting them
@@ -512,7 +510,7 @@ class _ResolutionCard extends StatelessWidget {
                   DisputeState.pending => copy.openBody,
                   DisputeState.fixed => copy.fixedBody,
                   DisputeState.closed => copy.closedBody,
-                  _ => copy.loadError,
+                  _ => copy.statusUnavailableBody,
                 }, style: text.body.copyWith(color: scheme.onSurface)),
                 if (note != null && note.isNotEmpty) ...[
                   const SizedBox(height: Spacing.xSmall),
@@ -638,26 +636,37 @@ class _HistoryCard extends StatelessWidget {
         children: [
           JeebSectionLabel(copy.historyHeading),
           const SizedBox(height: Spacing.small),
-          JeebOutlinedCard.grouped(
-            children: entries.reversed
-                .map((entry) {
-                  return JeebListRow(
-                    icon: switch (entry.status.canonical) {
-                      DisputeState.pending => Icons.hourglass_top,
-                      DisputeState.fixed => Icons.build_circle_outlined,
-                      DisputeState.closed => Icons.lock_outline,
-                      _ => Icons.help_outline,
-                    },
-                    title: copy.statusLabel(entry.status),
-                    subtitle: <String?>[entry.note, entry.at]
-                        .whereType<String>()
-                        .where((value) => value.isNotEmpty)
-                        .join(' - '),
-                    showChevron: false,
-                  );
-                })
-                .toList(growable: false),
-          ),
+          if (entries.isEmpty)
+            JeebOutlinedCard(
+              child: JeebEmptyState.compact(
+                reason: JeebEmptyStateReason.nothingYet,
+                variant: JeebEmptyStateVariant.radar,
+                medallions: const <JeebEmptyMedallion>[],
+                identifier: 'dispute_status_history_empty',
+                headline: copy.historyEmpty,
+              ),
+            )
+          else
+            JeebOutlinedCard.grouped(
+              children: entries.reversed
+                  .map((entry) {
+                    return JeebListRow(
+                      icon: switch (entry.status.canonical) {
+                        DisputeState.pending => Icons.hourglass_top,
+                        DisputeState.fixed => Icons.build_circle_outlined,
+                        DisputeState.closed => Icons.lock_outline,
+                        _ => Icons.help_outline,
+                      },
+                      title: copy.statusLabel(entry.status),
+                      subtitle: <String?>[entry.note, entry.at]
+                          .whereType<String>()
+                          .where((value) => value.isNotEmpty)
+                          .join(' - '),
+                      showChevron: false,
+                    );
+                  })
+                  .toList(growable: false),
+            ),
         ],
       ),
     );

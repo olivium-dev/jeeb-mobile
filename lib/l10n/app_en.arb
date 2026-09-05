@@ -6629,5 +6629,60 @@
   "savedAddressesComingSoonBody": "This screen is not yet available.",
   "@savedAddressesComingSoonBody": {"description": "WP-8 saved-addresses placeholder body."},
   "dmOnboardingPhotoUploadFailed": "We couldn't upload your photo. Try again.",
-  "@dmOnboardingPhotoUploadFailed": {"description": "WP-8 UX-06 portrait upload failure."}
+  "@dmOnboardingPhotoUploadFailed": {"description": "WP-8 UX-06 portrait upload failure."},
+
+  "reviewsLoadingHeadline": "Loading your reviews…",
+  "@reviewsLoadingHeadline": {"description": "WP-7 reviews list loading rung (replaces loadingGenericHeadline stand-in)."},
+  "disputeStatusStatusUnavailable": "Status unavailable",
+  "@disputeStatusStatusUnavailable": {"description": "WP-7 dispute status: the case has no renderable status."},
+  "disputeStatusReasonDamaged": "Damaged item",
+  "@disputeStatusReasonDamaged": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonWrongItem": "Wrong item delivered",
+  "@disputeStatusReasonWrongItem": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonNoShow": "No-show",
+  "@disputeStatusReasonNoShow": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonFraud": "Fraud",
+  "@disputeStatusReasonFraud": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonAbuse": "Abusive behavior",
+  "@disputeStatusReasonAbuse": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonOther": "Other",
+  "@disputeStatusReasonOther": {"description": "WP-7 dispute reason label."},
+  "disputeStatusReasonUnspecified": "Reason",
+  "@disputeStatusReasonUnspecified": {"description": "WP-7 dispute reason label when the case carries none."},
+  "disputeStatusChatAttached": "Chat thread attached",
+  "@disputeStatusChatAttached": {"description": "WP-7 dispute evidence row, count unknown."},
+  "disputeStatusPhotosAttachedZero": "No photos attached",
+  "@disputeStatusPhotosAttachedZero": {"description": "WP-7 dispute evidence photo count. CLDR zero form."},
+  "disputeStatusPhotosAttachedOne": "1 photo attached",
+  "@disputeStatusPhotosAttachedOne": {"description": "WP-7 dispute evidence photo count. CLDR one form."},
+  "disputeStatusPhotosAttachedTwo": "2 photos attached",
+  "@disputeStatusPhotosAttachedTwo": {"description": "WP-7 dispute evidence photo count. CLDR two form."},
+  "disputeStatusPhotosAttachedFew": "{count} photos attached",
+  "@disputeStatusPhotosAttachedFew": {"description": "WP-7 dispute evidence photo count. CLDR few form."},
+  "disputeStatusPhotosAttachedMany": "{count} photos attached",
+  "@disputeStatusPhotosAttachedMany": {"description": "WP-7 dispute evidence photo count. CLDR many form."},
+  "disputeStatusPhotosAttachedOther": "{count} photos attached",
+  "@disputeStatusPhotosAttachedOther": {"description": "WP-7 dispute evidence photo count. CLDR other form."},
+  "disputeStatusChatAttachedCount": "Chat thread attached ({count} messages)",
+  "@disputeStatusChatAttachedCount": {
+    "description": "WP-7 dispute evidence row with a message count.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "disputeStatusTimelineAttached": "Delivery timeline attached ({count} steps)",
+  "@disputeStatusTimelineAttached": {
+    "description": "WP-7 dispute evidence row with a step count.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "reviewsAggregate": "{score} · {count} reviews",
+  "@reviewsAggregate": {
+    "description": "WP-7 reviews header aggregate.",
+    "placeholders": {
+      "score": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  }
 }

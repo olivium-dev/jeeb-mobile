@@ -5,7 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
-import '../chat_redesign_l10n.dart';
 
 /// Centre-aligned system notice — the kit's [JeebSystemChip] in the thread.
 ///
@@ -48,7 +47,7 @@ class SystemMessageBubble extends StatelessWidget {
   String _labelWithTime(BuildContext context, String copy) {
     if (!message.hasServerTimestamp) return copy;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return ChatRedesignL10n.of(context).systemChipWithTime(
+    return AppLocalizations.of(context).chatSystemChipWithTime(
       copy,
       DateFormat.Hm(locale).format(message.sentAt),
     );

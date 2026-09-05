@@ -492,8 +492,10 @@ void main() {
       );
     });
 
-    test('a 400 problem WITHOUT a field extension rethrows the raw '
-        'DioException (generic handling stays intact)', () async {
+    // NET-21: no raw DioException escapes the gateway any more; the cubit
+    // classifies a KycGatewayException instead.
+    test('a 400 problem WITHOUT a field extension throws '
+        'KycGatewayException (generic handling stays intact)', () async {
       Response<dynamic> rejectPlain(RequestOptions options) {
         if (options.path == '/v1/kyc/submit') {
           throw DioException(
@@ -517,7 +519,7 @@ void main() {
 
       await expectLater(
         gateway.submit(draftWithPhotos()),
-        throwsA(isA<DioException>()),
+        throwsA(isA<KycGatewayException>()),
       );
     });
   });

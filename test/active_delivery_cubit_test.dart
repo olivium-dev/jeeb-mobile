@@ -209,8 +209,8 @@ void main() {
         predicate<ActiveDeliveryState>(
           (s) =>
               s.mode == ActiveDeliveryMode.error &&
-              s.errorMessage != null,
-          'error with message',
+              s.loadFailureKind != null,
+          'error with a typed kind',
         ),
       ],
     );
@@ -269,8 +269,8 @@ void main() {
           (s) =>
               s.mode == ActiveDeliveryMode.ready &&
               s.delivery?.status == JeeberDeliveryStatus.ordered &&
-              s.transitionError != null,
-          'reverted with transitionError',
+              s.transitionErrorKind != null,
+          'reverted with transitionErrorKind',
         ),
       ],
     );
@@ -390,7 +390,7 @@ void main() {
       expect(cubit.state.otpRequired, isTrue);
       expect(cubit.state.delivered, isFalse);
       expect(cubit.state.delivery!.status, JeeberDeliveryStatus.atDoor);
-      expect(cubit.state.transitionError, isNull);
+      expect(cubit.state.transitionErrorKind, isNull);
       await cubit.close();
     });
 
@@ -457,7 +457,7 @@ void main() {
 
       // Pre-fix this rewound to `ordered` and made the error look sticky.
       expect(cubit.state.delivery!.status, JeeberDeliveryStatus.picked);
-      expect(cubit.state.transitionError, isNotNull);
+      expect(cubit.state.transitionErrorKind, isNotNull);
       expect(
         cubit.state.transitionErrorKind,
         ActiveDeliveryFailure.invalidTransition,
@@ -512,7 +512,7 @@ void main() {
         predicate<ActiveDeliveryState>(
           (s) =>
               s.otpRequired &&
-              s.transitionError == null &&
+              s.transitionErrorKind == null &&
               s.delivery?.status == JeeberDeliveryStatus.inTransit,
           'otpRequired surfaced, held at the last confirmed stage, '
           'no misleading snackbar',
@@ -575,7 +575,7 @@ void main() {
               !s.isVerifyingOtp &&
               !s.delivered &&
               s.otpRequired &&
-              s.otpError != null,
+              s.otpErrorKind != null,
           'still otpRequired with an inline error, not delivered',
         ),
       ],

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/diagnostics/diag.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../../core/widgets/jeeb/jeeb_state_host.dart';
+import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
@@ -22,35 +25,32 @@ class SavedAddressesScreen extends StatefulWidget {
 class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
   static const _featureId = 'saved-addresses';
 
-  // TODO(midnight): l10n-queued — `savedAddressesComingSoonTitle` /
-  // `savedAddressesComingSoonBody`. Copy kept verbatim so it stays reviewable.
-  static const _title = 'Saved Addresses coming soon';
-  static const _subtitle = 'This screen is not yet available.';
-
   @override
   void initState() {
     super.initState();
-    debugPrint('[placeholder] $_featureId opened');
+    Diag.event('placeholder_opened', {'feature': _featureId});
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final String title = l10n.savedAddressesComingSoonTitle;
+    final String subtitle = l10n.savedAddressesComingSoonBody;
+    return Scaffold(
       backgroundColor: Colors.transparent,
       body: JeebMidnightField(
         variant: JeebFieldVariant.content,
         animateDecor: false,
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: JeebEmptyState(
-                variant: JeebEmptyStateVariant.balcony,
-                headline: _title,
-                body: _subtitle,
-                medallions: <JeebEmptyMedallion>[],
-                identifier: SavedAddressesScreen.placeholderIdentifier,
-                semanticLabel: '$_title. $_subtitle',
-              ),
+          child: JeebStateHost(
+            child: JeebEmptyState(
+              variant: JeebEmptyStateVariant.balcony,
+              headline: title,
+              body: subtitle,
+              reason: JeebEmptyStateReason.nothingYet,
+              medallions: const <JeebEmptyMedallion>[],
+              identifier: SavedAddressesScreen.placeholderIdentifier,
+              semanticLabel: '$title. $subtitle',
             ),
           ),
         ),

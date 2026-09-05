@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:jeeb_mobile/features/delivery_status/domain/jeeber_summary.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
+import 'package:jeeb_mobile/features/live_tracking/domain/courier_position_channel.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 import 'package:jeeb_mobile/features/otp_handover/domain/handover_code_store.dart';
@@ -47,6 +48,70 @@ class LiveTrackingScreenPendingRepository implements LiveTrackingRepository {
     required String deliveryId,
   }) =>
       Completer<DeliveryTrackingInfo>().future;
+}
+
+/// Serves one snapshot on the FIRST read and then fails: the warm-failure
+/// lane, where the rows stay and a note appears above them.
+class LiveTrackingScreenWarmFailingRepository implements LiveTrackingRepository {
+  LiveTrackingScreenWarmFailingRepository(
+    this.info, {
+    this.kind = LiveTrackingErrorKind.network,
+  });
+
+  final DeliveryTrackingInfo info;
+  final LiveTrackingErrorKind kind;
+
+  int reads = 0;
+
+  @override
+  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
+    required String deliveryId,
+  }) async {
+    reads++;
+    if (reads == 1) return info;
+    throw LiveTrackingException(kind);
+  }
+}
+
+/// Reads fine, but every live-position read comes back null: after three the
+/// cubit synthesises `PositionFreshness.lost` (UX-11).
+class LiveTrackingScreenSilentPositionRepository
+    implements LiveTrackingRepository, LivePositionSource {
+  const LiveTrackingScreenSilentPositionRepository(this.info);
+
+  final DeliveryTrackingInfo info;
+
+  @override
+  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
+    required String deliveryId,
+  }) async =>
+      info;
+
+  @override
+  Future<DeliveryLivePosition?> fetchLivePosition({
+    required String deliveryId,
+  }) async =>
+      null;
+}
+
+/// A channel that always refuses to open, with a stated reason (NET-05).
+class LiveTrackingScreenRefusingChannel
+    implements CourierPositionChannel, CourierPositionChannelOutcome {
+  const LiveTrackingScreenRefusingChannel({
+    this.failure = CourierPositionOpenFailure.authRejected,
+  });
+
+  final CourierPositionOpenFailure failure;
+
+  @override
+  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async =>
+      null;
+
+  @override
+  Future<CourierPositionOpenResult> openWithOutcome({
+    required String deliveryId,
+  }) async =>
+      CourierPositionOpenResult.failed(failure);
 }
 
 /// In-memory [HandoverCodeStore] — the local, accept-time source of the G4

@@ -7,19 +7,24 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/countdown_format.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -223,6 +228,7 @@ class _WaitingView extends StatelessWidget {
     if (state.status == WaitingScreenStatus.failed) {
       return _WaitingError(
         failure: state.error,
+        appFailure: state.appFailure,
         onRetry: () => context.read<WaitingCubit>().retry(),
       );
     }
@@ -248,26 +254,16 @@ class _CenteredBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = maxWidth;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.symmetric(
-                vertical: Spacing.xLarge,
-              ),
-              child: width == null
-                  ? child
-                  : ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: width),
-                      child: child,
-                    ),
-            ),
-          ),
-        ),
+    return JeebStateHost(
+      padding: const EdgeInsetsDirectional.symmetric(
+        vertical: Spacing.xLarge,
       ),
+      child: width == null
+          ? child
+          : ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width),
+              child: child,
+            ),
     );
   }
 }
@@ -282,9 +278,10 @@ class _WaitingLoading extends StatelessWidget {
     // the skeleton morphs into the radar rather than swapping surfaces.
     return _CenteredBlock(
       child: JeebEmptyState(
+        identifier: 'waiting_loading_state',
         variant: JeebEmptyStateVariant.radar,
         status: JeebEmptyStateStatus.loading,
-        headline: l10n.offersWaitingTitle,
+        headline: l10n.waitingLoadingHeadline,
         body: l10n.requestSummaryFindingHint,
       ),
     );
@@ -292,7 +289,11 @@ class _WaitingLoading extends StatelessWidget {
 }
 
 class _WaitingError extends StatelessWidget {
-  const _WaitingError({required this.onRetry, this.failure});
+  const _WaitingError({
+    required this.onRetry,
+    this.failure,
+    this.appFailure,
+  });
 
   final VoidCallback onRetry;
 
@@ -300,27 +301,46 @@ class _WaitingError extends StatelessWidget {
   /// run reports "backend contract break", not "network problem" (P7 T5.5).
   final WaitingFailure? failure;
 
+  /// The classified failure — the body comes from the copy family unless the
+  /// contract-violation override applies.
+  final AppFailure? appFailure;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final message = failure == WaitingFailure.contractViolation
-        ? l10n.waitingErrorContractBody
-        : l10n.waitingErrorBody;
-    // waiting_error_state re-homed onto the block itself — the Padding+Semantics
-    // wrapper existed only to host the id and to gutter an OMDS slab.
+    // JeebFailureBlock has no `center:` slot and the no-signal core is ratified
+    // art, so the block is composed here off the same copy family.
+    final FailureCopy copy =
+        failureCopy(l10n, appFailure ?? const UnknownFailure());
     return _CenteredBlock(
       maxWidth: Sizes.threeHundredLarge,
       child: JeebEmptyState(
         identifier: 'waiting_error_state',
         variant: JeebEmptyStateVariant.radar,
-        status: JeebEmptyStateStatus.error,
+        reason: JeebEmptyStateReason.failed,
         headline: l10n.waitingErrorTitle,
-        body: message,
+        body: failure == WaitingFailure.contractViolation
+            ? l10n.waitingErrorContractBody
+            : copy.body,
+        headlineIdentifier: 'waiting_error_headline',
+        bodyIdentifier: 'waiting_error_body',
         center: const _NoSignalCore(),
-        action: JeebCtaButton.primary(
-          label: l10n.requestSummaryRetry,
-          onTap: onRetry,
-        ),
+        // Never a Retry the user cannot win.
+        action: copy.retryable
+            ? JeebCtaButton.outline(
+                label: copy.action,
+                identifier: 'waiting_retry_cta',
+                leadingIcon: Icons.refresh,
+                expand: false,
+                onTap: onRetry,
+              )
+            : JeebCtaButton.primary(
+                label: copy.action,
+                identifier: 'waiting_exit_cta',
+                expand: false,
+                onTap: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
       ),
     );
   }
@@ -504,6 +524,39 @@ class _WaitingLoaded extends StatelessWidget {
 
     return Column(
       children: [
+        if (state.refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.small,
+              Spacing.xLarge,
+              0,
+            ),
+            child: JeebRefreshFailedNote(
+              failure: state.refreshError!,
+              identifier: 'waiting_refresh_failed_note',
+              onDismiss: () =>
+                  context.read<WaitingCubit>().acknowledgeRefreshError(),
+              onRetry: () => context.read<WaitingCubit>().refresh(),
+            ),
+          ),
+        if (state.offerCountUnavailable)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.small,
+              Spacing.xLarge,
+              0,
+            ),
+            child: Semantics(
+              identifier: 'waiting_offer_count_unavailable',
+              container: true,
+              liveRegion: true,
+              child: JeebInfoNote.warning(
+                text: l10n.waitingOfferCountUnavailable,
+              ),
+            ),
+          ),
         // ── The waiting band: E2's radar, headline, body, countdown capsule,
         //    then the request echo. Centred on the residual space, as the tile
         //    draws it, but scrollable so the longest echo stays reachable.

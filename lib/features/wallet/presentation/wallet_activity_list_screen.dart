@@ -4,17 +4,24 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/wallet_ledger_cubit.dart';
 import '../application/wallet_ledger_state.dart';
-import '../data/empty_wallet_ledger_repository.dart';
+import '../data/unavailable_wallet_ledger_repository.dart';
 import '../domain/wallet_ledger_repository.dart';
 import 'wallet_activity_l10n.dart';
 import 'widgets/wallet_activity_row.dart';
@@ -101,13 +108,16 @@ class WalletActivityListScreen extends StatelessWidget {
     if (sl.isRegistered<WalletLedgerRepository>()) {
       return sl<WalletLedgerRepository>();
     }
-    return const EmptyWalletLedgerRepository();
+    // GEN-01: a DI miss used to render a FABRICATED empty ledger as real data.
+    assert(false, 'WalletLedgerRepository is not registered');
+    return const UnavailableWalletLedgerRepository();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<WalletLedgerCubit>(
-      create: (_) => WalletLedgerCubit(repository: _resolveRepository())..load(),
+      create: (_) =>
+          WalletLedgerCubit(repository: _resolveRepository())..load(),
       child: const _WalletActivityView(),
     );
   }
@@ -141,8 +151,9 @@ class _WalletActivityView extends StatelessWidget {
                 JeebTopBar(
                   identifier: 'wallet_activity_back',
                   title: copy.title,
-                  leadingTooltip:
-                      MaterialLocalizations.of(context).backButtonTooltip,
+                  leadingTooltip: MaterialLocalizations.of(
+                    context,
+                  ).backButtonTooltip,
                   // Normally pushed from wallet-hub's `wallet_see_all_activity`
                   // or earnings' `earnings_activity_link`, but also reachable via
                   // deep link with an empty Navigator stack. Pop when we can
@@ -154,39 +165,44 @@ class _WalletActivityView extends StatelessWidget {
                 Expanded(
                   child: BlocBuilder<WalletLedgerCubit, WalletLedgerState>(
                     builder: (context, state) {
+                      final cubit = context.read<WalletLedgerCubit>();
                       switch (state.status) {
                         case WalletLedgerStatus.initial:
                         case WalletLedgerStatus.loading:
-                          return _StateBlock(
-                            status: JeebEmptyStateStatus.loading,
-                            headline: copy.loadingHeadline,
-                            identifier: 'wallet_activity_loading',
+                          return JeebStateHost(
+                            child: JeebEmptyState(
+                              status: JeebEmptyStateStatus.loading,
+                              reason: JeebEmptyStateReason.loading,
+                              variant: _kStateArt,
+                              medallions: _kNoMedallions,
+                              headline: copy.loadingHeadline,
+                              identifier: 'wallet_activity_loading',
+                            ),
                           );
                         case WalletLedgerStatus.failed:
-                          return _StateBlock(
-                            status: JeebEmptyStateStatus.error,
-                            headline: copy.errorTitle,
-                            body: state.error == WalletLedgerFailure.network
-                                ? copy.networkError
-                                : null,
-                            identifier: 'wallet_activity_error',
-                            glyph: Icons.cloud_off,
-                            action: JeebCtaButton.primary(
-                              identifier: 'wallet_activity_retry_cta',
-                              label: copy.retry,
-                              expand: false,
-                              onTap: () =>
-                                  context.read<WalletLedgerCubit>().refresh(),
+                          return JeebStateHost(
+                            child: JeebFailureBlock(
+                              failure: state.failure ?? const UnknownFailure(),
+                              identifier: 'wallet_activity_error',
+                              retryIdentifier: 'wallet_activity_retry_cta',
+                              exitIdentifier: 'wallet_activity_exit_cta',
+                              variant: JeebEmptyStateVariant.parcel,
+                              onRetry: cubit.load,
+                              onExit: _activityExit(context, state.failure),
                             ),
                           );
                         case WalletLedgerStatus.loaded:
-                          // The house pull-to-refresh (the hub and the inbox
-                          // both use it).
-                          return OmdsPullToRefresh(
-                            onRefresh: () =>
-                                context.read<WalletLedgerCubit>().refresh(),
+                          return JeebPullToRefresh(
+                            onRefresh: cubit.refresh,
                             child: !state.hasEntries
-                                ? _EmptyBody(copy: copy)
+                                ? _EmptyBody(
+                                    copy: copy,
+                                    unrenderableCount: state.unrenderableCount,
+                                    refreshError: state.refreshError,
+                                    onRetryRefresh: cubit.refresh,
+                                    onDismissRefreshError:
+                                        cubit.clearRefreshError,
+                                  )
                                 : _LoadedList(state: state, copy: copy),
                           );
                       }
@@ -202,52 +218,12 @@ class _WalletActivityView extends StatelessWidget {
   }
 }
 
-/// The loading and error twins of [_EmptyBody] — same illustration, kit skeleton
-/// / danger-tinted centre (study-notes ruling 1), centred in the residual band.
-/// Scrolls so the block survives 200% text scale on a short phone.
-///
-/// Hosts the frozen `wallet_activity_loading` / `wallet_activity_error` nodes;
-/// the retry keeps its own `wallet_activity_retry_cta` node inside, which
-/// survives because [JeebEmptyState] sets `explicitChildNodes`.
-class _StateBlock extends StatelessWidget {
-  const _StateBlock({
-    required this.status,
-    required this.headline,
-    required this.identifier,
-    this.glyph,
-    this.body,
-    this.action,
-  });
-
-  final JeebEmptyStateStatus status;
-  final String headline;
-  final String identifier;
-
-  /// Null on loading: the kit paints its skeleton over the whole frame and
-  /// never reaches the `center` slot.
-  final IconData? glyph;
-  final String? body;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final IconData? mark = glyph;
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          variant: _kStateArt,
-          center: mark == null ? null : WalletStateMark(glyph: mark),
-          medallions: _kNoMedallions,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: action,
-        ),
-      ),
-    );
-  }
-}
+/// R6: an unrecoverable kind gets a way out, never a headline with no act. An
+/// expired session leaves to the root, where the redirect lands on sign-in.
+VoidCallback _activityExit(BuildContext context, AppFailure? failure) =>
+    failure is UnauthorizedFailure
+    ? () => context.go('/')
+    : () => context.canPop() ? context.pop() : context.go('/');
 
 /// Empty = `loaded` + an empty list (NOT a fifth status, §3). Wrapped in a
 /// scrollable so pull-to-refresh still works on an empty ledger.
@@ -256,15 +232,29 @@ class _StateBlock extends StatelessWidget {
 /// is the hub's edge, one screen up), and the E2 ruling is that an unmounted CTA
 /// beats a destination-less one.
 class _EmptyBody extends StatelessWidget {
-  const _EmptyBody({required this.copy});
+  const _EmptyBody({
+    required this.copy,
+    this.unrenderableCount = 0,
+    this.refreshError,
+    this.onRetryRefresh,
+    this.onDismissRefreshError,
+  });
 
   /// R21/E4: the illustration sits high, not centred in the residual band.
   static const double topGap = Sizes.threeXLarge;
 
   final WalletActivityL10n copy;
 
+  /// Rows the gateway sent that could not be read. When they were the WHOLE
+  /// page, "nothing yet" alone would lie about why the list is empty.
+  final int unrenderableCount;
+  final AppFailure? refreshError;
+  final VoidCallback? onRetryRefresh;
+  final VoidCallback? onDismissRefreshError;
+
   @override
   Widget build(BuildContext context) {
+    final warm = refreshError;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsetsDirectional.only(
@@ -272,8 +262,24 @@ class _EmptyBody extends StatelessWidget {
         bottom: Sizes.sixXLarge,
       ),
       children: [
+        if (warm != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              0,
+              Spacing.xLarge,
+              Spacing.small,
+            ),
+            child: JeebRefreshFailedNote(
+              failure: warm,
+              identifier: 'wallet_activity_refresh_failed_note',
+              onRetry: onRetryRefresh,
+              onDismiss: onDismissRefreshError ?? () {},
+            ),
+          ),
         JeebEmptyState(
           identifier: 'wallet_activity_empty',
+          reason: JeebEmptyStateReason.nothingYet,
           variant: _kStateArt,
           // The screen's own subject: a list of money movements, with none yet.
           center: const WalletStateMark(glyph: Icons.receipt_long),
@@ -281,6 +287,26 @@ class _EmptyBody extends StatelessWidget {
           headline: copy.emptyTitle,
           body: copy.emptyBody,
         ),
+        if (unrenderableCount > 0)
+          Semantics(
+            identifier: 'wallet_activity_unrenderable_note',
+            container: true,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.xLarge,
+                Spacing.small,
+                Spacing.xLarge,
+                0,
+              ),
+              child: Text(
+                copy.unrenderable,
+                textAlign: TextAlign.center,
+                style: context.jeebText.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -332,10 +358,15 @@ class _LoadedListState extends State<_LoadedList> {
     final state = widget.state;
     final copy = widget.copy;
     final entries = state.entries;
-    // One extra slot for the footer (load-more skeleton / retry) when relevant.
+    final warm = state.refreshError;
+    // A warm-failure note rides the list head so the rows stay on screen.
+    final leading = warm == null ? 0 : 1;
     final showFooter =
-        state.loadingMore || state.loadMoreError || state.hasMore;
-    final itemCount = entries.length + (showFooter ? 1 : 0);
+        state.loadingMore ||
+        state.loadMoreError ||
+        state.hasMore ||
+        state.unrenderableCount > 0;
+    final itemCount = leading + entries.length + (showFooter ? 1 : 0);
 
     return ListView.separated(
       controller: _controller,
@@ -347,10 +378,20 @@ class _LoadedListState extends State<_LoadedList> {
       // footer slot, so nothing jumps when it appears.
       separatorBuilder: (_, index) => const SizedBox(height: Spacing.small),
       itemBuilder: (context, index) {
-        if (index >= entries.length) {
+        if (warm != null && index == 0) {
+          final cubit = context.read<WalletLedgerCubit>();
+          return JeebRefreshFailedNote(
+            failure: warm,
+            identifier: 'wallet_activity_refresh_failed_note',
+            onRetry: cubit.refresh,
+            onDismiss: cubit.clearRefreshError,
+          );
+        }
+        final position = index - leading;
+        if (position >= entries.length) {
           return _Footer(state: state, copy: copy);
         }
-        final entry = entries[index];
+        final entry = entries[position];
         return WalletActivityRow(
           entry: entry,
           copy: copy,
@@ -383,28 +424,55 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.loadMoreError) {
-      return Padding(
-        padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                copy.loadMoreError,
-                style: context.jeebText.bodySmall.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+      final failure = state.loadMoreFailure;
+      final message = failure == null
+          ? copy.loadMoreError
+          : failureCopy(AppLocalizations.of(context), failure).body;
+      return Semantics(
+        identifier: 'wallet_activity_load_more_error',
+        container: true,
+        liveRegion: true,
+        explicitChildNodes: true,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  message,
+                  style: context.jeebText.bodySmall.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
+              const SizedBox(width: Spacing.xSmall),
+              // A soft, in-list retry — the `text` variant, not a second pill
+              // competing with the cold-load CTA.
+              JeebCtaButton.text(
+                identifier: 'wallet_activity_load_more_retry',
+                label: copy.retry,
+                onTap: () => context.read<WalletLedgerCubit>().retryLoadMore(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (!state.loadingMore && !state.hasMore) {
+      // Rows the gateway sent that could not be read: named, never silent.
+      return Semantics(
+        identifier: 'wallet_activity_unrenderable_note',
+        container: true,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
+          child: Text(
+            copy.unrenderable,
+            textAlign: TextAlign.center,
+            style: context.jeebText.bodySmall.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: Spacing.xSmall),
-            // A soft, in-list retry — the `text` variant, not a second pill
-            // competing with the cold-load CTA.
-            JeebCtaButton.text(
-              identifier: 'wallet_activity_load_more_retry',
-              label: copy.retry,
-              onTap: () => context.read<WalletLedgerCubit>().retryLoadMore(),
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -440,7 +508,7 @@ class _RowSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors glass =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
 
     return ExcludeSemantics(
       child: Column(

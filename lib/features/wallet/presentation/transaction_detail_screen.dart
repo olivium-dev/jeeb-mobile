@@ -5,26 +5,27 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/server_time.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/transaction_detail_cubit.dart';
 import '../application/transaction_detail_state.dart';
-import '../data/stub_wallet_transaction_repository.dart';
+import '../data/unavailable_wallet_transaction_repository.dart';
 import '../domain/wallet_ledger_repository.dart';
 import '../domain/wallet_transaction_repository.dart';
 import 'transaction_detail_l10n.dart';
-import 'widgets/wallet_state_mark.dart';
 
 /// Shares the ledger list's empty-family composition — see `_kStateArt` there:
 /// R19's `e1` frame with the client mic and shopping medallions replaced by a
@@ -93,7 +94,10 @@ class TransactionDetailScreen extends StatelessWidget {
     if (sl.isRegistered<WalletTransactionRepository>()) {
       return sl<WalletTransactionRepository>();
     }
-    return const StubWalletTransactionRepository();
+    // GEN-01: a DI miss used to render a FABRICATED $1.50 platform-fee row
+    // as real money.
+    assert(false, 'WalletTransactionRepository is not registered');
+    return const UnavailableWalletTransactionRepository();
   }
 
   @override
@@ -141,8 +145,9 @@ class _TransactionDetailView extends StatelessWidget {
                   JeebTopBar(
                     identifier: 'txn_detail_back',
                     title: copy.title,
-                    leadingTooltip:
-                        MaterialLocalizations.of(context).backButtonTooltip,
+                    leadingTooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
                     // Normally pushed from wallet-activity-list's
                     // `wallet_activity_row_<id>` tap, but also reachable via deep
                     // link with an empty Navigator stack. Pop when we can (pushed
@@ -161,15 +166,21 @@ class _TransactionDetailView extends StatelessWidget {
                             switch (state.status) {
                               case TransactionDetailStatus.initial:
                               case TransactionDetailStatus.loading:
-                                return _StateBlock(
-                                  status: JeebEmptyStateStatus.loading,
-                                  headline: copy.loadingHeadline,
+                                return JeebStateHost(
+                                  child: JeebEmptyState(
+                                    status: JeebEmptyStateStatus.loading,
+                                    reason: JeebEmptyStateReason.loading,
+                                    variant: _kStateArt,
+                                    medallions: _kNoMedallions,
+                                    headline: copy.loadingHeadline,
+                                    identifier: 'txn_detail_loading',
+                                  ),
                                 );
                               case TransactionDetailStatus.failed:
                                 return _errorBlock(
                                   context,
                                   copy,
-                                  _errorCopy(copy, state.error),
+                                  state.failure ?? const UnknownFailure(),
                                 );
                               case TransactionDetailStatus.loaded:
                                 final txn = state.transaction;
@@ -177,7 +188,7 @@ class _TransactionDetailView extends StatelessWidget {
                                   return _errorBlock(
                                     context,
                                     copy,
-                                    copy.loadErrorGeneric,
+                                    const UnknownFailure(parse: true),
                                   );
                                 }
                                 return _LoadedBody(txn: txn, copy: copy);
@@ -194,77 +205,23 @@ class _TransactionDetailView extends StatelessWidget {
     );
   }
 
-  /// The failure twin of the loading block, with the retry as its CTA.
-  /// The mapped failure sentence is the body under the short `h1` title.
+  /// The failure rung. An unrecoverable kind (404/410/403) gets the exit CTA;
+  /// only a retryable one gets Retry (R6/F14/CR-01).
   Widget _errorBlock(
     BuildContext context,
     TransactionDetailL10n copy,
-    String body,
+    AppFailure failure,
   ) {
-    return _StateBlock(
-      status: JeebEmptyStateStatus.error,
-      glyph: Icons.cloud_off,
-      headline: copy.errorTitle,
-      body: body,
-      action: JeebCtaButton.primary(
-        label: copy.retry,
-        expand: false,
-        onTap: () => context.read<TransactionDetailCubit>().retry(),
-      ),
-    );
-  }
-
-  String _errorCopy(
-    TransactionDetailL10n copy,
-    WalletTransactionFailure? failure,
-  ) {
-    switch (failure) {
-      case WalletTransactionFailure.notFound:
-        return copy.loadErrorNotFound;
-      case WalletTransactionFailure.network:
-      case WalletTransactionFailure.unauthorized:
-      case WalletTransactionFailure.unknown:
-      case null:
-        return copy.loadErrorGeneric;
-    }
-  }
-}
-
-/// The non-loaded states on the one Midnight pattern family (study-notes ruling
-/// 1) — the shape `wallet_hub_screen.dart` already ships for the same journey.
-/// Replaces `OmdsLoadingState` / `OmdsErrorState`, both light-theme widgets.
-class _StateBlock extends StatelessWidget {
-  const _StateBlock({
-    required this.status,
-    required this.headline,
-    this.glyph,
-    this.body,
-    this.action,
-  });
-
-  final JeebEmptyStateStatus status;
-  final String headline;
-
-  /// Null on loading: the kit paints its skeleton over the whole frame and
-  /// never reaches the `center` slot.
-  final IconData? glyph;
-  final String? body;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final IconData? mark = glyph;
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          variant: _kStateArt,
-          center: mark == null ? null : WalletStateMark(glyph: mark),
-          medallions: _kNoMedallions,
-          headline: headline,
-          body: body,
-          action: action,
-        ),
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'txn_detail_error',
+        retryIdentifier: 'txn_detail_retry_cta',
+        exitIdentifier: 'txn_detail_exit_cta',
+        variant: JeebEmptyStateVariant.parcel,
+        onRetry: () => context.read<TransactionDetailCubit>().retry(),
+        onExit: () => context.canPop() ? context.pop() : context.go('/'),
+        exitLabel: copy.back,
       ),
     );
   }

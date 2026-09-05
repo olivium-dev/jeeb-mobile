@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
+
 import '../domain/cancel_request_repository.dart';
 import 'cancel_request_state.dart';
 
@@ -23,10 +25,22 @@ class CancelRequestCubit extends Cubit<CancelRequestState> {
       emit(state.copyWith(status: CancelRequestStatus.succeeded));
     } on CancelRequestException catch (e) {
       emit(state.copyWith(status: CancelRequestStatus.failed, error: e.failure));
-    } catch (_) {
+    } catch (e) {
       emit(state.copyWith(
         status: CancelRequestStatus.failed,
-        error: CancelRequestFailure.unknown,
+        error: switch (AppFailure.of(e).kind) {
+          AppFailureKind.network ||
+          AppFailureKind.timeout =>
+            CancelRequestFailure.network,
+          AppFailureKind.unauthorized ||
+          AppFailureKind.forbidden =>
+            CancelRequestFailure.forbidden,
+          AppFailureKind.notFound ||
+          AppFailureKind.gone =>
+            CancelRequestFailure.notFound,
+          AppFailureKind.conflict => CancelRequestFailure.conflict,
+          _ => CancelRequestFailure.unknown,
+        },
       ));
     }
   }

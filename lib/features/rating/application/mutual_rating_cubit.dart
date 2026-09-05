@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../chat/domain/order_chat_summary.dart';
 import '../domain/rating_repository.dart';
 import 'mutual_rating_state.dart';
@@ -34,8 +36,11 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
         counterpartAvatarUrl:
             summary.counterpartAvatarUrl(viewerIsJeeber: !isClient) ?? '',
       ));
-    } catch (_) {
+    } catch (e) {
       // Identity is decoration; a miss leaves the role-aware fallback.
+      Diag.event('mutual_rating.counterpart_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -53,6 +58,7 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
   }
 
   Future<void> submit() async {
+    if (state.phase == MutualRatingPhase.submitting) return;
     if (state.stars == 0) return;
     emit(state.copyWith(phase: MutualRatingPhase.submitting, clearError: true));
     try {
@@ -65,15 +71,15 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
       );
       /// Mandatory terminal: BlocListener navigates back on submitted.
       emit(state.copyWith(phase: MutualRatingPhase.submitted));
-    } on RatingRepositoryException {
+    } on RatingRepositoryException catch (e) {
       emit(state.copyWith(
         phase: MutualRatingPhase.error,
-        errorMessage: 'ratingError',
+        failure: e.failure,
       ));
-    } catch (_) {
+    } catch (e) {
       emit(state.copyWith(
         phase: MutualRatingPhase.error,
-        errorMessage: 'ratingError',
+        failure: ratingFailureOf(e),
       ));
     }
   }

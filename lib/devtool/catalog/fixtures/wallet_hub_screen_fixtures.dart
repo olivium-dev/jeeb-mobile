@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
 
@@ -40,6 +41,43 @@ class WalletHubScreenFailingRepository implements WalletRepository {
   @override
   Future<WalletBalance> fetchBalance() async {
     throw WalletRepositoryException(failure);
+  }
+}
+
+/// A read whose body carries no `availableBalance` — the live repository now
+/// throws rather than fabricate a broke wallet (UX-16), so this is the shape
+/// the hub's error rung must show for a degenerate body.
+class WalletHubScreenDegenerateRepository implements WalletRepository {
+  const WalletHubScreenDegenerateRepository();
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    throw const WalletRepositoryException(
+      WalletFailure.unknown,
+      cause: UnknownFailure(parse: true),
+    );
+  }
+}
+
+/// A cold load that succeeds and every refresh after it that fails — the
+/// warm-failure note over a balance still on screen (LR-09/UX-18).
+class WalletHubScreenRefreshFailingRepository implements WalletRepository {
+  WalletHubScreenRefreshFailingRepository(this.balance);
+
+  final WalletBalance balance;
+
+  bool _served = false;
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    if (_served) {
+      throw const WalletRepositoryException(
+        WalletFailure.network,
+        cause: NetworkFailure(),
+      );
+    }
+    _served = true;
+    return balance;
   }
 }
 

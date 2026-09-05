@@ -25,6 +25,12 @@
 #     -> JEEB-55/JEEB-57: raw TextField in _PhoneField for +961 prefix;
 #        OmdsTextField lacks prefixIconConstraints support (upstream PR pending)
 #
+# Per-line exemptions:
+#   A line carrying the repo's documented marker
+#   `EXEMPT(flutter-omds-design-system-usage)` (the same marker the Dart-side
+#   rule honors) is skipped by every check. Prefer it over the file list above:
+#   it is line-precise, greppable and reviewed in the diff that adds it.
+#
 # Portability:
 #   Uses POSIX ERE (-E) with [[:space:]] instead of \s and avoids PCRE
 #   features (no lookbehind / -P) so it runs on both BSD grep (macOS) and
@@ -97,10 +103,15 @@ if [[ "$FILE_COUNT" -eq 0 ]]; then
   exit 0
 fi
 
+# Marker that exempts the line it sits on from every check below.
+EXEMPT_MARKER='EXEMPT(flutter-omds-design-system-usage)'
+
 # check_pattern <label> <regex> [exclude_regex]
 #
 # Greps the in-scope files for <regex>, then strips any line matching
-# <exclude_regex> (line-level filter). Prints matches and bumps the counter.
+# <exclude_regex> (line-level filter). Lines carrying $EXEMPT_MARKER are
+# dropped first, before comments are stripped, so the marker stays visible.
+# Prints matches and bumps the counter.
 check_pattern() {
   local label="$1"
   local pattern="$2"
@@ -109,12 +120,14 @@ check_pattern() {
   local matches
   if [[ -n "$exclude_pattern" ]]; then
     matches=$(grep -nE "" -- $(cat "$SCOPE_FILE") /dev/null \
+      | grep -v -F "$EXEMPT_MARKER" \
       | sed -E 's#//.*$##' \
       | grep -E "$pattern" \
       | grep -v -E "$exclude_pattern" \
       || true)
   else
     matches=$(grep -nE "" -- $(cat "$SCOPE_FILE") /dev/null \
+      | grep -v -F "$EXEMPT_MARKER" \
       | sed -E 's#//.*$##' \
       | grep -E "$pattern" \
       || true)

@@ -9,6 +9,7 @@ class CustomerProfileViewData extends Equatable {
     this.isJeeber = false,
     this.rating,
     this.ratingCount = 0,
+    this.ratingUnavailable = false,
     this.activeRole,
     this.availableRoles = const <String>[],
   });
@@ -27,6 +28,10 @@ class CustomerProfileViewData extends Equatable {
 
   final int ratingCount;
 
+  /// The review join failed, so this profile has no readable rating — which is
+  /// NOT the same as having no reviews (UX-33).
+  final bool ratingUnavailable;
+
   bool get hasRating => rating != null && ratingCount > 0;
 
   final String? activeRole;
@@ -44,6 +49,7 @@ class CustomerProfileViewData extends Equatable {
     bool? isJeeber,
     double? rating,
     int? ratingCount,
+    bool? ratingUnavailable,
     String? activeRole,
     List<String>? availableRoles,
     bool clearRating = false,
@@ -56,6 +62,7 @@ class CustomerProfileViewData extends Equatable {
       isJeeber: isJeeber ?? this.isJeeber,
       rating: clearRating ? null : (rating ?? this.rating),
       ratingCount: ratingCount ?? this.ratingCount,
+      ratingUnavailable: ratingUnavailable ?? this.ratingUnavailable,
       activeRole: activeRole ?? this.activeRole,
       availableRoles: availableRoles ?? this.availableRoles,
     );
@@ -63,14 +70,15 @@ class CustomerProfileViewData extends Equatable {
 
   @override
   List<Object?> get props => [
-        name,
-        email,
-        avatarUrl,
-        isVerified,
-        isJeeber,
-        rating,
-        ratingCount,
-        activeRole,
-        availableRoles,
-      ];
+    name,
+    email,
+    avatarUrl,
+    isVerified,
+    isJeeber,
+    rating,
+    ratingCount,
+    ratingUnavailable,
+    activeRole,
+    availableRoles,
+  ];
 }

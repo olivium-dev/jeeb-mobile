@@ -1,3 +1,5 @@
+import '../../../core/network/app_failure.dart';
+
 enum DisputeState {
   pending,
   fixed,
@@ -139,10 +141,22 @@ class DisputeStatus {
 enum DisputeStatusFailure { network, notFound, unauthorized, unknown }
 
 class DisputeStatusRepositoryException implements Exception {
-  const DisputeStatusRepositoryException(this.failure, [this.message]);
+  const DisputeStatusRepositoryException(this.failure, [this.message])
+    : appFailure = null;
+
+  const DisputeStatusRepositoryException.classified(
+    this.failure, {
+    this.message,
+    required this.appFailure,
+  });
 
   final DisputeStatusFailure failure;
+
+  /// DIAGNOSTIC ONLY — never rendered.
   final String? message;
+
+  /// The classified transport failure, when the thrower could produce one.
+  final AppFailure? appFailure;
 
   @override
   String toString() => 'DisputeStatusRepositoryException($failure, $message)';

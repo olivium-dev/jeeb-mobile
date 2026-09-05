@@ -269,15 +269,15 @@ void main() {
       await tester.pumpAndSettle();
 
       final bar = tester.widget<SnackBar>(find.byType(SnackBar));
-      // The screen paints none itself: the surface comes from the Midnight
-      // `snackBarTheme`, so a light slab can never appear here.
-      expect(bar.backgroundColor, isNull);
-      final theme = Theme.of(
-        tester.element(find.byType(SnackBar)),
+      // R4/EP-05: the failure snack now carries the SEMANTIC error pair
+      // explicitly — the themed surfaceHigh slab signalled nothing at all.
+      expect(
+        bar.backgroundColor,
+        AppTheme.midnight().colorScheme.errorContainer,
       );
       expect(
-        theme.snackBarTheme.backgroundColor,
-        AppTheme.midnight().colorScheme.surfaceContainerHigh,
+        find.bySemanticsIdentifier('profile_name_save_error_snack'),
+        findsOneWidget,
       );
       // The step stays open — a failed save is fail-soft, never a block.
       expect(find.byKey(const Key('profile-name.skip')), findsOneWidget);

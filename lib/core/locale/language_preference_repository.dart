@@ -4,7 +4,7 @@ abstract class LanguagePreferenceRepository {
   Future<void> save(String languageCode);
 }
 
-enum LanguagePreferenceFailure { network, unauthorized, unknown }
+enum LanguagePreferenceFailure { network, unauthorized, serverError, unknown }
 
 class LanguagePreferenceException implements Exception {
   const LanguagePreferenceException(this.failure, [this.message]);

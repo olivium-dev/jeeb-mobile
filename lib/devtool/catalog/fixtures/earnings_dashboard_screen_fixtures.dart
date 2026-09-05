@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/earnings/domain/earnings_repository.dart';
 import '../../../features/earnings/domain/earnings_summary.dart';
 
@@ -32,24 +33,102 @@ class SeededEarningsRepository implements EarningsRepository {
 /// body.
 /// [kind] is carried even though the screen currently discards it: the body
 class FailingEarningsRepository implements EarningsRepository {
-  const FailingEarningsRepository([this.kind = EarningsErrorKind.network]);
+  const FailingEarningsRepository([
+    this.kind = EarningsErrorKind.network,
+    this.failure,
+  ]);
 
   final EarningsErrorKind kind;
+
+  /// The classified failure the rung renders; null falls back to [kind].
+  final AppFailure? failure;
 
   @override
   Future<EarningsSummary> fetchEarnings({
     String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async =>
-      throw EarningsRepositoryException(kind);
+      throw EarningsRepositoryException(kind, null, failure);
 
   @override
   Future<String> exportEarningsPdf({
     String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async =>
-      throw EarningsRepositoryException(kind);
+      throw EarningsRepositoryException(kind, null, failure);
 }
+
+/// A cold load that lands and every read after it that fails — the warm
+/// failure note over a dashboard the jeeber is still reading (LR-16).
+class RefreshFailingEarningsRepository implements EarningsRepository {
+  RefreshFailingEarningsRepository(this._summary);
+
+  final EarningsSummary _summary;
+
+  bool _served = false;
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async {
+    if (_served) {
+      throw const EarningsRepositoryException(
+        EarningsErrorKind.network,
+        null,
+        NetworkFailure(),
+      );
+    }
+    _served = true;
+    return _summary;
+  }
+
+  @override
+  Future<String> exportEarningsPdf({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      throw const EarningsRepositoryException(EarningsErrorKind.network);
+}
+
+/// A dashboard that loads and an export that fails — the export snack.
+class ExportFailingEarningsRepository implements EarningsRepository {
+  const ExportFailingEarningsRepository(this._summary);
+
+  final EarningsSummary _summary;
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      _summary;
+
+  @override
+  Future<String> exportEarningsPdf({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      throw const EarningsRepositoryException(
+        EarningsErrorKind.server,
+        null,
+        ServerFailure(status: 500),
+      );
+}
+
+/// The 5xx cold load — a retryable rung whose body must NOT blame the network.
+const FailingEarningsRepository serverFailingEarningsRepository =
+    FailingEarningsRepository(
+  EarningsErrorKind.server,
+  ServerFailure(status: 500),
+);
+
+/// The offline cold load — the one rung allowed to blame connectivity.
+const FailingEarningsRepository networkFailingEarningsRepository =
+    FailingEarningsRepository(
+  EarningsErrorKind.network,
+  NetworkFailure(offline: true),
+);
 
 /// A read that never resolves, freezing the screen on
 /// `EarningsViewMode.loading` for as long as the host is open.

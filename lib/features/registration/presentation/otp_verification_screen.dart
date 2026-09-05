@@ -234,6 +234,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                   if (isLockedOut)
                                     _LockoutBanner(
                                       remaining: state.lockoutSecondsRemaining,
+                                      rateLimited: state.lockoutFromRateLimit,
                                     )
                                   else ...[
                                     Semantics(
@@ -258,7 +259,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                     _MetaRow(
                                       otpError: state.otpError,
                                       isVerifying: state.isVerifying,
+                                      isSendingCode: state.isSendingCode,
                                       resendSecondsRemaining:
+                                          state.resendSecondsRemaining,
+                                      // The LIVE remainder, not the frozen
+                                      // header: the copy ticks with the CTA.
+                                      retryAfterSeconds:
                                           state.resendSecondsRemaining,
                                       onResend: _handleResend,
                                     ),
@@ -415,11 +421,19 @@ class _MetaRow extends StatelessWidget {
   const _MetaRow({
     required this.otpError,
     required this.isVerifying,
+    required this.isSendingCode,
     required this.resendSecondsRemaining,
+    required this.retryAfterSeconds,
     required this.onResend,
   });
 
   final RegistrationOtpError? otpError;
+
+  /// A resend is in flight; the CTA shows its own spinner (F16).
+  final bool isSendingCode;
+
+  /// The server's 429 window, for the rate-limited copy.
+  final int? retryAfterSeconds;
 
   /// The in-flight verify used to be spoken by the deleted CTA's label; the
   /// board's start slot is where it belongs.
@@ -440,7 +454,11 @@ class _MetaRow extends StatelessWidget {
           // The error renders here and ONLY here — one node, one assertion.
           child: error != null
               ? Text(
-                  _otpErrorCopy(error, l10n),
+                  _otpErrorCopy(
+                    error,
+                    l10n,
+                    retryAfterSeconds: retryAfterSeconds,
+                  ),
                   style: small.copyWith(color: colorScheme.error),
                 )
               : Text(
@@ -488,6 +506,8 @@ class _MetaRow extends StatelessWidget {
             label: l10n.registrationOtpResend,
             labelStyle: small.copyWith(fontWeight: FontWeight.w700),
             contentPadding: EdgeInsets.zero,
+            isLoading: isSendingCode,
+            isEnabled: !isSendingCode && resendSecondsRemaining == 0,
             onTap: onResend,
           ),
       ],
@@ -527,9 +547,12 @@ class _AttemptsRemainingLabel extends StatelessWidget {
 }
 
 class _LockoutBanner extends StatelessWidget {
-  const _LockoutBanner({required this.remaining});
+  const _LockoutBanner({required this.remaining, this.rateLimited = false});
 
   final int remaining;
+
+  /// The gateway's 429 put us here, not the local attempt budget (AE-17).
+  final bool rateLimited;
 
   @override
   Widget build(BuildContext context) {
@@ -541,14 +564,20 @@ class _LockoutBanner extends StatelessWidget {
     return JeebInfoNote.error(
       key: const Key('registration.lockoutBanner'),
       icon: Icons.lock_clock,
-      title: l10n.registrationLockoutTitle,
+      title: rateLimited
+          ? l10n.registrationOtpTooManyAttempts
+          : l10n.registrationLockoutTitle,
       text: l10n.registrationLockoutBody(minutes, seconds),
       identifier: 'phone_otp_lockout_banner',
     );
   }
 }
 
-String _otpErrorCopy(RegistrationOtpError error, AppLocalizations l10n) {
+String _otpErrorCopy(
+  RegistrationOtpError error,
+  AppLocalizations l10n, {
+  int? retryAfterSeconds,
+}) {
   switch (error) {
     case RegistrationOtpError.invalid:
       return l10n.registrationOtpInvalid;
@@ -556,6 +585,12 @@ String _otpErrorCopy(RegistrationOtpError error, AppLocalizations l10n) {
       return l10n.registrationOtpExpired;
     case RegistrationOtpError.accountSuspended:
       return l10n.registrationOtpAccountSuspended;
+    case RegistrationOtpError.rateLimited:
+      return l10n.registrationOtpRateLimitedSeconds(retryAfterSeconds ?? 0);
+    case RegistrationOtpError.serverError:
+      return l10n.registrationOtpServerError;
+    case RegistrationOtpError.serviceUnavailable:
+      return l10n.registrationOtpServiceUnavailable;
     case RegistrationOtpError.networkError:
       return l10n.registrationOtpNetworkError;
   }

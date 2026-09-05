@@ -6,7 +6,10 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -60,9 +63,16 @@ class KycRejectedScreen extends StatelessWidget {
             !previous.shouldLeaveRejectedRoute &&
             current.shouldLeaveRejectedRoute,
         listener: (context, state) => context.goNamed('kyc-status'),
-        builder: (context, state) => state.isAuthoritativelyRejected
-            ? const _KycRejectedView()
-            : const _KycRejectedAuthorityLoadingView(),
+        builder: (context, state) => switch (state.status) {
+          // Error before empty (R6): a failed read no longer redirects, so it
+          // must own the screen with a retry.
+          KycRejectedStatus.error => _KycRejectedErrorView(
+              failure: state.failure ?? const UnknownFailure(),
+            ),
+          _ => state.isAuthoritativelyRejected
+              ? const _KycRejectedView()
+              : const _KycRejectedAuthorityLoadingView(),
+        },
       ),
     );
   }
@@ -86,15 +96,56 @@ class _KycRejectedAuthorityLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'kyc_rejected_authority_loading',
-      child: const Scaffold(
+      child: Scaffold(
         backgroundColor: Colors.transparent,
         body: JeebMidnightField(
           variant: JeebFieldVariant.content,
           glowPlacement: JeebFieldGlowPlacement.topEnd,
           animateDecor: false,
-          child: SafeArea(child: Center(child: OmdsLoadingState())),
+          child: SafeArea(
+            child: JeebStateHost(
+              child: JeebEmptyState(
+                identifier: 'kyc_rejected_loading',
+                variant: _kEmptyVariant,
+                reason: JeebEmptyStateReason.loading,
+                headline: l10n.loadingGenericHeadline,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// KYCR-01: the read failed. The user stays on the appeal route with a retry
+/// instead of being silently bounced to the KYC status surface.
+class _KycRejectedErrorView extends StatelessWidget {
+  const _KycRejectedErrorView({required this.failure});
+
+  final AppFailure failure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: SafeArea(
+          child: JeebStateHost(
+            child: JeebFailureBlock(
+              failure: failure,
+              identifier: 'kyc_rejected_error',
+              variant: _kEmptyVariant,
+              onRetry: () => context.read<KycRejectedCubit>().load(),
+              onExit: () => context.goNamed('kyc-status'),
+            ),
+          ),
         ),
       ),
     );
@@ -211,6 +262,7 @@ class _RejectionBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return JeebEmptyState(
+      identifier: 'kyc_rejected_reason_block',
       status: JeebEmptyStateStatus.error,
       variant: _kEmptyVariant,
       headline: l10n.kycRejectedHeadline,

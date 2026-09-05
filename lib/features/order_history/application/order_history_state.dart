@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/order_summary.dart';
 
 class OrderTabState extends Equatable {
@@ -9,6 +10,9 @@ class OrderTabState extends Equatable {
     this.hasMore = true,
     this.status = OrderTabStatus.initial,
     this.errorKind,
+    this.failure,
+    this.loadMoreError,
+    this.refreshError,
   });
 
   final List<OrderSummary> orders;
@@ -19,7 +23,18 @@ class OrderTabState extends Equatable {
 
   final OrderTabStatus status;
 
+  /// Legacy 2-value display kind; [failure] is the classifier the screen reads.
   final OrderTabErrorKind? errorKind;
+
+  /// The classified failure behind [errorKind].
+  final AppFailure? failure;
+
+  /// A failed NEXT-page fetch: a footer retry, never the screen's error rung.
+  final AppFailure? loadMoreError;
+
+  /// A failed SILENT refresh over rows that are already on screen: a warm band
+  /// above the list, never the pagination footer.
+  final AppFailure? refreshError;
 
   OrderTabState copyWith({
     List<OrderSummary>? orders,
@@ -27,19 +42,40 @@ class OrderTabState extends Equatable {
     bool? hasMore,
     OrderTabStatus? status,
     OrderTabErrorKind? errorKind,
+    AppFailure? failure,
+    AppFailure? loadMoreError,
+    AppFailure? refreshError,
     bool clearError = false,
+    bool clearLoadMoreError = false,
+    bool clearRefreshError = false,
   }) {
     return OrderTabState(
       orders: orders ?? this.orders,
       page: page ?? this.page,
       hasMore: hasMore ?? this.hasMore,
       status: status ?? this.status,
-      errorKind: clearError ? null : (errorKind ?? this.errorKind),
+      errorKind: clearError ? errorKind : (errorKind ?? this.errorKind),
+      failure: clearError ? failure : (failure ?? this.failure),
+      loadMoreError: clearLoadMoreError
+          ? loadMoreError
+          : (loadMoreError ?? this.loadMoreError),
+      refreshError: clearRefreshError
+          ? refreshError
+          : (refreshError ?? this.refreshError),
     );
   }
 
   @override
-  List<Object?> get props => [orders, page, hasMore, status, errorKind];
+  List<Object?> get props => [
+        orders,
+        page,
+        hasMore,
+        status,
+        errorKind,
+        failure,
+        loadMoreError,
+        refreshError,
+      ];
 }
 
 enum OrderTabStatus {

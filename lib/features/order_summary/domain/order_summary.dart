@@ -7,6 +7,7 @@ class OrderSummary extends Equatable {
     required this.conversationId,
     required this.price,
     required this.currency,
+    this.partialSections = const <OrderSummarySection>{},
     required this.jeeberName,
     required this.tier,
     this.jeeberRating,
@@ -20,11 +21,17 @@ class OrderSummary extends Equatable {
 
   final String requestId;
 
-  final String conversationId;
+  /// Null when the wire carried none: the chat CTA is hidden rather than
+  /// routed at a guessed id.
+  final String? conversationId;
 
-  final double price;
+  final double? price;
 
-  final String currency;
+  final String? currency;
+
+  /// Sections whose secondary read failed, so the screen can say "partial"
+  /// instead of rendering an absent field as an empty one.
+  final Set<OrderSummarySection> partialSections;
 
   final String jeeberName;
 
@@ -42,6 +49,8 @@ class OrderSummary extends Equatable {
 
   bool get hasRating => jeeberRating != null && (jeeberRatingCount ?? 0) > 0;
 
+  bool get hasPrice => price != null && currency != null;
+
   @override
   List<Object?> get props => [
         deliveryId,
@@ -56,5 +65,9 @@ class OrderSummary extends Equatable {
         etaMinutes,
         itemSummary,
         jeeberAvatarUrl,
+        partialSections,
       ];
 }
+
+/// The three reads `OrderSummary` is stitched from.
+enum OrderSummarySection { request, offers, jeeber }

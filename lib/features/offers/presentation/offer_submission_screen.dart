@@ -7,13 +7,17 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/idempotency/operation_id.dart';
 import '../../../core/jeeb_commission.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -21,8 +25,10 @@ import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_money_breakdown.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../application/offer_submission_cubit.dart';
 import '../domain/offer_eta_band.dart';
@@ -184,8 +190,9 @@ class _OfferComposerState extends State<_OfferComposer>
     with ResumeRefetchMixin {
   /// Digits and one decimal point — the gateway takes a decimal amount, and a
   /// keypad-typed `,` would fail `double.tryParse`.
-  static final List<TextInputFormatter> _priceFormatters =
-      <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))];
+  static final List<TextInputFormatter> _priceFormatters = <TextInputFormatter>[
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+  ];
 
   final _priceController = TextEditingController();
 
@@ -209,6 +216,10 @@ class _OfferComposerState extends State<_OfferComposer>
   bool _insufficientShown = false;
   StreamSubscription<void>? _walletRefreshSub;
 
+  /// NET-12 — one key per composer draft, so a retried send cannot post the
+  /// offer twice. Re-minted only after a success or a terminal request-gone.
+  String _submitOperationId = newOperationId();
+
   @override
   void initState() {
     super.initState();
@@ -219,9 +230,10 @@ class _OfferComposerState extends State<_OfferComposer>
     _loadWallet();
     // F1 — no top-up event exists server-side; only guard-2's auto-withdraw
     // fires this bus (a top-up is caught by the resume catch-up below).
-    _walletRefreshSub = (widget.walletRefreshSignals ??
-            resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
-        ?.listen((_) => unawaited(_loadWallet()));
+    _walletRefreshSub =
+        (widget.walletRefreshSignals ??
+                resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
+            ?.listen((_) => unawaited(_loadWallet()));
   }
 
   Future<void> _loadWallet() async {
@@ -230,8 +242,11 @@ class _OfferComposerState extends State<_OfferComposer>
     try {
       final balance = await repo.fetchBalance();
       if (mounted) setState(() => _wallet = balance);
-    } catch (_) {
+    } catch (e) {
       // Best-effort — leave _wallet null; money lines fall back to price-only.
+      Diag.event('offer_composer.wallet_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -288,43 +303,75 @@ class _OfferComposerState extends State<_OfferComposer>
     final l10n = OfferComposerL10n.of(context);
     switch (state.mode) {
       case OfferFormMode.success:
+        _submitOperationId = newOperationId();
         // AC4: 10% reserved → route to the jeeber feed (jeeber_feed_root, the
         // DELIVERY tab) — NOT chat. `go('/')` re-roots the role-aware shell; a
         // jeeber lands on the DELIVERY (Dashboard) tab feed.
         widget.onSubmitted?.call(state.conversationId ?? widget.requestId);
         context.go('/');
       case OfferFormMode.requestGone:
-        _snack(context, l10n.requestGone);
+        _submitOperationId = newOperationId();
+        showJeebSnack(
+          context,
+          message: l10n.requestGone,
+          identifier: 'offer_composer_request_gone_snack',
+        );
         widget.onRequestGone?.call();
         widget.onWithdrawn();
       case OfferFormMode.insufficientBalance:
         _showInsufficientSheet(context, state.insufficientBalance);
+      // UX-41: the failure is drawn above the CTA and stays until the draft is
+      // edited — a Jeeber who looks away used to lose it with the snack.
       case OfferFormMode.error:
-        _snack(context, _errorText(l10n, state));
-        context.read<OfferFormCubit>().acknowledgeError();
+      case OfferFormMode.duplicate:
       case OfferFormMode.idle:
       case OfferFormMode.submitting:
         break;
     }
   }
 
-  /// Localized error-snack copy. The offer-cap literal has no localized copy
-  /// yet so it rides [OfferFormState.errorMessage]; everything else localizes
-  /// off [OfferFormState.errorReason] so the ready Arabic copy isn't shadowed
-  /// by a hardcoded English string (JEBV4-246).
-  String _errorText(OfferComposerL10n l10n, OfferFormState state) {
-    final literal = state.errorMessage;
-    if (literal != null) return literal;
+  /// The persistent error note's sentence. Field-shaped rejections render on
+  /// their own slot (AE-13/UX-38); the rest fall back to the failure family.
+  String _errorNoteText(
+    BuildContext context,
+    OfferComposerL10n l10n,
+    OfferFormState state,
+  ) {
     return switch (state.errorReason) {
-      OfferSubmissionFailure.network => l10n.errorNetwork,
-      _ => l10n.errorGeneric,
+      OfferSubmissionFailure.outOfRange => l10n.errorOutOfRange,
+      OfferSubmissionFailure.sameRoleViolation => l10n.errorSameRole,
+      OfferSubmissionFailure.requestNotOpen => l10n.errorRequestNotOpen,
+      _ => failureCopy(AppLocalizations.of(context), _failureFor(state)).body,
     };
   }
 
-  void _snack(BuildContext context, String message) {
-    // EXEMPT: OMDS exports no standalone toast/snackbar widget; showOmdsSnackbar
-    // is the approved fleet pattern for transient feedback (40_GUARDRAILS §8).
-    showOmdsSnackbar(context, message: message);
+  /// The classified failure, or the one its machine reason implies when the
+  /// repository carried none. Only `network` ever reaches NetworkFailure.
+  static AppFailure _failureFor(OfferFormState state) {
+    final carried = state.failure;
+    if (carried != null) return carried;
+    return switch (state.errorReason) {
+      OfferSubmissionFailure.network => const NetworkFailure(),
+      OfferSubmissionFailure.server => const ServerFailure(status: 500),
+      OfferSubmissionFailure.invalidInput => const ValidationFailure(),
+      _ => const UnknownFailure(),
+    };
+  }
+
+  /// True when the rejection named a field, so the note stays hidden and the
+  /// field slot carries the sentence instead.
+  static bool _isFieldRejection(OfferSubmissionFailure? reason) =>
+      reason == OfferSubmissionFailure.feeTooLow ||
+      reason == OfferSubmissionFailure.etaInvalid ||
+      reason == OfferSubmissionFailure.noteTooLong;
+
+  /// Dismisses the persistent error note as soon as the draft changes.
+  void _clearError() {
+    final cubit = context.read<OfferFormCubit>();
+    if (cubit.state.mode == OfferFormMode.error ||
+        cubit.state.mode == OfferFormMode.duplicate) {
+      cubit.acknowledgeError();
+    }
   }
 
   Widget _buildBody(BuildContext context, OfferFormState state) {
@@ -382,13 +429,13 @@ class _OfferComposerState extends State<_OfferComposer>
                   controller: _priceController,
                   currencyMark: l10n.currencyMark(_currency),
                   placeholder: l10n.pricePlaceholder,
-                  errorText: state.priceError == null
-                      ? null
-                      : l10n.priceRequiredError,
+                  errorText: _priceErrorText(l10n, state),
                   inputFormatters: _priceFormatters,
                   canDecrement: _hasPrice,
-                  onChanged: (v) =>
-                      setState(() => _price = double.tryParse(v)),
+                  onChanged: (v) {
+                    setState(() => _price = double.tryParse(v));
+                    _clearError();
+                  },
                   onStep: _stepPrice,
                   identifier: 'offer_composer_price_field',
                   decrementIdentifier: 'offer_composer_price_decrement',
@@ -404,7 +451,13 @@ class _OfferComposerState extends State<_OfferComposer>
                 const SizedBox(height: Spacing.small),
                 _buildEtaRow(context, l10n, state),
                 const SizedBox(height: Spacing.medium),
-                _NoteField(controller: _noteController),
+                _NoteField(
+                  controller: _noteController,
+                  errorText: state.noteError == null
+                      ? null
+                      : l10n.errorNoteTooLong,
+                  onChanged: (_) => _clearError(),
+                ),
                 const SizedBox(height: Spacing.medium),
                 _buildBreakdown(l10n),
                 // JEBV4-176: no wallet snapshot → no strip. Never render
@@ -419,6 +472,7 @@ class _OfferComposerState extends State<_OfferComposer>
         ),
         // The board draws this pill ORANGE (`#D73B00`, h58) with the
         // ctaOrange glow — the tile-drawn act, so `.accent`, not primary.
+        _buildFailureRung(context, l10n, state),
         JeebCtaFooter.single(
           below: _insufficientForEnteredPrice
               ? _InsufficientReason(text: l10n.ctaDisabledInsufficientReason)
@@ -426,7 +480,9 @@ class _OfferComposerState extends State<_OfferComposer>
           child: JeebCtaButton.accent(
             label: _sendLabel(l10n),
             height: JeebCtaButton.primaryHeightTall,
-            isEnabled: !_insufficientForEnteredPrice,
+            isEnabled:
+                !_insufficientForEnteredPrice &&
+                state.mode != OfferFormMode.duplicate,
             isLoading: state.isSubmitting,
             onTap: () => _onSendTapped(context),
             identifier: 'offer_composer_send_cta',
@@ -457,7 +513,10 @@ class _OfferComposerState extends State<_OfferComposer>
           role: JeebChipRole.choice,
           label: l10n.etaOption(quick[i]),
           selected: quick[i] == _selectedEta,
-          onTap: () => setState(() => _selectedEta = quick[i]),
+          onTap: () {
+            setState(() => _selectedEta = quick[i]);
+            _clearError();
+          },
           identifier: 'offer_composer_eta_option_$i',
         ),
     ];
@@ -488,7 +547,7 @@ class _OfferComposerState extends State<_OfferComposer>
         ),
         if (state.etaError != null) ...[
           const SizedBox(height: Spacing.xSmall),
-          _EtaError(message: l10n.etaRequiredError),
+          _EtaError(message: _etaErrorText(l10n, state)),
         ],
       ],
     );
@@ -540,6 +599,69 @@ class _OfferComposerState extends State<_OfferComposer>
     );
   }
 
+  /// The persistent failure rung above the docked CTA: the duplicate note with
+  /// its way out (AE-05), or the kind-aware error note (UX-41).
+  Widget _buildFailureRung(
+    BuildContext context,
+    OfferComposerL10n l10n,
+    OfferFormState state,
+  ) {
+    if (state.mode == OfferFormMode.duplicate) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.small,
+          Spacing.xLarge,
+          0,
+        ),
+        child: JeebInfoNote.error(
+          icon: Icons.error_outline,
+          text: l10n.errorDuplicate,
+          linkLabel: l10n.errorDuplicateCta,
+          onLink: () => context.goNamed('jeeber-pending-offers'),
+          identifier: 'offer_composer_duplicate_note',
+          linkIdentifier: 'offer_composer_duplicate_cta',
+        ),
+      );
+    }
+    if (state.mode != OfferFormMode.error ||
+        _isFieldRejection(state.errorReason)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.small,
+        Spacing.xLarge,
+        0,
+      ),
+      child: Semantics(
+        liveRegion: true,
+        child: JeebInfoNote.error(
+          icon: Icons.error_outline,
+          text: _errorNoteText(context, l10n, state),
+          identifier: 'offer_composer_error_note',
+        ),
+      ),
+    );
+  }
+
+  /// The price field's error slot: the local "required" rule, or the server's
+  /// `offer-fee-too-low` (AE-13). No non-validation kind ever lands here.
+  String? _priceErrorText(OfferComposerL10n l10n, OfferFormState state) {
+    return switch (state.priceError) {
+      OfferFormState.priceErrorTooLow => l10n.errorFeeTooLow,
+      null => null,
+      _ => l10n.priceRequiredError,
+    };
+  }
+
+  String _etaErrorText(OfferComposerL10n l10n, OfferFormState state) {
+    return state.etaError == OfferFormState.etaErrorInvalid
+        ? l10n.errorEtaInvalid
+        : l10n.etaRequiredError;
+  }
+
   /// `offer_composer_wallet_strip` — the board's glass strip, whose trailing
   /// `Top up` link is one of this screen's four orange moments (D92/D93 →
   /// wallet-charge-info). The snapshot is not re-fetched after a top-up
@@ -573,9 +695,7 @@ class _OfferComposerState extends State<_OfferComposer>
           : null,
       linkLabel: isTight ? null : l10n.walletTopUpCta,
       onLink: isTight ? null : openTopUp,
-      padding: isTight
-          ? const EdgeInsetsDirectional.all(Spacing.small)
-          : null,
+      padding: isTight ? const EdgeInsetsDirectional.all(Spacing.small) : null,
       gap: isTight ? Spacing.xSmall : null,
       identifier: 'offer_composer_wallet_strip',
       linkIdentifier: isTight ? null : 'offer_composer_wallet_topup_cta',
@@ -587,7 +707,7 @@ class _OfferComposerState extends State<_OfferComposer>
   /// rows that break first.
   bool _isTightText(BuildContext context) =>
       MediaQuery.textScalerOf(context).scale(_kEtaPillFontSize) >
-          _kEtaPillFontSize * 1.3;
+      _kEtaPillFontSize * 1.3;
 
   /// The CTA restates what the Jeeber keeps once a price exists (board
   /// `tpl 1031`); before that it is the plain submit label.
@@ -600,6 +720,9 @@ class _OfferComposerState extends State<_OfferComposer>
   /// showing a zero bid; there is no ceiling (the gateway validates `> 0` only,
   /// so inventing one here would fabricate a product rule).
   void _stepPrice(int delta) {
+    // A stepper tap edits the price, so it dismisses the same rejection an
+    // `onChanged` keystroke would (UX-41).
+    _clearError();
     final next = (_price ?? 0) + delta;
     if (next <= 0) {
       setState(() => _price = null);
@@ -636,6 +759,7 @@ class _OfferComposerState extends State<_OfferComposer>
       priceUsd: _price,
       etaMinutes: _selectedEta,
       note: note.isEmpty ? null : note,
+      idempotencyKey: _submitOperationId,
     );
   }
 
@@ -646,17 +770,13 @@ class _OfferComposerState extends State<_OfferComposer>
     if (_insufficientShown) return;
     _insufficientShown = true;
 
-    // Prefer the 402's figures; fall back to the wallet snapshot / computed
-    // reserve so the sheet always shows a needed-vs-available pair.
-    final needed = info?.needed ?? _reserve ?? 0.0;
-    final available = info?.available ?? _wallet?.availableBalance ?? 0.0;
-    final currency = info?.currency ?? _currency;
-
+    // UX-15: only the server's own figures. A local reserve substituted for a
+    // missing one would render a fabricated zero shortfall.
     await _InsufficientBalanceSheet.show(
       context,
-      needed: needed,
-      available: available,
-      currency: currency,
+      needed: info?.needed,
+      available: info?.available,
+      currency: info?.currency,
       fmt: _fmt,
     );
 
@@ -706,28 +826,61 @@ final List<TextInputFormatter> _noteFormatters = <TextInputFormatter>[
 /// ground rule 6 puts frozen identifiers above tile-count fidelity (the R16
 /// extra-bands ruling). It stays, restyled.
 class _NoteField extends StatelessWidget {
-  const _NoteField({required this.controller});
+  const _NoteField({required this.controller, this.errorText, this.onChanged});
 
   final TextEditingController controller;
+
+  /// `offer-note-too-long` from the gateway — the only sentence this slot
+  /// carries; a network failure renders on the composer's note rung instead.
+  final String? errorText;
+
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final l10n = OfferComposerL10n.of(context);
-    return Semantics(
-      identifier: 'offer_composer_note_field',
-      textField: true,
-      label: l10n.noteLabel,
-      child: OmdsTextField(
-        controller: controller,
-        hintText: l10n.noteHint,
-        borderRadius: JeebRadii.lg,
-        minLines: _kNoteFieldMinLines,
-        maxLines: _kNoteFieldMaxLines,
-        inputFormatters: _noteFormatters,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        textCapitalization: TextCapitalization.sentences,
-      ),
+    final theme = Theme.of(context);
+    final message = errorText;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          identifier: 'offer_composer_note_field',
+          textField: true,
+          label: l10n.noteLabel,
+          child: OmdsTextField(
+            controller: controller,
+            hintText: l10n.noteHint,
+            borderRadius: JeebRadii.lg,
+            minLines: _kNoteFieldMinLines,
+            maxLines: _kNoteFieldMaxLines,
+            inputFormatters: _noteFormatters,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: onChanged,
+          ),
+        ),
+        if (message != null) ...[
+          const SizedBox(height: Spacing.xSmall),
+          Semantics(
+            identifier: 'offer_composer_note_error',
+            container: true,
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: Spacing.twoXSmall,
+              ),
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -835,33 +988,35 @@ class _EtaError extends StatelessWidget {
 /// preserved). A modal bottom sheet, not a route (40_GUARDRAILS §5).
 class _InsufficientBalanceSheet extends StatelessWidget {
   const _InsufficientBalanceSheet({
-    required this.needed,
-    required this.available,
-    required this.currency,
     required this.fmt,
+    this.needed,
+    this.available,
+    this.currency,
   });
 
-  final double needed;
-  final double available;
-  final String currency;
+  /// Null whenever the 402 omitted the figure — the row is dropped, never
+  /// rendered as a zero (UX-15).
+  final double? needed;
+  final double? available;
+  final String? currency;
   final String Function(double) fmt;
 
   static Future<void> show(
     BuildContext context, {
-    required double needed,
-    required double available,
-    required String currency,
     required String Function(double) fmt,
+    double? needed,
+    double? available,
+    String? currency,
   }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _InsufficientBalanceSheet(
+        fmt: fmt,
         needed: needed,
         available: available,
         currency: currency,
-        fmt: fmt,
       ),
     );
   }
@@ -895,23 +1050,30 @@ class _InsufficientBalanceSheet extends StatelessWidget {
               style: text.body.copyWith(color: tone.mutedInk),
             ),
             const SizedBox(height: Spacing.medium),
-            Semantics(
-              identifier: 'insufficient_balance_needed_amount',
-              child: _AmountRow(
-                icon: Icons.lock_clock_outlined,
-                text: l10n.insufficientNeeded(fmt(needed), currency),
-                emphasize: true,
+            if (needed != null && currency != null) ...[
+              Semantics(
+                identifier: 'insufficient_balance_needed_amount',
+                child: _AmountRow(
+                  icon: Icons.lock_clock_outlined,
+                  text: l10n.insufficientNeeded(fmt(needed!), currency!).trim(),
+                  emphasize: true,
+                ),
               ),
-            ),
-            const SizedBox(height: Spacing.xSmall),
-            Semantics(
-              identifier: 'insufficient_balance_available_amount',
-              child: _AmountRow(
-                icon: Icons.account_balance_wallet_outlined,
-                text: l10n.insufficientAvailable(fmt(available), currency),
+              const SizedBox(height: Spacing.xSmall),
+            ],
+            if (available != null && currency != null) ...[
+              Semantics(
+                identifier: 'insufficient_balance_available_amount',
+                child: _AmountRow(
+                  icon: Icons.account_balance_wallet_outlined,
+                  text: l10n
+                      .insufficientAvailable(fmt(available!), currency!)
+                      .trim(),
+                ),
               ),
-            ),
-            const SizedBox(height: Spacing.large),
+              const SizedBox(height: Spacing.xSmall),
+            ],
+            const SizedBox(height: Spacing.medium),
             // EDGE: insufficient-balance → wallet-charge-info (D92/D93, JM-046
             // AC2). Pop first so a back from charge-info keeps the draft.
             JeebCtaButton.accent(

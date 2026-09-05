@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/state/guarded.dart';
 import '../domain/offer_submission_repository.dart';
 
 enum OfferFormMode {
@@ -11,6 +13,9 @@ enum OfferFormMode {
   requestGone,
 
   insufficientBalance,
+
+  /// 409 `offer-already-exists` — a live bid already stands (AE-05).
+  duplicate,
   error,
 }
 
@@ -19,8 +24,9 @@ class OfferFormState extends Equatable {
     this.mode = OfferFormMode.idle,
     this.priceError,
     this.etaError,
+    this.noteError,
     this.conversationId,
-    this.errorMessage,
+    this.failure,
     this.errorReason,
     this.insufficientBalance,
   });
@@ -31,9 +37,13 @@ class OfferFormState extends Equatable {
 
   final String? etaError;
 
+  final String? noteError;
+
   final String? conversationId;
 
-  final String? errorMessage;
+  /// The classified transport failure behind [errorReason]; the screen resolves
+  /// its copy from `failureCopy` when no feature-specific line applies.
+  final AppFailure? failure;
 
   final OfferSubmissionFailure? errorReason;
 
@@ -46,6 +56,15 @@ class OfferFormState extends Equatable {
   /// Reason code for [etaError].
   static const String etaErrorRequired = 'eta-required';
 
+  /// Reason code for a server-rejected price (400 `offer-fee-too-low`).
+  static const String priceErrorTooLow = 'price-too-low';
+
+  /// Reason code for a server-rejected ETA (400 `offer-eta-invalid`).
+  static const String etaErrorInvalid = 'eta-invalid';
+
+  /// Reason code for a server-rejected note (400 `offer-note-too-long`).
+  static const String noteErrorTooLong = 'note-too-long';
+
   bool get isSubmitting => mode == OfferFormMode.submitting;
 
   OfferFormState copyWith({
@@ -54,8 +73,10 @@ class OfferFormState extends Equatable {
     bool clearPriceError = false,
     String? etaError,
     bool clearEtaError = false,
+    String? noteError,
+    bool clearNoteError = false,
     String? conversationId,
-    String? errorMessage,
+    AppFailure? failure,
     OfferSubmissionFailure? errorReason,
     bool clearError = false,
     InsufficientBalanceInfo? insufficientBalance,
@@ -65,8 +86,9 @@ class OfferFormState extends Equatable {
       mode: mode ?? this.mode,
       priceError: clearPriceError ? null : (priceError ?? this.priceError),
       etaError: clearEtaError ? null : (etaError ?? this.etaError),
+      noteError: clearNoteError ? null : (noteError ?? this.noteError),
       conversationId: conversationId ?? this.conversationId,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      failure: clearError ? null : (failure ?? this.failure),
       errorReason: clearError ? null : (errorReason ?? this.errorReason),
       insufficientBalance: clearInsufficientBalance
           ? null
@@ -76,20 +98,21 @@ class OfferFormState extends Equatable {
 
   @override
   List<Object?> get props => [
-        mode,
-        priceError,
-        etaError,
-        conversationId,
-        errorMessage,
-        errorReason,
-        insufficientBalance,
-      ];
+    mode,
+    priceError,
+    etaError,
+    noteError,
+    conversationId,
+    failure,
+    errorReason,
+    insufficientBalance,
+  ];
 }
 
 class OfferFormCubit extends Cubit<OfferFormState> {
   OfferFormCubit({required OfferSubmissionRepository repository})
-      : _repository = repository,
-        super(const OfferFormState());
+    : _repository = repository,
+      super(const OfferFormState());
 
   final OfferSubmissionRepository _repository;
 
@@ -98,7 +121,11 @@ class OfferFormCubit extends Cubit<OfferFormState> {
     required double? priceUsd,
     required int? etaMinutes,
     String? note,
+    String? idempotencyKey,
   }) async {
+    // A double-tap on the docked CTA would otherwise post the offer twice.
+    if (state.isSubmitting) return;
+
     final priceErr = _validatePrice(priceUsd);
     final etaErr = _validateEta(etaMinutes);
     if (priceErr != null || etaErr != null) {
@@ -106,28 +133,66 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       return;
     }
 
-    emit(state.copyWith(
-      mode: OfferFormMode.submitting,
-      clearPriceError: true,
-      clearEtaError: true,
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        mode: OfferFormMode.submitting,
+        clearPriceError: true,
+        clearEtaError: true,
+        clearNoteError: true,
+        clearError: true,
+      ),
+    );
 
-    try {
-      final result = await _repository.submitOffer(
+    await guarded(
+      () async {
+        try {
+          final result = await _submitOffer(
+            requestId: requestId,
+            priceUsd: priceUsd!,
+            etaMinutes: etaMinutes!,
+            note: note,
+            idempotencyKey: idempotencyKey,
+          );
+          _logSubmitted(requestId, priceUsd, etaMinutes);
+          emit(
+            state.copyWith(
+              mode: OfferFormMode.success,
+              conversationId: result.conversationId,
+            ),
+          );
+        } on OfferSubmissionException catch (e) {
+          _handleError(e);
+        }
+      },
+      (failure) => _handleError(
+        OfferSubmissionException(OfferSubmissionFailure.server, cause: failure),
+      ),
+    );
+  }
+
+  Future<OfferSubmissionResult> _submitOffer({
+    required String requestId,
+    required double priceUsd,
+    required int etaMinutes,
+    required String? note,
+    required String? idempotencyKey,
+  }) {
+    final repo = _repository;
+    if (idempotencyKey != null && repo is IdempotentOfferSubmission) {
+      return (repo as IdempotentOfferSubmission).submitOfferIdempotent(
         requestId: requestId,
-        priceUsd: priceUsd!,
-        etaMinutes: etaMinutes!,
+        priceUsd: priceUsd,
+        etaMinutes: etaMinutes,
+        idempotencyKey: idempotencyKey,
         note: note,
       );
-      _logSubmitted(requestId, priceUsd, etaMinutes);
-      emit(state.copyWith(
-        mode: OfferFormMode.success,
-        conversationId: result.conversationId,
-      ));
-    } on OfferSubmissionException catch (e) {
-      _handleError(e);
     }
+    return repo.submitOffer(
+      requestId: requestId,
+      priceUsd: priceUsd,
+      etaMinutes: etaMinutes,
+      note: note,
+    );
   }
 
   String? _validatePrice(double? price) {
@@ -141,27 +206,74 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   }
 
   void _handleError(OfferSubmissionException e) {
-    if (e.failure == OfferSubmissionFailure.requestGone) {
-      emit(state.copyWith(mode: OfferFormMode.requestGone));
-      return;
+    switch (e.failure) {
+      case OfferSubmissionFailure.requestGone:
+      case OfferSubmissionFailure.requestNotOpen:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.requestGone,
+            errorReason: e.failure,
+            failure: e.cause,
+          ),
+        );
+      case OfferSubmissionFailure.insufficientBalance:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.insufficientBalance,
+            insufficientBalance: e.balance,
+            clearInsufficientBalance: e.balance == null,
+          ),
+        );
+      case OfferSubmissionFailure.duplicateOffer:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.duplicate,
+            errorReason: e.failure,
+            failure: e.cause,
+          ),
+        );
+      // A field-shaped rejection lands on the field slot, never on the note
+      // rung: "no connection" must never read as "your number is wrong".
+      case OfferSubmissionFailure.feeTooLow:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.error,
+            errorReason: e.failure,
+            failure: e.cause,
+            priceError: OfferFormState.priceErrorTooLow,
+          ),
+        );
+      case OfferSubmissionFailure.etaInvalid:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.error,
+            errorReason: e.failure,
+            failure: e.cause,
+            etaError: OfferFormState.etaErrorInvalid,
+          ),
+        );
+      case OfferSubmissionFailure.noteTooLong:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.error,
+            errorReason: e.failure,
+            failure: e.cause,
+            noteError: OfferFormState.noteErrorTooLong,
+          ),
+        );
+      case OfferSubmissionFailure.invalidInput:
+      case OfferSubmissionFailure.outOfRange:
+      case OfferSubmissionFailure.sameRoleViolation:
+      case OfferSubmissionFailure.network:
+      case OfferSubmissionFailure.server:
+        emit(
+          state.copyWith(
+            mode: OfferFormMode.error,
+            errorReason: e.failure,
+            failure: e.cause,
+          ),
+        );
     }
-    if (e.failure == OfferSubmissionFailure.insufficientBalance) {
-      emit(state.copyWith(
-        mode: OfferFormMode.insufficientBalance,
-        insufficientBalance: e.balance,
-        clearInsufficientBalance: e.balance == null,
-      ));
-      return;
-    }
-    if (e.failure == OfferSubmissionFailure.offerCapReached) {
-      emit(state.copyWith(
-        mode: OfferFormMode.error,
-        errorMessage: 'You have reached the maximum of 20 live offers. '
-            'Withdraw one to submit a new offer.',
-      ));
-      return;
-    }
-    emit(state.copyWith(mode: OfferFormMode.error, errorReason: e.failure));
   }
 
   void _logSubmitted(String requestId, double price, int eta) {
@@ -173,17 +285,28 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   }
 
   void acknowledgeError() {
-    if (state.mode == OfferFormMode.error) {
-      emit(state.copyWith(mode: OfferFormMode.idle, clearError: true));
+    if (state.mode == OfferFormMode.error ||
+        state.mode == OfferFormMode.duplicate) {
+      emit(
+        state.copyWith(
+          mode: OfferFormMode.idle,
+          clearError: true,
+          clearPriceError: true,
+          clearEtaError: true,
+          clearNoteError: true,
+        ),
+      );
     }
   }
 
   void acknowledgeInsufficientBalance() {
     if (state.mode == OfferFormMode.insufficientBalance) {
-      emit(state.copyWith(
-        mode: OfferFormMode.idle,
-        clearInsufficientBalance: true,
-      ));
+      emit(
+        state.copyWith(
+          mode: OfferFormMode.idle,
+          clearInsufficientBalance: true,
+        ),
+      );
     }
   }
 }

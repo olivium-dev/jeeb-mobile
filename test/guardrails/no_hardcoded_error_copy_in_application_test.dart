@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'guardrail_sources.dart';
 
 /// Sentences on `origin/main` the day WP-0B landed. Stage 2 drives this to 0.
-const int _kFloor = 26;
+const int _kFloor = 0;
 
 /// `String _mapError(...) {`, `String? _mapLoadError(...) {`, and friends.
 final RegExp _kMapErrorFn = RegExp(

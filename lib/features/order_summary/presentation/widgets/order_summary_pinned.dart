@@ -118,8 +118,11 @@ class OrderSummaryPinned extends StatelessWidget {
                   _ItemBlock(label: l10n.itemLabel, value: item),
                 _PriceBlock(
                   label: l10n.priceLabel,
-                  amount: summary.price.toStringAsFixed(2),
-                  currency: summary.currency,
+                  // Never `0.00 USD`: an absent amount is unknown, not free.
+                  value: summary.hasPrice
+                      ? '${summary.price!.toStringAsFixed(2)} '
+                            '${summary.currency}'
+                      : l10n.priceUnavailable,
                 ),
               ],
             ),
@@ -402,15 +405,10 @@ class _ItemBlock extends StatelessWidget {
 /// Accepted COD price (`order_summary_price`) — the ticket's last row and the
 /// only number on the screen, so it carries the `price` token.
 class _PriceBlock extends StatelessWidget {
-  const _PriceBlock({
-    required this.label,
-    required this.amount,
-    required this.currency,
-  });
+  const _PriceBlock({required this.label, required this.value});
 
   final String label;
-  final String amount;
-  final String currency;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +439,7 @@ class _PriceBlock extends StatelessWidget {
                 child: Directionality(
                   textDirection: TextDirection.ltr,
                   child: Text(
-                    '$amount $currency',
+                    value,
                     // Read-only summary: the `price` ramp carries the emphasis,
                     // the ink stays `onSurface` — accent is for acts, not recaps.
                     style: context.jeebText.price.copyWith(

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/auth_repository.dart';
 import '../domain/set_password_policy.dart';
 
@@ -13,6 +14,7 @@ class SetPasswordState extends Equatable {
     this.confirmObscured = true,
     this.validation,
     this.failure,
+    this.appFailure,
     this.session,
   });
 
@@ -25,6 +27,9 @@ class SetPasswordState extends Equatable {
   final SetPasswordValidation? validation;
 
   final AuthFailure? failure;
+
+  /// The transport classification, for kinds [AuthFailure] cannot express.
+  final AppFailure? appFailure;
 
   final AuthSession? session;
 
@@ -39,6 +44,7 @@ class SetPasswordState extends Equatable {
     bool? confirmObscured,
     SetPasswordValidation? validation,
     AuthFailure? failure,
+    AppFailure? appFailure,
     AuthSession? session,
     bool clearValidation = false,
     bool clearFailure = false,
@@ -50,6 +56,7 @@ class SetPasswordState extends Equatable {
       confirmObscured: confirmObscured ?? this.confirmObscured,
       validation: clearValidation ? null : (validation ?? this.validation),
       failure: clearFailure ? null : (failure ?? this.failure),
+      appFailure: clearFailure ? null : (appFailure ?? this.appFailure),
       session: clearSession ? null : (session ?? this.session),
     );
   }
@@ -61,6 +68,7 @@ class SetPasswordState extends Equatable {
         confirmObscured,
         validation,
         failure,
+        appFailure,
         session,
       ];
 }

@@ -12,25 +12,25 @@ import '../../support/fake_request_submission_service.dart';
 
 // [wireId] maps to the constructor's [Tier.serverId]; the model exposes it back
 Tier _flash({String? wireId}) => Tier(
-      id: TierId.flash,
-      serverId: wireId,
-      priceLow: 1000,
-      priceHigh: 2000,
-      currency: 'USD',
-      vehicleClass: TierVehicleClass.any,
-    );
+  id: TierId.flash,
+  serverId: wireId,
+  priceLow: 1000,
+  priceHigh: 2000,
+  currency: 'USD',
+  vehicleClass: TierVehicleClass.any,
+);
 
 // JEBV4-176 (Q-060): the "Current Location" choice now carries a REAL resolved
 const double _gpsLat = 33.8959;
 const double _gpsLng = 35.4797;
 
 LocationSelectState _currentLoaded() => const LocationSelectState(
-      status: LocationSelectStatus.loaded,
-      choiceKind: LocationChoiceKind.current,
-      currentGpsStatus: CurrentGpsStatus.resolved,
-      gpsLat: _gpsLat,
-      gpsLng: _gpsLng,
-    );
+  status: LocationSelectStatus.loaded,
+  choiceKind: LocationChoiceKind.current,
+  currentGpsStatus: CurrentGpsStatus.resolved,
+  gpsLat: _gpsLat,
+  gpsLng: _gpsLng,
+);
 
 void main() {
   group('ComposeRequestController', () {
@@ -47,14 +47,15 @@ void main() {
 
       final id = await controller.submitFromLocation(
         _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
       );
 
       expect(id, 'req-123');
       expect(submission.submitCount, 1);
     });
 
-    test(
-        'a successful submit clears the session, so a later `?resume=1` entry '
+    test('a successful submit clears the session, so a later `?resume=1` entry '
         'cannot re-open the order that was just sent', () async {
       controller.setTier(_flash(wireId: '0be308ce-uuid'));
       controller.setDescription('two kilos of apples');
@@ -67,49 +68,74 @@ void main() {
         const LocationPoint(latitude: 34.4367, longitude: 35.8497),
       );
 
-      await controller.submitFromLocation(_currentLoaded());
+      await controller.submitFromLocation(
+        _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
 
       expect(controller.description, isNull);
       expect(controller.pickupPoint, isNull);
-      expect(controller.tier, isNotNull,
-          reason: 'only the order content is dropped — the tier survives');
+      expect(
+        controller.tier,
+        isNotNull,
+        reason: 'only the order content is dropped — the tier survives',
+      );
 
       // The proof that matters: none of it can ride along on the NEXT submit.
-      await controller.submitFromLocation(_currentLoaded());
+      await controller.submitFromLocation(
+        _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
 
       expect(submission.lastDraft!.description, 'Delivery request');
       expect(submission.lastDraft!.transcription, isNull);
       expect(submission.lastDraft!.audioUrl, isNull);
       expect(submission.lastDraft!.recipientPhone, isNull);
-      expect(submission.lastDraft!.pickupLat, _gpsLat,
-          reason: 'the stale pin must not survive either');
-    });
-
-    test('echoes the live tier UUID (Tier.wireId) verbatim as tierId', () async {
-      controller.setTier(_flash(wireId: '0be308ce-uuid'));
-
-      await controller.submitFromLocation(
-        _currentLoaded(),
+      expect(
+        submission.lastDraft!.pickupLat,
+        _gpsLat,
+        reason: 'the stale pin must not survive either',
       );
-
-      expect(submission.lastDraft!.tierId, '0be308ce-uuid',
-          reason: 'the gateway resolves the tier by the exact UUID it minted');
-      expect(submission.lastDraft!.tierName, 'flash');
     });
 
     test(
-        'JEBV4-300: with no wireId the tierId is null (never the enum slug) — '
-        'a serverId-less fallback tier must not put a fake id on the wire',
-        () async {
-      // A tier with no serverId comes from the bundled fallback catalog; its
-      controller.setTier(_flash());
+      'echoes the live tier UUID (Tier.wireId) verbatim as tierId',
+      () async {
+        controller.setTier(_flash(wireId: '0be308ce-uuid'));
 
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
 
-      expect(submission.lastDraft!.tierId, isNull);
-    });
+        expect(
+          submission.lastDraft!.tierId,
+          '0be308ce-uuid',
+          reason: 'the gateway resolves the tier by the exact UUID it minted',
+        );
+        expect(submission.lastDraft!.tierName, 'flash');
+      },
+    );
+
+    test(
+      'JEBV4-300: with no wireId the tierId is null (never the enum slug) — '
+      'a serverId-less fallback tier must not put a fake id on the wire',
+      () async {
+        // A tier with no serverId comes from the bundled fallback catalog; its
+        controller.setTier(_flash());
+
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
+
+        expect(submission.lastDraft!.tierId, isNull);
+      },
+    );
 
     test(
       'uses a selected saved address coordinates for pickup + dropoff',
@@ -131,6 +157,8 @@ void main() {
             selectedSavedId: 'home-1',
             savedAddresses: [saved],
           ),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
         );
 
         final draft = submission.lastDraft!;
@@ -142,25 +170,26 @@ void main() {
       },
     );
 
-    test(
-      'JEBV4-176: current-location pickup uses the REAL resolved GPS fix '
-      '(never the removed 33.8886/35.4955 Beirut fallback)',
-      () async {
-        controller.setTier(_flash(wireId: 'uuid'));
+    test('JEBV4-176: current-location pickup uses the REAL resolved GPS fix '
+        '(never the removed 33.8886/35.4955 Beirut fallback)', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
 
-        await controller.submitFromLocation(_currentLoaded());
+      await controller.submitFromLocation(
+        _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
 
-        final draft = submission.lastDraft!;
-        // The coordinate is the device fix seeded on the state, verbatim.
-        expect(draft.pickupLat, _gpsLat);
-        expect(draft.pickupLng, _gpsLng);
-        expect(draft.dropoffLat, _gpsLat);
-        expect(draft.dropoffLng, _gpsLng);
-        // The old silent Beirut fallback must NEVER appear.
-        expect(draft.pickupLat, isNot(33.8886));
-        expect(draft.pickupLng, isNot(35.4955));
-      },
-    );
+      final draft = submission.lastDraft!;
+      // The coordinate is the device fix seeded on the state, verbatim.
+      expect(draft.pickupLat, _gpsLat);
+      expect(draft.pickupLng, _gpsLng);
+      expect(draft.dropoffLat, _gpsLat);
+      expect(draft.dropoffLng, _gpsLng);
+      // The old silent Beirut fallback must NEVER appear.
+      expect(draft.pickupLat, isNot(33.8886));
+      expect(draft.pickupLng, isNot(35.4955));
+    });
 
     test(
       'JEBV4-176: a current-location choice WITHOUT a resolved fix REFUSES to '
@@ -176,6 +205,8 @@ void main() {
               choiceKind: LocationChoiceKind.current,
               currentGpsStatus: CurrentGpsStatus.permissionDenied,
             ),
+            defaultDescription: 'Delivery request',
+            currentLocationLabel: 'Current location',
           ),
           throwsA(isA<RequestSubmissionException>()),
         );
@@ -184,24 +215,31 @@ void main() {
     );
 
     // iter6 feed-drop fix — an order created via "Current Location" (no Saved
-    test(
-      'current-location order carries a non-null address embedding the REAL '
-      'GPS coords (so the jeeber feed parser keeps the row)',
-      () async {
-        controller.setTier(_flash(wireId: 'uuid'));
+    test('current-location order carries a non-null address embedding the REAL '
+        'GPS coords (so the jeeber feed parser keeps the row)', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
 
-        await controller.submitFromLocation(_currentLoaded());
+      await controller.submitFromLocation(
+        _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
 
-        final draft = submission.lastDraft!;
-        expect(draft.pickupAddress, isNotNull,
-            reason: 'a null address makes the jeeber feed drop the order');
-        expect(draft.dropoffAddress, isNotNull);
-        expect(draft.pickupAddress, isNotEmpty);
-        // The label embeds the resolved device coordinates.
-        expect(draft.pickupAddress, contains('33.8959'));
-        expect(draft.pickupAddress, contains('35.4797'));
-      },
-    );
+      final draft = submission.lastDraft!;
+      expect(
+        draft.pickupAddress,
+        isNotNull,
+        reason: 'a null address makes the jeeber feed drop the order',
+      );
+      expect(draft.dropoffAddress, isNotNull);
+      expect(draft.pickupAddress, isNotEmpty);
+      // RSUM-04: the label is the localized string the caller supplied, NOT a
+      // coordinate pair pretending to be an address. The REAL fix rides on
+      // pickupLat/pickupLng, which is what the feed parser reads.
+      expect(draft.pickupAddress, 'Current location');
+      expect(draft.pickupLat, 33.8959);
+      expect(draft.pickupLng, 35.4797);
+    });
 
     // A freshly-pinned map point (no Saved address) takes the same address-label
     test('pinned map-point order also carries a non-null address', () async {
@@ -214,6 +252,8 @@ void main() {
           pinnedLat: 33.8869,
           pinnedLng: 35.5131,
         ),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
       );
 
       final draft = submission.lastDraft!;
@@ -231,6 +271,8 @@ void main() {
       expect(
         () => controller.submitFromLocation(
           _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
         ),
         throwsA(isA<RequestSubmissionException>()),
       );
@@ -243,35 +285,46 @@ void main() {
 
       await controller.submitFromLocation(
         _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
       );
 
       expect(submission.lastDraft!.recipientPhone, '+9613000001');
     });
 
-    test('blank recipientPhone is treated as null (resolver default applies)',
-        () async {
-      controller.setTier(_flash(wireId: 'uuid'));
-      controller.setRecipientPhone('   ');
+    test(
+      'blank recipientPhone is treated as null (resolver default applies)',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+        controller.setRecipientPhone('   ');
 
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
 
-      expect(submission.lastDraft!.recipientPhone, isNull);
-    });
+        expect(submission.lastDraft!.recipientPhone, isNull);
+      },
+    );
 
-    test('setTier resets a stale recipientPhone from a prior compose', () async {
-      controller.setTier(_flash(wireId: 'uuid'));
-      controller.setRecipientPhone('+9613000001');
-      // New compose session starts — tier re-selected.
-      controller.setTier(_flash(wireId: 'uuid2'));
+    test(
+      'setTier resets a stale recipientPhone from a prior compose',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+        controller.setRecipientPhone('+9613000001');
+        // New compose session starts — tier re-selected.
+        controller.setTier(_flash(wireId: 'uuid2'));
 
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
 
-      expect(submission.lastDraft!.recipientPhone, isNull);
-    });
+        expect(submission.lastDraft!.recipientPhone, isNull);
+      },
+    );
 
     // ── G1 (sprint-009 P0) — the description IS the user's own words ────────
 
@@ -284,14 +337,21 @@ void main() {
 
         await controller.submitFromLocation(
           _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
         );
 
         final draft = submission.lastDraft!;
         expect(draft.description, '2 shawarma + cola from Barbar');
-        expect(draft.description, isNot(contains('Flash')),
-            reason: 'no tier-derived placeholder may leak into user content');
-        expect(draft.description.toLowerCase(),
-            isNot(contains('delivery request')));
+        expect(
+          draft.description,
+          isNot(contains('Flash')),
+          reason: 'no tier-derived placeholder may leak into user content',
+        );
+        expect(
+          draft.description.toLowerCase(),
+          isNot(contains('delivery request')),
+        );
       },
     );
 
@@ -301,77 +361,93 @@ void main() {
 
       await controller.submitFromLocation(
         _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
       );
 
       expect(submission.lastDraft!.description, 'a birthday cake');
     });
 
+    test('G1: with NO description recorded the draft falls back to the generic '
+        'gateway-required default — never the tier-derived string', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+
+      await controller.submitFromLocation(
+        _currentLoaded(),
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
+
+      final draft = submission.lastDraft!;
+      // The gateway 400s on a blank description, so a non-empty fallback
+      expect(draft.description, isNotEmpty);
+      expect(draft.description, 'Delivery request');
+      expect(draft.description, isNot('Flash delivery request'));
+    });
+
     test(
-      'G1: with NO description recorded the draft falls back to the generic '
-      'gateway-required default — never the tier-derived string',
+      'G1: blank description is treated as unset (fallback applies)',
       () async {
         controller.setTier(_flash(wireId: 'uuid'));
+        controller.setDescription('   ');
 
         await controller.submitFromLocation(
           _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
         );
 
-        final draft = submission.lastDraft!;
-        // The gateway 400s on a blank description, so a non-empty fallback
-        expect(draft.description, isNotEmpty);
-        expect(draft.description, 'Delivery request');
-        expect(draft.description, isNot('Flash delivery request'));
+        expect(submission.lastDraft!.description, 'Delivery request');
+        expect(controller.description, isNull);
       },
     );
 
-    test('G1: blank description is treated as unset (fallback applies)',
-        () async {
-      controller.setTier(_flash(wireId: 'uuid'));
-      controller.setDescription('   ');
+    test(
+      'G1: dictation voice-note rides the draft as transcription+audioUrl',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+        controller.setDescription('A birthday cake from Sea Sweet');
+        controller.setVoiceNote(
+          transcription: 'A birthday cake from Sea Sweet',
+          audioUrl: 'clip-42',
+        );
 
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
 
-      expect(submission.lastDraft!.description, 'Delivery request');
-      expect(controller.description, isNull);
-    });
+        final draft = submission.lastDraft!;
+        expect(draft.transcription, 'A birthday cake from Sea Sweet');
+        expect(draft.audioUrl, 'clip-42');
+      },
+    );
 
-    test('G1: dictation voice-note rides the draft as transcription+audioUrl',
-        () async {
-      controller.setTier(_flash(wireId: 'uuid'));
-      controller.setDescription('A birthday cake from Sea Sweet');
-      controller.setVoiceNote(
-        transcription: 'A birthday cake from Sea Sweet',
-        audioUrl: 'clip-42',
-      );
+    test(
+      'G1: setTier starts a fresh compose — stale description/voice reset',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+        controller.setDescription('old abandoned order');
+        controller.setVoiceNote(transcription: 'old', audioUrl: 'clip-old');
+        // New compose session.
+        controller.setTier(_flash(wireId: 'uuid2'));
 
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
+        await controller.submitFromLocation(
+          _currentLoaded(),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
 
-      final draft = submission.lastDraft!;
-      expect(draft.transcription, 'A birthday cake from Sea Sweet');
-      expect(draft.audioUrl, 'clip-42');
-    });
-
-    test('G1: setTier starts a fresh compose — stale description/voice reset',
-        () async {
-      controller.setTier(_flash(wireId: 'uuid'));
-      controller.setDescription('old abandoned order');
-      controller.setVoiceNote(transcription: 'old', audioUrl: 'clip-old');
-      // New compose session.
-      controller.setTier(_flash(wireId: 'uuid2'));
-
-      await controller.submitFromLocation(
-        _currentLoaded(),
-      );
-
-      final draft = submission.lastDraft!;
-      expect(draft.description, 'Delivery request',
-          reason: 'the abandoned session\'s text must not leak');
-      expect(draft.transcription, isNull);
-      expect(draft.audioUrl, isNull);
-    });
+        final draft = submission.lastDraft!;
+        expect(
+          draft.description,
+          'Delivery request',
+          reason: 'the abandoned session\'s text must not leak',
+        );
+        expect(draft.transcription, isNull);
+        expect(draft.audioUrl, isNull);
+      },
+    );
   });
 }

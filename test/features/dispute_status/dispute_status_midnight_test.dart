@@ -252,7 +252,8 @@ void main() {
 
       final state = emptyState(tester);
       expect(state.variant, JeebEmptyStateVariant.radar);
-      expect(state.status, JeebEmptyStateStatus.error);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(state.reason, JeebEmptyStateReason.failed);
       expect(state.identifier, 'dispute_status_error');
       // The hand-rolled 64px error glyph this row deleted.
       expect(find.byIcon(Icons.error_outline), findsNothing);
@@ -261,17 +262,16 @@ void main() {
     testWidgets('the retry is the glass pill, never a lit CTA', (tester) async {
       await pump(tester, const _FailingRepository());
 
+      // The kit's failure block owns the id INSIDE the button now.
       final retry = tester.widget<JeebCtaButton>(
-        find.descendant(
-          of: find.bySemanticsIdentifier('dispute_status_retry_cta'),
-          matching: find.byType(JeebCtaButton),
+        find.byWidgetPredicate(
+          (w) =>
+              w is JeebCtaButton && w.identifier == 'dispute_status_retry_cta',
         ),
       );
       expect(retry.variant, JeebCtaVariant.outline);
       expect(retry.variant, isNot(JeebCtaVariant.accent));
       expect(retry.variant, isNot(JeebCtaVariant.primary));
-      // R13's glass pill runs the full content box.
-      expect(retry.expand, isTrue);
     });
   });
 

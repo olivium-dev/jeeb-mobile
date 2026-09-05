@@ -61,12 +61,23 @@ void main() {
     });
 
     test(
-        'race guard: non-terminal load but server returns 422 '
-        'transition_not_allowed → SUCCEEDS (idempotent swallow)', () async {
-      adapter.statusPatchStatus = 422; // server flipped to Done mid-confirm
+        'DREC-01: a 422 on a NON-terminal receipt is a REFUSED transition, '
+        'never an idempotent success', () async {
+      adapter.statusPatchStatus = 422;
 
-      // Must NOT throw — the redundant transition 422 is an idempotent success.
-      await repo.confirmReceipt(receiptWith('AtDoor'));
+      // Swallowing it fired the confirmed overlay and the rating on a
+      // transition the gateway had declined. The terminal-status short circuit
+      // above still covers the genuine already-Done race.
+      await expectLater(
+        repo.confirmReceipt(receiptWith('AtDoor')),
+        throwsA(
+          isA<DeliveryReceiptRepositoryException>().having(
+            (e) => e.failure,
+            'failure',
+            DeliveryReceiptFailure.transitionNotAllowed,
+          ),
+        ),
+      );
 
       expect(adapter.statusPatchHit, isTrue);
     });

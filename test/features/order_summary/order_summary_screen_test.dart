@@ -16,6 +16,8 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_footer.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
+import 'package:jeeb_mobile/features/order_summary/application/order_summary_cubit.dart';
+import 'package:jeeb_mobile/features/order_summary/application/order_summary_state.dart';
 import 'package:jeeb_mobile/features/order_summary/domain/order_summary.dart';
 import 'package:jeeb_mobile/features/order_summary/domain/order_summary_repository.dart';
 import 'package:jeeb_mobile/features/order_summary/presentation/order_summary_screen.dart';
@@ -59,7 +61,17 @@ class _StalledRepo implements OrderSummaryRepository {
       Completer<OrderSummary>().future;
 }
 
-Widget _harness(OrderSummaryRepository repo, {Locale locale = const Locale('en')}) {
+Widget _harnessWithCubit(
+  OrderSummaryCubit Function(OrderSummaryRepository, String) factory, {
+  Locale locale = const Locale('en'),
+}) =>
+    _harness(_Repo(summary: _kSummary), locale: locale, cubitFactory: factory);
+
+Widget _harness(
+  OrderSummaryRepository repo, {
+  Locale locale = const Locale('en'),
+  OrderSummaryCubit Function(OrderSummaryRepository, String)? cubitFactory,
+}) {
   return MaterialApp(
     theme: AppTheme.midnight(),
     locale: locale,
@@ -76,7 +88,11 @@ Widget _harness(OrderSummaryRepository repo, {Locale locale = const Locale('en')
       data: MediaQuery.of(context).copyWith(disableAnimations: true),
       child: child!,
     ),
-    home: OrderSummaryScreen(deliveryId: 'DEL-2044', repository: repo),
+    home: OrderSummaryScreen(
+      deliveryId: 'DEL-2044',
+      repository: repo,
+      cubitFactory: cubitFactory,
+    ),
   );
 }
 
@@ -239,7 +255,7 @@ void main() {
       expect(find.byType(JeebCtaFooter), findsNothing);
     });
 
-    testWidgets('a 404 is an ABSENCE: empty rung, no Retry',
+    testWidgets('a 404 is the ERROR rung with an EXIT, never an inert Retry',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _harness(_Repo(failure: OrderSummaryFailure.notFound)),
@@ -248,12 +264,68 @@ void main() {
 
       final JeebEmptyState state =
           tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(state.status, JeebEmptyStateStatus.empty);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
       expect(state.variant, JeebEmptyStateVariant.parcel);
-      expect(state.identifier, 'order_summary_empty');
-      expect(state.action, isNull);
+      expect(state.identifier, 'order_summary_error');
       expect(find.bySemanticsIdentifier('order_summary_retry_cta'),
           findsNothing);
+      // R6: an unrecoverable kind gets a way onward, never a dead block.
+      expect(find.bySemanticsIdentifier('order_summary_exit_cta'),
+          findsOneWidget);
+    });
+
+    testWidgets('a loaded-but-absent summary still owns order_summary_empty',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harnessWithCubit(
+          (OrderSummaryRepository repo, String id) =>
+              OrderSummaryCubit(repository: repo, deliveryId: id)
+                ..emit(const OrderSummaryState(
+                  status: OrderSummaryStatus.loaded,
+                )),
+        ),
+      );
+      await tester.pump();
+
+      final JeebEmptyState state =
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(state.effectiveStatus, JeebEmptyStateStatus.empty);
+      expect(state.identifier, 'order_summary_empty');
+    });
+
+    testWidgets('a warm refresh failure renders order_summary_refresh_failed '
+        'over the rows', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harnessWithCubit(
+          (OrderSummaryRepository repo, String id) =>
+              OrderSummaryCubit(repository: repo, deliveryId: id)
+                ..emit(const OrderSummaryState(
+                  status: OrderSummaryStatus.loaded,
+                  summary: _kSummary,
+                  refreshError: OrderSummaryFailure.network,
+                )),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('order_summary_error'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('order_summary_refresh_failed'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('order_summary_refresh_failed_retry_cta'),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.bySemanticsIdentifier('order_summary_refresh_failed_dismiss_cta'),
+      );
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('order_summary_refresh_failed'),
+        findsNothing,
+      );
     });
 
     testWidgets('a transport failure is the ERROR rung and refetches on Retry',
@@ -264,7 +336,7 @@ void main() {
 
       final JeebEmptyState state =
           tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(state.status, JeebEmptyStateStatus.error);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.identifier, 'order_summary_error');
       expect(
@@ -273,6 +345,8 @@ void main() {
       );
 
       expect(repo.calls, 1);
+      // UX-31: the CTA now calls `retry()` — `load()` early-returned unless
+      // the status was `initial`, so the old CTA could never re-read.
       await tester.tap(find.bySemanticsIdentifier('order_summary_retry_cta'));
       await tester.pump();
       expect(repo.calls, 2);
@@ -313,3 +387,4 @@ void main() {
     });
   });
 }
+

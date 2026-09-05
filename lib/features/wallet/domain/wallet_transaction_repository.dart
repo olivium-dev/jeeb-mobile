@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'wallet_ledger_repository.dart' show WalletLedgerType;
 
 class WalletTransaction {
@@ -50,14 +51,15 @@ class WalletTransaction {
 enum WalletTransactionFailure { network, notFound, unauthorized, unknown }
 
 class WalletTransactionRepositoryException implements Exception {
-  const WalletTransactionRepositoryException(this.failure, [this.message]);
+  const WalletTransactionRepositoryException(this.failure, {this.cause});
 
   final WalletTransactionFailure failure;
-  final String? message;
+
+  /// The classified transport failure; never rendered verbatim.
+  final AppFailure? cause;
 
   @override
-  String toString() =>
-      'WalletTransactionRepositoryException($failure, $message)';
+  String toString() => 'WalletTransactionRepositoryException(${failure.name})';
 }
 
 abstract class WalletTransactionRepository {

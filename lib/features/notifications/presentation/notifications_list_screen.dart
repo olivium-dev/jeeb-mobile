@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -7,13 +8,21 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/notifications/domain/notification_deep_link.dart';
 import '../../../core/notifications/domain/notification_message.dart';
 import '../../../core/role/role_cubit.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/notifications_list_cubit.dart';
 import '../application/notifications_list_state.dart';
 import '../data/empty_notifications_repository.dart';
+import '../data/unavailable_notifications_repository.dart';
 import '../domain/notifications_repository.dart';
 import 'notifications_l10n.dart';
 import 'widgets/notification_row.dart';
@@ -86,7 +95,10 @@ class NotificationsListScreen extends StatelessWidget {
     if (sl.isRegistered<NotificationsRepository>()) {
       return sl<NotificationsRepository>();
     }
-    return const EmptyNotificationsRepository();
+    // A DI miss must not fabricate an empty inbox in release (GEN-01).
+    return kDebugMode
+        ? const EmptyNotificationsRepository()
+        : const UnavailableNotificationsRepository();
   }
 
   @override
@@ -134,10 +146,25 @@ class _NotificationsListView extends StatelessWidget {
                 ),
                 Expanded(
                   child:
-                      BlocBuilder<
+                      BlocConsumer<
                         NotificationsListCubit,
                         NotificationsListState
                       >(
+                        listenWhen: (p, n) =>
+                            p.markReadFailure != n.markReadFailure &&
+                            n.markReadFailure != null,
+                        listener: (context, state) {
+                          showJeebErrorSnack(
+                            context,
+                            identifier: 'notifications_markread_error',
+                            message: AppLocalizations.of(
+                              context,
+                            ).notificationsMarkReadFailed,
+                          );
+                          context
+                              .read<NotificationsListCubit>()
+                              .acknowledgeMarkReadFailure();
+                        },
                         builder: (context, state) {
                           switch (state.status) {
                             case NotificationsListStatus.initial:
@@ -148,33 +175,60 @@ class _NotificationsListView extends StatelessWidget {
                                 identifier: 'notifications_loading',
                               );
                             case NotificationsListStatus.failed:
-                              return _StateBlock(
-                                status: JeebEmptyStateStatus.error,
-                                headline: copy.errorTitle,
-                                body:
-                                    state.error == NotificationsFailure.network
-                                    ? copy.networkError
-                                    : null,
-                                identifier: 'notifications_error',
-                                action: JeebCtaButton.primary(
-                                  label: copy.retry,
-                                  identifier: 'notifications_retry_cta',
-                                  onTap: () => context
-                                      .read<NotificationsListCubit>()
-                                      .refresh(),
-                                ),
-                              );
+                              return _ErrorBody(state: state);
                             case NotificationsListStatus.loaded:
-                              return OmdsPullToRefresh(
-                                onRefresh: () => context
-                                    .read<NotificationsListCubit>()
-                                    .refresh(),
-                                child: !state.hasItems
-                                    ? _EmptyBody(copy: copy)
-                                    : _LoadedList(
-                                        items: state.items,
-                                        copy: copy,
+                              final cubit = context
+                                  .read<NotificationsListCubit>();
+                              return JeebPullToRefresh(
+                                onRefresh: cubit.refresh,
+                                child: Column(
+                                  children: [
+                                    if (state.refreshError != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsetsDirectional.fromSTEB(
+                                              Spacing.xLarge,
+                                              Spacing.small,
+                                              Spacing.xLarge,
+                                              0,
+                                            ),
+                                        child: JeebRefreshFailedNote(
+                                          failure: state.refreshError!,
+                                          identifier:
+                                              'notifications_refresh_error',
+                                          onDismiss:
+                                              cubit.acknowledgeRefreshError,
+                                          onRetry: cubit.refresh,
+                                        ),
                                       ),
+                                    if (state.degraded)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsetsDirectional.fromSTEB(
+                                              Spacing.xLarge,
+                                              Spacing.small,
+                                              Spacing.xLarge,
+                                              0,
+                                            ),
+                                        child: JeebInfoNote.muted(
+                                          identifier:
+                                              'notifications_cached_note',
+                                          icon: Icons.cloud_off,
+                                          text: AppLocalizations.of(
+                                            context,
+                                          ).notificationsShowingCached,
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: !state.hasItems
+                                          ? _EmptyBody(copy: copy)
+                                          : _LoadedList(
+                                              items: state.items,
+                                              copy: copy,
+                                            ),
+                                    ),
+                                  ],
+                                ),
                               );
                           }
                         },
@@ -216,6 +270,7 @@ class _EmptyBody extends StatelessWidget {
       children: [
         JeebEmptyState(
           identifier: 'notifications_empty',
+          reason: JeebEmptyStateReason.nothingYet,
           variant: JeebEmptyStateVariant.parcel,
           headline: copy.emptyTitle,
           body: copy.emptyBody,
@@ -232,28 +287,51 @@ class _StateBlock extends StatelessWidget {
     required this.status,
     required this.headline,
     required this.identifier,
-    this.body,
-    this.action,
   });
 
   final JeebEmptyStateStatus status;
   final String headline;
   final String identifier;
-  final String? body;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          variant: JeebEmptyStateVariant.parcel,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: action,
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        status: status,
+        variant: JeebEmptyStateVariant.parcel,
+        headline: headline,
+        identifier: identifier,
+      ),
+    );
+  }
+}
+
+/// The cold-read failure. `failureCopy` supplies both lines, and a 401 gets
+/// the sign-in exit rather than a Retry that cannot win.
+class _ErrorBody extends StatelessWidget {
+  const _ErrorBody({required this.state});
+
+  final NotificationsListState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final AppFailure failure = state.appFailure ?? const UnknownFailure();
+    final unauthorized = state.error == NotificationsFailure.unauthorized;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'notifications_error',
+        variant: JeebEmptyStateVariant.parcel,
+        retryIdentifier: 'notifications_retry_cta',
+        onRetry: failure.isRetryable
+            ? () => context.read<NotificationsListCubit>().retry()
+            : null,
+        onExit: () => unauthorized
+            ? context.goNamed('login')
+            : (context.canPop() ? context.pop() : context.go('/')),
+        exitLabel: unauthorized ? l10n.actionSignIn : l10n.actionBack,
+        exitIdentifier: unauthorized ? 'notifications_error_signin_cta' : null,
       ),
     );
   }
@@ -299,6 +377,14 @@ class _LoadedList extends StatelessWidget {
     _dispatch(context, item);
   }
 
+  /// NOTIF-04: a row that cannot address a destination says so instead of
+  /// swallowing the tap.
+  void _cannotOpen(BuildContext context) => showJeebSnack(
+    context,
+    identifier: 'notifications_cannot_open',
+    message: AppLocalizations.of(context).notificationsCannotOpen,
+  );
+
   void _dispatch(BuildContext context, NotificationItem item) {
     final ref = item.ref;
     switch (item.kind) {
@@ -323,6 +409,8 @@ class _LoadedList extends StatelessWidget {
       case NotificationKind.status:
         if (ref != null) {
           context.goNamed('chat-detail', pathParameters: {'id': ref});
+        } else {
+          _cannotOpen(context);
         }
         break;
 
@@ -359,7 +447,11 @@ class _LoadedList extends StatelessWidget {
             data: {'requestId': ref},
           ),
         );
-        if (offerTarget != null) context.push(offerTarget);
+        if (offerTarget != null) {
+          context.push(offerTarget);
+        } else {
+          _cannotOpen(context);
+        }
         break;
 
       // KYC approved → jeeber-requests-home (Dashboard tab) — a shell tab.
@@ -376,6 +468,8 @@ class _LoadedList extends StatelessWidget {
       case NotificationKind.requestExpired:
         if (ref != null) {
           context.goNamed('waiting-no-coverage', pathParameters: {'id': ref});
+        } else {
+          _cannotOpen(context);
         }
         break;
 
@@ -384,6 +478,8 @@ class _LoadedList extends StatelessWidget {
       case NotificationKind.confirmReceipt:
         if (ref != null) {
           context.goNamed('delivered-receipt', pathParameters: {'id': ref});
+        } else {
+          _cannotOpen(context);
         }
         break;
 
@@ -398,6 +494,8 @@ class _LoadedList extends StatelessWidget {
             'dispute-status',
             pathParameters: <String, String>{'id': ref},
           );
+        } else {
+          _cannotOpen(context);
         }
         break;
 
@@ -419,7 +517,10 @@ class _LoadedList extends StatelessWidget {
       // fallback for taken/expired requests. Pushed (not go) so back returns
       // to the inbox.
       case NotificationKind.newRequest:
-        if (ref == null) break;
+        if (ref == null) {
+          _cannotOpen(context);
+          break;
+        }
         final target = deepLinkForMessage(
           NotificationMessage(
             id: item.id,
@@ -436,12 +537,17 @@ class _LoadedList extends StatelessWidget {
           // defaults to null and the guard compiles but never fires.
           role: context.read<RoleCubit>().state,
         );
-        if (target != null) context.push(target);
+        if (target != null) {
+          context.push(target);
+        } else {
+          _cannotOpen(context);
+        }
         break;
 
       // Unknown / unmapped — mark-read only, stay on the inbox (AP-9: never
       // fabricate a destination the row can't address).
       case NotificationKind.unknown:
+        _cannotOpen(context);
         break;
     }
   }

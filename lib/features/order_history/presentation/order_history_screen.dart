@@ -8,10 +8,18 @@ import '../../../core/layout/bottom_inset.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/order_history_cubit.dart';
 import '../application/order_history_state.dart';
@@ -97,19 +105,21 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return BlocConsumer<OrderHistoryCubit, OrderHistoryState>(
+      // Warm refresh failures only: pagination has its own footer retry.
       listenWhen: (prev, curr) =>
-          prev.currentTab.errorKind != curr.currentTab.errorKind &&
-          curr.currentTab.errorKind != null &&
-          curr.currentTab.status == OrderTabStatus.ready,
+          prev.currentTab.failure != curr.currentTab.failure &&
+          curr.currentTab.failure != null &&
+          curr.currentTab.status == OrderTabStatus.ready &&
+          curr.currentTab.orders.isNotEmpty,
       listener: (context, state) {
-        // Transient errors (failed pagination or refresh) — the list stays
-        // visible, we just nudge the user with a snackbar.
-        final messenger = ScaffoldMessenger.maybeOf(context);
-        messenger?.showSnackBar(
-          SnackBar(
-            content: Text(_errorMessage(state.currentTab.errorKind!, l10n)),
-          ),
+        showJeebErrorSnack(
+          context,
+          failure: state.currentTab.failure!,
+          identifier: 'order_history_refresh_failed_snack',
+          retryLabel: l10n.actionRetry,
+          onRetry: () => context.read<OrderHistoryCubit>().refresh(),
         );
+        context.read<OrderHistoryCubit>().acknowledgeTabError();
       },
       builder: (context, state) {
         return Semantics(
@@ -200,15 +210,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
         return l10n.orderHistoryTabCompleted;
       case OrderHistoryTab.cancelled:
         return l10n.orderHistoryTabCancelled;
-    }
-  }
-
-  static String _errorMessage(OrderTabErrorKind kind, AppLocalizations l10n) {
-    switch (kind) {
-      case OrderTabErrorKind.network:
-        return l10n.orderHistoryErrorNetwork;
-      case OrderTabErrorKind.server:
-        return l10n.orderHistoryErrorServer;
     }
   }
 }
@@ -379,71 +380,112 @@ class _OrderTabViewState extends State<_OrderTabView>
             identifier: 'order_history_loading',
           );
         }
+        // Error branch before empty: a failed read is never "No orders yet".
         if (tabState.status == OrderTabStatus.error) {
-          return _StateBlock(
+          return JeebStateHost(
             key: const Key('order-history-error'),
-            status: JeebEmptyStateStatus.error,
-            headline: l10n.orderHistoryErrorTitle,
-            body: tabState.errorKind == OrderTabErrorKind.network
-                ? l10n.orderHistoryErrorNetwork
-                : l10n.orderHistoryErrorServer,
-            identifier: 'order_history_error',
-            action: JeebCtaButton.primary(
-              label: l10n.orderHistoryErrorRetry,
-              identifier: 'order_history_retry_cta',
-              onTap: () => context.read<OrderHistoryCubit>().refresh(),
+            onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
+            padding: EdgeInsetsDirectional.only(
+              bottom: context.scrollBodyBottomInset,
+            ),
+            child: JeebFailureBlock(
+              failure: tabState.failure ?? const UnknownFailure(),
+              identifier: 'order_history_error',
+              variant: JeebEmptyStateVariant.parcel,
+              headlineOverride: l10n.orderHistoryErrorTitle,
+              onRetry: () => context.read<OrderHistoryCubit>().refresh(),
+              retryIdentifier: 'order_history_retry_cta',
             ),
           );
         }
         if (tabState.orders.isEmpty) {
-          return OmdsPullToRefresh(
+          final filtered =
+              state.dateRange.from != null || state.dateRange.to != null;
+          return JeebPullToRefresh(
             onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
-            child: _OrdersEmptyView(tab: widget.tab),
+            child: _OrdersEmptyView(
+              tab: widget.tab,
+              filtered: filtered,
+              actingAsJeeber: actingAsJeeber,
+              onClearRange: () =>
+                  context.read<OrderHistoryCubit>().clearDateRange(),
+            ),
           );
         }
 
-        return OmdsPullToRefresh(
-          onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
-          child: ListView.separated(
-            key: Key('order-history-list-${widget.tab.name}'),
-            controller: _scrollController,
-            padding: EdgeInsetsDirectional.only(
-              start: Spacing.xLarge,
-              end: Spacing.xLarge,
-              top: Spacing.medium,
-              bottom: context.scrollBodyBottomInset + Spacing.xLarge,
-            ),
-            itemCount: tabState.orders.length + (tabState.hasMore ? 1 : 0),
-            // R7/R12: the outlines are the separation — a divider between two
-            // outlined cards draws a third line nobody asked for.
-            separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
-            itemBuilder: (context, index) {
-              if (index >= tabState.orders.length) {
-                return tabState.status == OrderTabStatus.loadingNextPage
-                    ? const _NextPageWait()
-                    : const SizedBox.shrink();
-              }
-              final order = tabState.orders[index];
-              void openDetail() => context.push(
-                actingAsJeeber
-                    ? '/jeeber/deliveries/${order.id}/active'
-                    : '/orders/${order.id}',
-              );
-              return OrderHistoryCard(
-                order: order,
-                onTap: openDetail,
-                // TODO(redesign-24): needs gateway trackingId on
-                // GET /v1/requests to deep-link `/orders/:id/tracking` —
-                // routed to the detail surface instead, not faked.
-                onTrack: openDetail,
-                // TODO(redesign-24): needs the request description/tier on
-                // GET /v1/requests to pre-fill the re-compose — entering the
-                // create flow unseeded, not faked.
-                onReorder: () =>
-                    GoRouter.of(context).pushNamed('client-location'),
-              );
-            },
+        final Widget list = ListView.separated(
+          key: Key('order-history-list-${widget.tab.name}'),
+          controller: _scrollController,
+          padding: EdgeInsetsDirectional.only(
+            start: Spacing.xLarge,
+            end: Spacing.xLarge,
+            top: Spacing.medium,
+            bottom: context.scrollBodyBottomInset + Spacing.xLarge,
           ),
+          itemCount: tabState.orders.length + (tabState.hasMore ? 1 : 0),
+          // R7/R12: the outlines are the separation — a divider between two
+          // outlined cards draws a third line nobody asked for.
+          separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
+          itemBuilder: (context, index) {
+            if (index >= tabState.orders.length) {
+              if (tabState.loadMoreError != null) {
+                return _LoadMoreFailedFooter(
+                  failure: tabState.loadMoreError!,
+                  onRetry: () => context.read<OrderHistoryCubit>().loadMore(),
+                );
+              }
+              return tabState.status == OrderTabStatus.loadingNextPage
+                  ? const _NextPageWait()
+                  : const SizedBox.shrink();
+            }
+            final order = tabState.orders[index];
+            void openDetail() => context.push(
+              actingAsJeeber
+                  ? '/jeeber/deliveries/${order.id}/active'
+                  : '/orders/${order.id}',
+            );
+            return OrderHistoryCard(
+              order: order,
+              onTap: openDetail,
+              // TODO(redesign-24): needs gateway trackingId on
+              // GET /v1/requests to deep-link `/orders/:id/tracking` —
+              // routed to the detail surface instead, not faked.
+              onTrack: openDetail,
+              // TODO(redesign-24): needs the request description/tier on
+              // GET /v1/requests to pre-fill the re-compose — entering the
+              // create flow unseeded, not faked.
+              onReorder: () =>
+                  GoRouter.of(context).pushNamed('client-location'),
+            );
+          },
+        );
+
+        return JeebPullToRefresh(
+          onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
+          child: tabState.refreshError == null
+              ? list
+              : Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        Spacing.xLarge,
+                        Spacing.medium,
+                        Spacing.xLarge,
+                        0,
+                      ),
+                      child: JeebRefreshFailedNote(
+                        failure: tabState.refreshError!,
+                        identifier: 'order_history_refresh_failed',
+                        onDismiss: () => context
+                            .read<OrderHistoryCubit>()
+                            .acknowledgeRefreshError(widget.tab),
+                        onRetry: () =>
+                            context.read<OrderHistoryCubit>().refresh(),
+                      ),
+                    ),
+                    Expanded(child: list),
+                  ],
+                ),
         );
       },
     );
@@ -469,9 +511,7 @@ class _NextPageWait extends StatelessWidget {
       child: JeebEmptyState.compact(
         status: JeebEmptyStateStatus.loading,
         variant: JeebEmptyStateVariant.parcel,
-        // TODO(midnight): l10n-queued `orderHistoryLoadingMore` — this is the
-        // COLD-load line; the footer wants "Loading more orders".
-        headline: l10n.orderHistoryLoadingHeadline,
+        headline: l10n.orderHistoryLoadingMore,
         identifier: 'order_history_loading_more',
         illustrationSize: _illustrationSize,
       ),
@@ -482,16 +522,31 @@ class _NextPageWait extends StatelessWidget {
 /// E4 — "Empty ≠ dead". The kit's `parcel` variant IS this tile: the open glass
 /// box, the mic glowing inside, a still bare orbit ring, the 3-sparkle ladder.
 class _OrdersEmptyView extends StatelessWidget {
-  const _OrdersEmptyView({required this.tab});
+  const _OrdersEmptyView({
+    required this.tab,
+    this.filtered = false,
+    this.actingAsJeeber = false,
+    this.onClearRange,
+  });
 
   /// The illustration sits high in the tile, not centred in the residual band.
   static const double topGap = 40;
 
   final OrderHistoryTab tab;
 
+  /// ES-06: a date range is on, so "No orders yet" would be a lie.
+  final bool filtered;
+
+  /// ES-07: the tab is shared, so the copy follows the active role.
+  final bool actingAsJeeber;
+
+  final VoidCallback? onClearRange;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final VoidCallback? clear = onClearRange;
+    final bool showClear = filtered && clear != null;
     return ListView(
       padding: EdgeInsetsDirectional.only(
         top: topGap,
@@ -502,24 +557,82 @@ class _OrdersEmptyView extends StatelessWidget {
           key: Key('order-history-empty-${tab.name}'),
           identifier: 'order_history_empty_${tab.name}',
           variant: JeebEmptyStateVariant.parcel,
-          headline: l10n.orderHistoryEmptyTitle,
-          body: _emptySubtitle(tab, l10n),
+          reason: showClear
+              ? JeebEmptyStateReason.filtered
+              : JeebEmptyStateReason.nothingYet,
+          headline: filtered
+              ? l10n.orderHistoryFilterEmptyTitle
+              : (actingAsJeeber
+                    ? l10n.orderHistoryEmptyTitleJeeber
+                    : l10n.orderHistoryEmptyTitle),
+          body: filtered
+              ? l10n.orderHistoryFilterEmptyBody
+              : _emptySubtitle(tab, l10n, actingAsJeeber),
           // Single door: creating a request lives on the mic in My Requests,
           // so this tile stays text-only on every tab.
+          secondaryAction: showClear
+              ? JeebCtaButton.text(
+                  label: l10n.actionClearFilters,
+                  identifier: 'order_history_clear_range_cta',
+                  expand: false,
+                  onTap: clear,
+                )
+              : null,
         ),
       ],
     );
   }
 
-  static String _emptySubtitle(OrderHistoryTab tab, AppLocalizations l10n) {
+  static String _emptySubtitle(
+    OrderHistoryTab tab,
+    AppLocalizations l10n,
+    bool actingAsJeeber,
+  ) {
     switch (tab) {
       case OrderHistoryTab.active:
-        return l10n.orderHistoryEmptyBody;
+        return actingAsJeeber
+            ? l10n.orderHistoryEmptyBodyJeeber
+            : l10n.orderHistoryEmptyBody;
       case OrderHistoryTab.completed:
         return l10n.orderHistoryEmptyCompleted;
       case OrderHistoryTab.cancelled:
         return l10n.orderHistoryEmptyCancelled;
     }
+  }
+}
+
+/// EP-15: a dead NEXT page gets a footer the user can act on, not silence.
+class _LoadMoreFailedFooter extends StatelessWidget {
+  const _LoadMoreFailedFooter({required this.failure, required this.onRetry});
+
+  final AppFailure failure;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      key: const Key('order-history-load-more-failed'),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.medium),
+      child: Semantics(
+        identifier: 'order_history_load_more_error',
+        container: true,
+        liveRegion: true,
+        explicitChildNodes: true,
+        child: Column(
+          children: <Widget>[
+            JeebInfoNote.error(text: failureCopy(l10n, failure).body),
+            const SizedBox(height: Spacing.small),
+            JeebCtaButton.text(
+              label: l10n.actionRetry,
+              identifier: 'order_history_load_more_retry',
+              expand: false,
+              onTap: onRetry,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -531,31 +644,24 @@ class _StateBlock extends StatelessWidget {
     required this.status,
     required this.headline,
     required this.identifier,
-    this.body,
-    this.action,
   });
 
   final JeebEmptyStateStatus status;
   final String headline;
   final String identifier;
-  final String? body;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsetsDirectional.only(
-          bottom: context.scrollBodyBottomInset,
-        ),
-        child: JeebEmptyState(
-          status: status,
-          variant: JeebEmptyStateVariant.parcel,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: action,
-        ),
+    return JeebStateHost(
+      onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
+      padding: EdgeInsetsDirectional.only(
+        bottom: context.scrollBodyBottomInset,
+      ),
+      child: JeebEmptyState(
+        status: status,
+        variant: JeebEmptyStateVariant.parcel,
+        headline: headline,
+        identifier: identifier,
       ),
     );
   }

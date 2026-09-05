@@ -7,13 +7,13 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 import '../../support/fake_request_submission_service.dart';
 
 Tier _flash() => const Tier(
-      id: TierId.flash,
-      serverId: 'uuid',
-      priceLow: 1000,
-      priceHigh: 2000,
-      currency: 'USD',
-      vehicleClass: TierVehicleClass.any,
-    );
+  id: TierId.flash,
+  serverId: 'uuid',
+  priceLow: 1000,
+  priceHigh: 2000,
+  currency: 'USD',
+  vehicleClass: TierVehicleClass.any,
+);
 
 void main() {
   group('S0-REQ-03 — pinned coordinate is carried, not defaulted', () {
@@ -25,47 +25,53 @@ void main() {
       controller = ComposeRequestController(submission);
     });
 
-    test('a pinned point carries its real lat/lng into the create draft',
-        () async {
-      controller.setTier(_flash());
-
-      await controller.submitFromLocation(
-        const LocationSelectState(
-          status: LocationSelectStatus.loaded,
-          choiceKind: LocationChoiceKind.pinned,
-          pinnedLat: 33.9012,
-          pinnedLng: 35.6033,
-        ),
-      );
-
-      final draft = submission.lastDraft!;
-      expect(draft.pickupLat, 33.9012,
-          reason: 'the map-pinned coordinate must NOT be replaced by Beirut');
-      expect(draft.pickupLng, 35.6033);
-      expect(draft.dropoffLat, 33.9012);
-      expect(draft.dropoffLng, 35.6033);
-      expect(draft.pickupAddress, contains('33.9012'));
-      expect(draft.pickupAddress, contains('35.6033'));
-      expect(draft.pickupAddress, isNot(contains('33.8886')));
-    });
-
     test(
-      'JEBV4-176: a pinned choice WITHOUT a captured coordinate REFUSES to '
-      'create — it no longer fabricates a Beirut fallback',
+      'a pinned point carries its real lat/lng into the create draft',
       () async {
         controller.setTier(_flash());
 
-        expect(
-          () => controller.submitFromLocation(
-            const LocationSelectState(
-              status: LocationSelectStatus.loaded,
-              choiceKind: LocationChoiceKind.pinned,
-            ),
+        await controller.submitFromLocation(
+          const LocationSelectState(
+            status: LocationSelectStatus.loaded,
+            choiceKind: LocationChoiceKind.pinned,
+            pinnedLat: 33.9012,
+            pinnedLng: 35.6033,
           ),
-          throwsA(isA<RequestSubmissionException>()),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
         );
-        expect(submission.submitCount, 0);
+
+        final draft = submission.lastDraft!;
+        expect(
+          draft.pickupLat,
+          33.9012,
+          reason: 'the map-pinned coordinate must NOT be replaced by Beirut',
+        );
+        expect(draft.pickupLng, 35.6033);
+        expect(draft.dropoffLat, 33.9012);
+        expect(draft.dropoffLng, 35.6033);
+        // RSUM-04: the label no longer embeds coordinates; the pinned fix is
+        // proven by the lat/lng above, which is what the create POSTs.
+        expect(draft.pickupAddress, 'Current location');
       },
     );
+
+    test('JEBV4-176: a pinned choice WITHOUT a captured coordinate REFUSES to '
+        'create — it no longer fabricates a Beirut fallback', () async {
+      controller.setTier(_flash());
+
+      expect(
+        () => controller.submitFromLocation(
+          const LocationSelectState(
+            status: LocationSelectStatus.loaded,
+            choiceKind: LocationChoiceKind.pinned,
+          ),
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        ),
+        throwsA(isA<RequestSubmissionException>()),
+      );
+      expect(submission.submitCount, 0);
+    });
   });
 }

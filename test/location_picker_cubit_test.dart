@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
 import 'package:jeeb_mobile/features/location/cubit/location_picker_state.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart';
@@ -69,6 +70,40 @@ void main() {
         ),
       ],
     );
+
+    // R6 connectivity honesty: a NETWORK failure is not a GPS failure.
+    blocTest<LocationPickerCubit, LocationPickerState>(
+      'a network failure is networkUnavailable, never gpsUnavailable',
+      build: () => LocationPickerCubit(repository: repo),
+      setUp: () => when(() => repo.resolveCurrentGps())
+          .thenThrow(const NetworkFailure(offline: true)),
+      act: (c) => c.detectCurrentLocation(),
+      skip: 1,
+      expect: () => [
+        predicate<LocationPickerState>(
+          (s) =>
+              s.error == LocationPickerError.networkUnavailable &&
+              s.appFailure is NetworkFailure,
+        ),
+      ],
+    );
+
+    // F45: the enum code alone could not tell a 403 from a dead sensor.
+    blocTest<LocationPickerCubit, LocationPickerState>(
+      'a non-network failure keeps gpsUnavailable AND carries the kind',
+      build: () => LocationPickerCubit(repository: repo),
+      setUp: () => when(() => repo.resolveCurrentGps())
+          .thenThrow(const ServerFailure(status: 500)),
+      act: (c) => c.detectCurrentLocation(),
+      skip: 1,
+      expect: () => [
+        predicate<LocationPickerState>(
+          (s) =>
+              s.error == LocationPickerError.gpsUnavailable &&
+              s.appFailure is ServerFailure,
+        ),
+      ],
+    );
   });
 
   group('searchAddress', () {
@@ -120,7 +155,10 @@ void main() {
       skip: 2,
       expect: () => [
         predicate<LocationPickerState>(
-          (s) => !s.isSearching && s.error == LocationPickerError.searchFailed,
+          (s) =>
+              !s.isSearching &&
+              s.error == LocationPickerError.searchFailed &&
+              s.appFailure != null,
         ),
       ],
     );
@@ -245,6 +283,7 @@ void main() {
           (s) =>
               !s.isSaving &&
               s.error == LocationPickerError.saveFailed &&
+              s.appFailure != null &&
               s.step == LocationPickerStep.dropoff,
         ),
       ],

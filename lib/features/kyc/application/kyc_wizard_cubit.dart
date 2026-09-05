@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diagnostics.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/text/digit_normalization.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
+import '../domain/cdn_asset_gateway.dart';
 import '../domain/kyc_contract_template.dart';
 import '../domain/kyc_gateway.dart';
 import '../domain/kyc_submission.dart';
@@ -27,26 +29,54 @@ class KycWizardCubit extends Cubit<KycWizardState> {
 
   int _nextId = 0;
 
+  /// Guards a double-tapped schema load from issuing two fetches.
+  bool _schemaInFlight = false;
+
   /// Must clear loadingStatus; fresh jeeber entering identity wizard.
   Future<void> loadSchema() async {
+    if (_schemaInFlight) return;
+    _schemaInFlight = true;
     emit(state.copyWith(
       step: KycWizardStep.schema,
       isLoadingStatus: false,
       clearError: true,
+      clearFailure: true,
     ));
     try {
       final schema = await _gateway.fetchFormSchema();
       emit(state.copyWith(formSchema: schema, step: KycWizardStep.identity));
-    } catch (_) {
-      emit(state.copyWith(error: KycWizardError.schemaLoadFailed));
+    } catch (e) {
+      emit(state.copyWith(
+        error: KycWizardError.schemaLoadFailed,
+        failure: _classify(e),
+      ));
+    } finally {
+      _schemaInFlight = false;
     }
   }
 
   Future<void> loadStatus() async {
-    emit(state.copyWith(isLoadingStatus: true, clearError: true));
-    final snapshot = await _gateway.fetchStatus();
+    if (state.isLoadingStatus) return;
+    emit(state.copyWith(
+      isLoadingStatus: true,
+      clearError: true,
+      clearFailure: true,
+    ));
+    final KycSubmission snapshot;
+    try {
+      snapshot = await _gateway.fetchStatus();
+    } catch (e) {
+      // F1: without this the wizard spun on isLoadingStatus forever.
+      emit(state.copyWith(
+        isLoadingStatus: false,
+        error: KycWizardError.statusLoadFailed,
+        failure: _classify(e),
+      ));
+      return;
+    }
     Diag.event('kyc_load_status', {'status': snapshot.status.name});
     if (snapshot.status == KycStatus.notSubmitted) {
+      emit(state.copyWith(isLoadingStatus: false));
       await loadSchema();
       return;
     }
@@ -62,8 +92,13 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     final KycSubmission snapshot;
     try {
       snapshot = await _gateway.fetchStatus();
-    } catch (_) {
+    } catch (e) {
+      // Never flips to loading: the loaded submission stays, with a note.
+      emit(state.copyWith(refreshFailure: _classify(e)));
       return;
+    }
+    if (state.refreshFailure != null) {
+      emit(state.copyWith(clearRefreshFailure: true));
     }
     if (snapshot.status == state.submission.status) return;
     if (snapshot.status == KycStatus.notSubmitted) return;
@@ -79,7 +114,11 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     final KycSubmission snapshot;
     try {
       snapshot = await _gateway.fetchStatus();
-    } catch (_) {
+    } catch (e) {
+      // Background safety net: stays silent by design, but traceable.
+      Diag.event('kyc_refresh_while_submitting_failed', {
+        'kind': _classify(e).kind.name,
+      });
       return;
     }
     if (state.step != KycWizardStep.submitting) return;
@@ -157,11 +196,12 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     try {
       template =
           state.contractTemplate ?? await _gateway.fetchContractTemplate();
-    } catch (_) {
+    } catch (e) {
       Diag.event('kyc_contract_template_error');
       emit(state.copyWith(
         step: KycWizardStep.identity,
         error: KycWizardError.contractLoadFailed,
+        failure: _classify(e),
       ));
       return;
     }
@@ -173,12 +213,13 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         tosVersion: template.tosVersion,
         signatureBlob: _tosAcceptanceBlob,
       );
-    } catch (_) {
+    } catch (e) {
       Diag.event('kyc_tos_sign_error');
       emit(state.copyWith(
         step: KycWizardStep.identity,
         contractTemplate: template,
         error: KycWizardError.signFailed,
+        failure: _classify(e),
       ));
       return;
     }
@@ -211,14 +252,47 @@ class KycWizardCubit extends Cubit<KycWizardState> {
             ? KycWizardError.submitValidationFailed
             : null,
       ));
-    } catch (_) {
+    } on CdnUploadException catch (e) {
+      // A rejected upload is not a "check your connection" submit failure.
+      Diag.event('kyc_submit_upload_error', {'stage': e.message});
+      emit(state.copyWith(
+        step: KycWizardStep.identity,
+        error: _uploadError(e),
+        failure: e.failure ?? const UnknownFailure(),
+      ));
+    } catch (e) {
       Diag.event('kyc_submit_error');
       if (await _reconcileTerminalStatus()) return;
       emit(state.copyWith(
         step: KycWizardStep.identity,
         error: KycWizardError.submitFailed,
+        failure: _classify(e),
       ));
     }
+  }
+
+  /// Unwraps the gateway's own wrapper types before classifying, so a 503
+  /// never degrades to `unknown`.
+  static AppFailure _classify(Object error) => switch (error) {
+        KycGatewayException(:final AppFailure failure) => failure,
+        CdnUploadException(:final AppFailure? failure) =>
+          failure ?? const UnknownFailure(),
+        _ => AppFailure.of(error),
+      };
+
+  static KycWizardError _uploadError(CdnUploadException e) {
+    final int? status = e.status ?? e.failure?.problem?.status;
+    if (e.failure is ValidationFailure) {
+      if (status == 413) return KycWizardError.fileTooLarge;
+      if (status == 415) return KycWizardError.fileTypeNotAllowed;
+    }
+    return KycWizardError.submitFailed;
+  }
+
+  /// Clears the warm-refresh note the status view renders.
+  void acknowledgeRefreshFailure() {
+    if (state.refreshFailure == null) return;
+    emit(state.copyWith(clearRefreshFailure: true));
   }
 
   /// Re-read status after failed submit; if server recorded it, reconcile state.
@@ -226,7 +300,8 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     final KycSubmission snapshot;
     try {
       snapshot = await _gateway.fetchStatus();
-    } catch (_) {
+    } catch (e) {
+      Diag.event('kyc_reconcile_failed', {'kind': _classify(e).kind.name});
       return false;
     }
     if (snapshot.status == KycStatus.notSubmitted) return false;
@@ -270,7 +345,7 @@ class KycWizardCubit extends Cubit<KycWizardState> {
 
   void acknowledgeError() {
     if (state.error == null) return;
-    emit(state.copyWith(clearError: true));
+    emit(state.copyWith(clearError: true, clearFailure: true));
   }
 
   static const String _tosAcceptanceBlob = 'tos-accepted';
@@ -303,10 +378,11 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         clearCapturing: true,
         error: _mapPickFailure(e.failure),
       ));
-    } catch (_) {
+    } catch (e) {
       emit(state.copyWith(
         clearCapturing: true,
         error: KycWizardError.unavailable,
+        failure: _classify(e),
       ));
     }
   }

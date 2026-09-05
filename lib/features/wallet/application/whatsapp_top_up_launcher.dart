@@ -19,8 +19,9 @@ class WhatsAppTopUpLink {
     final String digits = supportPhoneE164.replaceAll(RegExp(r'[^0-9]'), '');
     final bool hasSentence =
         accountPhoneSentence != null && accountPhoneSentence.isNotEmpty;
-    final String message =
-        hasSentence ? '$baseMessage $accountPhoneSentence' : baseMessage;
+    final String message = hasSentence
+        ? '$baseMessage $accountPhoneSentence'
+        : baseMessage;
     return Uri(
       scheme: 'https',
       host: 'wa.me',

@@ -3,19 +3,24 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/otp_handover_cubit.dart';
 import '../application/otp_handover_state.dart';
+import '../domain/otp_handover_repository.dart';
 import 'widgets/handover_arrival_banner.dart';
 import 'widgets/handover_code_display.dart';
 
@@ -134,23 +139,33 @@ class OtpHandoverScreen extends StatelessWidget {
 
   void _onStateChange(BuildContext context, OtpHandoverState state) {
     if (state.escalate) {
-      _showEscalateDialog(context);
+      _showEscalateDialog(context, state.escalationId);
     }
   }
 
-  Future<void> _showEscalateDialog(BuildContext context) async {
+  Future<void> _showEscalateDialog(
+    BuildContext context,
+    String? escalationId,
+  ) async {
     final l10n = AppLocalizations.of(context);
+    // A 423 means the gateway ALREADY opened a case: offering to open a second
+    // one is the wrong act, so the dialog points at the existing one.
+    final bool locked = escalationId != null;
     final confirmed = await OmdsConfirmationDialog.show(
       context: context,
-      title: l10n.otpEscalateDialogTitle,
-      content: l10n.otpEscalateDialogBody,
-      confirmText: l10n.otpEscalateConfirm,
+      title: locked ? l10n.otpHandoverLockedTitle : l10n.otpEscalateDialogTitle,
+      content: locked ? l10n.otpHandoverLockedBody : l10n.otpEscalateDialogBody,
+      confirmText: locked
+          ? l10n.otpHandoverLockedContactSupport
+          : l10n.otpEscalateConfirm,
       cancelText: l10n.otpEscalateDismiss,
       barrierDismissible: false,
     );
     if (!context.mounted) return;
     if (confirmed) {
-      context.go('/orders/$deliveryId/escalate');
+      context.go(
+        locked ? '/disputes/$escalationId' : '/orders/$deliveryId/escalate',
+      );
     } else {
       context.read<OtpHandoverCubit>().dismissEscalate();
     }
@@ -206,7 +221,6 @@ class _OtpBody extends StatelessWidget {
       case OtpHandoverViewMode.error:
         return _ErrorBody(
           state: state,
-          isClient: isClient,
           onRetry: () => context.read<OtpHandoverCubit>().retry(),
         );
       case OtpHandoverViewMode.success:
@@ -230,59 +244,56 @@ class _LoadingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: JeebEmptyStateStatus.loading,
-          headline: l10n.otpHandoverLoadingHeadline,
-          identifier: 'otp_handover_loading',
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        status: JeebEmptyStateStatus.loading,
+        headline: l10n.otpHandoverLoadingHeadline,
+        identifier: 'otp_handover_loading',
       ),
     );
   }
 }
 
 class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({
-    required this.state,
-    required this.isClient,
-    required this.onRetry,
-  });
+  const _ErrorBody({required this.state, required this.onRetry});
 
   final OtpHandoverState state;
-  final bool isClient;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: JeebEmptyStateStatus.error,
-          headline: l10n.otpHandoverErrorHeadline,
-          body: _mapMessage(l10n, state.errorMessage),
-          identifier: 'otp_handover_error',
-          action: JeebCtaButton.primary(
-            label: l10n.otpRetry,
-            onTap: onRetry,
-          ),
-        ),
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: otpHandoverFailure(state.errorKind),
+        identifier: 'otp_handover_error',
+        onRetry: onRetry,
+        onExit: () => _backOut(context),
       ),
     );
   }
 
-  String _mapMessage(AppLocalizations l10n, String? key) {
-    switch (key) {
-      case 'network':
-        return l10n.otpErrorNetwork;
-      case 'server':
-        return l10n.otpErrorServer;
-      default:
-        return l10n.otpErrorGeneric;
+  void _backOut(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
     }
   }
 }
+
+/// The load/submit failure the copy family renders. Kept beside the screen so
+/// the fixtures and the tests agree on one mapping.
+AppFailure otpHandoverFailure(OtpHandoverErrorKind? kind) => switch (kind) {
+  OtpHandoverErrorKind.network => const NetworkFailure(),
+  OtpHandoverErrorKind.notFound => const NotFoundFailure(),
+  OtpHandoverErrorKind.invalidOtp ||
+  OtpHandoverErrorKind.notAtDoor ||
+  OtpHandoverErrorKind.wrongParty => const ValidationFailure(),
+  OtpHandoverErrorKind.locked => const ForbiddenFailure(),
+  OtpHandoverErrorKind.unauthorized => const UnauthorizedFailure(),
+  OtpHandoverErrorKind.server => const ServerFailure(status: 500),
+  OtpHandoverErrorKind.parse || null => const UnknownFailure(),
+};
 
 /// T-MOB-018 AC2: Celebratory done state shown after successful OTP verify.
 ///
@@ -553,13 +564,15 @@ class _ClientOtpDisplay extends StatelessWidget {
               ],
             ),
             if (state.resendFailed)
+              // The id, the label and liveRegion must sit on ONE node, or the
+              // announcement reads out as silence.
               Semantics(
+                identifier: 'otp_handover_resend_error',
+                label: l10n.otpResendFailed,
                 liveRegion: true,
-                child: Text(
-                  l10n.otpResendFailed,
-                  style: text.caption.copyWith(color: scheme.error),
-                  textAlign: TextAlign.center,
-                ),
+                container: true,
+                explicitChildNodes: true,
+                child: JeebInfoNote.error(text: l10n.otpResendFailed),
               ),
           ],
         ),
@@ -637,7 +650,7 @@ class _JeeberOtpEntryState extends State<_JeeberOtpEntry>
             const SizedBox(height: Spacing.xLarge),
             _ShakingOtpInput(
               shakeAnim: _shakeAnim,
-              hasError: widget.state.errorMessage == 'invalid_otp',
+              hasError: widget.state.errorKind == OtpHandoverErrorKind.invalidOtp,
               onChanged: (v) => setState(() => _code = v),
               onCompleted: _onCompleted,
             ),
@@ -673,7 +686,7 @@ class _OtpInstruction extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final hasError = state.errorMessage == 'invalid_otp';
+    final hasError = state.errorKind != null;
     return Semantics(
       liveRegion: hasError,
       child: Text(
@@ -686,7 +699,14 @@ class _OtpInstruction extends StatelessWidget {
     );
   }
 
-  String _errorText(AppLocalizations l10n) => l10n.otpWrongCode;
+  String _errorText(AppLocalizations l10n) => switch (state.errorKind) {
+    OtpHandoverErrorKind.invalidOtp => l10n.errorInvalidCode,
+    OtpHandoverErrorKind.notAtDoor => l10n.otpHandoverNotAtDoor,
+    OtpHandoverErrorKind.wrongParty => l10n.otpHandoverWrongParty,
+    OtpHandoverErrorKind.notFound => l10n.errorNotFoundBody,
+    OtpHandoverErrorKind.locked => l10n.otpHandoverLockedBody,
+    _ => failureCopy(l10n, otpHandoverFailure(state.errorKind)).body,
+  };
 }
 
 class _ShakingOtpInput extends StatelessWidget {
@@ -761,16 +781,19 @@ class _AttemptHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.wrongAttempts == 0) return const SizedBox.shrink();
+    if (state.wrongAttempts == 0 && state.attemptsRemaining == null) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final remaining = OtpHandoverState.maxAttempts - state.wrongAttempts;
+    final remaining = state.attemptsRemaining ??
+        (OtpHandoverState.maxAttempts - state.wrongAttempts);
     return Padding(
       padding: const EdgeInsetsDirectional.only(top: Spacing.small),
       child: Semantics(
         liveRegion: true,
         child: Text(
-          l10n.otpAttemptsRemaining(remaining),
+          l10n.otpHandoverAttemptsRemaining(remaining),
           style: context.jeebText.caption.copyWith(color: scheme.error),
           textAlign: TextAlign.center,
         ),

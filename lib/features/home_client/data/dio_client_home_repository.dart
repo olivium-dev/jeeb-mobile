@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/formatting/server_time.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
@@ -243,7 +244,10 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // F3: surface (never throw) the throttle so the cubit degrades gracefully.
       rateLimited: rateLimit.rateLimited,
       // B1: an all-transport-failed load is NOT an empty home — say so.
-      loadFailed: rateLimit.loadFailed,
+      inProgressFailure: rateLimit.failures[_Bucket.inProgress],
+      requestsFailure: rateLimit.failures[_Bucket.requests],
+      recentFailure: rateLimit.failures[_Bucket.recent],
+      probeFailure: rateLimit.failures[_Bucket.probe],
       retryAfter: rateLimit.retryAfter,
     );
   }
@@ -282,9 +286,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
       }
       return items;
     } on DioException catch (e) {
-      rateLimit.record(e);
+      rateLimit.record(e, bucket: _Bucket.requests);
       return const [];
-    } on FormatException {
+    } on FormatException catch (e) {
+      rateLimit.recordFailure(_Bucket.requests, UnknownFailure(cause: e, parse: true));
+      return const [];
+    } catch (e) {
+      rateLimit.recordFailure(_Bucket.requests, UnknownFailure(cause: e, parse: true));
       return const [];
     }
   }
@@ -308,9 +316,19 @@ class DioClientHomeRepository implements ClientHomeRepository {
       }
       return items;
     } on DioException catch (e) {
-      rateLimit.record(e);
+      rateLimit.record(e, bucket: _Bucket.inProgress);
       return const [];
-    } on FormatException {
+    } on FormatException catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.inProgress,
+        UnknownFailure(cause: e, parse: true),
+      );
+      return const [];
+    } catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.inProgress,
+        UnknownFailure(cause: e, parse: true),
+      );
       return const [];
     }
   }
@@ -331,9 +349,19 @@ class DioClientHomeRepository implements ClientHomeRepository {
       rateLimit.recordSuccess();
       return _items(response.data);
     } on DioException catch (e) {
-      rateLimit.record(e);
+      rateLimit.record(e, bucket: _Bucket.requests);
       return const [];
-    } on FormatException {
+    } on FormatException catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.requests,
+        UnknownFailure(cause: e, parse: true),
+      );
+      return const [];
+    } catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.requests,
+        UnknownFailure(cause: e, parse: true),
+      );
       return const [];
     }
   }
@@ -449,9 +477,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
         replies: replies,
         offerStatusRequests: offerStatusRequests,
       );
-    } on DioException {
+    } on DioException catch (e) {
+      rateLimit.record(e, primary: false, bucket: _Bucket.requests);
       return const _ClientRequestBuckets.empty();
-    } on FormatException {
+    } on FormatException catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.requests,
+        UnknownFailure(cause: e, parse: true),
+      );
+      return const _ClientRequestBuckets.empty();
+    } catch (e) {
+      rateLimit.recordFailure(
+        _Bucket.requests,
+        UnknownFailure(cause: e, parse: true),
+      );
       return const _ClientRequestBuckets.empty();
     }
   }
@@ -611,9 +650,10 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // A throttled probe degrades to the payload count (null) — but RECORD the
       // 429 so the home load reports `rateLimited` and the cubit backs off
       // instead of hammering the throttled offers endpoint every poll tick.
-      rateLimit.record(e, primary: false);
+      rateLimit.record(e, primary: false, bucket: _Bucket.probe);
       return null;
-    } catch (_) {
+    } catch (e) {
+      rateLimit.recordFailure(_Bucket.probe, AppFailure.of(e));
       return null;
     }
   }
@@ -939,6 +979,9 @@ class _ClientRequestBuckets {
   final List<ClientHomeRequest> offerStatusRequests;
 }
 
+/// The four reads a home load makes; each carries its own failure.
+enum _Bucket { requests, inProgress, recent, probe }
+
 /// Accumulates whether ANY read in a single [DioClientHomeRepository.loadSnapshot]
 /// was throttled with HTTP 429, and the longest advertised `Retry-After`.
 ///
@@ -954,6 +997,13 @@ class _ClientRequestBuckets {
 /// [transportFailures] so the throttle contract above is unchanged.
 class _LoadHealthTracker {
   bool rateLimited = false;
+
+  /// Per-bucket classified failures, so one dead read no longer erases the
+  /// buckets that loaded.
+  final Map<_Bucket, AppFailure> failures = <_Bucket, AppFailure>{};
+
+  void recordFailure(_Bucket bucket, AppFailure failure) =>
+      failures.putIfAbsent(bucket, () => failure);
 
   /// Primary reads that failed on transport with a non-429 [DioException].
   int transportFailures = 0;
@@ -974,9 +1024,12 @@ class _LoadHealthTracker {
   /// transport-failure count — they must not flip the 429-specific rate-limit
   /// signal, which each read's own catch already degrades around. Secondary
   /// reads (offer probes) pass `primary: false`: they never mean "home failed".
-  void record(DioException error, {bool primary = true}) {
+  void record(DioException error, {bool primary = true, _Bucket? bucket}) {
     if (error.response?.statusCode != 429) {
       if (primary) transportFailures++;
+      // A 429 is a THROTTLE, not a dead bucket: the pinned contract is that a
+      // rate-limited load still lands on READY.
+      if (bucket != null) recordFailure(bucket, AppFailure.of(error));
       return;
     }
     rateLimited = true;

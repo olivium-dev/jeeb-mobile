@@ -821,30 +821,27 @@ class _Illustration extends StatelessWidget {
     final bool skeleton = status == JeebEmptyStateStatus.loading;
     final Size viewBox = _viewBoxFor(variant);
 
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double width = constraints.maxWidth.isFinite
-            ? math.min(size, constraints.maxWidth)
-            : size;
-        return SizedBox(
-          width: width,
-          height: width * viewBox.height / viewBox.width,
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: SizedBox.fromSize(
-              size: viewBox,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  ...skeleton ? _skeleton() : _layers(),
-                  if (status == JeebEmptyStateStatus.error)
-                    _errorBadge(viewBox),
-                ],
-              ),
+    // Same geometry the old LayoutBuilder produced (width clamped to `size`,
+    // height from the viewBox ratio) but intrinsic-safe, so hosts may wrap the
+    // block in an IntrinsicHeight.
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: size),
+      child: AspectRatio(
+        aspectRatio: viewBox.width / viewBox.height,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: SizedBox.fromSize(
+            size: viewBox,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                ...skeleton ? _skeleton() : _layers(),
+                if (status == JeebEmptyStateStatus.error) _errorBadge(viewBox),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

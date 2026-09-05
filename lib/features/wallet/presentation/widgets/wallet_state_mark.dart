@@ -29,7 +29,7 @@ class WalletStateMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return Center(
       child: SizedBox.square(
         dimension: _disc,

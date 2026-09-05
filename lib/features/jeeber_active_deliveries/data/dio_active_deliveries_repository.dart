@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../domain/active_deliveries_repository.dart';
 import '../domain/active_delivery_summary.dart';
@@ -19,8 +20,8 @@ class DioActiveDeliveriesRepository implements ActiveDeliveriesRepository {
         queryParameters: const {'role': 'jeeber'},
       );
       return _parse(response.data ?? const <String, dynamic>{});
-    } on DioException {
-      return const <ActiveDeliverySummary>[];
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
     }
   }
 

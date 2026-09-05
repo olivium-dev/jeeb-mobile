@@ -13,7 +13,12 @@ import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -211,34 +216,37 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
                       case DeliveryReceiptStatus.loading:
                         return _ReceiptStateBlock(
                           status: JeebEmptyStateStatus.loading,
-                          headline: l10n.receiptTitle,
+                          headline: l10n.receiptLoadingHeadline,
                           identifier: 'receipt_loading',
                         );
                       case DeliveryReceiptStatus.failed:
-                        return _ReceiptStateBlock(
+                        return JeebStateHost(
                           key: const Key('receipt-load-error'),
-                          status: JeebEmptyStateStatus.error,
-                          headline: l10n.receiptTitle,
-                          body: _errorCopy(l10n, state.error),
-                          identifier: 'receipt_load_error',
-                          retryLabel: l10n.receiptRetryAction,
-                          onRetry: () =>
-                              context.read<DeliveryReceiptCubit>().refresh(),
+                          child: JeebFailureBlock(
+                            failure: receiptFailureOf(state.error),
+                            identifier: 'receipt_load_error',
+                            bodyOverride: _errorCopy(l10n, state.error),
+                            onRetry: () =>
+                                context.read<DeliveryReceiptCubit>().retry(),
+                            onExit: () => _popOrHome(context),
+                          ),
                         );
                       case DeliveryReceiptStatus.loaded:
                         final receipt = state.receipt;
                         if (receipt == null) {
-                          return _ReceiptStateBlock(
-                            status: JeebEmptyStateStatus.error,
-                            headline: l10n.receiptTitle,
-                            body: _errorCopy(
-                              l10n,
-                              DeliveryReceiptFailure.unknown,
+                          // Error before empty: a loaded-but-absent receipt is
+                          // a failed read, not an empty one.
+                          return JeebStateHost(
+                            child: JeebFailureBlock(
+                              failure: const UnknownFailure(),
+                              identifier: 'receipt_load_error',
+                              bodyOverride: _errorCopy(
+                                l10n,
+                                DeliveryReceiptFailure.unknown,
+                              ),
+                              onRetry: () =>
+                                  context.read<DeliveryReceiptCubit>().retry(),
                             ),
-                            identifier: 'receipt_load_error',
-                            retryLabel: l10n.receiptRetryAction,
-                            onRetry: () =>
-                                context.read<DeliveryReceiptCubit>().refresh(),
                           );
                         }
                         return _LoadedBody(
@@ -263,59 +271,31 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
   static String _errorCopy(
     AppLocalizations l10n,
     DeliveryReceiptFailure? failure,
-  ) {
-    switch (failure) {
-      case DeliveryReceiptFailure.network:
-        return l10n.receiptErrorNetwork;
-      case DeliveryReceiptFailure.notFound:
-        return l10n.receiptErrorNotFound;
-      case DeliveryReceiptFailure.transitionNotAllowed:
-        return l10n.receiptErrorTransition;
-      case DeliveryReceiptFailure.unknown:
-      case null:
-        return l10n.receiptErrorGeneric;
-    }
-  }
+  ) =>
+      receiptErrorCopy(l10n, failure);
+
 }
 
 /// The non-loaded states, on the one Midnight pattern family (study-notes
 /// ruling 1). Scrolls so the block survives 200% text scale on a short phone.
 class _ReceiptStateBlock extends StatelessWidget {
   const _ReceiptStateBlock({
-    super.key,
     required this.status,
     required this.headline,
     required this.identifier,
-    this.body,
-    this.retryLabel,
-    this.onRetry,
   });
 
   final JeebEmptyStateStatus status;
   final String headline;
   final String identifier;
-  final String? body;
-  final String? retryLabel;
-  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final String? label = retryLabel;
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: label == null
-              ? null
-              : JeebCtaButton.primary(
-                  label: label,
-                  expand: false,
-                  onTap: onRetry,
-                ),
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        status: status,
+        headline: headline,
+        identifier: identifier,
       ),
     );
   }
@@ -397,6 +377,20 @@ class _LoadedBody extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Spacing.medium),
+                if (state.refreshError != null) ...[
+                  JeebRefreshFailedNote(
+                    failure: receiptFailureOf(state.refreshError),
+                    identifier: 'receipt_refresh_failed',
+                    messageOverride:
+                        receiptErrorCopy(l10n, state.refreshError),
+                    onDismiss: () => context
+                        .read<DeliveryReceiptCubit>()
+                        .acknowledgeRefreshError(),
+                    onRetry: () =>
+                        context.read<DeliveryReceiptCubit>().refresh(),
+                  ),
+                  const SizedBox(height: Spacing.medium),
+                ],
                 _CashStatement(receipt: receipt),
                 // NOTE (JM-033 AC4, D11): there is intentionally NO commission
                 // / platform-fee line on this customer-facing surface. The
@@ -407,11 +401,24 @@ class _LoadedBody extends StatelessWidget {
                 if (state.confirmStatus == ReceiptConfirmStatus.failed) ...[
                   Semantics(
                     identifier: 'receipt_confirm_error',
-                    child: Text(
-                      _confirmErrorCopy(l10n, state.confirmError),
-                      textAlign: TextAlign.center,
-                      style: context.jeebText.bodySmall.copyWith(
-                        color: theme.colorScheme.error,
+                    label: _confirmErrorCopy(l10n, state.confirmError),
+                    liveRegion: true,
+                    container: true,
+                    explicitChildNodes: true,
+                    child: JeebInfoNote.error(
+                      text: _confirmErrorCopy(l10n, state.confirmError),
+                      trailing: Semantics(
+                        identifier: 'receipt_confirm_error_dismiss_cta',
+                        button: true,
+                        container: true,
+                        child: IconButton(
+                          icon: const Icon(Icons.close),
+                          color: theme.colorScheme.onErrorContainer,
+                          tooltip: l10n.actionDismiss,
+                          onPressed: () => context
+                              .read<DeliveryReceiptCubit>()
+                              .acknowledgeConfirmError(),
+                        ),
                       ),
                     ),
                   ),
@@ -501,6 +508,8 @@ class _LoadedBody extends StatelessWidget {
         return l10n.receiptErrorNetwork;
       case DeliveryReceiptFailure.transitionNotAllowed:
         return l10n.receiptErrorTransition;
+      case DeliveryReceiptFailure.forbidden:
+        return l10n.errorForbiddenBody;
       case DeliveryReceiptFailure.notFound:
       case DeliveryReceiptFailure.unknown:
       case null:
@@ -541,8 +550,9 @@ class _CashStatement extends StatelessWidget {
     final jeeberLabel = receipt.jeeberName.isNotEmpty
         ? receipt.jeeberName
         : l10n.receiptJeeberFallback;
-    final amountText = receipt.hasKnownAmount
-        ? MoneyFormat.format(receipt.cashAmount!, currency: receipt.currency)
+    final currency = receipt.currency;
+    final amountText = (receipt.hasKnownAmount && currency != null)
+        ? MoneyFormat.format(receipt.cashAmount!, currency: currency)
         : null;
     final cashText = amountText != null
         ? l10n.receiptCashToJeeber(amountText, jeeberLabel)
@@ -631,5 +641,46 @@ class _CashStatement extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The copy-family failure a [DeliveryReceiptFailure] renders as.
+AppFailure receiptFailureOf(DeliveryReceiptFailure? failure) =>
+    switch (failure) {
+      DeliveryReceiptFailure.network => const NetworkFailure(),
+      DeliveryReceiptFailure.notFound => const NotFoundFailure(),
+      DeliveryReceiptFailure.forbidden => const ForbiddenFailure(),
+      DeliveryReceiptFailure.transitionNotAllowed => const ConflictFailure(),
+      DeliveryReceiptFailure.unknown || null => const UnknownFailure(),
+    };
+
+/// The one copy map for a receipt failure — shared by the rung, the warm note
+/// and the confirm strip so three surfaces cannot drift.
+String receiptErrorCopy(
+  AppLocalizations l10n,
+  DeliveryReceiptFailure? failure,
+) {
+  switch (failure) {
+    case DeliveryReceiptFailure.network:
+      return l10n.receiptErrorNetwork;
+    case DeliveryReceiptFailure.notFound:
+      return l10n.receiptErrorNotFound;
+    case DeliveryReceiptFailure.transitionNotAllowed:
+      return l10n.receiptErrorTransition;
+    case DeliveryReceiptFailure.forbidden:
+      return l10n.errorForbiddenBody;
+    case DeliveryReceiptFailure.unknown:
+    case null:
+      return l10n.receiptErrorGeneric;
+  }
+}
+
+/// Exit that survives a deep-link root: `maybePop` is a silent no-op when this
+/// screen IS the stack, which is exactly the 404/403 case.
+void _popOrHome(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
   }
 }

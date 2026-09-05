@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../client_offers/domain/offers_repository.dart';
 import '../../../client_offers/presentation/widgets/offer_accept_sheet.dart';
@@ -15,7 +19,6 @@ import '../../domain/client_home_request.dart';
 import '../widgets/replies_card.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
-import 'dart:async';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/client_home_repository.dart';
 
@@ -94,9 +97,16 @@ class _RepliesTabState extends State<RepliesTab> {
         offer: snapshot.offers.first,
         requestId: request.id,
       );
-    } catch (_) {
+    } catch (e) {
+      // F33: a failed read is NOT "no offers" — stay on the tab.
       if (!context.mounted) return;
-      _openOfferReview(context, request);
+      showJeebErrorSnack(
+        context,
+        failure: AppFailure.of(e),
+        identifier: 'replies_accept_offers_error_snack',
+        retryLabel: AppLocalizations.of(context).actionRetry,
+        onRetry: () => unawaited(_openAcceptConfirm(context, request)),
+      );
     } finally {
       _openingAcceptSheet = false;
     }
@@ -118,8 +128,10 @@ class _RepliesContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.status == ClientHomeStatus.failed) {
+    // Error branch first: a dead bucket is never an empty tab.
+    if (state.status == ClientHomeStatus.failed || state.repliesError != null) {
       return _RepliesError(
+        failure: state.repliesError ?? state.error ?? const UnknownFailure(),
         onRetry: () => context.read<ClientHomeCubit>().load(),
       );
     }
@@ -150,32 +162,27 @@ class _RepliesLoading extends StatelessWidget {
     return JeebEmptyState(
       key: const Key('replies-loading'),
       status: JeebEmptyStateStatus.loading,
-      headline: AppLocalizations.of(context).homeEmptyTitle,
+      identifier: 'replies_loading_state',
+      headline: AppLocalizations.of(context).homeLoadingHeadline,
     );
   }
 }
 
 class _RepliesError extends StatelessWidget {
-  const _RepliesError({required this.onRetry});
+  const _RepliesError({required this.failure, required this.onRetry});
 
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return JeebEmptyState(
+    return JeebFailureBlock(
       key: const Key('replies-error'),
-      status: JeebEmptyStateStatus.error,
-      headline: l10n.homeLoadFailedTitle,
-      body: l10n.homeErrorRetry,
-      action: IntrinsicWidth(
-        child: JeebCtaButton.primary(
-          label: l10n.homeLoadFailedRetry,
-          identifier: 'replies_retry_cta',
-          expand: false,
-          onTap: onRetry,
-        ),
-      ),
+      failure: failure,
+      identifier: 'replies_error_state',
+      headlineOverride: AppLocalizations.of(context).homeRepliesLoadFailedTitle,
+      onRetry: onRetry,
+      retryIdentifier: 'replies_retry_cta',
     );
   }
 }
@@ -188,6 +195,7 @@ class _RepliesEmpty extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return JeebEmptyState(
       key: const Key('replies-empty'),
+      identifier: 'replies_empty_state',
       // Not `homeEmptyTitle`: the permanent hero prompt already asks that.
       headline: l10n.homeRepliesEmptyTitle,
       body: l10n.homeRepliesEmpty,

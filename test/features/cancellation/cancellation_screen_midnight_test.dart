@@ -266,18 +266,22 @@ void main() {
       );
     });
 
-    testWidgets('409 is the empty family: E3 street, picker and CTA gone',
-        (tester) async {
+    testWidgets('409 is the terminal family: E3 street, picker gone, and a '
+        'way ONWARD instead of a confirm', (tester) async {
       await _pump(tester, initialState: const CancellationTooLate());
 
       final empty = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
       expect(empty.variant, JeebEmptyStateVariant.street);
-      expect(empty.status, JeebEmptyStateStatus.empty);
       expect(find.byType(CancellationReasonGroup), findsNothing);
       expect(
-        find.byType(JeebCtaButton),
+        find.bySemanticsIdentifier('cancellation_submit_cta'),
         findsNothing,
         reason: 'nothing left to confirm once the delivery is moving',
+      );
+      // CANC-04: a terminal kind gets an exit, never a dead end.
+      expect(
+        find.bySemanticsIdentifier('cancellation_too_late_track_cta'),
+        findsOneWidget,
       );
     });
   });

@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../dev_seam/dev_seam.dart';
+import '../diagnostics/diag.dart';
+import '../network/app_failure.dart';
+import '../session/auth_loss_signals.dart';
 import 'language_preference_repository.dart';
 
 class LocaleCubit extends Cubit<Locale> {
@@ -25,6 +28,23 @@ class LocaleCubit extends Cubit<Locale> {
   final Locale Function() _deviceLocaleProvider;
 
   final LanguagePreferenceRepository? _remote;
+
+  final ValueNotifier<bool> _pendingPushNotifier = ValueNotifier<bool>(false);
+
+  /// LANG-01: true while a local language change has not reached the server, so
+  /// the screen can say so and [syncFromServer] will not revert it.
+  bool get hasPendingLanguagePush => _pendingPushNotifier.value;
+
+  /// The same flag as a listenable — the cubit's own state is the [Locale],
+  /// which does not change when only the push status does.
+  ValueListenable<bool> get languagePushPending => _pendingPushNotifier;
+
+  /// One auth-loss signal per cubit: the owed-push retry runs on every sync.
+  bool _signalledAuthLoss = false;
+
+  bool get _pendingPush => _pendingPushNotifier.value;
+
+  set _pendingPush(bool value) => _pendingPushNotifier.value = value;
 
   static Locale _defaultDeviceLocaleProvider() =>
       PlatformDispatcher.instance.locale;
@@ -78,15 +98,22 @@ class LocaleCubit extends Cubit<Locale> {
   Future<void> syncFromServer() async {
     final remote = _remote;
     if (remote == null) return;
+    // The server's copy is STALE while our own push is still owed; reading it
+    // here is what used to revert an offline language change.
+    if (_pendingPush) {
+      await _pushRemote(state.languageCode);
+      return;
+    }
     try {
       final code = await remote.fetch();
       if (code == null || !_isSupported(code)) return;
       if (code == state.languageCode) return;
       emit(Locale(code));
       await _prefs.setString(_kLocalePrefKey, code);
-    } on Object {
-      // Best effort: the locale already changed in memory; a failed write
-      // must not undo it.
+    } on LanguagePreferenceException catch (e) {
+      _reportLanguageFailure('language_sync_failed', e);
+    } catch (e) {
+      Diag.event('language_sync_failed', {'kind': AppFailure.of(e).kind.name});
     }
   }
 
@@ -95,8 +122,33 @@ class LocaleCubit extends Cubit<Locale> {
     if (remote == null) return;
     try {
       await remote.save(languageCode);
-    } on Object {
-      // Best effort: the remote copy is a convenience, not the source.
+      _pendingPush = false;
+    } on LanguagePreferenceException catch (e) {
+      _pendingPush = true;
+      _reportLanguageFailure('language_push_failed', e);
+    } catch (e) {
+      _pendingPush = true;
+      Diag.event('language_push_failed', {'kind': AppFailure.of(e).kind.name});
     }
+  }
+
+  /// App-scoped in production. A widget listening to [languagePushPending]
+  /// must be disposed BEFORE the cubit (tests: pump an empty tree first).
+  @override
+  Future<void> close() {
+    _pendingPushNotifier.dispose();
+    return super.close();
+  }
+
+  /// §5.10: an unauthorized preference write is a session problem, not a
+  /// language one — it belongs on the session lane, not in a silent catch.
+  void _reportLanguageFailure(String event, LanguagePreferenceException e) {
+    Diag.event(event, {'failure': e.failure.name});
+    if (e.failure != LanguagePreferenceFailure.unauthorized) return;
+    // Latched: `syncFromServer` retries the owed push on every sync, and each
+    // signal flips SessionCubit to unauthenticated.
+    if (_signalledAuthLoss) return;
+    _signalledAuthLoss = true;
+    AuthLossSignals.instance.signal(reason: AuthLossReason.sessionExpired);
   }
 }

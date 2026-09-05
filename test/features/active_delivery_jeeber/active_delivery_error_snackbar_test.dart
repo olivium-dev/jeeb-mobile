@@ -84,11 +84,8 @@ Future<void> _raise(
   ActiveDeliveryCubit cubit,
   ActiveDeliveryFailure kind,
 ) async {
-  cubit.emit(cubit.state.copyWith(
-    // The cubit's English literal — the screen must PREFER the localized copy.
-    transitionError: 'That transition is not allowed',
-    transitionErrorKind: kind,
-  ));
+  // The state carries a KIND only: there is no prose slot left to leak.
+  cubit.emit(cubit.state.copyWith(transitionErrorKind: kind));
   await tester.pump();
   await tester.pump();
 }
@@ -109,6 +106,10 @@ void main() {
     );
     // The hardcoded literal never reaches the user.
     expect(find.text('That transition is not allowed'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('active_delivery_transition_error'),
+      findsOneWidget,
+    );
     await cubit.close();
   });
 

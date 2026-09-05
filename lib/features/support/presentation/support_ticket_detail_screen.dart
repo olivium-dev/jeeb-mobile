@@ -3,15 +3,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../case_evidence/domain/case_evidence.dart';
@@ -85,18 +92,18 @@ class _SupportTicketDetailView extends StatelessWidget {
               children: [
                 JeebTopBar.back(
                   identifier: 'support_thread_back',
-                  title: _copy(context, 'Support', 'الدعم'),
+                  title: AppLocalizations.of(context).supportThreadTitle,
                 ),
                 Expanded(
                   child: BlocBuilder<SupportDetailCubit, SupportDetailState>(
                     builder: (context, state) {
                       if (state.phase == SupportDetailPhase.initial ||
                           state.phase == SupportDetailPhase.loading) {
-                        return _LoadingState();
+                        return const _LoadingState();
                       }
                       if (state.phase == SupportDetailPhase.failed &&
                           state.ticket == null) {
-                        return _FailureState(failure: state.failure);
+                        return _FailureState(state: state);
                       }
                       return _ThreadBody(
                         state: state,
@@ -115,72 +122,47 @@ class _SupportTicketDetailView extends StatelessWidget {
 }
 
 class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return JeebStateHost(
       child: JeebEmptyState(
         identifier: 'support_thread_loading',
         status: JeebEmptyStateStatus.loading,
         variant: JeebEmptyStateVariant.radar,
         medallions: const <JeebEmptyMedallion>[],
-        headline: _copy(
-          context,
-          'Loading your support conversation',
-          'جارٍ تحميل محادثة الدعم',
-        ),
+        headline: AppLocalizations.of(context).supportThreadLoadingHeadline,
       ),
     );
   }
 }
 
 class _FailureState extends StatelessWidget {
-  const _FailureState({required this.failure});
+  const _FailureState({required this.state});
 
-  final SupportFailure? failure;
+  final SupportDetailState state;
 
   @override
   Widget build(BuildContext context) {
-    final offline = failure == SupportFailure.network;
-    return Semantics(
-      liveRegion: true,
-      child: Center(
-        child: JeebEmptyState(
-          identifier: offline
-              ? 'support_thread_offline'
-              : 'support_thread_error',
-          status: JeebEmptyStateStatus.error,
-          variant: JeebEmptyStateVariant.radar,
-          medallions: const <JeebEmptyMedallion>[],
-          headline: offline
-              ? _copy(context, 'You are offline', 'أنت غير متصل')
-              : failure == SupportFailure.notFound
-              ? _copy(
-                  context,
-                  'This support ticket could not be found.',
-                  'تعذر العثور على تذكرة الدعم هذه.',
-                )
-              : _copy(
-                  context,
-                  'Could not load this support ticket.',
-                  'تعذر تحميل تذكرة الدعم هذه.',
-                ),
-          body: offline
-              ? _copy(
-                  context,
-                  'Reconnect, then try again.',
-                  'أعد الاتصال ثم حاول مرة أخرى.',
-                )
-              : null,
-          action: Semantics(
-            identifier: 'support_thread_retry_cta',
-            button: true,
-            child: JeebCtaButton.outline(
-              label: _copy(context, 'Retry', 'إعادة المحاولة'),
-              leadingIcon: Icons.refresh,
-              onTap: () => context.read<SupportDetailCubit>().refresh(),
-            ),
-          ),
-        ),
+    final l10n = AppLocalizations.of(context);
+    final AppFailure failure = state.appFailure ?? const UnknownFailure();
+    // Only a real transport gap claims "offline" (R6).
+    final offline = failure is NetworkFailure && failure.offline;
+    final notFound = state.failure == SupportFailure.notFound;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: offline ? 'support_thread_offline' : 'support_thread_error',
+        variant: JeebEmptyStateVariant.radar,
+        headlineOverride: notFound ? l10n.supportThreadNotFoundBody : null,
+        onRetry: !notFound && failure.isRetryable
+            ? () => context.read<SupportDetailCubit>().load()
+            : null,
+        onExit: () => Navigator.of(context).maybePop(),
+        exitLabel: l10n.actionBack,
+        exitIdentifier: 'support_thread_exit_cta',
+        retryIdentifier: 'support_thread_retry_cta',
       ),
     );
   }
@@ -194,13 +176,16 @@ class _ThreadBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<SupportDetailCubit>();
     final ticket = state.ticket!;
     final closed = ticket.canonicalStatus == SupportTicketStatus.closed;
+    final AppFailure? refreshError = state.refreshError;
     return Column(
       children: [
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => context.read<SupportDetailCubit>().refresh(),
+          child: JeebPullToRefresh(
+            onRefresh: cubit.refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: _detailPadding,
@@ -211,11 +196,17 @@ class _ThreadBody extends StatelessWidget {
                   JeebInfoNote.warning(
                     identifier: 'support_thread_partial_evidence',
                     icon: Icons.sync_problem,
-                    text: _copy(
-                      context,
-                      'Some attachments are unavailable. The rest of the conversation is intact.',
-                      'بعض المرفقات غير متاحة. بقية المحادثة محفوظة.',
-                    ),
+                    text: l10n.supportThreadAttachmentsDegraded,
+                  ),
+                ],
+                if (refreshError != null) ...[
+                  const SizedBox(height: Spacing.small),
+                  JeebRefreshFailedNote(
+                    failure: refreshError,
+                    identifier: 'support_thread_refresh_error',
+                    messageOverride: l10n.supportThreadRefreshFailed,
+                    onDismiss: cubit.acknowledgeRefreshError,
+                    onRetry: cubit.refresh,
                   ),
                 ],
                 if (state.phase == SupportDetailPhase.conflict) ...[
@@ -225,11 +216,7 @@ class _ThreadBody extends StatelessWidget {
                     child: JeebInfoNote.warning(
                       identifier: 'support_thread_conflict',
                       icon: Icons.sync,
-                      text: _copy(
-                        context,
-                        'This ticket changed while you were replying. Review the latest messages, then retry.',
-                        'تم تحديث التذكرة أثناء ردك. راجع أحدث الرسائل ثم أعد المحاولة.',
-                      ),
+                      text: l10n.supportThreadStaleConflict,
                     ),
                   ),
                 ] else if (state.failure != null) ...[
@@ -237,41 +224,36 @@ class _ThreadBody extends StatelessWidget {
                   Semantics(
                     liveRegion: true,
                     child: JeebInfoNote.error(
-                      identifier: state.phase == SupportDetailPhase.failed
-                          ? 'support_thread_refresh_error'
-                          : 'support_thread_send_error',
+                      identifier: 'support_thread_send_error',
                       icon: Icons.cloud_off,
-                      text: state.phase == SupportDetailPhase.failed
-                          ? _copy(
-                              context,
-                              'Could not refresh this conversation.',
-                              'تعذر تحديث هذه المحادثة.',
-                            )
-                          : _copy(
-                              context,
-                              'Your reply was not sent. Retry will not duplicate it.',
-                              'لم يتم إرسال ردك. لن تؤدي إعادة المحاولة إلى تكراره.',
-                            ),
+                      text: l10n.supportThreadReplyNotSent,
                     ),
                   ),
                 ],
                 const SizedBox(height: Spacing.large),
                 _OriginalRequest(ticket: ticket),
                 const SizedBox(height: Spacing.large),
-                JeebSectionLabel(_copy(context, 'Conversation', 'المحادثة')),
+                JeebSectionLabel(l10n.supportThreadConversationLabel),
                 const SizedBox(height: Spacing.small),
                 if (state.paginationFailure != null) ...[
                   Semantics(
                     identifier: 'support_thread_pagination_error',
                     liveRegion: true,
+                    container: true,
                     child: JeebInfoNote.error(
                       icon: Icons.cloud_off,
-                      text: _copy(
-                        context,
-                        'Could not load more messages.',
-                        'تعذر تحميل المزيد من الرسائل.',
-                      ),
+                      text: failureCopy(
+                        l10n,
+                        state.paginationAppFailure ?? const UnknownFailure(),
+                      ).body,
                     ),
+                  ),
+                  const SizedBox(height: Spacing.xSmall),
+                  JeebCtaButton.text(
+                    label: l10n.actionRetry,
+                    expand: false,
+                    identifier: 'support_thread_pagination_retry',
+                    onTap: cubit.loadMore,
                   ),
                   const SizedBox(height: Spacing.small),
                 ],
@@ -281,12 +263,8 @@ class _ThreadBody extends StatelessWidget {
                     button: true,
                     child: JeebCtaButton.outline(
                       label: state.loadingMore
-                          ? _copy(context, 'Loading messages', 'جارٍ التحميل')
-                          : _copy(
-                              context,
-                              'Load earlier messages',
-                              'تحميل الرسائل السابقة',
-                            ),
+                          ? l10n.supportThreadLoadingMessages
+                          : l10n.supportThreadLoadEarlierCta,
                       leadingIcon: Icons.history,
                       isEnabled: state.canLoadMore,
                       onTap: () =>
@@ -298,18 +276,11 @@ class _ThreadBody extends StatelessWidget {
                 if (ticket.replies.isEmpty)
                   JeebEmptyState.compact(
                     identifier: 'support_thread_empty',
+                    reason: JeebEmptyStateReason.nothingYet,
                     variant: JeebEmptyStateVariant.radar,
                     medallions: const <JeebEmptyMedallion>[],
-                    headline: _copy(
-                      context,
-                      'No replies yet',
-                      'لا توجد ردود بعد',
-                    ),
-                    body: _copy(
-                      context,
-                      'Support will reply here.',
-                      'سيرد فريق الدعم هنا.',
-                    ),
+                    headline: l10n.supportThreadEmptyTitle,
+                    body: l10n.supportThreadEmptyBody,
                   )
                 else
                   for (final reply in ticket.replies) ...[
@@ -325,11 +296,7 @@ class _ThreadBody extends StatelessWidget {
             child: JeebInfoNote.muted(
               identifier: 'support_thread_closed',
               icon: Icons.lock_outline,
-              text: _copy(
-                context,
-                'This ticket is closed. Only support administrators can close tickets.',
-                'هذه التذكرة مغلقة. يمكن لمشرفي الدعم فقط إغلاق التذاكر.',
-              ),
+              text: l10n.supportThreadClosedNote,
             ),
           )
         else
@@ -346,15 +313,12 @@ class _StatusNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final label = switch (ticket.canonicalStatus) {
-      SupportTicketStatus.pending => _copy(context, 'Pending', 'قيد المتابعة'),
-      SupportTicketStatus.fixed => _copy(context, 'Fixed', 'تم الإصلاح'),
-      SupportTicketStatus.closed => _copy(context, 'Closed', 'مغلق'),
-      SupportTicketStatus.unknown => _copy(
-        context,
-        'Status unavailable',
-        'الحالة غير متاحة',
-      ),
+      SupportTicketStatus.pending => l10n.supportThreadStatusPending,
+      SupportTicketStatus.fixed => l10n.supportThreadStatusFixed,
+      SupportTicketStatus.closed => l10n.supportThreadStatusClosed,
+      SupportTicketStatus.unknown => l10n.supportThreadStatusUnknown,
     };
     return Semantics(
       identifier: 'support_thread_status',
@@ -380,6 +344,7 @@ class _OriginalRequest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'support_thread_request',
       container: true,
@@ -387,7 +352,7 @@ class _OriginalRequest extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           JeebSectionLabel(
-            ticket.ticketNumber ?? _copy(context, 'Your request', 'طلبك'),
+            ticket.ticketNumber ?? l10n.supportThreadRequestLabel,
             hint: ticket.createdAt,
           ),
           const SizedBox(height: Spacing.small),
@@ -396,8 +361,7 @@ class _OriginalRequest extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  ticket.body ??
-                      _copy(context, 'No description', 'لا يوجد وصف'),
+                  ticket.body ?? l10n.supportThreadNoDescription,
                   style: context.jeebText.body,
                 ),
                 if (ticket.attachments.isNotEmpty) ...[
@@ -420,6 +384,7 @@ class _ReplyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'support_reply_${reply.id}',
       container: true,
@@ -435,8 +400,8 @@ class _ReplyCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     reply.isMine
-                        ? _copy(context, 'You', 'أنت')
-                        : _copy(context, 'Support', 'الدعم'),
+                        ? l10n.supportThreadAuthorYou
+                        : l10n.supportThreadAuthorSupport,
                     style: context.jeebText.cardTitle,
                   ),
                 ),
@@ -463,6 +428,7 @@ class _AttachmentChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Wrap(
       spacing: Spacing.xSmall,
       runSpacing: Spacing.xSmall,
@@ -471,8 +437,8 @@ class _AttachmentChips extends StatelessWidget {
             return JeebSelectChip(
               role: JeebChipRole.inlineAction,
               label: attachment.failed
-                  ? _copy(context, 'Attachment unavailable', 'المرفق غير متاح')
-                  : attachment.fileName ?? _copy(context, 'Attachment', 'مرفق'),
+                  ? l10n.supportThreadAttachmentUnavailable
+                  : attachment.fileName ?? l10n.supportThreadAttachmentLabel,
               selected: !attachment.failed,
               leading: Icon(
                 attachment.failed ? Icons.error_outline : Icons.attach_file,
@@ -519,6 +485,7 @@ class _ReplyComposerState extends State<_ReplyComposer> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = widget.state;
     final sending = state.phase == SupportDetailPhase.sending;
     return JeebCtaFooter.single(
@@ -530,7 +497,7 @@ class _ReplyComposerState extends State<_ReplyComposer> {
           children: [
             OmdsTextField(
               controller: _controller,
-              labelText: _copy(context, 'Reply', 'رد'),
+              labelText: l10n.supportThreadReplyLabel,
               minLines: 1,
               maxLines: 4,
               maxLength: 2000,
@@ -547,8 +514,10 @@ class _ReplyComposerState extends State<_ReplyComposer> {
                         role: JeebChipRole.inlineAction,
                         label:
                             progress?.state == CaseAttachmentUploadState.failed
-                            ? _copy(context, 'Upload failed', 'فشل الرفع')
-                            : '${_copy(context, 'Attachment', 'المرفق')} ${entry.$1 + 1}',
+                            ? l10n.supportThreadUploadFailed
+                            : l10n.supportThreadAttachmentIndexLabel(
+                                entry.$1 + 1,
+                              ),
                         selected:
                             progress?.state != CaseAttachmentUploadState.failed,
                         onTap: sending
@@ -566,11 +535,7 @@ class _ReplyComposerState extends State<_ReplyComposer> {
               Semantics(
                 identifier: 'support_reply_upload_progress',
                 liveRegion: true,
-                label: _copy(
-                  context,
-                  'Uploading attachments',
-                  'جارٍ رفع المرفقات',
-                ),
+                label: l10n.supportThreadUploadingAttachments,
                 value:
                     '${((_combinedProgress(state.uploads) ?? 0) * 100).round()}%',
                 child: LinearProgressIndicator(
@@ -585,7 +550,7 @@ class _ReplyComposerState extends State<_ReplyComposer> {
                   identifier: 'support_reply_attach',
                   button: true,
                   child: IconButton(
-                    tooltip: _copy(context, 'Attach photo', 'إرفاق صورة'),
+                    tooltip: l10n.supportThreadAttachPhoto,
                     onPressed: state.canAttach && !sending
                         ? () => _pick(context)
                         : null,
@@ -599,10 +564,10 @@ class _ReplyComposerState extends State<_ReplyComposer> {
                     button: true,
                     child: JeebCtaButton(
                       label: sending
-                          ? _copy(context, 'Sending', 'جارٍ الإرسال')
+                          ? l10n.supportThreadSending
                           : state.phase == SupportDetailPhase.conflict
-                          ? _copy(context, 'Retry reply', 'إعادة إرسال الرد')
-                          : _copy(context, 'Send reply', 'إرسال الرد'),
+                          ? l10n.supportThreadRetryReply
+                          : l10n.supportThreadSendReply,
                       leadingIcon: Icons.send,
                       isEnabled: state.canReply,
                       onTap: () =>
@@ -630,18 +595,13 @@ class _ReplyComposerState extends State<_ReplyComposer> {
       if (!context.mounted || error.failure == PhotoPickFailure.cancelled) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.failure == PhotoPickFailure.permissionDenied
-                ? AppLocalizations.of(context).voiceRecordingErrorPermission
-                : _copy(
-                    context,
-                    'Could not attach this photo.',
-                    'تعذر إرفاق هذه الصورة.',
-                  ),
-          ),
-        ),
+      final l10n = AppLocalizations.of(context);
+      showJeebErrorSnack(
+        context,
+        identifier: 'support_reply_attach_error',
+        message: error.failure == PhotoPickFailure.permissionDenied
+            ? l10n.supportPhotoPermissionDenied
+            : l10n.supportAttachmentFailed,
       );
     }
   }
@@ -652,6 +612,3 @@ class _ReplyComposerState extends State<_ReplyComposer> {
         uploads.length;
   }
 }
-
-String _copy(BuildContext context, String en, String ar) =>
-    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;

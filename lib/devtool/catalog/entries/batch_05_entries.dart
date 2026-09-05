@@ -12,9 +12,13 @@ import '../../../features/jeeber_request_detail/presentation/jeeber_request_unav
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../../features/jeeber_request_feed/presentation/request_feed_screen.dart';
+import '../../../features/kyc/application/kyc_wizard_cubit.dart';
+import '../../../features/kyc/domain/kyc_gateway.dart';
 import '../../../features/kyc/domain/kyc_submission.dart';
+import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
 import '../../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
+import '../../../core/network/app_failure.dart';
 import '../catalog_models.dart';
 import '../fixtures/kyc_rejected_screen_fixtures.dart';
 import '../fixtures/kyc_wizard_screen_fixtures.dart';
@@ -75,6 +79,14 @@ final CatalogEntry _onboardingFundingEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Wallet read failed — 5xx, kind-aware and never blames the network',
+      (_) => const OnboardingFundingScreenHost(
+        screen: OnboardingFundingScreen(
+          repository: onboardingFundingScreenServerFailingWallet,
+        ),
+      ),
+    ),
   ],
 );
 
@@ -122,6 +134,35 @@ final CatalogEntry _pendingOffersEntry = CatalogEntry(
       (_) => const JeeberPendingOffersScreen(
         jeeberId: jeeberPendingOffersScreenJeeberId,
         repository: JeeberPendingOffersScreenStalledOffers(),
+      ),
+    ),
+    CatalogState(
+      'Error — load failed, kind-aware (503)',
+      (_) => const JeeberPendingOffersScreen(
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: FailingSubmittedOffersRepository(
+          ServerFailure(status: 503),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — withdraw failed',
+      (_) => const JeeberPendingOffersScreen(
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: WithdrawFailingSubmittedOffersRepository(
+          JeeberPendingOffersScreenOffers.awaitingDecision,
+          NetworkFailure(),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Refresh failed — stale rows stay up',
+      (_) => JeeberPendingOffersScreen(
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        cubit: refreshFailedSubmittedOffersCubit(
+          JeeberPendingOffersScreenOffers.awaitingDecision,
+          const NetworkFailure(),
+        ),
       ),
     ),
   ],
@@ -214,6 +255,30 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
         onBack: () {},
       ),
     ),
+    CatalogState(
+      'Failed — transport error, retryable (LR-14)',
+      (_) => JeeberRequestDetailLoader(
+        requestId: 'req-500',
+        initial: null,
+        fetch: throwingRequestDetailFetch(const NetworkFailure(offline: true)),
+        fetchAcceptedDeliveryId: () async => null,
+        reportService: _reportService,
+        onDeclined: (_) {},
+        onBack: () {},
+      ),
+    ),
+    CatalogState(
+      'Unavailable — genuine miss (fetch returned null)',
+      (_) => JeeberRequestDetailLoader(
+        requestId: 'req-410',
+        initial: null,
+        fetch: missingRequestDetailFetch(),
+        fetchAcceptedDeliveryId: () async => null,
+        reportService: _reportService,
+        onDeclined: (_) {},
+        onBack: () {},
+      ),
+    ),
   ],
 );
 
@@ -273,8 +338,56 @@ final CatalogEntry _requestFeedEntry = CatalogEntry(
         repositoryBuilder: () => const StalledRequestFeedRepository(),
       ),
     ),
+    CatalogState(
+      'Error — server unavailable (503)',
+      (_) => _RequestFeedSeated(
+        cubitBuilder: () => RequestFeedScreenPreviewFixtures.loadFailedWith(
+          const ServerFailure(status: 503),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — rate limited (429)',
+      (_) => _RequestFeedSeated(
+        cubitBuilder: () => RequestFeedScreenPreviewFixtures.loadFailedWith(
+          const RateLimitedFailure(retryAfter: Duration(seconds: 30)),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Refresh failed — stale rows stay up',
+      (_) => _RequestFeedSeated(
+        cubitBuilder: () => RequestFeedScreenPreviewFixtures.warmFailureOverRows(
+          RequestFeedScreenPreviewFixtures.incomingFeed(),
+          const NetworkFailure(),
+        ),
+      ),
+    ),
   ],
 );
+
+/// Seats an already-emitted cubit (never `start()`ed) and closes it on dispose.
+class _RequestFeedSeated extends StatefulWidget {
+  const _RequestFeedSeated({required this.cubitBuilder});
+
+  final RequestFeedCubit Function() cubitBuilder;
+
+  @override
+  State<_RequestFeedSeated> createState() => _RequestFeedSeatedState();
+}
+
+class _RequestFeedSeatedState extends State<_RequestFeedSeated> {
+  late final RequestFeedCubit _cubit = widget.cubitBuilder();
+
+  @override
+  void dispose() {
+    _cubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RequestFeedScreen(cubit: _cubit);
+}
 
 /// Closes the cubit's Timer on dispose (BlocProvider.value doesn't).
 class _RequestFeedPreview extends StatefulWidget {
@@ -401,8 +514,37 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Status read failed',
+      (_) => _kycWizardOverGateway(KycWizardScreenThrowingStatusGateway()),
+    ),
+    CatalogState(
+      'Status stale — the background refresh failed (F26)',
+      (_) => _kycWizardOverGateway(
+        KycWizardScreenRefreshFailingGateway(
+          initial: const KycSubmission(status: KycStatus.pending),
+        ),
+        reads: 2,
+      ),
+    ),
   ],
 );
+
+/// Hydrates the wizard through the real `loadStatus()` over a scripted gateway.
+Widget _kycWizardOverGateway(KycGateway gateway, {int reads = 1}) {
+  final KycWizardCubit cubit = KycWizardCubit(
+    pickerService: StubPhotoPickerService(),
+    gateway: gateway,
+  );
+  unawaited(
+    Future<void>(() async {
+      for (int i = 0; i < reads; i++) {
+        await cubit.loadStatus();
+      }
+    }),
+  );
+  return KycWizardScreen(cubit: cubit);
+}
 
 final CatalogEntry _kycRejectedEntry = CatalogEntry(
   feature: 'kyc_rejected',
@@ -441,6 +583,10 @@ final CatalogEntry _kycRejectedEntry = CatalogEntry(
     CatalogState(
       'Status read in flight',
       (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.pending()),
+    ),
+    CatalogState(
+      'Authority read failed (classified)',
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenThrowingGateway()),
     ),
   ],
 );

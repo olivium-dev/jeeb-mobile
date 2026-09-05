@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_meter.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -192,6 +196,27 @@ class _WizardScaffold extends StatelessWidget {
         children: [bar, const Expanded(child: KycStatusView())],
       );
     }
+    if (state.error == KycWizardError.statusLoadFailed) {
+      return Column(
+        children: [
+          bar,
+          Expanded(
+            child: JeebStateHost(
+              child: JeebFailureBlock(
+                failure: state.failure ?? const UnknownFailure(),
+                identifier: 'kyc_wizard_status_error',
+                variant: kycStateVariant,
+                onRetry: () => context.read<KycWizardCubit>().loadStatus(),
+                // R6: a terminal kind hides Retry, so the wizard must still
+                // offer a way out.
+                exitLabel: l10n.actionBack,
+                onExit: () => _leaveWizard(context),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     if (state.step == KycWizardStep.schema) {
       return Column(
         children: [
@@ -212,7 +237,7 @@ class _WizardScaffold extends StatelessWidget {
             child: _BlockingErrorView(
               identifier: 'kyc_wizard_tos_error',
               headline: blocking,
-              retryLabel: l10n.kycRetry,
+              failure: state.failure,
               onRetry: () => context.read<KycWizardCubit>().submit(),
             ),
           ),
@@ -259,6 +284,7 @@ class _WizardScaffold extends StatelessWidget {
   /// snackbar. A user who cannot become a jeeber has to still be told why.
   static bool _isBlocking(KycWizardError error) =>
       error == KycWizardError.schemaLoadFailed ||
+      error == KycWizardError.statusLoadFailed ||
       error == KycWizardError.contractLoadFailed ||
       error == KycWizardError.signFailed;
 
@@ -268,13 +294,32 @@ class _WizardScaffold extends StatelessWidget {
     if (error == null) return;
     if (_isBlocking(error)) return;
     final cubit = context.read<KycWizardCubit>();
-    final message = _messageFor(l10n, error);
-    if (message != null) showOmdsSnackbar(context, message: message);
+    final message = _messageFor(l10n, error, state.failure);
+    if (message != null) {
+      showJeebErrorSnack(
+        context,
+        message: message,
+        identifier: 'kyc_wizard_error_snack',
+      );
+    }
     cubit.acknowledgeError();
   }
 
-  String? _messageFor(AppLocalizations l10n, KycWizardError error) {
+  String? _messageFor(
+    AppLocalizations l10n,
+    KycWizardError error, [
+    AppFailure? failure,
+  ]) {
+    // A classified transport failure says more than the fixed enum sentence.
+    if (failure != null &&
+        (error == KycWizardError.submitFailed ||
+            error == KycWizardError.schemaLoadFailed ||
+            error == KycWizardError.statusLoadFailed)) {
+      return failureCopy(l10n, failure).body;
+    }
     switch (error) {
+      case KycWizardError.statusLoadFailed:
+        return l10n.kycErrorStatusLoadFailed;
       case KycWizardError.pickCancelled:
         return null;
       case KycWizardError.permissionDenied:
@@ -314,21 +359,17 @@ class _SchemaLoadingView extends StatelessWidget {
       return _BlockingErrorView(
         identifier: 'kyc_wizard_schema_error',
         headline: l10n.kycErrorSchemaLoadFailed,
-        retryLabel: l10n.kycRetry,
+        failure: state.failure,
         onRetry: () => context.read<KycWizardCubit>().loadSchema(),
       );
     }
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          identifier: 'kyc_wizard_schema_loading',
-          variant: kycStateVariant,
-          medallions: kycStateMedallions,
-          status: JeebEmptyStateStatus.loading,
-          // TODO(midnight): l10n-queued `kycSchemaLoadingHeadline`. The top bar
-          // already says "Become a Jeeber", so the title cannot be repeated.
-          headline: l10n.accountStatusLoadingHeadline,
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        identifier: 'kyc_wizard_schema_loading',
+        variant: kycStateVariant,
+        medallions: kycStateMedallions,
+        reason: JeebEmptyStateReason.loading,
+        headline: l10n.kycWizardLoadingHeadline,
       ),
     );
   }
@@ -339,38 +380,29 @@ class _BlockingErrorView extends StatelessWidget {
   const _BlockingErrorView({
     required this.identifier,
     required this.headline,
-    required this.retryLabel,
     required this.onRetry,
+    this.failure,
   });
 
   final String identifier;
+
+  /// Each key carries both sentences, so it stands as the headline verbatim.
   final String headline;
-  final String retryLabel;
+
   final VoidCallback onRetry;
+
+  final AppFailure? failure;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          identifier: identifier,
-          variant: kycStateVariant,
-          medallions: kycStateMedallions,
-          status: JeebEmptyStateStatus.error,
-          // TODO(midnight): l10n-queued — each key carries both sentences, so
-          // it stands as the headline verbatim rather than being split here.
-          headline: headline,
-          action: Semantics(
-            identifier: 'kyc_wizard_retry_cta',
-            container: true,
-            button: true,
-            child: JeebCtaButton.outline(
-              label: retryLabel,
-              expand: false,
-              onTap: onRetry,
-            ),
-          ),
-        ),
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure ?? const UnknownFailure(),
+        identifier: identifier,
+        variant: kycStateVariant,
+        headlineOverride: headline,
+        retryIdentifier: 'kyc_wizard_retry_cta',
+        onRetry: onRetry,
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/display_name_repository.dart';
 
 class DioDisplayNameRepository implements DisplayNameRepository {
@@ -27,13 +28,20 @@ class DioDisplayNameRepository implements DisplayNameRepository {
       final avatarUrl = _str(
         json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl'],
       );
+      // UX-23: a partial `/v1/users/me` used to be PUT back as `''`, blanking
+      // the stored identity. An unresolved field is omitted, never emptied.
+      if (userId == null) {
+        throw const DisplayNameRepositoryException(
+          DisplayNameFailure.unauthorized,
+        );
+      }
       await _dio.put<Map<String, dynamic>>(
         path,
         data: <String, dynamic>{
-          'userId': userId ?? '',
-          'email': email ?? '',
+          'userId': userId,
+          'email': ?email,
           'username': trimmed,
-          'profilePic': avatarUrl ?? '',
+          'profilePic': ?avatarUrl,
         },
       );
     } on DioException catch (e) {
@@ -47,17 +55,12 @@ class DioDisplayNameRepository implements DisplayNameRepository {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  DisplayNameFailure _map(DioException e) {
-    final status = e.response?.statusCode;
-    if (status == 401 || status == 403) return DisplayNameFailure.unauthorized;
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return DisplayNameFailure.network;
-      default:
-        return DisplayNameFailure.unknown;
-    }
-  }
+  DisplayNameFailure _map(DioException e) => switch (AppFailure.of(e).kind) {
+    AppFailureKind.unauthorized ||
+    AppFailureKind.forbidden => DisplayNameFailure.unauthorized,
+    AppFailureKind.network ||
+    AppFailureKind.timeout => DisplayNameFailure.network,
+    AppFailureKind.server => DisplayNameFailure.serverError,
+    _ => DisplayNameFailure.unknown,
+  };
 }

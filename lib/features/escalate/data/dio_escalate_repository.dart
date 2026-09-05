@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/data/dio_case_evidence_uploader.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/escalate_repository.dart';
@@ -44,31 +45,35 @@ class DioEscalateRepository
     String? voicePath,
     EscalateEvidence evidence = EscalateEvidence.empty,
   }) {
-    final operationId = newOperationId();
-    final attachments = <UploadedCaseAttachment>[
+    // A local device path is not a CDN object ref: the drafts go through
+    // submitReport, which uploads first (ESC-07).
+    final drafts = <CaseAttachmentDraft>[
       for (final path in photoPaths.take(5))
-        UploadedCaseAttachment(
+        CaseAttachmentDraft(
           localId: path,
-          objectRef: path,
+          path: path,
           fileName: path.split('/').last,
           contentType: 'image/jpeg',
           kind: CaseAttachmentKind.photo,
         ),
       if (voicePath != null && voicePath.isNotEmpty)
-        UploadedCaseAttachment(
+        CaseAttachmentDraft(
           localId: 'voice',
-          objectRef: voicePath,
+          path: voicePath,
           fileName: voicePath.split('/').last,
           contentType: 'audio/mp4',
           kind: CaseAttachmentKind.voice,
         ),
     ];
-    return _postReport(
-      operationId: operationId,
-      deliveryId: deliveryId,
-      reason: reason,
-      comment: comment,
-      attachments: attachments,
+    return submitReport(
+      EscalateSubmission(
+        operationId: newOperationId(),
+        deliveryId: deliveryId,
+        reason: reason,
+        comment: comment,
+        evidence: evidence,
+        attachments: drafts,
+      ),
     );
   }
 
@@ -120,18 +125,19 @@ class DioEscalateRepository
         final item = await upload;
         uploaded.add(item);
       } on CaseEvidenceUploadException catch (error) {
+        // No message: the screen renders the failure kind, never repo prose.
         onProgress?.call(
           CaseAttachmentProgress(
             localId: attachment.localId,
             state: CaseAttachmentUploadState.failed,
-            message: error.message,
           ),
         );
-        throw EscalateException(
+        throw EscalateException.classified(
           error.offline
               ? EscalateErrorKind.network
               : EscalateErrorKind.evidenceUpload,
-          error,
+          cause: error,
+          failure: error.appFailure,
         );
       } finally {
         _uploadsInFlight.remove(cacheKey);
@@ -173,9 +179,17 @@ class DioEscalateRepository
       if (e.response?.statusCode == 409 && existingId != null) {
         return EscalateResult(caseId: existingId, status: 'pending');
       }
-      throw EscalateException(_mapDioError(e), e);
+      throw EscalateException.classified(
+        _mapDioError(e),
+        cause: e,
+        failure: AppFailure.of(e),
+      );
     } on IOException catch (e) {
-      throw EscalateException(EscalateErrorKind.network, e);
+      throw EscalateException.classified(
+        EscalateErrorKind.network,
+        cause: e,
+        failure: NetworkFailure(cause: e),
+      );
     }
   }
 

@@ -3801,4 +3801,29 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('savedAddressesComingSoonBody');
   String get dmOnboardingPhotoUploadFailed =>
       _get('dmOnboardingPhotoUploadFailed');
+
+  // Stage 2 · WP-7 stand-in swaps + dispute_status facade accessors
+  String get reviewsLoadingHeadline => _get('reviewsLoadingHeadline');
+  String get disputeStatusStatusUnavailable =>
+      _get('disputeStatusStatusUnavailable');
+  String get disputeStatusReasonDamaged => _get('disputeStatusReasonDamaged');
+  String get disputeStatusReasonWrongItem =>
+      _get('disputeStatusReasonWrongItem');
+  String get disputeStatusReasonNoShow => _get('disputeStatusReasonNoShow');
+  String get disputeStatusReasonFraud => _get('disputeStatusReasonFraud');
+  String get disputeStatusReasonAbuse => _get('disputeStatusReasonAbuse');
+  String get disputeStatusReasonOther => _get('disputeStatusReasonOther');
+  String get disputeStatusReasonUnspecified =>
+      _get('disputeStatusReasonUnspecified');
+  String get disputeStatusChatAttached => _get('disputeStatusChatAttached');
+  String disputeStatusPhotosAttached(int count) =>
+      _cldrPlural('disputeStatusPhotosAttached', count);
+  String disputeStatusChatAttachedCount(int count) =>
+      _get('disputeStatusChatAttachedCount').replaceFirst('{count}', '$count');
+  String disputeStatusTimelineAttached(int count) =>
+      _get('disputeStatusTimelineAttached').replaceFirst('{count}', '$count');
+  String reviewsAggregate(String score, int count) =>
+      _get('reviewsAggregate')
+          .replaceFirst('{score}', score)
+          .replaceFirst('{count}', '$count');
 }

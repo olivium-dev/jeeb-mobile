@@ -211,6 +211,16 @@ void main() {
         );
         expect(find.text('Couldn\'t load this chat'), findsOneWidget);
         expect(find.text('Try again'), findsOneWidget);
+        // By identifier, not by copy: the ids are what Maestro and the
+        // screen reader address, and what a copy change must not break.
+        expect(
+          find.bySemanticsIdentifier('chat_resolution_error'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+          findsOneWidget,
+        );
 
         // 2. THE LAUNDERING IS GONE. Not one word of the broadcasting copy.
         expect(

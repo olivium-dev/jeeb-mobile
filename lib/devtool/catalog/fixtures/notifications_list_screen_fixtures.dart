@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/notifications/domain/notifications_repository.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,13 +51,20 @@ class NotificationsListScreenFailingRepository
     implements NotificationsRepository {
   const NotificationsListScreenFailingRepository({
     this.failure = NotificationsFailure.network,
+    this.appFailure,
   });
 
   final NotificationsFailure failure;
 
+  /// The classified failure the screen renders through.
+  final AppFailure? appFailure;
+
   @override
   Future<List<NotificationItem>> fetchNotifications() async {
-    throw NotificationsRepositoryException(failure);
+    throw NotificationsRepositoryException.classified(
+      failure,
+      appFailure: appFailure ?? const UnknownFailure(),
+    );
   }
 
   @override
@@ -70,6 +78,48 @@ class NotificationsListScreenFailingRepository
 /// The casts and the repositories behind every mocked state of
 /// `NotificationsListScreen`.
 /// The screen takes a REPOSITORY, not a state — it builds its own
+/// NOTIF-02: the remote leg failed, so the inbox on screen is a LOCAL subset —
+/// the `notifications_cached_note` state.
+class NotificationsListScreenDegradedRepository
+    implements NotificationsRepository, DegradableNotificationsRepository {
+  NotificationsListScreenDegradedRepository(this.items);
+
+  final List<NotificationItem> items;
+
+  @override
+  Future<NotificationsSnapshot> fetchSnapshot() async => (
+    items: List<NotificationItem>.unmodifiable(items),
+    degraded: true,
+    failure: const NetworkFailure(offline: true),
+  );
+
+  @override
+  Future<List<NotificationItem>> fetchNotifications() async =>
+      List<NotificationItem>.unmodifiable(items);
+
+  @override
+  Future<void> markRead(String id) async {}
+}
+
+/// NOTIF-03: the PATCH fails, so the optimistic read flip is rolled back.
+class NotificationsListScreenMarkReadFailingRepository
+    implements NotificationsRepository {
+  NotificationsListScreenMarkReadFailingRepository(this.items);
+
+  final List<NotificationItem> items;
+
+  @override
+  Future<List<NotificationItem>> fetchNotifications() async =>
+      List<NotificationItem>.unmodifiable(items);
+
+  @override
+  Future<void> markRead(String id) async =>
+      throw const NotificationsRepositoryException.classified(
+        NotificationsFailure.network,
+        appFailure: NetworkFailure(offline: true),
+      );
+}
+
 class NotificationsListScreenPreviewFixtures {
   const NotificationsListScreenPreviewFixtures._();
 
@@ -104,62 +154,64 @@ class NotificationsListScreenPreviewFixtures {
   /// Catalog "Populated": three rows spanning three D84 dispatch classes, one
   /// of them already read.
   static List<NotificationItem> get inbox => <NotificationItem>[
-        row(
-          id: 'n-1',
-          kind: NotificationKind.offer,
-          title: 'New offer received',
-          body: 'A jeeber offered to deliver your package for 12.50 USD',
-          age: const Duration(minutes: 12),
-        ),
-        row(
-          id: 'n-2',
-          kind: NotificationKind.status,
-          title: 'Order picked up',
-          body: 'Your order is on its way to Verdun, Beirut',
-          age: const Duration(hours: 2),
-          read: true,
-          ref: 'conv-1',
-        ),
-        row(
-          id: 'n-3',
-          kind: NotificationKind.lowBalance,
-          title: 'Low wallet balance',
-          body: 'Top up to keep bidding on requests',
-          age: const Duration(days: 3),
-        ),
-      ];
+    row(
+      id: 'n-1',
+      kind: NotificationKind.offer,
+      title: 'New offer received',
+      body: 'A jeeber offered to deliver your package for 12.50 USD',
+      age: const Duration(minutes: 12),
+    ),
+    row(
+      id: 'n-2',
+      kind: NotificationKind.status,
+      title: 'Order picked up',
+      body: 'Your order is on its way to Verdun, Beirut',
+      age: const Duration(hours: 2),
+      read: true,
+      ref: 'conv-1',
+    ),
+    row(
+      id: 'n-3',
+      kind: NotificationKind.lowBalance,
+      title: 'Low wallet balance',
+      body: 'Top up to keep bidding on requests',
+      age: const Duration(days: 3),
+    ),
+  ];
 
   /// The layout ceiling and the two degenerate payloads, in one list.
   /// Nothing on a row clamps — neither the title nor the body sets `maxLines` —
   static List<NotificationItem> get longestContent => <NotificationItem>[
-        row(
-          id: 'n-long',
-          kind: NotificationKind.offerAccepted,
-          title: 'Abdulrahman Al-Muhandis accepted your offer and is on the '
-              'way to the pickup point',
-          body: 'He will call when he reaches Hamra Street, Beirut — building '
-              '42, third floor. Please have the package sealed and ready to '
-              'hand over.',
-          age: const Duration(minutes: 5),
-          ref: 'conv-91',
-        ),
-        row(
-          id: 'n-bg',
-          kind: NotificationKind.newRequest,
-          title: '',
-          body: '',
-          age: const Duration(hours: 1),
-          ref: 'req-42',
-        ),
-        const NotificationItem(
-          id: 'n-unknown',
-          kind: NotificationKind.unknown,
-          title: '',
-          body: '',
-          timestamp: '',
-          read: false,
-        ),
-      ];
+    row(
+      id: 'n-long',
+      kind: NotificationKind.offerAccepted,
+      title:
+          'Abdulrahman Al-Muhandis accepted your offer and is on the '
+          'way to the pickup point',
+      body:
+          'He will call when he reaches Hamra Street, Beirut — building '
+          '42, third floor. Please have the package sealed and ready to '
+          'hand over.',
+      age: const Duration(minutes: 5),
+      ref: 'conv-91',
+    ),
+    row(
+      id: 'n-bg',
+      kind: NotificationKind.newRequest,
+      title: '',
+      body: '',
+      age: const Duration(hours: 1),
+      ref: 'req-42',
+    ),
+    const NotificationItem(
+      id: 'n-unknown',
+      kind: NotificationKind.unknown,
+      title: '',
+      body: '',
+      timestamp: '',
+      read: false,
+    ),
+  ];
 
   // ───────────────────────────── the states ───────────────────────────────
 
@@ -190,6 +242,47 @@ class NotificationsListScreenPreviewFixtures {
 
   /// The layout ceiling plus the two degenerate payloads — see
   /// [longestContent].
+  /// NOTIF-02: a degraded read — the local subset plus the cached note.
+  static NotificationsRepository degradedInbox() =>
+      NotificationsListScreenDegradedRepository(inbox);
+
+  /// NOTIF-03: the mark-read PATCH fails and the flip is reverted.
+  static NotificationsRepository markReadFailure() =>
+      NotificationsListScreenMarkReadFailingRepository(inbox);
+
+  /// NOTIF-04: every row is ref-less, so each tap says it cannot open.
+  static NotificationsRepository refLessInbox() =>
+      NotificationsListScreenSeededRepository(<NotificationItem>[
+        row(
+          id: 'notif-refless-1',
+          kind: NotificationKind.status,
+          title: 'Order updated',
+          body: 'Your order moved on.',
+          age: const Duration(minutes: 4),
+        ),
+        row(
+          id: 'notif-refless-2',
+          kind: NotificationKind.confirmReceipt,
+          title: 'Confirm receipt',
+          body: 'Tell us the parcel arrived.',
+          age: const Duration(hours: 2),
+        ),
+        row(
+          id: 'notif-refless-3',
+          kind: NotificationKind.dispute,
+          title: 'Dispute update',
+          body: 'Support replied to your case.',
+          age: const Duration(hours: 5),
+        ),
+        row(
+          id: 'notif-refless-4',
+          kind: NotificationKind.unknown,
+          title: 'Jeeb',
+          body: 'Something happened.',
+          age: const Duration(days: 1),
+        ),
+      ]);
+
   static NotificationsRepository longestContentInbox() =>
       NotificationsListScreenSeededRepository(longestContent);
 }

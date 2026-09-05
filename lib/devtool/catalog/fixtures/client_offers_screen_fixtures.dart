@@ -104,6 +104,47 @@ class ColdOkThenFailingOffersRepository implements OffersRepository {
   }
 }
 
+/// Every read throws 429 forever — CO-01's retry cap must end in `failed`,
+/// not leave the screen in `loading` for ever.
+class AlwaysRateLimitedOffersRepository implements OffersRepository {
+  const AlwaysRateLimitedOffersRepository();
+
+  static const OffersRepositoryException _throttled =
+      OffersRepositoryException(
+    OffersFailure.rateLimited,
+    'rate limited',
+    Duration(seconds: 1),
+  );
+
+  @override
+  Future<OffersSnapshot> fetchOffers(String requestId) async => throw _throttled;
+
+  @override
+  Future<OfferAcceptResult> acceptOffer({
+    required String requestId,
+    required String offerId,
+  }) async =>
+      throw _throttled;
+}
+
+/// The list loads; the ACCEPT throws one specific gateway 409 suffix.
+class AcceptConflictOffersRepository implements OffersRepository {
+  AcceptConflictOffersRepository({required this.cold, required this.failure});
+
+  final OffersSnapshot cold;
+  final OffersFailure failure;
+
+  @override
+  Future<OffersSnapshot> fetchOffers(String requestId) async => cold;
+
+  @override
+  Future<OfferAcceptResult> acceptOffer({
+    required String requestId,
+    required String offerId,
+  }) async =>
+      throw OffersRepositoryException(failure);
+}
+
 /// A read that never resolves, freezing the screen on
 /// [OffersScreenStatus.loading] for as long as the host is open.
 /// A [Completer] that is never completed holds no timer and no subscription; it
@@ -363,6 +404,32 @@ class ClientOffersScreenPreviewFixtures {
           windowExpiresAt: clock.add(const Duration(minutes: 2)),
           requestIsOpen: true,
         ),
+      );
+
+  /// CO-01: a permanent 429 must hit the retry cap and become a real failure.
+  static OffersRepository alwaysRateLimitedRepository() =>
+      const AlwaysRateLimitedOffersRepository();
+
+  /// AE-07: the accept lands on `request-expired`, not `offer-not-pending`.
+  static OffersRepository requestExpiredAcceptRepository() =>
+      AcceptConflictOffersRepository(
+        cold: OffersSnapshot(
+          offers: threeBids,
+          windowExpiresAt: clock.add(const Duration(minutes: 2)),
+          requestIsOpen: true,
+        ),
+        failure: OffersFailure.requestExpired,
+      );
+
+  /// AE-08: `offer-jeeber-insufficient-balance` gets its own line.
+  static OffersRepository walletShortAcceptRepository() =>
+      AcceptConflictOffersRepository(
+        cold: OffersSnapshot(
+          offers: threeBids,
+          windowExpiresAt: clock.add(const Duration(minutes: 2)),
+          requestIsOpen: true,
+        ),
+        failure: OffersFailure.jeeberWalletShort,
       );
 
   /// The layout ceiling, on the 24 h window the gateway falls back to when a

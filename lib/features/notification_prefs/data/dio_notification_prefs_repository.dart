@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/notification_prefs_model.dart';
 import '../domain/notification_prefs_repository.dart';
 
@@ -17,7 +18,12 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
       final res = await _dio.get<Map<String, dynamic>>(_path);
       return _parse(res.data ?? const {});
     } on DioException catch (e) {
-      throw NotificationPrefsRepositoryException(_map(e), e.message);
+      final AppFailure failure = AppFailure.of(e);
+      throw NotificationPrefsRepositoryException(
+        _map(failure),
+        'fetch',
+        failure,
+      );
     }
   }
 
@@ -36,7 +42,12 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
       );
       return _parse(res.data ?? const {});
     } on DioException catch (e) {
-      throw NotificationPrefsRepositoryException(_map(e), e.message);
+      final AppFailure failure = AppFailure.of(e);
+      throw NotificationPrefsRepositoryException(
+        _map(failure),
+        'save',
+        failure,
+      );
     }
   }
 
@@ -63,8 +74,13 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
 
     // Legacy mock shape: `{ push, topics:{} }`.
     final rawTopics = json['topics'];
-    final topics =
-        rawTopics is Map<String, dynamic> ? rawTopics : const <String, dynamic>{};
+    if (rawTopics is! Map<String, dynamic>) {
+      throw const NotificationPrefsRepositoryException(
+        NotificationPrefsFailure.malformed,
+        'no_preferences_object',
+      );
+    }
+    final topics = rawTopics;
     final push = json['push'];
     return NotificationPrefs(
       categories: NotificationCategoryPrefs.fromTopicsJson(topics),
@@ -73,13 +89,13 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
     );
   }
 
-  NotificationPrefsFailure _map(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      return NotificationPrefsFailure.network;
-    }
-    return NotificationPrefsFailure.unknown;
-  }
+  static NotificationPrefsFailure _map(AppFailure failure) =>
+      switch (failure.kind) {
+        AppFailureKind.network ||
+        AppFailureKind.timeout => NotificationPrefsFailure.network,
+        AppFailureKind.unauthorized ||
+        AppFailureKind.forbidden => NotificationPrefsFailure.unauthorized,
+        AppFailureKind.server => NotificationPrefsFailure.serverError,
+        _ => NotificationPrefsFailure.unknown,
+      };
 }

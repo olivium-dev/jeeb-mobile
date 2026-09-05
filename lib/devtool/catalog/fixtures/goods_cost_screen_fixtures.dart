@@ -45,9 +45,23 @@ abstract final class GoodsCostScreenPreviewFixtures {
       FakeGoodsCostRepository(currency: 'LBP');
 
   /// The best-effort currency read failed. Non-blocking by design: the label
-  /// degrades to the neutral `Goods cost` and the Jeeber can still submit.
+  /// degrades to the neutral `Goods cost`, and the Jeeber is now TOLD the unit
+  /// is unknown and given an inline retry (LR-29).
   static GoodsCostRepository currencyUnavailable() =>
       FakeGoodsCostRepository(fetchFailure: GoodsCostFailure.network);
+
+  /// The delivery carried no currency at all — the gateway answered 200 with
+  /// no `currency` member, which is now a failure rather than a fabricated USD.
+  static GoodsCostRepository currencyAbsent() => FakeGoodsCostRepository(
+        fetchFailure: GoodsCostFailure.currencyUnavailable,
+      );
+
+  /// Loads `USD` fine; the record's 201 carries no amount, so the screen must
+  /// not report a confirmation the server never gave.
+  static GoodsCostRepository amountUnconfirmed() => FakeGoodsCostRepository(
+        currency: 'USD',
+        recordFailure: GoodsCostFailure.unknown,
+      );
 
   /// The currency read is still in flight — every mount's first frame, and
   /// visually identical to [currencyUnavailable].

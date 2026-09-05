@@ -63,7 +63,9 @@ void main() {
           'request below or record a shorter clip.',
       'Failed · generic, no retry':
           'Something went wrong. Type your request below or retry.',
-      'Failed · unclassified': 'Retry',
+      // TRANS-03: the CTA re-records; labelling it "Retry" promised a
+      // re-transcribe and silently discarded the recording.
+      'Failed · unclassified': 'Re-record',
     },
   );
 
@@ -165,7 +167,7 @@ void main() {
       expect(iconX, greaterThan(titleX));
     });
 
-    testWidgets('Arabic localizes the Retry label too', (
+    testWidgets('Arabic localizes the Re-record label too', (
       WidgetTester tester,
     ) async {
       await pumpPreview(
@@ -174,8 +176,9 @@ void main() {
         locale: const Locale('ar'),
       );
 
-      expect(find.text('إعادة المحاولة'), findsOneWidget);
-      expect(find.text('Retry'), findsNothing);
+      expect(find.text('إعادة التسجيل'), findsOneWidget);
+      expect(find.text('Re-record'), findsNothing);
+      // The identifier is frozen (asserted elsewhere); only the LABEL moved.
       expect(_byIdentifier(TranscriptionKeys.retryButton), findsOneWidget);
     });
 
@@ -239,7 +242,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('the Arabic Retry label no longer overflows its button', (
+    testWidgets('the Arabic Re-record label no longer overflows its button', (
       WidgetTester tester,
     ) async {
       // Was a pinned RenderFlex overflow: `OMDSOutlinedButton` fixed its own
@@ -254,7 +257,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(_byIdentifier(TranscriptionKeys.retryButton), findsOneWidget);
-      expect(find.text('إعادة المحاولة'), findsOneWidget);
+      expect(find.text('إعادة التسجيل'), findsOneWidget);
     });
   });
 }

@@ -111,7 +111,9 @@ void main() {
     final profile = await _repository(adapter).fetchProfile();
 
     expect(profile.name, 'Karim');
-    expect(profile.rating, 4.4);
-    expect(profile.ratingCount, 7);
+    // UX-33: a review-service outage clears the rating and says so, rather
+    // than presenting a stale identity rating as live.
+    expect(profile.ratingUnavailable, isTrue);
+    expect(profile.rating, isNull);
   });
 }

@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../domain/waiting_repository.dart';
 import '../domain/waiting_request.dart';
@@ -24,18 +26,27 @@ class DioWaitingRepository implements WaitingRepository {
   @override
   Future<WaitingRequest> fetchWaiting(String requestId) async {
     final request = await _fetchRequestJson(requestId);
-    final offerCount = await fetchOfferCount(
+    final rowCount = request['offersCount'] is num
+        ? (request['offersCount'] as num).toInt()
+        : null;
+    final probed = await fetchOfferCount(requestId);
+    // Known when EITHER source answered; unknown only when both are silent.
+    // A fabricated zero is never presented as a count.
+    return _parse(
       requestId,
-      fallback: (request['offersCount'] as num?)?.toInt() ?? 0,
+      request,
+      probed ?? rowCount ?? 0,
+      probed: probed != null || rowCount != null,
     );
-    return _parse(requestId, request, offerCount);
   }
 
   @override
   Future<WaitingRequest> fetchRequest(String requestId) async {
     final request = await _fetchRequestJson(requestId);
-    final rowOfferCount = (request['offersCount'] as num?)?.toInt() ?? 0;
-    return _parse(requestId, request, rowOfferCount);
+    final rowCount = request['offersCount'] is num
+        ? (request['offersCount'] as num).toInt()
+        : null;
+    return _parse(requestId, request, rowCount ?? 0, probed: rowCount != null);
   }
 
   Future<Map<String, dynamic>> _fetchRequestJson(String requestId) async {
@@ -50,7 +61,7 @@ class DioWaitingRepository implements WaitingRepository {
   }
 
   @override
-  Future<int> fetchOfferCount(String requestId, {int fallback = 0}) async {
+  Future<int?> fetchOfferCount(String requestId) async {
     try {
       final response = await _coalescer.get(
         _offersPath,
@@ -72,18 +83,22 @@ class DioWaitingRepository implements WaitingRepository {
         final status = o['status'] as String?;
         return status != 'withdrawn';
       }).length;
-    } on DioException {
-      return fallback;
+    } on DioException catch (e) {
+      Diag.event('waiting_offer_count_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
+      return null;
     } catch (_) {
-      return fallback;
+      return null;
     }
   }
 
   WaitingRequest _parse(
     String requestId,
     Map<String, dynamic> json,
-    int offerCount,
-  ) {
+    int offerCount, {
+    required bool probed,
+  }) {
     final status = json['status'] as String?;
     final notified = (json['notifiedCount'] as num?)?.toInt() ?? 0;
     final phase = _phaseFor(status, offerCount);
@@ -97,6 +112,7 @@ class DioWaitingRepository implements WaitingRepository {
       displayId: json['displayId'] as String?,
       tier: json['tier'] as String?,
       title: json['title'] as String? ?? json['description'] as String?,
+      offerCountIsProbed: probed,
     );
   }
 
@@ -161,16 +177,16 @@ class DioWaitingRepository implements WaitingRepository {
       p == WaitingRequestPhase.offersArrived;
 
   Never _rethrowRequest(DioException e) {
-    final status = e.response?.statusCode;
-    if (status == 404) {
+    if (e.response?.statusCode == 404) {
       throw const WaitingException(WaitingFailure.notFound);
     }
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      throw const WaitingException(WaitingFailure.network);
-    }
-    throw const WaitingException(WaitingFailure.unknown);
+    final AppFailure f = AppFailure.of(e);
+    throw WaitingException(
+      f is NetworkFailure || f is TimeoutFailure
+          ? WaitingFailure.network
+          : WaitingFailure.unknown,
+      null,
+      f,
+    );
   }
 }

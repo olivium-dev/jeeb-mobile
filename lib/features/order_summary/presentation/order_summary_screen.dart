@@ -4,10 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/order_summary_cubit.dart';
 import '../application/order_summary_state.dart';
@@ -127,7 +132,7 @@ class _OrderSummaryView extends StatelessWidget {
       case OrderSummaryStatus.loading:
         return _StateBlock(
           status: JeebEmptyStateStatus.loading,
-          headline: l10n.title,
+          headline: l10n.loadingHeadline,
           identifier: 'order_summary_loading',
         );
       case OrderSummaryStatus.failed:
@@ -135,10 +140,36 @@ class _OrderSummaryView extends StatelessWidget {
       case OrderSummaryStatus.loaded:
         final OrderSummary? summary = state.summary;
         if (summary == null) return _notFound(l10n);
-        return SingleChildScrollView(
-          // The ticket owns the 24 gutter and R12's 18 top gap; the docked
-          // footer owns the bottom.
-          child: OrderSummaryPinned(summary: summary),
+        return JeebPullToRefresh(
+          onRefresh: () => context.read<OrderSummaryCubit>().refresh(),
+          child: SingleChildScrollView(
+            // The ticket owns the 24 gutter and R12's 18 top gap; the docked
+            // footer owns the bottom.
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (state.refreshError != null)
+                  JeebRefreshFailedNote(
+                    failure: orderSummaryFailureOf(state.refreshError),
+                    identifier: 'order_summary_refresh_failed',
+                    messageOverride: l10n.refreshFailedBody,
+                    onDismiss: () => context
+                        .read<OrderSummaryCubit>()
+                        .acknowledgeRefreshError(),
+                    onRetry: () =>
+                        context.read<OrderSummaryCubit>().refresh(),
+                  ),
+                if (summary.partialSections.isNotEmpty)
+                  JeebInfoNote.muted(
+                    identifier: 'order_summary_partial',
+                    icon: Icons.info_outline,
+                    text: l10n.partialLoadBody,
+                  ),
+                OrderSummaryPinned(summary: summary),
+              ],
+            ),
+          ),
         );
     }
   }
@@ -157,18 +188,21 @@ class _OrderSummaryView extends StatelessWidget {
     OrderSummaryL10n l10n,
     OrderSummaryFailure? failure,
   ) {
-    if (failure == OrderSummaryFailure.notFound) return _notFound(l10n);
-    return _StateBlock(
-      status: JeebEmptyStateStatus.error,
-      headline: l10n.errorTitle,
-      body: failure == OrderSummaryFailure.network
-          ? l10n.errorNetworkBody
-          : l10n.errorServerBody,
-      identifier: 'order_summary_error',
-      action: JeebCtaButton.primary(
-        label: l10n.retryLabel,
-        identifier: 'order_summary_retry_cta',
-        onTap: () => context.read<OrderSummaryCubit>().refresh(),
+    // A 404 read is still a FAILURE, not an empty list: it takes the error
+    // rung with an exit, never a Retry that cannot succeed.
+    final bool notFound = failure == OrderSummaryFailure.notFound;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: orderSummaryFailureOf(failure),
+        identifier: 'order_summary_error',
+        headlineOverride: notFound ? l10n.notFoundTitle : l10n.errorTitle,
+        bodyOverride: switch (failure) {
+          OrderSummaryFailure.network => l10n.errorNetworkBody,
+          OrderSummaryFailure.notFound => l10n.notFoundBody,
+          _ => null,
+        },
+        onRetry: () => context.read<OrderSummaryCubit>().retry(),
+        onExit: () => _popOrHome(context),
       ),
     );
   }
@@ -179,16 +213,14 @@ class _OrderSummaryView extends StatelessWidget {
       OrderSummaryPinned.ctaFooter(
         context,
         padding: JeebCtaFooter.docked,
-        onOpenChat: () => context.pushNamed(
-          'chat-detail',
-          pathParameters: {
-            'id': summary.conversationId.isNotEmpty
-                ? summary.conversationId
-                : (summary.requestId.isNotEmpty
-                    ? summary.requestId
-                    : summary.deliveryId),
-          },
-        ),
+        // No conversation id means no chat to open: guessing at requestId /
+        // deliveryId opened a thread that does not exist.
+        onOpenChat: summary.conversationId == null
+            ? null
+            : () => context.pushNamed(
+                  'chat-detail',
+                  pathParameters: {'id': summary.conversationId!},
+                ),
         onTrack: () => context.pushNamed(
           'live-tracking',
           pathParameters: {'id': summary.deliveryId},
@@ -204,31 +236,45 @@ class _StateBlock extends StatelessWidget {
     required this.headline,
     required this.identifier,
     this.body,
-    this.action,
   });
 
   final JeebEmptyStateStatus status;
   final String headline;
   final String identifier;
   final String? body;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          variant: JeebEmptyStateVariant.parcel,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: action,
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        status: status,
+        variant: JeebEmptyStateVariant.parcel,
+        headline: headline,
+        body: body,
+        identifier: identifier,
       ),
     );
   }
 }
+
+/// The copy-family failure an [OrderSummaryFailure] renders as.
+AppFailure orderSummaryFailureOf(OrderSummaryFailure? failure) =>
+    switch (failure) {
+      OrderSummaryFailure.network => const NetworkFailure(),
+      OrderSummaryFailure.notFound => const NotFoundFailure(),
+      OrderSummaryFailure.forbidden => const ForbiddenFailure(),
+      OrderSummaryFailure.unknown || null => const UnknownFailure(),
+    };
+/// Exit that survives a deep-link root: `maybePop` is a silent no-op when this
+/// screen IS the stack, which is exactly the 404/403 case.
+void _popOrHome(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
+  }
+}
+
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 

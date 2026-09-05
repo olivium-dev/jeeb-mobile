@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_statement.dart';
 
@@ -18,8 +17,15 @@ class DioSettlementRepository implements SettlementRepository {
     try {
       final response = await _dio.get<dynamic>(_listPath);
       return _parseList(response.data);
+    } on SettlementException {
+      rethrow;
     } on DioException catch (e) {
-      throw _mapError(e);
+      throw _map(AppFailure.of(e));
+    } catch (e) {
+      throw SettlementException(
+        SettlementFailure.server,
+        cause: AppFailure.of(e),
+      );
     }
   }
 
@@ -36,36 +42,50 @@ class DioSettlementRepository implements SettlementRepository {
       );
       return localPath;
     } on DioException catch (e) {
-      throw _mapError(e);
-    } on FileSystemException {
-      throw const SettlementException(SettlementFailure.fileWrite);
+      throw _map(AppFailure.of(e));
+    } catch (e) {
+      // `getTemporaryDirectory()` raises MissingPluginException on a host with
+      // no path_provider, and a write raises FileSystemException (SET-01).
+      throw SettlementException(
+        SettlementFailure.fileWrite,
+        cause: AppFailure.of(e),
+      );
     }
   }
 
+  /// `fromJson` casts with `as`, so a wrong-typed field raises a TypeError that
+  /// used to escape every catch and pin the cubit on `loading` (SET-01).
   List<SettlementStatement> _parseList(dynamic data) {
-    final items = data is List
+    final Object? items = data is List
         ? data
-        : (data is Map<String, dynamic>
-            ? (data['statements'] as List<dynamic>? ?? [])
-            : <dynamic>[]);
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(SettlementStatement.fromJson)
-        .toList(growable: false);
+        : (data is Map<String, dynamic> ? data['statements'] : null);
+    // A body with no `statements` list is not "no statements" (§7-13a).
+    if (items is! List) {
+      throw const SettlementException(
+        SettlementFailure.parse,
+        cause: UnknownFailure(parse: true),
+      );
+    }
+    try {
+      return items
+          .whereType<Map<String, dynamic>>()
+          .map(SettlementStatement.fromJson)
+          .toList(growable: false);
+    } catch (e) {
+      throw const SettlementException(
+        SettlementFailure.parse,
+        cause: UnknownFailure(parse: true),
+      );
+    }
   }
 
-  SettlementException _mapError(DioException e) {
-    if (e.response?.statusCode == 404) {
-      return const SettlementException(SettlementFailure.notFound);
-    }
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      return const SettlementException(SettlementFailure.network);
-    }
-    return SettlementException(
-      SettlementFailure.server,
-      'HTTP ${e.response?.statusCode}',
-    );
-  }
+  SettlementException _map(AppFailure f) => switch (f) {
+    NetworkFailure() || TimeoutFailure() => SettlementException(
+      SettlementFailure.network,
+      cause: f,
+    ),
+    NotFoundFailure() ||
+    GoneFailure() => SettlementException(SettlementFailure.notFound, cause: f),
+    _ => SettlementException(SettlementFailure.server, cause: f),
+  };
 }

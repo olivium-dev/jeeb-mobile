@@ -170,11 +170,31 @@ void main() {
       }
     });
 
-    test('the pre-existing catalog-fixture crossings have not grown', () {
-      // Baseline captured from `origin/main`: twelve product screens already
-      // import their catalog fixtures. Pinned so a thirteenth is noticed, and
-      // so the test above cannot be relaxed by moving code under
+    test('the catalog-fixture crossings are the audited set', () {
+      // Baseline captured from `origin/main`: twelve product screens imported
+      // their catalog fixtures. `chat_tab.dart` is the thirteenth, admitted
+      // deliberately: previewing a screen requires pointing BOTH the catalog
+      // entry and the preview section at one fixture library, which is what
+      // `lib/core/previews/README.md` mandates. Pinned as an exact set — a
+      // count alone lets one crossing swap for another, and pinning it here is
+      // also what stops the test above from being relaxed by moving code under
       // `lib/devtool/catalog/`.
+      const Set<String> audited = <String>{
+        'lib/core/diagnostics/diagnostics_screen.dart',
+        'lib/core/previews/jeeb_preview.dart',
+        'lib/core/router/profile_unavailable_screen.dart',
+        'lib/features/chat/presentation/dev_chat_preview_screen.dart',
+        'lib/features/customer_profile/presentation/customer_profile_screen.dart',
+        'lib/features/deep_link_targets/kyc_status_screen.dart',
+        'lib/features/jeeber_home/presentation/jeeber_home_screen.dart',
+        'lib/features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart',
+        'lib/features/order_summary/presentation/order_summary_screen.dart',
+        'lib/features/settings/presentation/screens/notification_preferences_screen.dart',
+        'lib/features/settings/presentation/screens/saved_addresses_screen.dart',
+        'lib/features/shell/tabs/chat_tab.dart',
+        'lib/features/tier_selection/presentation/tier_selection_screen.dart',
+      };
+
       for (final MapEntry<String, Set<String>> entry in entrypoints.entries) {
         final Set<String> importers = _devToolEdges(entry.value)
             .where((edge) => !edge.first.startsWith('lib/devtool/'))
@@ -182,12 +202,7 @@ void main() {
             .map((edge) => edge.first)
             .toSet();
 
-        expect(importers, hasLength(12), reason: entry.key);
-        expect(
-          importers,
-          contains('lib/core/diagnostics/diagnostics_screen.dart'),
-          reason: 'positive control on a known pre-existing importer',
-        );
+        expect(importers, audited, reason: entry.key);
       }
     });
 

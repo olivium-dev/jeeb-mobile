@@ -8,6 +8,8 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_shadows.dart';
@@ -17,8 +19,12 @@ import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart';
 import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_submission_service.dart';
@@ -537,7 +543,18 @@ class _Body extends StatelessWidget {
           child: _SavedAddressesRow(onTap: () => _onOpenSaved(context)),
         ),
         const SizedBox(height: Spacing.medium),
-        if (state.status == LocationSelectStatus.failed)
+        if (state.refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: Spacing.medium),
+            child: JeebRefreshFailedNote(
+              failure: state.refreshError!,
+              identifier: 'location_select_saved_addresses_refresh_note',
+              onDismiss: () =>
+                  context.read<LocationSelectCubit>().acknowledgeError(),
+              onRetry: () => context.read<LocationSelectCubit>().refresh(),
+            ),
+          )
+        else if (state.status == LocationSelectStatus.failed)
           _SavedAddressesError(
             onRetry: () => context.read<LocationSelectCubit>().refresh(),
           ),
@@ -603,9 +620,10 @@ class _Body extends StatelessWidget {
     // instead of silently collapsing into the same no-op as a cancel.
     if (result != null && result is! LocationPoint) {
       if (context.mounted) {
-        final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(l10n.captureLocationPinFailed)),
+        showJeebErrorSnack(
+          context,
+          message: AppLocalizations.of(context).captureLocationPinFailed,
+          identifier: 'client_location_pin_failed',
         );
       }
       return;
@@ -733,8 +751,10 @@ class _SavedAddressesError extends StatelessWidget {
         illustrationSize: _illustrationSize,
         padding: EdgeInsetsDirectional.zero,
         action: JeebCtaButton.outline(
-          label: l10n.earningsLoadRetry,
+          label: l10n.actionRetry,
+          leadingIcon: Icons.refresh,
           expand: false,
+          identifier: 'location_select_saved_addresses_retry_cta',
           onTap: onRetry,
         ),
       ),
@@ -886,7 +906,6 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     // drive navigation off the GoRouter / messenger instances, not a stale
     // BuildContext.
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     final l10n = AppLocalizations.of(context);
     // B-02b: snapshot THIS route before the async gap. `mounted` alone is not
     // enough — a push (capture-location / saved-addresses / dictation) leaves
@@ -895,7 +914,11 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     final route = ModalRoute.of(context);
     widget.submitting.value = true;
     try {
-      final requestId = await controller.submitFromLocation(widget.state);
+      final requestId = await controller.submitFromLocation(
+        widget.state,
+        defaultDescription: l10n.requestDefaultDescription,
+        currentLocationLabel: l10n.requestCurrentLocationLabel,
+      );
       // B-02b: only navigate when this footer is still mounted AND its route is
       // still the current/top route (see [shouldRouteAfterCreate]). If the user
       // left the create step mid-POST (backed out → unmounted, or an overlay is
@@ -918,6 +941,10 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // `goNamed` (not push) so the now-created request cannot be re-submitted
       // by backing into this screen.
       router.goNamed('waiting-no-coverage', pathParameters: {'id': requestId});
+    } on RequestModerationRequired catch (e) {
+      debugPrint('[compose-b11] POST /requests MODERATION: $e');
+      if (!mounted || !context.mounted) return;
+      await _handleModeration(context, controller, e);
     } on RequestSubmissionException catch (e) {
       debugPrint('[compose-b11] POST /requests FAILED: $e');
       // JEBV4-108: a 401 at the create seam means the SESSION is invalid
@@ -927,26 +954,37 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // Re-auth is the phone-OTP entry (`/register`, with Apple/Google social);
       // the email/password `/login` funnel was removed in JEBV4-199.
       if (e.failure == RequestSubmissionFailure.unauthorized) {
-        messenger?.showSnackBar(
-          SnackBar(content: Text(l10n.createSessionExpired)),
-        );
+        if (mounted && context.mounted) {
+          showJeebErrorSnack(
+            context,
+            message: l10n.createSessionExpired,
+            identifier: 'client_location_session_expired',
+          );
+        }
         router.goNamed('register');
         return;
       }
-      // Stay on the location step and surface a retryable error — never hand
-      // off `'new'` (that is exactly the broken path B11 removes).
-      // P2-5 honesty: only a NETWORK failure blames connectivity; a 4xx/5xx
-      // gets the generic couldn't-create copy instead of "check your
-      // connection" misdirection.
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.failure == RequestSubmissionFailure.network
-                ? l10n.requestSummaryErrorNetwork
-                : l10n.chatCreateRequestFailed,
-          ),
-        ),
-      );
+      // Stay on the location step and surface a kind-aware retryable error —
+      // never hand off `'new'` (exactly the broken path B11 removes).
+      if (mounted && context.mounted) {
+        final AppFailure failure = e.appFailure ?? const UnknownFailure();
+        // No Retry on a terminal kind, and no re-entry through a context that
+        // may be unmounted by the time the snack action fires.
+        final bool retryable = failureCopy(l10n, failure).retryable;
+        showJeebErrorSnack(
+          context,
+          failure: failure,
+          identifier: 'client_location_submit_error',
+          retryLabel: l10n.actionRetry,
+          onRetry: retryable
+              ? () {
+                  if (mounted && context.mounted) {
+                    _createAndRoute(context, controller);
+                  }
+                }
+              : null,
+        );
+      }
     } finally {
       // Re-enable so the customer can retry after a failure. On a successful nav
       // this footer is unmounted → the mounted guard makes this a no-op, leaving
@@ -954,6 +992,40 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // because the route was no longer current, re-enabling is correct — the
       // footer is still on screen underneath the pushed route.)
       if (mounted) widget.submitting.value = false;
+    }
+  }
+
+  /// A 409 from the moderation gate: `blocked` is terminal, a needs-ack opens
+  /// the sheet and resubmits under the SAME Idempotency-Key.
+  Future<void> _handleModeration(
+    BuildContext context,
+    ComposeRequestController controller,
+    RequestModerationRequired failure,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    if (failure.blocked) {
+      showJeebErrorSnack(
+        context,
+        message: l10n.requestSubmitErrorProhibitedBlocked,
+        identifier: 'client_location_moderation_blocked',
+      );
+      return;
+    }
+    if (!sl.isRegistered<ProhibitedAcknowledgmentRepository>()) {
+      showJeebErrorSnack(
+        context,
+        message: l10n.requestSubmitErrorProhibitedNeedsAck,
+        identifier: 'client_location_moderation_needs_ack',
+      );
+      return;
+    }
+    final bool? acknowledged = await showProhibitedAcknowledgmentDialog(
+      context,
+      repository: sl<ProhibitedAcknowledgmentRepository>(),
+      matches: failure.matches,
+    );
+    if (acknowledged == true && mounted && context.mounted) {
+      await _createAndRoute(context, controller);
     }
   }
 }
@@ -1100,6 +1172,8 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
 /// a real phone-OTP user does not have to re-type their number (the requester
 /// is the default recipient). The +961 prefix is pinned; the field carries the
 /// 8 national digits, mirroring the registration phone entry.
+/// Raw [TextField]: the `+961` prefix needs `prefixIconConstraints`, which
+/// `OmdsTextField` does not expose (JEEB-55/JEEB-57, as in registration).
 class _RecipientPhoneField extends StatefulWidget {
   const _RecipientPhoneField();
 
@@ -1179,7 +1253,7 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
           identifier: 'recipient_phone_input',
           textField: true,
           label: l10n.recipientPhoneLabel,
-          child: TextField(
+          child: TextField( // EXEMPT(flutter-omds-design-system-usage): see class doc.
             key: const Key('clientLocation.recipientPhoneField'),
             controller: _controller,
             keyboardType: TextInputType.phone,

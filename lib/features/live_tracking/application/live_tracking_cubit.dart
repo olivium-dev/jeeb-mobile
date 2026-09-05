@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/courier_position_channel.dart';
 import '../domain/delivery_tracking_info.dart';
@@ -123,7 +124,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       if (code != null && !isClosed) {
         emit(state.copyWith(handoverCode: code));
       }
-    } catch (_) {
+    } catch (e) {
+      // Decorative: a missing code hides the row, it never faults the screen.
+      Diag.event('tracking.handover_code_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -136,23 +141,66 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           mode: LiveTrackingViewMode.ready,
           trackingInfo: info,
           clearError: true,
+          clearRefreshError: true,
+          lastSuccessAt: DateTime.now(),
           pendingEvent: _detectEvent(info),
         ));
         if (_isTerminal) _retireWatchers();
       }
       if (!isClosed && !_isTerminal) await _readLivePosition(cause);
     } on LiveTrackingException catch (e) {
-      if (!isClosed) {
-        if (state.trackingInfo == null) {
-          emit(state.copyWith(
-            mode: LiveTrackingViewMode.error,
-            errorMessage: _mapError(e.kind),
-            errorTitle: _mapErrorTitle(e.kind),
-          ));
-        }
+      if (isClosed) return;
+      final AppFailure failure = e.appFailure ?? _failureFor(e.kind);
+      if (state.trackingInfo == null) {
+        emit(state.copyWith(
+          mode: LiveTrackingViewMode.error,
+          failure: failure,
+          errorKind: e.kind,
+        ));
+        return;
       }
+      // Rows are already on screen: a warm failure is a note, never a rung.
+      emit(state.copyWith(
+        mode: LiveTrackingViewMode.ready,
+        refreshError: failure,
+      ));
+    } catch (e) {
+      if (isClosed) return;
+      final AppFailure failure = AppFailure.of(e);
+      if (state.trackingInfo == null) {
+        emit(state.copyWith(
+          mode: LiveTrackingViewMode.error,
+          failure: failure,
+        ));
+        return;
+      }
+      emit(state.copyWith(
+        mode: LiveTrackingViewMode.ready,
+        refreshError: failure,
+      ));
     }
   }
+
+  /// The kind→failure bridge for repositories that predate `appFailure:`.
+  static AppFailure _failureFor(LiveTrackingErrorKind kind) => switch (kind) {
+    LiveTrackingErrorKind.network => const NetworkFailure(),
+    LiveTrackingErrorKind.notFound => const NotFoundFailure(),
+    LiveTrackingErrorKind.unauthorized => const UnauthorizedFailure(),
+    LiveTrackingErrorKind.forbidden => const ForbiddenFailure(),
+    LiveTrackingErrorKind.rateLimited => const RateLimitedFailure(),
+    LiveTrackingErrorKind.server => const ServerFailure(status: 500),
+    LiveTrackingErrorKind.parse => const UnknownFailure(parse: true),
+  };
+
+  void acknowledgeRefreshError() {
+    if (isClosed) return;
+    emit(state.copyWith(clearRefreshError: true));
+  }
+
+  /// UX-11: a null read is not "no news" — three in a row means the pin the
+  /// map is drawing is stale enough to say so.
+  static const int kPositionMissesBeforeLost = 3;
+  int _consecutivePositionMisses = 0;
 
   Future<void> _readLivePosition(LivePositionReadCause cause) async {
     if (isClosed || _isTerminal) return;
@@ -169,13 +217,21 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     try {
       overlay = await source.fetchLivePosition(deliveryId: deliveryId);
     } catch (e) {
-      failure = e.runtimeType.toString();
+      failure = AppFailure.of(e).kind.name;
     } finally {
       _positionReadInFlight = false;
     }
     if (isClosed) return;
     if (overlay != null) _positionReadCount++;
-    final applied = _applyLivePosition(overlay);
+    var applied = _applyLivePosition(overlay);
+    if (applied) {
+      _consecutivePositionMisses = 0;
+    } else {
+      _consecutivePositionMisses++;
+      if (_consecutivePositionMisses >= kPositionMissesBeforeLost) {
+        applied = _applyLivePosition(_lostOverlay());
+      }
+    }
     Diag.event(kTrackingPositionEvent, <String, Object?>{
       'deliveryId': deliveryId,
       'cause': cause.wire,
@@ -191,6 +247,17 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (pending == null) return;
     _pendingPositionCause = null;
     await _readLivePosition(pending);
+  }
+
+  DeliveryLivePosition _lostOverlay() {
+    final since = state.lastSuccessAt;
+    return DeliveryLivePosition(
+      status: PositionFreshness.lost,
+      stale: true,
+      secondsSinceUpdate: since == null
+          ? null
+          : DateTime.now().difference(since).inSeconds.toDouble(),
+    );
   }
 
   bool _applyLivePosition(DeliveryLivePosition? overlay) {
@@ -240,9 +307,17 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (_positionStreamArmed || isClosed || _isTerminal) return;
     _positionStreamArmed = true;
     Stream<CourierPositionFix>? positions;
+    CourierPositionOpenFailure? openFailure;
     Object? failure;
     try {
-      positions = await channel.open(deliveryId: deliveryId);
+      if (channel is CourierPositionChannelOutcome) {
+        final result = await (channel as CourierPositionChannelOutcome)
+            .openWithOutcome(deliveryId: deliveryId);
+        positions = result.positions;
+        openFailure = result.failure;
+      } else {
+        positions = await channel.open(deliveryId: deliveryId);
+      }
     } catch (e) {
       failure = e;
       positions = null;
@@ -252,9 +327,19 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       // healthy one that nobody published to. Both froze the map, silently.
       Diag.event(kTrackingStreamUnavailableEvent, <String, Object?>{
         'deliveryId': deliveryId,
+        'failure': ?openFailure?.name,
         'error': ?failure?.runtimeType.toString(),
       });
+      if (!isClosed) {
+        emit(state.copyWith(
+          streamUnavailable: true,
+          streamFailure: openFailure ?? CourierPositionOpenFailure.unavailable,
+        ));
+      }
       return;
+    }
+    if (!isClosed && state.streamUnavailable) {
+      emit(state.copyWith(streamUnavailable: false));
     }
     if (isClosed || _isTerminal) {
       unawaited(positions.listen(null).cancel());
@@ -272,6 +357,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   void _onStreamedPosition(CourierPositionFix fix) {
     if (isClosed || _isTerminal) return;
     _streamedPositionCount++;
+    _consecutivePositionMisses = 0;
     final applied = _applyLivePosition(DeliveryLivePosition(
       jeeberPosition: GpsPoint(lat: fix.lat, lng: fix.lng),
       stale: false,
@@ -309,7 +395,15 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   void retry() {
     if (isClosed) return;
-    emit(state.copyWith(mode: LiveTrackingViewMode.loading, clearError: true));
+    // D14: a channel that never opened costs ONE attempt, so only the user's
+    // own Retry re-arms it — a re-open per resume would be a poll.
+    if (state.streamFailure != null) _positionStreamArmed = false;
+    _consecutivePositionMisses = 0;
+    emit(state.copyWith(
+      mode: LiveTrackingViewMode.loading,
+      clearError: true,
+      clearRefreshError: true,
+    ));
     _fetchAndSchedule(LivePositionReadCause.retry);
   }
 
@@ -326,30 +420,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (!isClosed) _armWatchers();
   }
 
-  String _mapError(LiveTrackingErrorKind kind) {
-    switch (kind) {
-      case LiveTrackingErrorKind.network:
-        return 'Unable to connect. Check your internet.';
-      case LiveTrackingErrorKind.server:
-        return 'Server error. Please try again.';
-      case LiveTrackingErrorKind.notFound:
-        return "We can't find this delivery yet. It may still be getting "
-            'ready — pull to retry in a moment.';
-      case LiveTrackingErrorKind.parse:
-        return 'Unexpected response format.';
-    }
-  }
 
-  String? _mapErrorTitle(LiveTrackingErrorKind kind) {
-    switch (kind) {
-      case LiveTrackingErrorKind.notFound:
-        return 'Delivery not found';
-      case LiveTrackingErrorKind.network:
-      case LiveTrackingErrorKind.server:
-      case LiveTrackingErrorKind.parse:
-        return null;
-    }
-  }
 
   @override
   Future<void> close() {

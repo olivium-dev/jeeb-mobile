@@ -1,8 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import '../domain/case_evidence.dart';
 
@@ -26,15 +27,30 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
     required CaseEvidenceSlot slot,
     Dio? uploadDio,
   }) : _slot = slot,
-       _uploadDio = uploadDio ?? Dio() {
+       _uploadDio = uploadDio ?? _bareUploadDio() {
     ObsDioInterceptor.attachTo(_uploadDio);
   }
 
   static const String _brokerPath = '/api/cdn/assets';
 
+  /// A bare `Dio()` has NO timeouts, so a stalled PUT hangs the progress bar
+  /// forever (NET-08).
+  static const Duration _uploadTimeout = Duration(seconds: 30);
+
+  static Dio _bareUploadDio() => Dio(
+    BaseOptions(
+      connectTimeout: _uploadTimeout,
+      sendTimeout: _uploadTimeout,
+      receiveTimeout: _uploadTimeout,
+    ),
+  );
+
   final Dio _gatewayDio;
   final Dio _uploadDio;
   final CaseEvidenceSlot _slot;
+
+  @visibleForTesting
+  Dio get uploadDio => _uploadDio;
 
   @override
   Future<UploadedCaseAttachment> upload({
@@ -93,7 +109,12 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
       );
       final status = response.statusCode ?? 0;
       if (status < 200 || status >= 300) {
-        throw CaseEvidenceUploadException('Evidence upload returned $status.');
+        throw CaseEvidenceUploadException(
+          'Evidence upload returned $status.',
+          failure: status >= 500
+              ? ServerFailure(status: status)
+              : const ValidationFailure(),
+        );
       }
       onProgress?.call(
         CaseAttachmentProgress(
@@ -114,12 +135,17 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
     } on CaseEvidenceUploadException {
       rethrow;
     } on DioException catch (error) {
+      final AppFailure failure = AppFailure.of(error);
       throw CaseEvidenceUploadException(
         error.message ?? 'Evidence upload failed.',
-        offline: _isOffline(error),
+        offline: failure is NetworkFailure || failure is TimeoutFailure,
+        failure: failure,
       );
     } on FileSystemException catch (error) {
-      throw CaseEvidenceUploadException(error.message);
+      throw CaseEvidenceUploadException(
+        error.message,
+        failure: UnknownFailure(cause: error),
+      );
     }
   }
 
@@ -128,7 +154,10 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
     if (bytes != null) return bytes;
     final path = attachment.path;
     if (path == null || path.trim().isEmpty) {
-      throw const CaseEvidenceUploadException('Evidence file is unavailable.');
+      throw const CaseEvidenceUploadException(
+        'Evidence file is unavailable.',
+        failure: UnknownFailure(),
+      );
     }
     return File(path).readAsBytes();
   }
@@ -136,7 +165,10 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
   static String _requiredString(Map<String, dynamic> data, String key) {
     final value = _string(data[key]);
     if (value == null) {
-      throw CaseEvidenceUploadException('Gateway response is missing $key.');
+      throw CaseEvidenceUploadException(
+        'Gateway response is missing $key.',
+        failure: const UnknownFailure(parse: true),
+      );
     }
     return value;
   }
@@ -150,15 +182,5 @@ class DioCaseEvidenceUploader implements CaseEvidenceUploader {
   static Map<String, String> _headers(Object? value) {
     if (value is! Map) return const <String, String>{};
     return value.map((key, item) => MapEntry('$key', '$item'));
-  }
-
-  static bool _isOffline(DioException error) {
-    return switch (error.type) {
-      DioExceptionType.connectionError ||
-      DioExceptionType.connectionTimeout ||
-      DioExceptionType.receiveTimeout ||
-      DioExceptionType.sendTimeout => true,
-      _ => false,
-    };
   }
 }

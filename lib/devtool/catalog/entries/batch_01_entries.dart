@@ -64,6 +64,26 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
         repository: AccountStatusScreenFailingRepository(),
       ),
     ),
+    CatalogState(
+      'Forbidden (403) — exit CTA, no Retry',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenThrowingRepository.forbidden,
+      ),
+    ),
+    CatalogState(
+      'Server error (5xx) — retryable',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenThrowingRepository.serverError,
+      ),
+    ),
+    CatalogState(
+      'Refresh failed over a loaded banner',
+      (context) => AccountStatusScreen(
+        repository: AccountStatusScreenRefreshFailingRepository(
+          accountStatusScreenSuspended,
+        ),
+      ),
+    ),
   ],
 );
 
@@ -121,6 +141,46 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Error — GPS upload stopped',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.gpsUploadStopped,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — not found (exit CTA)',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.loadFailedNotFound,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — proof photo refused',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.proofPhotoPermissionDenied,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Warm — refresh failed over a live delivery',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.refreshFailedWarm,
+        ),
+      ),
+    ),
   ],
 );
 
@@ -143,6 +203,23 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
       'Validation error — mismatch',
       (context) =>
           const SetPasswordScreen(cubitFactory: setPasswordScreenMismatchCubit),
+    ),
+    CatalogState(
+      'Set password — network',
+      (context) => const SetPasswordScreen(
+        cubitFactory: setPasswordScreenNetworkFailureCubit,
+      ),
+    ),
+    CatalogState(
+      'Set password — invalid token',
+      (context) => const SetPasswordScreen(
+        cubitFactory: setPasswordScreenInvalidTokenCubit,
+      ),
+    ),
+    CatalogState(
+      'Set password — weak (server rejected)',
+      (context) =>
+          const SetPasswordScreen(cubitFactory: setPasswordScreenWeakCubit),
     ),
   ],
 );
@@ -171,6 +248,20 @@ final CatalogEntry _biometricLockEntry = CatalogEntry(
       'Failed attempt — retry',
       (context) => const BiometricLockScreenPreviewHost(
         create: biometricLockScreenFailedCubit,
+        screen: BiometricLockScreen(),
+      ),
+    ),
+    CatalogState(
+      'Locked out (terminal)',
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenLockedOutCubit,
+        screen: BiometricLockScreen(),
+      ),
+    ),
+    CatalogState(
+      'Not enrolled (terminal)',
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenNotEnrolledCubit,
         screen: BiometricLockScreen(),
       ),
     ),

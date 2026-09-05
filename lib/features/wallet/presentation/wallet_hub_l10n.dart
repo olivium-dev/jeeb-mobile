@@ -51,6 +51,9 @@ class WalletHubL10n {
   String get loadError => _l10n.walletHubLoadError;
   String get retry => _l10n.walletHubRetry;
 
+  /// The loading rung's own headline — never the app-bar title (ES-17).
+  String get loadingHeadline => _l10n.walletHubLoadingHeadline;
+
   // ── Redesign-24 copy (§E folds these into the ARB layer; the call-site
   //    names do not change when it does). ──────────────────────────────────
   //

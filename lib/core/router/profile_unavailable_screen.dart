@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../widgets/jeeb/jeeb_cta_button.dart';
 import '../widgets/jeeb/jeeb_empty_state.dart';
+import '../widgets/jeeb/jeeb_state_host.dart';
 import '../widgets/jeeb/jeeb_midnight_field.dart';
 import '../widgets/jeeb/jeeb_top_bar.dart';
 
@@ -40,22 +43,30 @@ class ProfileUnavailableScreen extends StatelessWidget {
                 // Scrolls only so 200% text scale cannot overflow the fixed
                 // column; at 1.0x the block sits centred in the empty field.
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        0,
-                        0,
-                        0,
-                        Spacing.xLarge,
-                      ),
-                      child: JeebEmptyState(
-                        // FROZEN key — the pre-redesign hook for this state.
-                        key: const Key('profile_unavailable_state'),
-                        variant: JeebEmptyStateVariant.parcel,
-                        status: JeebEmptyStateStatus.error,
-                        headline: l10n.profileUnavailableTitle,
-                        body: l10n.profileUnavailableBody,
-                        identifier: 'profile_unavailable_note',
+                  child: JeebStateHost(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      0,
+                      0,
+                      0,
+                      Spacing.xLarge,
+                    ),
+                    child: JeebEmptyState(
+                      // FROZEN key — the pre-redesign hook for this state.
+                      key: const Key('profile_unavailable_state'),
+                      variant: JeebEmptyStateVariant.parcel,
+                      reason: JeebEmptyStateReason.notFound,
+                      headline: l10n.profileUnavailableTitle,
+                      body: l10n.profileUnavailableBody,
+                      identifier: 'profile_unavailable_note',
+                      // EP-19: the back circle was the only exit, and it is
+                      // dead at the stack root.
+                      action: JeebCtaButton.primary(
+                        label: l10n.profileUnavailableCta,
+                        expand: false,
+                        identifier: 'profile_unavailable_exit_cta',
+                        onTap: () => context.canPop()
+                            ? context.pop()
+                            : context.go('/'),
                       ),
                     ),
                   ),

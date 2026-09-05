@@ -2719,5 +2719,25 @@
   "profilePhotoUnauthorized": "سجّل الدخول مرة أخرى لتغيير صورتك.",
   "savedAddressesComingSoonTitle": "العناوين المحفوظة قريبًا",
   "savedAddressesComingSoonBody": "هذه الشاشة غير متاحة بعد.",
-  "dmOnboardingPhotoUploadFailed": "تعذّر رفع صورتك. حاول مرة أخرى."
+  "dmOnboardingPhotoUploadFailed": "تعذّر رفع صورتك. حاول مرة أخرى.",
+
+  "reviewsLoadingHeadline": "جارٍ تحميل تقييماتك…",
+  "disputeStatusStatusUnavailable": "الحالة غير متاحة",
+  "disputeStatusReasonDamaged": "سلعة تالفة",
+  "disputeStatusReasonWrongItem": "تم تسليم سلعة خاطئة",
+  "disputeStatusReasonNoShow": "عدم الحضور",
+  "disputeStatusReasonFraud": "احتيال",
+  "disputeStatusReasonAbuse": "سلوك مسيء",
+  "disputeStatusReasonOther": "أخرى",
+  "disputeStatusReasonUnspecified": "السبب",
+  "disputeStatusChatAttached": "تم إرفاق المحادثة",
+  "disputeStatusPhotosAttachedZero": "لا توجد صور مرفقة",
+  "disputeStatusPhotosAttachedOne": "صورة واحدة مرفقة",
+  "disputeStatusPhotosAttachedTwo": "صورتان مرفقتان",
+  "disputeStatusPhotosAttachedFew": "{count} صور مرفقة",
+  "disputeStatusPhotosAttachedMany": "{count} صورة مرفقة",
+  "disputeStatusPhotosAttachedOther": "{count} صورة مرفقة",
+  "disputeStatusChatAttachedCount": "تم إرفاق المحادثة ({count} رسالة)",
+  "disputeStatusTimelineAttached": "تم إرفاق مسار التوصيل ({count} خطوات)",
+  "reviewsAggregate": "{score} · {count} تقييمات"
 }

@@ -416,8 +416,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      // The body now comes from the shared copy family, which is the only
+      // branch allowed to blame the connection.
       expect(
-        find.text("We couldn't load your request status. Please try again."),
+        find.text('Check your connection and try again.'),
         findsOneWidget,
       );
     });

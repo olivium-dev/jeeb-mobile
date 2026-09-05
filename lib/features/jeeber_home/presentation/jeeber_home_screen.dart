@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../core/role/jeeber_role_activator.dart';
@@ -14,13 +14,18 @@ import '../../../core/role/role_cubit.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/data/dio_submitted_offers_repository.dart';
+import '../../jeeber_request_feed/presentation/jeeber_failure_exit.dart';
 import '../../settings/domain/role_switch_repository.dart';
 import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
@@ -202,6 +207,7 @@ class _RootBody extends StatelessWidget {
       hasFeedCubit: requestFeedCubit != null,
       submittedOffersCubit: submittedOffersCubit,
       activeDeliveriesBanner: activeDeliveriesBanner,
+      onRegister: onRegister,
     );
     if (requestFeedCubit == null) return body;
     return BlocProvider<RequestFeedCubit>.value(
@@ -218,6 +224,7 @@ class _RegisteredBody extends StatefulWidget {
     required this.hasFeedCubit,
     required this.submittedOffersCubit,
     required this.activeDeliveriesBanner,
+    required this.onRegister,
   });
 
   final String? profileName;
@@ -225,6 +232,7 @@ class _RegisteredBody extends StatefulWidget {
   final bool hasFeedCubit;
   final SubmittedOffersCubit? submittedOffersCubit;
   final Widget? activeDeliveriesBanner;
+  final VoidCallback? onRegister;
 
   @override
   State<_RegisteredBody> createState() => _RegisteredBodyState();
@@ -241,6 +249,7 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
     return BlocConsumer<AvailabilityCubit, AvailabilityViewState>(
       listenWhen: (prev, curr) =>
           prev.toggleError != curr.toggleError ||
+          prev.toggleFailure != curr.toggleFailure ||
           prev.locationOutcome != curr.locationOutcome ||
           (curr.loadPhase == AvailabilityLoadPhase.loadError &&
               prev.loadPhase != AvailabilityLoadPhase.loadError),
@@ -252,6 +261,7 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
         hasFeedCubit: widget.hasFeedCubit,
         submittedOffersCubit: widget.submittedOffersCubit,
         activeDeliveriesBanner: widget.activeDeliveriesBanner,
+        onRegister: widget.onRegister,
       ),
     );
   }
@@ -273,19 +283,21 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
     final l10n = AppLocalizations.of(context);
     switch (view.locationOutcome) {
       case GoOnlineLocationOutcome.permissionDenied:
-        showOmdsSnackbar(
+        showJeebSnack(
           context,
           message: l10n.availabilityLocationPermissionBody,
+          identifier: 'jeeber_home_location_permission_snack',
           actionLabel: l10n.availabilityLocationOpenSettings,
           onAction: () =>
               unawaited(GeolocatorGeocaptureGateway().openAppSettings()),
         );
       case GoOnlineLocationOutcome.fixFailed:
-        showOmdsSnackbar(
+        showJeebErrorSnack(
           context,
           message: l10n.availabilityLocationFixFailedBody,
-          actionLabel: l10n.availabilityLocationRetry,
-          onAction: () =>
+          identifier: 'jeeber_home_location_fix_snack',
+          retryLabel: l10n.availabilityLocationRetry,
+          onRetry: () =>
               unawaited(context.read<AvailabilityCubit>().retryLocationAttach()),
         );
       case GoOnlineLocationOutcome.attached:
@@ -300,8 +312,21 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
   ) {
     if (!view.toggleError) return;
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    showOmdsSnackbar(context, message: l10n.availabilityToggleErrorBody);
+    // A classified kind speaks for itself; an unclassified one keeps the
+    // screen's own line rather than the generic body.
+    final failure = view.toggleFailure;
+    final classified = failure is UnknownFailure ? null : failure;
+    final bool retryable = failure?.isRetryable ?? true;
+    showJeebErrorSnack(
+      context,
+      failure: classified,
+      message: classified == null ? l10n.availabilityToggleErrorBody : null,
+      identifier: 'jeeber_home_toggle_error_snack',
+      retryLabel: retryable ? l10n.actionRetry : null,
+      onRetry: retryable
+          ? () => unawaited(context.read<AvailabilityCubit>().toggle())
+          : null,
+    );
   }
 
   Future<void> _autoActivateJeeber() async {
@@ -343,6 +368,7 @@ class _RegisteredViewSwitch extends StatelessWidget {
     required this.hasFeedCubit,
     required this.submittedOffersCubit,
     required this.activeDeliveriesBanner,
+    required this.onRegister,
   });
 
   final AvailabilityViewState view;
@@ -351,11 +377,17 @@ class _RegisteredViewSwitch extends StatelessWidget {
   final bool hasFeedCubit;
   final SubmittedOffersCubit? submittedOffersCubit;
   final Widget? activeDeliveriesBanner;
+  final VoidCallback? onRegister;
 
   @override
   Widget build(BuildContext context) {
+    // JHOME-05: a 404 on the availability read means un-onboarded, not offline.
+    if (view.loadPhase == AvailabilityLoadPhase.notRegistered) {
+      return _NotRegisteredView(onRegister: onRegister);
+    }
     if (view.loadPhase == AvailabilityLoadPhase.loadError) {
       return _LoadErrorView(
+        failure: view.loadError,
         onRetry: () => context.read<AvailabilityCubit>().load(),
       );
     }
@@ -400,24 +432,43 @@ class _AvailableBody extends StatelessWidget {
       );
     }
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
-      builder: (context, feedState) => feedState.requests.isEmpty
-          ? OmdsPullToRefresh(
-              // Periwinkle, never the `colorScheme.primary` default: on
-              // Midnight that is the orange, and this is transient chrome.
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              onRefresh: () => context.read<RequestFeedCubit>().refresh(),
-              child: _NoRequestsScope(
-                view: view,
-                profileName: profileName,
-                activeDeliveriesBanner: activeDeliveriesBanner,
-              ),
-            )
-          : _FeedTabBody(
+      builder: (context, feedState) {
+        final refresh = context.read<RequestFeedCubit>().refresh;
+        // JHOME-01: the error rung comes strictly before the empty one.
+        if (feedState.status == RequestFeedStatus.error &&
+            feedState.requests.isEmpty) {
+          return _FeedFailureView(failure: feedState.error, onRetry: refresh);
+        }
+        // ES-08: a cold read is not an empty feed.
+        if (feedState.requests.isEmpty &&
+            (feedState.status == RequestFeedStatus.initial ||
+                feedState.status == RequestFeedStatus.loading)) {
+          return JeebStateHost(
+            child: JeebEmptyState(
+              status: JeebEmptyStateStatus.loading,
+              variant: JeebEmptyStateVariant.street,
+              identifier: 'jeeber_home_feed_loading',
+              headline: AppLocalizations.of(context).requestFeedLoadingHeadline,
+            ),
+          );
+        }
+        if (feedState.requests.isEmpty) {
+          return JeebPullToRefresh(
+            onRefresh: refresh,
+            child: _NoRequestsScope(
+              view: view,
               profileName: profileName,
-              onOpenFeedRequest: onOpenFeedRequest,
-              submittedOffersCubit: submittedOffersCubit,
               activeDeliveriesBanner: activeDeliveriesBanner,
             ),
+          );
+        }
+        return _FeedTabBody(
+          profileName: profileName,
+          onOpenFeedRequest: onOpenFeedRequest,
+          submittedOffersCubit: submittedOffersCubit,
+          activeDeliveriesBanner: activeDeliveriesBanner,
+        );
+      },
     );
   }
 }
@@ -491,11 +542,12 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return JeebStateHost(
       child: JeebEmptyState(
         status: JeebEmptyStateStatus.loading,
         variant: JeebEmptyStateVariant.street,
-        headline: AppLocalizations.of(context).requestFeedEmptyTitle,
+        identifier: 'jeeber_home_loading',
+        headline: AppLocalizations.of(context).availabilityLoadingHeadline,
       ),
     );
   }
@@ -504,31 +556,91 @@ class _LoadingView extends StatelessWidget {
 /// The availability read failed — E3's block, danger-tinted, with the frozen
 /// retry CTA re-homed onto its action slot.
 class _LoadErrorView extends StatelessWidget {
-  const _LoadErrorView({required this.onRetry});
+  const _LoadErrorView({required this.failure, required this.onRetry});
 
+  final AppFailure? failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: JeebEmptyState(
-        status: JeebEmptyStateStatus.error,
+    final resolved = failure ?? const UnknownFailure();
+    // Forbidden is unrecoverable here: the way out is the KYC gate, not Retry.
+    final bool forbidden = resolved is ForbiddenFailure;
+    final exit = jeeberFailureExit(context, resolved, l10n);
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: resolved,
+        identifier: 'jeeber_home_error',
+        retryIdentifier: 'jeeber_home_load_error_retry_cta',
+        exitIdentifier: 'jeeber_home_exit_cta',
         variant: JeebEmptyStateVariant.street,
-        headline: l10n.availabilityLoadError,
-        action: Semantics(
-          identifier: 'jeeber_home_load_error_retry_cta',
-          container: true,
-          button: true,
-          child: IntrinsicWidth(
-            child: JeebCtaButton.primary(
-              key: JeeberHomeScreen.loadErrorRetryKey,
-              label: l10n.availabilityLoadRetry,
-              expand: false,
-              onTap: onRetry,
-            ),
-          ),
-        ),
+        bodyOverride: forbidden ? l10n.availabilityErrorForbidden : null,
+        onRetry: onRetry,
+        onExit: exit.onExit,
+        exitLabel: exit.label,
+      ),
+    );
+  }
+}
+
+/// The gateway says this account has no jeeber profile yet — the way out is
+/// registration, not a Retry that will 404 again.
+class _NotRegisteredView extends StatelessWidget {
+  const _NotRegisteredView({required this.onRegister});
+
+  final VoidCallback? onRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebStateHost(
+      child: JeebEmptyState(
+        reason: JeebEmptyStateReason.nothingYet,
+        variant: JeebEmptyStateVariant.street,
+        identifier: 'jeeber_home_not_registered_state',
+        headline: l10n.availabilityNotRegisteredTitle,
+        body: l10n.availabilityNotRegisteredBody,
+        action: onRegister == null
+            ? null
+            : JeebCtaButton.primary(
+                label: l10n.jeeberRegisterCta,
+                expand: false,
+                identifier: 'jeeber_home_register_cta',
+                onTap: onRegister,
+              ),
+      ),
+    );
+  }
+}
+
+/// The feed's own cold failure, inside the availability-ready body.
+class _FeedFailureView extends StatelessWidget {
+  const _FeedFailureView({required this.failure, required this.onRetry});
+
+  final AppFailure? failure;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = failure ?? const UnknownFailure();
+    final exit = jeeberFailureExit(
+      context,
+      resolved,
+      AppLocalizations.of(context),
+      onReload: onRetry,
+    );
+    return JeebStateHost(
+      onRefresh: onRetry,
+      child: JeebFailureBlock(
+        failure: resolved,
+        identifier: 'jeeber_home_feed_error',
+        retryIdentifier: 'jeeber_home_feed_retry_cta',
+        exitIdentifier: 'jeeber_home_feed_exit_cta',
+        variant: JeebEmptyStateVariant.street,
+        onRetry: () => unawaited(onRetry()),
+        onExit: exit.onExit,
+        exitLabel: exit.label,
       ),
     );
   }
@@ -638,6 +750,40 @@ Widget jeeberHomeScreenColdRead() => _jeeberHomeScreenHosted(
 )
 Widget jeeberHomeScreenLoadError() => _jeeberHomeScreenHosted(
   JeeberHomeScreenPreviewFixtures.failingAvailability(),
+);
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Not registered · register',
+  size: _jeeberHomeScreenPhoneBox,
+)
+Widget jeeberHomeScreenNotRegistered() => _jeeberHomeScreenHosted(
+  JeeberHomeScreenPreviewFixtures.notRegisteredAvailability(),
+);
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Feed load failed · retry',
+  size: _jeeberHomeScreenPhoneBox,
+)
+Widget jeeberHomeScreenFeedLoadFailed() => _jeeberHomeScreenHosted(
+  JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+  feed: JeeberHomeScreenPreviewFixtures.failedFeed(
+    const ServerFailure(status: 503),
+  ),
+);
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Feed refresh failed · stale rows',
+  size: _jeeberHomeScreenPhoneBox,
+)
+Widget jeeberHomeScreenFeedRefreshFailed() => _jeeberHomeScreenHosted(
+  JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+  feed: JeeberHomeScreenPreviewFixtures.refreshFailedFeed(
+    JeeberHomeScreenPreviewFixtures.incomingFeed(),
+    const NetworkFailure(offline: true),
+  ),
 );
 
 @JeebPreview(

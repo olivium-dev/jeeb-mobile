@@ -19,6 +19,9 @@ const _testConfig = BackgroundGpsConfig(
   maxAccuracyMeters: 50,
   stationaryThresholdMps: 0.5,
   maxConsecutiveUploadFailures: 3,
+  // The retry back-off has its own test below; every other case here is about
+  // what happens per sample, not about the pause between them.
+  uploadRetryBackoff: Duration.zero,
 );
 
 GpsSample _sample({
@@ -371,6 +374,45 @@ void main() {
       );
       expect(cubit.state.consecutiveFailures, 0);
       expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+    });
+
+    test('a transient failure parks the next sample for the back-off', () async {
+      final gateway = FakeGeocaptureGateway();
+      final uploader = InMemoryLocationUploader(
+        outcomes: [
+          LocationUploadOutcome.transientFailure,
+          LocationUploadOutcome.accepted,
+        ],
+      );
+      final base = DateTime.utc(2026, 5, 17, 12);
+      final cubit = _buildCubit(
+        gateway: gateway,
+        uploader: uploader,
+        config: const BackgroundGpsConfig(
+          activeInterval: Duration(milliseconds: 50),
+          stationaryInterval: Duration(milliseconds: 300),
+          maxAccuracyMeters: 50,
+          stationaryThresholdMps: 0.5,
+          maxConsecutiveUploadFailures: 3,
+          uploadRetryBackoff: Duration(seconds: 5),
+        ),
+        clock: () => base,
+      );
+
+      await cubit.start('delivery-1');
+      await gateway.emit(_sample(capturedAt: base));
+      expect(cubit.state.consecutiveFailures, 1);
+      expect(uploader.calls, hasLength(1));
+
+      await gateway.emit(
+        _sample(capturedAt: base.add(const Duration(milliseconds: 60))),
+      );
+      expect(
+        uploader.calls,
+        hasLength(1),
+        reason: 'the sample inside the back-off window is parked, not uploaded',
+      );
+      expect(cubit.state.lastSkipReason, GpsSampleSkipReason.throttled);
     });
 
     test('permanent failure stops the loop immediately', () async {

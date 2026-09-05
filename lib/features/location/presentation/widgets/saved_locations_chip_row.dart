@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/network/app_failure.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../cubit/location_picker_cubit.dart';
 import '../../data/location_repository.dart';
@@ -37,6 +39,9 @@ class _SavedLocationsChipRowState extends State<SavedLocationsChipRow> {
   List<SavedLocation>? _locations;
   bool _loading = true;
 
+  /// A failed chip fetch must not read as "no saved locations".
+  AppFailure? _failure;
+
   @override
   void initState() {
     super.initState();
@@ -49,19 +54,42 @@ class _SavedLocationsChipRowState extends State<SavedLocationsChipRow> {
       if (mounted) {
         setState(() {
           _locations = result;
+          _failure = null;
           _loading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _failure = AppFailure.of(e);
+          _loading = false;
+        });
       }
     }
+  }
+
+  void _retry() {
+    setState(() {
+      _loading = true;
+      _failure = null;
+    });
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const SizedBox.shrink();
+    final AppFailure? failure = _failure;
+    if (failure != null) {
+      return JeebFailureBlock.compact(
+        failure: failure,
+        identifier: 'saved_locations_chips_error',
+        headlineOverride:
+            AppLocalizations.of(context).savedLocationsChipsLoadFailed,
+        retryIdentifier: 'saved_locations_chips_retry_cta',
+        onRetry: _retry,
+      );
+    }
     final locations = _locations ?? const [];
     if (locations.isEmpty) return const SizedBox.shrink();
     return _ChipRow(
@@ -196,7 +224,7 @@ class _SavedLocationsChipRowMapStandIn extends StatelessWidget {
       key: savedLocationsChipRowPreviewMapKey,
       width: double.infinity,
       color: theme.colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(Spacing.small),
       alignment: Alignment.topLeft,
       child: Text(
         // Forced LTR: this line is diagnostic, not shipped copy, and a latin

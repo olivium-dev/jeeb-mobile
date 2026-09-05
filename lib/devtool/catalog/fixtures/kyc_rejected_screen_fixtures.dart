@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/kyc/domain/kyc_contract_template.dart';
 import '../../../features/kyc/domain/kyc_form_schema.dart';
 import '../../../features/kyc/domain/kyc_gateway.dart';
@@ -119,4 +120,18 @@ class KycRejectedScreenPendingGateway implements KycGateway {
   @override
   Future<KycSubmission> submit(KycSubmission draft) =>
       throw UnsupportedError('kyc-rejected is FINAL — it never submits (D52)');
+}
+
+/// KYCR-01: the authority read THROWS. The screen must stay on the appeal
+/// route with `kyc_rejected_error` and a retry, never silently redirect.
+class KycRejectedScreenThrowingGateway extends FakeKycGateway {
+  KycRejectedScreenThrowingGateway({
+    this.failure = const ServerFailure(status: 503),
+  });
+
+  final AppFailure failure;
+
+  @override
+  Future<KycSubmission> fetchStatus() async =>
+      throw KycGatewayException(failure);
 }

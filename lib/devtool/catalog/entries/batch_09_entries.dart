@@ -13,7 +13,9 @@ import '../../../features/rating/application/mutual_rating_cubit.dart';
 import '../../../features/rating/presentation/mutual_rating_screen.dart';
 import '../../../features/rating/presentation/rating_screen.dart';
 import '../../../features/registration/application/registration_cubit.dart';
+import '../../../features/registration/application/registration_state.dart';
 import '../../../features/registration/data/super_login_demo_user.dart';
+import '../../../features/registration/domain/otp_service.dart';
 import '../../../features/registration/data/super_login_service.dart';
 import '../../../features/registration/presentation/otp_verification_screen.dart';
 import '../../../features/registration/presentation/registration_screen.dart';
@@ -24,6 +26,7 @@ import '../catalog_models.dart';
 import '../fixtures/display_name_setup_screen_fixtures.dart';
 import '../fixtures/mutual_rating_screen_fixtures.dart';
 import '../fixtures/otp_verification_screen_fixtures.dart';
+import '../fixtures/prohibited_acknowledgment_dialog_fixtures.dart';
 import '../fixtures/prohibited_item_report_screen_fixtures.dart';
 import '../fixtures/rating_screen_fixtures.dart';
 import '../fixtures/registration_screen_fixtures.dart';
@@ -74,8 +77,20 @@ final CatalogEntry _displayNameSetupScreenEntry = CatalogEntry(
       'Error — Save Failed',
       (_) => _displayNameSetupFailurePreview(),
     ),
+    CatalogState(
+      'Save refused — unauthorized (UX-39)',
+      (_) => _displayNameSetupUnauthorizedPreview(),
+    ),
   ],
 );
+
+Widget _displayNameSetupUnauthorizedPreview() {
+  final cubit = DisplayNameSetupScreenPreviewFixtures.unauthorizedRejecting();
+  return DisplayNameSetupScreenPreviewDriver(
+    cubit: cubit,
+    child: DisplayNameSetupScreen(onDone: () {}, cubit: cubit),
+  );
+}
 
 const List<ProhibitedItem> _sampleProhibitedItems = [
   ProhibitedItem(
@@ -180,6 +195,13 @@ final CatalogEntry _prohibitedAcknowledgmentDialogEntry = CatalogEntry(
         repository: _FakeProhibitedAckRepository(throwOnFetch: true),
       ),
     ),
+    CatalogState(
+      'Error — Acknowledge Failed (server)',
+      (_) => ProhibitedAckDialogHost(
+        repository: AckFailingProhibitedAckRepository(),
+        matches: const <String>['knife'],
+      ),
+    ),
   ],
 );
 
@@ -201,6 +223,33 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
         requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
         initialDescription:
             ProhibitedItemReportScreenPreviewFixtures.filled.description,
+      ),
+    ),
+    CatalogState(
+      'Photo attached (the CTA is wired now)',
+      (_) => ProhibitedItemReportScreen(
+        requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
+        initialDescription:
+            ProhibitedItemReportScreenPreviewFixtures.filled.description,
+        photoPicker: ProhibitedItemReportScreenPreviewFixtures.attachingPicker(),
+      ),
+    ),
+    CatalogState(
+      'Photo permission denied',
+      (_) => ProhibitedItemReportScreen(
+        requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
+        initialDescription:
+            ProhibitedItemReportScreenPreviewFixtures.filled.description,
+        photoPicker: ProhibitedItemReportScreenPreviewFixtures.permissionDeniedPicker(),
+      ),
+    ),
+    CatalogState(
+      'Photo unavailable',
+      (_) => ProhibitedItemReportScreen(
+        requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
+        initialDescription:
+            ProhibitedItemReportScreenPreviewFixtures.filled.description,
+        photoPicker: ProhibitedItemReportScreenPreviewFixtures.unavailablePicker(),
       ),
     ),
   ],
@@ -245,6 +294,10 @@ final CatalogEntry _mutualRatingScreenEntry = CatalogEntry(
     CatalogState(
       'Error — Submit Failed',
       (_) => _mutualRatingScreen(mutualRatingScreenErrorCubit),
+    ),
+    CatalogState(
+      'Error — Submit Failed (network), the sheet stays open',
+      (_) => _mutualRatingScreen(mutualRatingScreenSubmitFailedNetworkCubit),
     ),
   ],
 );
@@ -349,8 +402,44 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
       'Locked Out',
       (_) => _otpVerificationScreen(otpVerificationScreenLockedOutCubit),
     ),
+    CatalogState(
+      'OTP — rate limited (server window 45s)',
+      (_) => _otpVerificationScreen(
+        () => _otpServiceCubit(
+          const RegistrationScreenRateLimitedOtpService(),
+        ),
+      ),
+    ),
+    CatalogState(
+      'OTP — service unavailable (503, never the network line)',
+      (_) => _otpVerificationScreen(
+        () => _otpServiceCubit(
+          const RegistrationScreenServiceUnavailableOtpService(),
+        ),
+      ),
+    ),
+    CatalogState(
+      'OTP — verified with no tokens (F5)',
+      (_) => _otpVerificationScreen(
+        () => _otpServiceCubit(const RegistrationScreenNoTokensOtpService()),
+      ),
+    ),
   ],
 );
+
+/// Parks the cubit on the OTP step over a scripted service, then submits a
+/// code so the service's own outcome is what the meta row reports.
+RegistrationCubit _otpServiceCubit(OtpService service) {
+  final RegistrationCubit cubit = RegistrationScreenSeededCubit(
+    otpService: service,
+    seed: const RegistrationState(
+      step: RegistrationStep.otp,
+      phoneInput: otpVerificationScreenPhoneInput,
+    ),
+  );
+  unawaited(cubit.verifyCode('1234'));
+  return cubit;
+}
 
 class _FakeSuperLoginService implements SuperLoginService {
   const _FakeSuperLoginService();

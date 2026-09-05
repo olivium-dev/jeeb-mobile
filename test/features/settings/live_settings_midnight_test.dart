@@ -104,7 +104,7 @@ void main() {
 
       final state = emptyState(tester);
       expect(state.variant, JeebEmptyStateVariant.radar);
-      expect(state.status, JeebEmptyStateStatus.loading);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.loading);
       // No second party on this surface to name.
       expect(state.medallions, isEmpty);
       expect(state.identifier, LiveSettingsScreen.loadingIdentifier);
@@ -119,11 +119,13 @@ void main() {
 
       final state = emptyState(tester);
       expect(state.variant, JeebEmptyStateVariant.radar);
-      expect(state.status, JeebEmptyStateStatus.error);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
       expect(state.identifier, LiveSettingsScreen.errorIdentifier);
-      // The shipped copy is unchanged — no new string was invented here.
-      expect(find.text('Something went wrong. Please try again.'),
+      // NET-09: the copy follows the KIND. A StateError is not a connectivity
+      // failure, so it must NOT print the network line.
+      expect(find.text("We couldn't complete that. Try again."),
           findsOneWidget);
+      expect(find.text('Check your connection and try again.'), findsNothing);
     });
 
     testWidgets('retry is the glass pill, never an orange act', (tester) async {
@@ -160,13 +162,13 @@ void main() {
       }
 
       await pump(tester, loader);
-      expect(emptyState(tester).status, JeebEmptyStateStatus.error);
+      expect(emptyState(tester).effectiveStatus, JeebEmptyStateStatus.error);
 
       await tester.tap(find.byType(JeebCtaButton));
       await tester.pumpAndSettle();
 
       expect(calls, 2);
-      expect(emptyState(tester).status, JeebEmptyStateStatus.loading);
+      expect(emptyState(tester).effectiveStatus, JeebEmptyStateStatus.loading);
     });
   });
 }

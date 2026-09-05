@@ -14,7 +14,7 @@ import '../../support/sync_app_localizations.dart';
 
 class _FakeRepo implements SupportRepository {
   _FakeRepo({this.failWith});
-  final SupportFailure? failWith;
+  SupportFailure? failWith;
   int calls = 0;
 
   @override
@@ -153,7 +153,7 @@ void main() {
     expect(find.text('escalate-_'), findsOneWidget);
   });
 
-  testWidgets('failed submit shows error + retry returns to the form', (
+  testWidgets('failed submit shows error + retry re-submits, then the form', (
     tester,
   ) async {
     register(failWith: SupportFailure.network);
@@ -175,17 +175,49 @@ void main() {
     expect(find.bySemanticsIdentifier('support_error'), findsOneWidget);
     expect(find.bySemanticsIdentifier('support_retry_cta'), findsOneWidget);
 
+    expect(repo.calls, 1);
+    // The Retry CTA actually re-POSTs (ESC-06 mirror), and reuses the draft's
+    // operationId so the gateway sees one Idempotency-Key.
     await tester.tap(find.bySemanticsIdentifier('support_retry_cta'));
     await tester.pumpAndSettle();
+    expect(repo.calls, 2);
+    expect(find.bySemanticsIdentifier('support_error'), findsOneWidget);
 
-    // Back on the form (root + submit visible again).
-    expect(find.bySemanticsIdentifier('support_submit_cta'), findsOneWidget);
-    final bodyField = tester.widget<EditableText>(
+    // A retry that succeeds leaves the error and returns to the form/success.
+    repo.failWith = null;
+    await tester.tap(find.bySemanticsIdentifier('support_retry_cta'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, 3);
+    expect(find.bySemanticsIdentifier('support_error'), findsNothing);
+  });
+
+  testWidgets('a terminal failure returns to the form without re-POSTing', (
+    tester,
+  ) async {
+    register(failWith: SupportFailure.unauthorized);
+    await pumpScreen(tester);
+
+    await selectCategory(tester);
+    await tester.enterText(
       find.descendant(
         of: find.bySemanticsIdentifier('support_body'),
         matching: find.byType(EditableText),
       ),
+      'charge issue',
     );
-    expect(bodyField.controller.text, 'charge issue');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsIdentifier('support_submit_cta'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, 1);
+
+    // 401 has no Retry — the sign-in exit is the only CTA.
+    expect(find.bySemanticsIdentifier('support_retry_cta'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('support_error_signin_cta'),
+      findsOneWidget,
+    );
+
+    expect(find.bySemanticsIdentifier('support_submit_cta'), findsNothing);
   });
 }

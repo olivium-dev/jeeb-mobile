@@ -5,7 +5,9 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/lifecycle/app_lifecycle_gate.dart';
+import '../../../core/network/app_failure.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../background_gps/application/background_gps_state.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -23,16 +25,20 @@ class ActiveDeliveryState extends Equatable {
   const ActiveDeliveryState({
     this.mode = ActiveDeliveryMode.loading,
     this.delivery,
-    this.transitionError,
     this.transitionErrorKind,
-    this.errorMessage,
+    this.failureTypeSuffix,
+    this.loadFailureKind,
+    this.refreshFailure,
     this.proofPhotoStatus = ProofPhotoStatus.none,
     this.proofPhotoBytes,
+    this.proofPhotoFailure,
     this.note,
     this.delivered = false,
     this.otpRequired = false,
     this.isVerifyingOtp = false,
-    this.otpError,
+    this.otpErrorKind,
+    this.otpAttemptsRemaining,
+    this.otpEscalationId,
     this.gpsPhase = BackgroundGpsPhase.idle,
     this.gpsNeedsSystemSettings = false,
   });
@@ -46,15 +52,26 @@ class ActiveDeliveryState extends Equatable {
 
   bool get isGpsBlocked => gpsPhase == BackgroundGpsPhase.permissionDenied;
 
-  final String? transitionError;
+  /// The uploader tore itself down; the banner offers Resume, not Grant.
+  bool get isGpsFailed => gpsPhase == BackgroundGpsPhase.error;
 
   final ActiveDeliveryFailure? transitionErrorKind;
 
-  final String? errorMessage;
+  /// RFC 7807 `type` last segment behind the last transition failure.
+  final String? failureTypeSuffix;
+
+  /// Why the cold load failed. Replaces the English `errorMessage`.
+  final ActiveDeliveryFailure? loadFailureKind;
+
+  /// A warm refresh failed while the rows are still on screen.
+  final ActiveDeliveryFailure? refreshFailure;
 
   final ProofPhotoStatus proofPhotoStatus;
 
   final Uint8List? proofPhotoBytes;
+
+  /// Why the camera leg failed, so the screen picks permission vs unavailable.
+  final PhotoPickFailure? proofPhotoFailure;
 
   final String? note;
 
@@ -64,7 +81,12 @@ class ActiveDeliveryState extends Equatable {
 
   final bool isVerifyingOtp;
 
-  final String? otpError;
+  /// Why the door OTP was refused. Replaces the English `otpError`.
+  final ActiveDeliveryFailure? otpErrorKind;
+
+  final int? otpAttemptsRemaining;
+
+  final String? otpEscalationId;
 
   bool get isTransitioning => mode == ActiveDeliveryMode.transitioning;
 
@@ -77,19 +99,24 @@ class ActiveDeliveryState extends Equatable {
   ActiveDeliveryState copyWith({
     ActiveDeliveryMode? mode,
     JeeberDelivery? delivery,
-    String? transitionError,
     ActiveDeliveryFailure? transitionErrorKind,
+    String? failureTypeSuffix,
     bool clearTransitionError = false,
-    String? errorMessage,
+    ActiveDeliveryFailure? loadFailureKind,
+    ActiveDeliveryFailure? refreshFailure,
+    bool clearRefreshFailure = false,
     bool clearError = false,
     ProofPhotoStatus? proofPhotoStatus,
     Uint8List? proofPhotoBytes,
+    PhotoPickFailure? proofPhotoFailure,
     String? note,
     bool clearNote = false,
     bool? delivered,
     bool? otpRequired,
     bool? isVerifyingOtp,
-    String? otpError,
+    ActiveDeliveryFailure? otpErrorKind,
+    int? otpAttemptsRemaining,
+    String? otpEscalationId,
     bool clearOtpError = false,
     BackgroundGpsPhase? gpsPhase,
     bool? gpsNeedsSystemSettings,
@@ -97,20 +124,32 @@ class ActiveDeliveryState extends Equatable {
     return ActiveDeliveryState(
       mode: mode ?? this.mode,
       delivery: delivery ?? this.delivery,
-      transitionError: clearTransitionError
-          ? null
-          : (transitionError ?? this.transitionError),
       transitionErrorKind: clearTransitionError
           ? null
           : (transitionErrorKind ?? this.transitionErrorKind),
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      failureTypeSuffix: clearTransitionError
+          ? null
+          : (failureTypeSuffix ?? this.failureTypeSuffix),
+      loadFailureKind:
+          clearError ? null : (loadFailureKind ?? this.loadFailureKind),
+      refreshFailure: clearRefreshFailure
+          ? null
+          : (refreshFailure ?? this.refreshFailure),
       proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
       proofPhotoBytes: proofPhotoBytes ?? this.proofPhotoBytes,
+      proofPhotoFailure: proofPhotoStatus == ProofPhotoStatus.failed
+          ? (proofPhotoFailure ?? this.proofPhotoFailure)
+          : (proofPhotoStatus == null ? this.proofPhotoFailure : null),
       note: clearNote ? null : (note ?? this.note),
       delivered: delivered ?? this.delivered,
       otpRequired: otpRequired ?? this.otpRequired,
       isVerifyingOtp: isVerifyingOtp ?? this.isVerifyingOtp,
-      otpError: clearOtpError ? null : (otpError ?? this.otpError),
+      otpErrorKind: clearOtpError ? null : (otpErrorKind ?? this.otpErrorKind),
+      otpAttemptsRemaining: clearOtpError
+          ? null
+          : (otpAttemptsRemaining ?? this.otpAttemptsRemaining),
+      otpEscalationId:
+          clearOtpError ? null : (otpEscalationId ?? this.otpEscalationId),
       gpsPhase: gpsPhase ?? this.gpsPhase,
       gpsNeedsSystemSettings:
           gpsNeedsSystemSettings ?? this.gpsNeedsSystemSettings,
@@ -121,16 +160,20 @@ class ActiveDeliveryState extends Equatable {
   List<Object?> get props => [
     mode,
     delivery,
-    transitionError,
     transitionErrorKind,
-    errorMessage,
+    failureTypeSuffix,
+    loadFailureKind,
+    refreshFailure,
     proofPhotoStatus,
     proofPhotoBytes,
+    proofPhotoFailure,
     note,
     delivered,
     otpRequired,
     isVerifyingOtp,
-    otpError,
+    otpErrorKind,
+    otpAttemptsRemaining,
+    otpEscalationId,
     gpsPhase,
     gpsNeedsSystemSettings,
   ];
@@ -203,8 +246,21 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     await _gpsUploader?.openSystemSettings();
   }
 
+  /// Re-arms an uploader that tore itself down (BackgroundGpsPhase.error).
+  Future<void> resumeGps() async {
+    await _gpsUploader?.resume();
+  }
+
+  bool _loadInFlight = false;
+
   Future<void> loadDelivery() async {
-    emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
+    if (_loadInFlight) return;
+    _loadInFlight = true;
+    emit(state.copyWith(
+      mode: ActiveDeliveryMode.loading,
+      clearError: true,
+      clearRefreshFailure: true,
+    ));
     try {
       final delivery = await _repository.fetchDelivery(deliveryId);
       emit(
@@ -222,11 +278,33 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       emit(
         state.copyWith(
           mode: ActiveDeliveryMode.error,
-          errorMessage: _mapLoadError(e),
+          loadFailureKind: e.failure,
         ),
       );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.error,
+          loadFailureKind: _failureOf(e),
+        ),
+      );
+    } finally {
+      _loadInFlight = false;
     }
   }
+
+  /// The one place an untyped throw (a `TypeError` out of `fromJson`, say)
+  /// becomes a kind the screen can render.
+  static ActiveDeliveryFailure _failureOf(Object error) =>
+      switch (AppFailure.of(error).kind) {
+        AppFailureKind.network ||
+        AppFailureKind.timeout =>
+          ActiveDeliveryFailure.network,
+        AppFailureKind.notFound ||
+        AppFailureKind.gone =>
+          ActiveDeliveryFailure.notFound,
+        _ => ActiveDeliveryFailure.server,
+      };
 
   void _armPoll() {
     final delivery = state.delivery;
@@ -275,14 +353,19 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
           otpRequired: otpWindow && merged.status.isTerminal ? false : null,
           isVerifyingOtp: otpWindow && merged.status.isTerminal ? false : null,
           delivered: merged.status.isSuccessfulTerminal ? true : null,
+          clearRefreshFailure: true,
         ),
       );
       if (merged.status.isPollTerminal) {
         _retireRefreshSubscription();
       }
       _syncGpsUpload();
-    } on ActiveDeliveryException {
-      // GPS sync is best effort and must not fail the state transition.
+    } on ActiveDeliveryException catch (e) {
+      // A failed push refresh keeps the rows it already has — refresh never
+      // flips back to loading — but it must not be silent either.
+      if (!isClosed) emit(state.copyWith(refreshFailure: e.failure));
+    } catch (e) {
+      if (!isClosed) emit(state.copyWith(refreshFailure: _failureOf(e)));
     }
   }
 
@@ -365,8 +448,8 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         state.copyWith(
           mode: ActiveDeliveryMode.ready,
           delivery: current,
-          transitionError: _mapTransitionError(e),
           transitionErrorKind: e.failure,
+          failureTypeSuffix: e.typeSuffix,
         ),
       );
     }
@@ -382,9 +465,23 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       final raw = await _photoPicker.pickFromCamera();
       bytes = await _compressor.compress(raw.bytes);
     } on PhotoPickException catch (e) {
+      // `cancelled` is the user's own act and stays silent; everything else
+      // was invisible before, which read as a camera that did nothing.
       if (e.failure != PhotoPickFailure.cancelled) {
-        emit(state.copyWith(proofPhotoStatus: ProofPhotoStatus.none));
+        emit(state.copyWith(
+          proofPhotoStatus: ProofPhotoStatus.failed,
+          proofPhotoFailure: e.failure,
+        ));
       }
+      return;
+    } catch (e) {
+      emit(state.copyWith(
+        proofPhotoStatus: ProofPhotoStatus.failed,
+        proofPhotoFailure: PhotoPickFailure.unavailable,
+      ));
+      Diag.event('active_delivery.proof_photo_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
       return;
     }
 
@@ -410,8 +507,8 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       emit(
         state.copyWith(
           proofPhotoStatus: ProofPhotoStatus.failed,
-          transitionError: _mapTransitionError(e),
           transitionErrorKind: e.failure,
+          failureTypeSuffix: e.typeSuffix,
         ),
       );
     }
@@ -501,8 +598,8 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         state.copyWith(
           mode: ActiveDeliveryMode.ready,
           delivery: _withStatus(original, lastConfirmed),
-          transitionError: _mapTransitionError(e),
           transitionErrorKind: e.failure,
+          failureTypeSuffix: e.typeSuffix,
         ),
       );
     }
@@ -514,7 +611,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     if (state.isVerifyingOtp) return;
     final trimmed = code.trim();
     if (trimmed.length < 4) {
-      emit(state.copyWith(otpError: 'Enter the 4-digit delivery code'));
+      emit(state.copyWith(
+        otpErrorKind: ActiveDeliveryFailure.otpCodeRequired,
+      ));
       return;
     }
     emit(state.copyWith(isVerifyingOtp: true, clearOtpError: true));
@@ -537,7 +636,17 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       _schedulePoll();
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
-      emit(state.copyWith(isVerifyingOtp: false, otpError: _mapOtpError(e)));
+      emit(state.copyWith(
+        isVerifyingOtp: false,
+        otpErrorKind: e.failure,
+        otpAttemptsRemaining: e.attemptsRemaining,
+        otpEscalationId: e.escalationId,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isVerifyingOtp: false,
+        otpErrorKind: _failureOf(e),
+      ));
     }
   }
 
@@ -547,6 +656,17 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   void acknowledgeOtpError() {
     emit(state.copyWith(clearOtpError: true));
+  }
+
+  /// Dismisses the warm refresh strip; the rows underneath stay.
+  void acknowledgeRefreshFailure() {
+    emit(state.copyWith(clearRefreshFailure: true));
+  }
+
+  /// Clears the proof-photo verdict so its snack fires once, not on every emit.
+  void acknowledgeProofPhotoFailure() {
+    if (state.proofPhotoStatus != ProofPhotoStatus.failed) return;
+    emit(state.copyWith(proofPhotoStatus: ProofPhotoStatus.none));
   }
 
   void acknowledgeDelivered() {
@@ -582,55 +702,13 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     );
   }
 
-  String _mapLoadError(ActiveDeliveryException e) {
-    if (e.failure == ActiveDeliveryFailure.network) {
-      return 'No internet connection';
-    }
-    if (e.failure == ActiveDeliveryFailure.notFound) {
-      return 'Delivery not found';
-    }
-    return 'Unable to load delivery';
-  }
 
-  String _mapTransitionError(ActiveDeliveryException e) {
-    if (e.failure == ActiveDeliveryFailure.otpRequired) {
-      return 'Enter the delivery OTP from the recipient to complete';
-    }
-    if (e.failure == ActiveDeliveryFailure.invalidTransition) {
-      return 'That transition is not allowed';
-    }
-    if (e.failure == ActiveDeliveryFailure.badRequest) {
-      return 'We couldn’t apply that update';
-    }
-    if (e.failure == ActiveDeliveryFailure.network) {
-      return 'No internet connection';
-    }
-    return 'Unable to update status';
-  }
 
-  String _mapOtpError(ActiveDeliveryException e) {
-    switch (e.failure) {
-      case ActiveDeliveryFailure.invalidOtp:
-        return 'Incorrect code — ask the recipient and try again';
-      case ActiveDeliveryFailure.otpLocked:
-        return 'Too many attempts — contact support';
-      case ActiveDeliveryFailure.network:
-        return 'No internet connection';
-      case ActiveDeliveryFailure.notFound:
-        return 'Delivery not found';
-      case ActiveDeliveryFailure.otpRequired:
-      case ActiveDeliveryFailure.invalidTransition:
-      case ActiveDeliveryFailure.badRequest:
-      case ActiveDeliveryFailure.server:
-        return 'Unable to verify the code';
-    }
-  }
 
-  // ignore: avoid_print
   void _logTransition(JeeberDeliveryStatus from, JeeberDeliveryStatus to) {
-    // ignore: avoid_print
-    print(
-      '[delivery.status_transition] from=${from.apiValue} to=${to.apiValue}',
-    );
+    Diag.event('delivery.status_transition', <String, Object?>{
+      'from': from.apiValue,
+      'to': to.apiValue,
+    });
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/cubit/saved_locations_cubit.dart';
@@ -16,8 +17,13 @@ class _FakeRepo implements SavedLocationRepository {
   final bool capError;
   final bool failDelete;
 
+  int fetchCalls = 0;
+
   @override
-  Future<List<SavedLocation>> fetchSavedLocations() async => list;
+  Future<List<SavedLocation>> fetchSavedLocations() async {
+    fetchCalls++;
+    return list;
+  }
 
   @override
   Future<SavedLocation> saveLocation({
@@ -61,6 +67,27 @@ class _FakeRepo implements SavedLocationRepository {
   Future<void> deleteLocation(String id) async {
     if (failDelete) throw const SavedLocationException('delete failed');
   }
+}
+
+/// Serves once, then fails — the warm-failure path.
+class _FlakyAfterFirstRepo extends _FakeRepo {
+  _FlakyAfterFirstRepo({super.list});
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async {
+    fetchCalls++;
+    if (fetchCalls == 1) return list;
+    throw const ServerFailure(status: 500);
+  }
+}
+
+/// Serves the list, but every delete throws.
+class _DeleteFailsRepo extends _FakeRepo {
+  _DeleteFailsRepo({super.list});
+
+  @override
+  Future<void> deleteLocation(String id) async =>
+      throw const ServerFailure(status: 500);
 }
 
 class _FailingRepo implements SavedLocationRepository {
@@ -133,10 +160,54 @@ void main() {
       expect(state.locations.first.label, 'Home');
     });
 
-    test('load emits Error when fetch fails', () async {
+    test('load emits Error carrying the classified failure', () async {
       final cubit = SavedLocationsCubit(_FailingRepo());
       await cubit.load();
       expect(cubit.state, isA<SavedLocationsError>());
+      // F32: `SavedLocationsError('fetch_failed')` was a stringly code the
+      // screen could only render as one kind-blind sentence.
+      expect((cubit.state as SavedLocationsError).failure, isA<AppFailure>());
+    });
+
+    // R6: a refresh must never blank rows already on screen.
+    test('a failed REFRESH keeps the rows and rides a refreshError', () async {
+      final repo = _FlakyAfterFirstRepo(list: [_home, _work]);
+      final cubit = SavedLocationsCubit(repo);
+
+      await cubit.load();
+      await cubit.load();
+
+      expect(cubit.state, isA<SavedLocationsLoaded>());
+      final state = cubit.state as SavedLocationsLoaded;
+      expect(state.locations, hasLength(2));
+      expect(state.refreshError, isA<AppFailure>());
+    });
+
+    test('a COLD load failure still shows the error page', () async {
+      final cubit = SavedLocationsCubit(_FailingRepo());
+      await cubit.load();
+      expect(cubit.state, isA<SavedLocationsError>());
+    });
+
+    test('the in-flight guard drops a concurrent load', () async {
+      final repo = _FakeRepo(list: [_home]);
+      final cubit = SavedLocationsCubit(repo);
+
+      await Future.wait(<Future<void>>[cubit.load(), cubit.load()]);
+
+      expect(repo.fetchCalls, 1);
+    });
+
+    // F32: the three stringly mutation codes are an enum now.
+    test('a failed delete names the mutation', () async {
+      final cubit = SavedLocationsCubit(_DeleteFailsRepo(list: [_home]));
+      await cubit.load();
+      await cubit.delete(_home.id);
+
+      final state = cubit.state as SavedLocationsMutationError;
+      expect(state.mutation, SavedLocationsMutation.delete);
+      expect(state.failure, isA<AppFailure>());
+      expect(state.isCapError, isFalse);
     });
 
     test('AC2: create prepends new location', () async {

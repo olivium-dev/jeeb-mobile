@@ -36,6 +36,7 @@ void main() {
     when(() => dio.patch<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         )).thenAnswer((_) async => _ok());
   });
 
@@ -48,6 +49,7 @@ void main() {
     verifyNever(() => dio.patch<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         ));
   });
 
@@ -59,6 +61,7 @@ void main() {
     verifyNever(() => dio.patch<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         ));
   });
 
@@ -71,6 +74,7 @@ void main() {
     verify(() => dio.patch<Map<String, dynamic>>(
           _statusPath,
           data: any(named: 'data'),
+          options: any(named: 'options'),
         )).called(1);
     // The fictional COD-record route is never POSTed.
     verifyNever(() => dio.post<Map<String, dynamic>>(

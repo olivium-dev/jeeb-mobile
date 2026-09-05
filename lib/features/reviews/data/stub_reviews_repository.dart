@@ -52,12 +52,17 @@ class StubReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<void> reportReview(String reviewId) async {
-  }
+  Future<void> reportReview(String reviewId) async {}
 
   List<ReviewItem> _buildPage(int page, int count) {
     const names = <String>[
-      'Sami', 'Lina', 'Omar', 'Maya', 'Karim', 'Rana', 'Tarek',
+      'Sami',
+      'Lina',
+      'Omar',
+      'Maya',
+      'Karim',
+      'Rana',
+      'Tarek',
     ];
     const bodies = <String?>[
       'Fast and friendly.',
@@ -75,9 +80,12 @@ class StubReviewsRepository implements ReviewsRepository {
           id: 'review-${index.toString().padLeft(3, '0')}',
           reviewerFirstName: names[i % names.length],
           score: (5 - (i % 2)).toDouble(),
-          timestamp: DateTime.utc(2026, 6, 18, 12)
-              .subtract(Duration(days: index))
-              .toIso8601String(),
+          timestamp: DateTime.utc(
+            2026,
+            6,
+            18,
+            12,
+          ).subtract(Duration(days: index)).toIso8601String(),
           body: bodies[i % bodies.length],
         );
       }),

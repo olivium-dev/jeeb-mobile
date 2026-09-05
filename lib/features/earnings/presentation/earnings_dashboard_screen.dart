@@ -7,6 +7,7 @@ import 'package:open_file/open_file.dart';
 
 import '../../../core/accessibility/accessibility.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
@@ -15,12 +16,17 @@ import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../application/earnings_cubit.dart';
 import '../application/earnings_state.dart';
 import '../domain/earnings_repository.dart';
@@ -68,8 +74,12 @@ class EarningsDashboardScreen extends StatelessWidget {
 
   /// `tpl 1140` — the 24px page gutter with a lead-in above the title.
   static const EdgeInsetsGeometry _headerPadding =
-      EdgeInsetsDirectional.fromSTEB(Spacing.xLarge, Spacing.medium,
-          Spacing.xLarge, 0);
+      EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        0,
+      );
 
   /// `tpl 1141` — the period row owns its own horizontal gutter (it scrolls),
   /// so only the lead-in is applied from outside.
@@ -97,12 +107,16 @@ class EarningsDashboardScreen extends StatelessWidget {
       OpenFile.open(state.exportedFilePath!);
       context.read<EarningsCubit>().resetExport();
     }
-    if (state.exportMode == EarningsExportMode.error &&
-        state.exportError != null) {
-      // EXEMPT: OMDS exports no standalone toast/snackbar widget; showOmdsSnackbar
-      // is the approved fleet pattern for transient error feedback.
-      showOmdsSnackbar(context, message: state.exportError!);
-      context.read<EarningsCubit>().resetExport();
+    if (state.exportMode == EarningsExportMode.error) {
+      final cubit = context.read<EarningsCubit>();
+      showJeebErrorSnack(
+        context,
+        failure: state.exportFailure ?? const UnknownFailure(),
+        identifier: 'earnings_export_error_snack',
+        retryLabel: EarningsDashboardL10n.of(context).retry,
+        onRetry: cubit.exportPdf,
+      );
+      cubit.resetExport();
     }
   }
 
@@ -115,7 +129,8 @@ class EarningsDashboardScreen extends StatelessWidget {
     final summary = state.summary;
     // The footer and the money widgets are funded-state only: an empty period
     // must stay free of every amount (T11 / SW-01), including a wallet pill.
-    final isFunded = state.mode == EarningsViewMode.ready &&
+    final isFunded =
+        state.mode == EarningsViewMode.ready &&
         summary != null &&
         !summary.isEmpty;
     // `expand`: Scaffold lays its body out LOOSE, so the field's Stack would
@@ -145,8 +160,10 @@ class EarningsDashboardScreen extends StatelessWidget {
               // recovers from an empty or failed load.
               Padding(
                 padding: _periodRowPadding,
-                child:
-                    _PeriodFilterRow(selectedPeriod: state.period, copy: copy),
+                child: _PeriodFilterRow(
+                  selectedPeriod: state.period,
+                  copy: copy,
+                ),
               ),
               Expanded(child: _stateBody(context, state, summary, copy)),
               if (isFunded) _EarningsFooter(state: state, copy: copy),
@@ -163,72 +180,90 @@ class EarningsDashboardScreen extends StatelessWidget {
     EarningsSummary? summary,
     EarningsDashboardL10n copy,
   ) {
+    final cubit = context.read<EarningsCubit>();
     if (state.mode == EarningsViewMode.loading) {
-      return Semantics(
-        identifier: 'earnings_loading',
-        container: true,
+      return JeebStateHost(
         child: JeebEmptyState.compact(
           status: JeebEmptyStateStatus.loading,
+          reason: JeebEmptyStateReason.loading,
           headline: copy.loadingHeadline,
+          identifier: 'earnings_loading',
         ),
       );
     }
+    // Error before empty (R6): a failed read is never reported as "no data".
     if (state.mode == EarningsViewMode.error) {
-      return Semantics(
-        identifier: 'earnings_error',
-        container: true,
-        child: JeebEmptyState.compact(
-          status: JeebEmptyStateStatus.error,
-          headline: copy.loadError,
-          center: const _EarningsMark(glyph: Icons.cloud_off),
-          medallions: const [],
-          action: JeebCtaButton.outline(
-            label: copy.retry,
-            expand: false,
-            onTap: () => context.read<EarningsCubit>().loadEarnings(),
-          ),
+      return JeebStateHost(
+        onRefresh: cubit.refresh,
+        child: JeebFailureBlock.compact(
+          failure: state.failure ?? const UnknownFailure(),
+          identifier: 'earnings_error',
+          retryIdentifier: 'earnings_retry_cta',
+          exitIdentifier: 'earnings_exit_cta',
+          variant: JeebEmptyStateVariant.pocket,
+          onRetry: cubit.loadEarnings,
+          onExit: _earningsExit(context, state.failure),
         ),
       );
     }
     // T11 / SW-01: no data for the period → honest empty state, never a wall of
     // confident zeros. Pills + pull-to-refresh stay so the jeeber can recover.
     if (summary == null || summary.isEmpty) {
-      return _EmptyEarnings(copy: copy);
+      return _EmptyEarnings(copy: copy, refreshError: state.refreshError);
     }
     return _ReadyBody(summary: summary, state: state, copy: copy);
   }
 }
 
+/// R6: an unrecoverable kind gets a way out, never a headline with no act. An
+/// expired session leaves to the root, where the redirect lands on sign-in.
+VoidCallback _earningsExit(BuildContext context, AppFailure? failure) =>
+    failure is UnauthorizedFailure
+    ? () => context.go('/')
+    : () => context.canPop() ? context.pop() : context.go('/');
+
 /// Honest empty/pending body shown when the wire has no earnings for the
 /// period. Deliberately money-free: no hero, no fee strip, no footer.
 class _EmptyEarnings extends StatelessWidget {
-  const _EmptyEarnings({required this.copy});
+  const _EmptyEarnings({required this.copy, this.refreshError});
 
   final EarningsDashboardL10n copy;
+  final AppFailure? refreshError;
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPullToRefresh(
-      onRefresh: () => context.read<EarningsCubit>().loadEarnings(),
+    final cubit = context.read<EarningsCubit>();
+    final warm = refreshError;
+    return JeebPullToRefresh(
+      onRefresh: cubit.refresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
         children: [
-          Semantics(
-            identifier: 'earnings_empty',
-            container: true,
-            child: JeebEmptyState.compact(
-              headline: copy.emptyTitle,
-              body: copy.emptyHint,
-              // E1's mic + shopping medallions are the CLIENT's "bring me
-              // anything"; a jeeber's empty ledger gets a money mark instead.
-              center: const _EarningsMark(glyph: Icons.payments),
-              medallions: const [],
-              action: JeebCtaButton.outline(
-                label: copy.emptyRefresh,
-                expand: false,
-                onTap: () => context.read<EarningsCubit>().loadEarnings(),
+          if (warm != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
+              child: JeebRefreshFailedNote(
+                failure: warm,
+                identifier: 'earnings_refresh_failed_note',
+                onRetry: cubit.refresh,
+                onDismiss: cubit.clearRefreshError,
               ),
+            ),
+          JeebEmptyState.compact(
+            headline: copy.emptyTitle,
+            body: copy.emptyHint,
+            reason: JeebEmptyStateReason.nothingYet,
+            identifier: 'earnings_empty',
+            // E1's mic + shopping medallions are the CLIENT's "bring me
+            // anything"; a jeeber's empty ledger gets a money mark instead.
+            center: const _EarningsMark(glyph: Icons.payments),
+            medallions: const [],
+            action: JeebCtaButton.outline(
+              label: copy.emptyRefresh,
+              expand: false,
+              identifier: 'earnings_empty_refresh_cta',
+              onTap: cubit.refresh,
             ),
           ),
         ],
@@ -256,8 +291,10 @@ class _ReadyBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final deliveries = summary.deliveries;
-    return OmdsPullToRefresh(
-      onRefresh: () => context.read<EarningsCubit>().loadEarnings(),
+    final cubit = context.read<EarningsCubit>();
+    final warm = state.refreshError;
+    return JeebPullToRefresh(
+      onRefresh: cubit.refresh,
       child: ListView(
         // R1 density: with two or three rows the list simply ends and the field
         // below it is the design. No Spacer, no centring, no shrinkWrap.
@@ -265,6 +302,15 @@ class _ReadyBody extends StatelessWidget {
           horizontal: Spacing.xLarge,
         ),
         children: [
+          if (warm != null) ...[
+            const SizedBox(height: Spacing.small),
+            JeebRefreshFailedNote(
+              failure: warm,
+              identifier: 'earnings_refresh_failed_note',
+              onRetry: cubit.refresh,
+              onDismiss: cubit.clearRefreshError,
+            ),
+          ],
           const SizedBox(height: Spacing.medium),
           _CashHero(summary: summary, copy: copy),
           const SizedBox(height: Spacing.small),
@@ -273,12 +319,10 @@ class _ReadyBody extends StatelessWidget {
           _BreakdownHeader(period: state.period, copy: copy),
           const SizedBox(height: _labelToRows),
           if (deliveries.isEmpty)
-            Semantics(
+            JeebEmptyState.compact(
+              headline: copy.breakdownEmptyTitle,
+              reason: JeebEmptyStateReason.nothingYet,
               identifier: 'earnings_breakdown_empty',
-              container: true,
-              child: JeebEmptyState.compact(
-                headline: copy.breakdownEmptyTitle,
-              ),
             )
           else
             for (var i = 0; i < deliveries.length; i++) ...[
@@ -338,8 +382,7 @@ class _PeriodPill extends StatelessWidget {
       // The kit capsule stays under 48dp on purpose; the tap target is this
       // wrapper, which owns the gesture.
       child: MinTapTarget(
-        onTap: () =>
-            context.read<EarningsCubit>().loadEarnings(period: period),
+        onTap: () => context.read<EarningsCubit>().loadEarnings(period: period),
         child: JeebSelectChip(
           role: JeebChipRole.sort,
           label: _label(period),
@@ -758,7 +801,7 @@ class _EarningsFooter extends StatelessWidget {
     final walletLabel = balance == null
         ? copy.walletLink
         : '${copy.walletLink} · '
-            '${MoneyFormat.format(balance.availableBalance, currency: balance.currency)}';
+              '${MoneyFormat.format(balance.availableBalance, currency: balance.currency)}';
     return JeebCtaFooter.split(
       expandLeading: true,
       spacing: _pillGap,

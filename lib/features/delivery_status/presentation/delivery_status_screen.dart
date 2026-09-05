@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/delivery_status_cubit.dart';
@@ -41,9 +48,9 @@ class DeliveryStatusScreen extends StatelessWidget {
     this.gateway,
     this.onContactJeeber,
   }) : assert(
-          cubit == null || gateway == null,
-          'Provide either a cubit or a gateway, not both.',
-        );
+         cubit == null || gateway == null,
+         'Provide either a cubit or a gateway, not both.',
+       );
 
   /// The delivery to display. Echoed in the cubit and the app-bar subtitle.
   final String deliveryId;
@@ -73,14 +80,15 @@ class DeliveryStatusScreen extends StatelessWidget {
         ),
       );
     }
+    final resolved = gateway;
+    // The demo snapshot used to be the PRODUCTION default: a fabricated
+    // delivery rendered as the user's own. No gateway is a failure now.
+    if (resolved == null) {
+      return _UnavailableScaffold(deliveryId: deliveryId);
+    }
     return BlocProvider<DeliveryStatusCubit>(
-      create: (_) => DeliveryStatusCubit(
-        deliveryId: deliveryId,
-        gateway: gateway ??
-            InMemoryDeliveryStatusGateway(
-              seed: demoDeliverySnapshot(id: deliveryId),
-            ),
-      ),
+      create: (_) =>
+          DeliveryStatusCubit(deliveryId: deliveryId, gateway: resolved),
       child: _Scaffold(
         deliveryId: deliveryId,
         onContactJeeber: onContactJeeber,
@@ -125,8 +133,12 @@ class _Scaffold extends StatelessWidget {
               ),
               Expanded(
                 child: BlocConsumer<DeliveryStatusCubit, DeliveryStatusState>(
+                  // `streamLost` already owns the whole error rung; letting
+                  // it fire a snack too said the same thing twice.
                   listenWhen: (prev, curr) =>
-                      prev.error != curr.error && curr.error != null,
+                      prev.error != curr.error &&
+                      curr.error != null &&
+                      curr.error != DeliveryStatusError.streamLost,
                   listener: _surfaceError,
                   builder: (context, state) {
                     switch (state.mode) {
@@ -164,7 +176,11 @@ class _Scaffold extends StatelessWidget {
     final cubit = context.read<DeliveryStatusCubit>();
     final message = _messageFor(l10n, state.error!);
     if (message != null) {
-      showOmdsSnackbar(context, message: message);
+      showJeebErrorSnack(
+        context,
+        message: message,
+        identifier: 'delivery_status_action_error',
+      );
     }
     cubit.acknowledgeError();
   }
@@ -192,9 +208,13 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return JeebStateHost(
       key: rootKey,
-      child: OmdsLoadingState(message: l10n.deliveryStatusLoading),
+      child: JeebEmptyState(
+        status: JeebEmptyStateStatus.loading,
+        headline: l10n.deliveryStatusLoading,
+        identifier: 'delivery_status_loading',
+      ),
     );
   }
 }
@@ -209,20 +229,55 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return JeebStateHost(
       key: rootKey,
-      // The board's 24px side gutter.
       padding: const EdgeInsets.all(Spacing.xLarge),
-      child: Center(
-        // OMDS's OmdsErrorState owns the visual layout — we only feed it
-        // localized copy. The retry button is OMDS-internal so we attach the
-        // test key to the surrounding container instead.
-        child: OmdsErrorState(
-          title: l10n.deliveryStatusErrorTitle,
-          message: l10n.deliveryStatusErrorBody,
-          icon: Icons.cloud_off_outlined,
-          retryLabel: l10n.deliveryStatusRetry,
-          onRetry: onRetry,
+      child: JeebFailureBlock(
+        failure: const ServerFailure(status: 503),
+        identifier: 'delivery_status_error',
+        headlineOverride: l10n.deliveryStatusErrorTitle,
+        bodyOverride: l10n.deliveryStatusErrorBody,
+        onRetry: onRetry,
+      ),
+    );
+  }
+}
+
+/// The screen with no gateway wired: a failure block, never a demo delivery.
+class _UnavailableScaffold extends StatelessWidget {
+  const _UnavailableScaffold({required this.deliveryId});
+
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'delivery_status_root',
+      container: true,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              JeebTopBar.back(
+                identifier: 'delivery_status_back',
+                title: l10n.deliveryStatusTitle,
+                titleScale: JeebTopBarTitleScale.compact,
+                subtitle: l10n.deliveryStatusIdSubtitle(deliveryId),
+              ),
+              Expanded(
+                child: JeebStateHost(
+                  child: JeebFailureBlock(
+                    failure: const UnknownFailure(),
+                    identifier: 'delivery_status_error',
+                    onExit: () => _popOrHome(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -249,31 +304,34 @@ class _ReadyView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            key: _Scaffold.bodyScrollKey,
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.xLarge,
-              Spacing.medium,
-              Spacing.xLarge,
-              Spacing.xLarge,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (snapshot.lifecycle != DeliveryLifecycle.active) ...[
-                  DeliveryLifecycleBanner(lifecycle: snapshot.lifecycle),
+          child: JeebPullToRefresh(
+            onRefresh: () async => context.read<DeliveryStatusCubit>().retry(),
+            child: SingleChildScrollView(
+              key: _Scaffold.bodyScrollKey,
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.xLarge,
+                Spacing.medium,
+                Spacing.xLarge,
+                Spacing.xLarge,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (snapshot.lifecycle != DeliveryLifecycle.active) ...[
+                    DeliveryLifecycleBanner(lifecycle: snapshot.lifecycle),
+                    const SizedBox(height: _kBlockRhythm),
+                  ],
+                  if (snapshot.isEtaVisible) ...[
+                    DeliveryEtaBadge(minutes: snapshot.etaMinutes!),
+                    const SizedBox(height: _kBlockRhythm),
+                  ],
+                  DeliveryStageIndicator(snapshot: snapshot),
                   const SizedBox(height: _kBlockRhythm),
-                ],
-                if (snapshot.isEtaVisible) ...[
-                  DeliveryEtaBadge(minutes: snapshot.etaMinutes!),
+                  DeliveryDetailsCard(snapshot: snapshot),
                   const SizedBox(height: _kBlockRhythm),
+                  DeliveryJeeberCard(jeeber: snapshot.jeeber),
                 ],
-                DeliveryStageIndicator(snapshot: snapshot),
-                const SizedBox(height: _kBlockRhythm),
-                DeliveryDetailsCard(snapshot: snapshot),
-                const SizedBox(height: _kBlockRhythm),
-                DeliveryJeeberCard(jeeber: snapshot.jeeber),
-              ],
+              ),
             ),
           ),
         ),
@@ -371,5 +429,15 @@ class _ActionBar extends StatelessWidget {
       below: contact == null ? null : cancel,
       child: primary,
     );
+  }
+}
+
+/// Exit that survives a deep-link root: `maybePop` is a silent no-op when this
+/// screen IS the stack.
+void _popOrHome(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
   }
 }

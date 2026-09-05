@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-/// Feature-local stopgap for the **seven** redesign-2026-08 screen-21 strings
-/// that do not exist in the shared ARBs yet.
+/// DEAD as of the ux/api-error wave: all 7 keys are in the ARBs and every
+/// production call site reads them off `AppLocalizations`. One test builds it.
 ///
 /// The ARB files and the hand-authored `AppLocalizations` getter layer are
 /// integrator-owned — a screen lane never edits them. The queued batch is
@@ -22,6 +22,10 @@ import 'package:flutter/widgets.dart';
 /// · `chatQuickReplyRowA11y` · `chatSystemChipWithTime` ·
 /// `chatCounterpartRatingA11y`, and point its call sites at
 /// `AppLocalizations.of(context)`.
+@Deprecated(
+  'All 7 keys live in the ARBs; zero production call sites. WP-9 deletes '
+  'this file together with chat_quick_reply_bar_test.dart\'s use of it.',
+)
 class ChatRedesignL10n {
   const ChatRedesignL10n({required bool isArabic}) : _isArabic = isArabic;
 

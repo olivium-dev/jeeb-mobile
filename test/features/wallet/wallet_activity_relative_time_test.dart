@@ -22,27 +22,38 @@ Future<WalletActivityL10n> _resolve(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('zone-less and Z-marked timestamps give the same relative label',
-      (tester) async {
-    final l10n = await _resolve(tester);
-    final now = DateTime.utc(2026, 6, 18, 10, 5); // 5 min after the row instant
+  testWidgets(
+    'zone-less and Z-marked timestamps give the same relative label',
+    (tester) async {
+      final l10n = await _resolve(tester);
+      final now = DateTime.utc(
+        2026,
+        6,
+        18,
+        10,
+        5,
+      ); // 5 min after the row instant
 
-    expect(
-      l10n.relativeTime('2026-06-18T10:00:00', now: now),
-      l10n.relativeTime('2026-06-18T10:00:00Z', now: now),
-    );
-  });
+      expect(
+        l10n.relativeTime('2026-06-18T10:00:00', now: now),
+        l10n.relativeTime('2026-06-18T10:00:00Z', now: now),
+      );
+    },
+  );
 
-  testWidgets('a just-happened server instant reads "Just now", not hours ago',
-      (tester) async {
-    final l10n = await _resolve(tester);
-    final now = DateTime.utc(2026, 6, 18, 10, 0);
+  testWidgets(
+    'a just-happened server instant reads "Just now", not hours ago',
+    (tester) async {
+      final l10n = await _resolve(tester);
+      final now = DateTime.utc(2026, 6, 18, 10, 0);
 
-    expect(l10n.relativeTime('2026-06-18T10:00:00', now: now), 'Just now');
-  });
+      expect(l10n.relativeTime('2026-06-18T10:00:00', now: now), 'Just now');
+    },
+  );
 
-  testWidgets('unparseable timestamp falls back to the raw string',
-      (tester) async {
+  testWidgets('unparseable timestamp falls back to the raw string', (
+    tester,
+  ) async {
     final l10n = await _resolve(tester);
     expect(l10n.relativeTime('not-a-date'), 'not-a-date');
   });

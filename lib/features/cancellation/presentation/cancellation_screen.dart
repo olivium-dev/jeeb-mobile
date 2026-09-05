@@ -211,7 +211,7 @@ class _CancellationViewState extends State<_CancellationView> {
                   Expanded(
                     child: BlocBuilder<CancellationCubit, CancellationState>(
                       builder: (context, state) => state is CancellationTooLate
-                          ? const _TooLateView()
+                          ? _TooLateView(deliveryId: widget.deliveryId)
                           : _Body(
                               reasons: reasons,
                               selectedReason: _selectedReason,
@@ -230,7 +230,8 @@ class _CancellationViewState extends State<_CancellationView> {
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (state is CancellationError) const _ErrorStrip(),
+                          if (state is CancellationError)
+                            _ErrorStrip(kind: state.kind),
                           _SubmitFooter(
                             isEnabled: _selectedReason != null,
                             onSubmit: () => _submit(context),
@@ -341,17 +342,34 @@ class _OtherTextField extends StatelessWidget {
 /// to offer. E3's night street is the only variant whose subject is a courier
 /// on the road.
 class _TooLateView extends StatelessWidget {
-  const _TooLateView();
+  const _TooLateView({required this.deliveryId});
+
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // A terminal kind gets a way ONWARD, never a Retry that cannot win: the
+    // view was a dead end with no act at all.
     return Center(
       child: JeebEmptyState(
         variant: JeebEmptyStateVariant.street,
         identifier: 'cancellation_too_late',
         headline: l10n.cancellationTooLateHeadline,
         body: l10n.cancellationTooLateBody,
+        reason: JeebEmptyStateReason.notFound,
+        action: JeebCtaButton.primary(
+          label: l10n.cancellationTooLateTrackCta,
+          identifier: 'cancellation_too_late_track_cta',
+          expand: false,
+          onTap: () => context.go('/orders/$deliveryId/track'),
+        ),
+        secondaryAction: JeebCtaButton.text(
+          label: l10n.escalateTitle,
+          identifier: 'cancellation_too_late_escalate_cta',
+          expand: false,
+          onTap: () => context.go('/orders/$deliveryId/escalate'),
+        ),
       ),
     );
   }
@@ -360,7 +378,9 @@ class _TooLateView extends StatelessWidget {
 /// The 5xx lane, docked above the CTA so the selection stays live and a retry
 /// is one tap away — R11's error-banner treatment.
 class _ErrorStrip extends StatelessWidget {
-  const _ErrorStrip();
+  const _ErrorStrip({required this.kind});
+
+  final CancellationFailure? kind;
 
   @override
   Widget build(BuildContext context) {
@@ -370,10 +390,23 @@ class _ErrorStrip extends StatelessWidget {
       child: JeebInfoNote.error(
         identifier: 'cancellation_error_note',
         icon: Icons.error,
-        text: l10n.cancellationErrorNote,
+        text: _copy(l10n),
       ),
     );
   }
+
+  String _copy(AppLocalizations l10n) => switch (kind) {
+    CancellationFailure.reasonRequired => l10n.cancellationErrorReasonRequired,
+    CancellationFailure.notAParty => l10n.cancellationErrorNotAParty,
+    CancellationFailure.forbidden => l10n.errorForbiddenBody,
+    CancellationFailure.network ||
+    CancellationFailure.timeout => l10n.cancellationErrorNetwork,
+    CancellationFailure.rateLimited => l10n.errorRateLimitedBody,
+    CancellationFailure.tooLate => l10n.cancellationTooLateBody,
+    CancellationFailure.server ||
+    CancellationFailure.unknown ||
+    null => l10n.cancellationErrorNote,
+  };
 }
 
 class _SubmitFooter extends StatelessWidget {

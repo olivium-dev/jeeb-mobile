@@ -553,7 +553,8 @@ void main() {
 
       final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
       expect(block.variant, JeebEmptyStateVariant.radar);
-      expect(block.status, JeebEmptyStateStatus.error);
+      expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(block.reason, JeebEmptyStateReason.failed);
       expect(repository.calls, 1);
 
       await tester.tap(

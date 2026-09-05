@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/location/data/dio_address_form_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/address_form_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
@@ -31,13 +32,23 @@ Dio _capturingDio(Object? responseBody, {int status = 200}) {
   return dio;
 }
 
-Dio _dioThrowing(DioExceptionType type) {
+Dio _dioThrowing(DioExceptionType type, {int? status, Object? body}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
         handler.reject(
-          DioException(requestOptions: options, type: type),
+          DioException(
+            requestOptions: options,
+            type: type,
+            response: status == null
+                ? null
+                : Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: status,
+                    data: body,
+                  ),
+          ),
         );
       },
     ),
@@ -140,19 +151,52 @@ void main() {
       expect(_capturedPath, isNot(contains('user-client-001')));
     });
 
-    test('maps connection errors to AddressFormFailure.network', () async {
+    test('maps connection errors to a NetworkFailure', () async {
       final repo =
           DioAddressFormRepository(_dioThrowing(DioExceptionType.connectionError));
 
       expect(
         () => repo.create(userId: 'ignored', draft: _draft()),
+        throwsA(isA<NetworkFailure>()),
+      );
+    });
+
+    // NET-15: a 422 field error used to fold into `unknown` and read as an
+    // outage. It must stay a ValidationFailure so the form can bind it.
+    test('maps a 422 to a ValidationFailure carrying its field errors',
+        () async {
+      final repo = DioAddressFormRepository(
+        _dioThrowing(
+          DioExceptionType.badResponse,
+          status: 422,
+          body: <String, dynamic>{
+            'errors': <String, dynamic>{
+              'label': <String>['Label is required'],
+            },
+          },
+        ),
+      );
+
+      expect(
+        () => repo.create(userId: 'ignored', draft: _draft()),
         throwsA(
-          isA<AddressFormException>().having(
-            (e) => e.failure,
-            'failure',
-            AddressFormFailure.network,
+          isA<ValidationFailure>().having(
+            (ValidationFailure f) => f.fieldErrors['label'],
+            'fieldErrors[label]',
+            <String>['Label is required'],
           ),
         ),
+      );
+    });
+
+    test('maps a 503 to a ServerFailure, not a connectivity failure', () async {
+      final repo = DioAddressFormRepository(
+        _dioThrowing(DioExceptionType.badResponse, status: 503),
+      );
+
+      expect(
+        () => repo.update(userId: 'ignored', id: 'a1', draft: _draft()),
+        throwsA(isA<ServerFailure>()),
       );
     });
   });

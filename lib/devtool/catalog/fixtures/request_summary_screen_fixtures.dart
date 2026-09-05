@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
@@ -18,13 +19,29 @@ class RequestSummaryScreenFakeSubmissionService
   const RequestSummaryScreenFakeSubmissionService({
     this.failure,
     this.pending = false,
-  });
+    this.appFailure,
+  }) : moderation = null;
+
+  /// The gateway refused the create at the prohibited-items gate.
+  const RequestSummaryScreenFakeSubmissionService.moderation({
+    List<String> matches = const <String>['knife'],
+    bool blocked = false,
+  })  : failure = null,
+        pending = false,
+        appFailure = null,
+        moderation = (matches: matches, blocked: blocked);
 
   /// The typed failure to complete with, or `null` to succeed.
   final RequestSubmissionFailure? failure;
 
   /// Never resolves — pins the screen on the in-flight button state.
   final bool pending;
+
+  /// Rides alongside [failure] so the screen renders kind-aware copy.
+  final AppFailure? appFailure;
+
+  /// Set by [RequestSummaryScreenFakeSubmissionService.moderation].
+  final ({List<String> matches, bool blocked})? moderation;
 
   /// The id a successful create returns. The gateway mints it and
   /// [RequestSummaryState.requestId] stores it; nothing in the presentation
@@ -33,8 +50,22 @@ class RequestSummaryScreenFakeSubmissionService
   @override
   Future<String> submit(RequestDraft draft) {
     if (pending) return Completer<String>().future;
+    final ({List<String> matches, bool blocked})? m = moderation;
+    if (m != null) {
+      return Future<String>.error(
+        RequestModerationRequired(
+          matches: m.matches,
+          blocked: m.blocked,
+          appFailure: const ConflictFailure(),
+        ),
+      );
+    }
     final RequestSubmissionFailure? f = failure;
-    if (f != null) return Future<String>.error(RequestSubmissionException(f));
+    if (f != null) {
+      return Future<String>.error(
+        RequestSubmissionException.classified(f, appFailure: appFailure),
+      );
+    }
     return Future<String>.value(mintedRequestId);
   }
 }

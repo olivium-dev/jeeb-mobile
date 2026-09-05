@@ -12,6 +12,7 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/power/battery_optimization.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
@@ -90,7 +91,7 @@ class _JeeberHomeHost extends StatelessWidget {
     if (sl.isRegistered<Dio>()) {
       return DioActiveDeliveriesRepository(sl<Dio>());
     }
-    return const _EmptyActiveDeliveriesRepository();
+    return activeDeliveriesDiFallback(releaseMode: kReleaseMode);
   }
 
   CustomerProfileRepository? _resolveGreetingRepository() {
@@ -114,7 +115,11 @@ class _JeeberHomeHost extends StatelessWidget {
       providers: [
         BlocProvider<AvailabilityCubit>(
           create: (_) => AvailabilityCubit(
-            gateway: sl<AvailabilityGateway>(),
+            // Unregistered would THROW out of GetIt and take the whole tab
+            // down; the gateway that always fails lands on the error rung.
+            gateway: sl.isRegistered<AvailabilityGateway>()
+                ? sl<AvailabilityGateway>()
+                : const _UnavailableAvailabilityGateway(),
             resumeSignals: AppResumeSignals.instance.stream,
           ),
         ),
@@ -423,12 +428,48 @@ class _DevFeedBody extends StatelessWidget {
   };
 }
 
+/// Critic A2: in RELEASE a DI miss must never render a fabricated empty list
+/// as real data; the debug fallback keeps the harnesses green.
+ActiveDeliveriesRepository activeDeliveriesDiFallback({
+  required bool releaseMode,
+}) => releaseMode
+    ? const _UnavailableActiveDeliveriesRepository()
+    : const _EmptyActiveDeliveriesRepository();
+
 class _EmptyActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   const _EmptyActiveDeliveriesRepository();
 
   @override
   Future<List<ActiveDeliverySummary>> listActive() async =>
       const <ActiveDeliverySummary>[];
+}
+
+/// Release-mode fallback: the banner shows its failure block, not a lie.
+class _UnavailableActiveDeliveriesRepository
+    implements ActiveDeliveriesRepository {
+  const _UnavailableActiveDeliveriesRepository();
+
+  @override
+  Future<List<ActiveDeliverySummary>> listActive() async =>
+      throw const UnknownFailure();
+}
+
+/// Stands in for an unregistered gateway so the tab renders its load-error
+/// rung instead of throwing out of the provider.
+class _UnavailableAvailabilityGateway implements AvailabilityGateway {
+  const _UnavailableAvailabilityGateway();
+
+  @override
+  Future<AvailabilityStatus> fetch() async =>
+      throw const AvailabilityGatewayException.from(UnknownFailure());
+
+  @override
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) async =>
+      throw const AvailabilityGatewayException.from(UnknownFailure());
+
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() async =>
+      throw const AvailabilityGatewayException.from(UnknownFailure());
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for

@@ -188,4 +188,75 @@ class OfferSubmissionScreenPreviewFixtures {
           priceUsd: null,
           etaMinutes: null,
         );
+
+  // ── Machine-reason repositories (AE-05/AE-13) ─────────────────────────────
+
+  /// 409 `offer-already-exists` — the "Withdraw and re-bid" rung.
+  static const ScriptedOfferSubmissionRepository duplicateRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.duplicateOffer,
+  );
+
+  /// 400 `offer-fee-too-low` — lands on the price field, not the note rung.
+  static const ScriptedOfferSubmissionRepository feeTooLowRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.feeTooLow,
+  );
+
+  /// 400 `offer-eta-invalid` — lands under the ETA row.
+  static const ScriptedOfferSubmissionRepository etaInvalidRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.etaInvalid,
+  );
+
+  /// 400 `offer-note-too-long` — lands under the note field.
+  static const ScriptedOfferSubmissionRepository noteTooLongRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.noteTooLong,
+  );
+
+  /// 409 `offer-out-of-range`.
+  static const ScriptedOfferSubmissionRepository outOfRangeRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.outOfRange,
+  );
+
+  /// 409 `same-delivery-role-violation`.
+  static const ScriptedOfferSubmissionRepository sameRoleRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.sameRoleViolation,
+  );
+
+  /// 409 `request-not-open-for-offers` — the terminal request-gone path.
+  static const ScriptedOfferSubmissionRepository requestNotOpenRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.requestNotOpen,
+  );
+
+  /// A 402 carrying the figures — both sheet rows render.
+  static const ScriptedOfferSubmissionRepository insufficientRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.insufficientBalance,
+    balance: shortfall,
+  );
+
+  /// A 402 with an EMPTY body: the sheet must drop both amount rows rather
+  /// than fabricate a zero shortfall (UX-15).
+  static const ScriptedOfferSubmissionRepository
+      insufficientUnknownRepository = ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.insufficientBalance,
+  );
+
+  /// A cubit already driven into [repository]'s failure. The submit resolves
+  /// on the next microtask, so the state is settled before the first frame.
+  static OfferFormCubit failedCubit(
+    ScriptedOfferSubmissionRepository repository, {
+    String? requestId,
+  }) =>
+      OfferFormCubit(repository: repository)
+        ..submit(
+          requestId: requestId ?? validationRequestId,
+          priceUsd: 15.0,
+          etaMinutes: 20,
+        );
 }

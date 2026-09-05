@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/location/data/fake_location_select_repository.dart';
+import '../../../features/request_summary/domain/request_draft.dart';
+import '../../../features/request_summary/domain/request_submission_service.dart';
 import '../../../features/location/domain/current_location_resolver.dart';
 import '../../../features/location/domain/location_select_repository.dart';
 import '../../../features/location/domain/saved_location.dart';
@@ -42,6 +45,29 @@ class ClientLocationScreenPendingRepository implements LocationSelectRepository 
   @override
   Future<List<SavedLocation>> fetchSavedAddresses(String userId) =>
       Completer<List<SavedLocation>>().future;
+}
+
+/// A create that the gateway refuses at the prohibited-items gate — the LIVE
+/// submit door's moderation round trip (AE-01).
+class ClientLocationScreenModerationSubmissionService
+    implements RequestSubmissionService {
+  const ClientLocationScreenModerationSubmissionService({
+    this.matches = const <String>['knife'],
+    this.blocked = false,
+  });
+
+  /// The flagged keywords the gateway reported.
+  final List<String> matches;
+
+  /// True for `prohibited-item-blocked`: terminal, no ack can clear it.
+  final bool blocked;
+
+  @override
+  Future<String> submit(RequestDraft draft) async => throw RequestModerationRequired(
+        matches: matches,
+        blocked: blocked,
+        appFailure: const ConflictFailure(),
+      );
 }
 
 /// The designed states of `ClientLocationScreen`, as (repository, resolver)

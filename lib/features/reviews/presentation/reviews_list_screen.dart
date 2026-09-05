@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -8,16 +11,25 @@ import '../../../core/network/auth_token_store.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/reviews_cubit.dart';
 import '../application/reviews_state.dart';
 import '../data/empty_reviews_repository.dart';
+import '../data/unavailable_reviews_repository.dart';
 import '../domain/reviews_repository.dart';
 import 'reviews_l10n.dart';
 import 'widgets/review_row.dart';
@@ -82,7 +94,7 @@ import 'widgets/review_row.dart';
 /// mounted; both resolve to this widget unchanged.
 // ORPHAN ruling 2026-08-04: KEEP + restyle, BOTH ROUTES — the query-param twin
 // is live (delivery_man_profile_screen.dart:137), the path-param one pins jm-068.
-class ReviewsListScreen extends StatelessWidget {
+class ReviewsListScreen extends StatefulWidget {
   const ReviewsListScreen({
     super.key,
     this.jeeberId,
@@ -113,35 +125,91 @@ class ReviewsListScreen extends StatelessWidget {
     if (sl.isRegistered<ReviewsRepository>()) {
       return sl<ReviewsRepository>();
     }
-    return const EmptyReviewsRepository();
+    // A DI miss must not read as "no reviews yet" in release (EP-26/GEN-01).
+    return kDebugMode
+        ? const EmptyReviewsRepository()
+        : const UnavailableReviewsRepository();
   }
 
   Widget _buildFor(String resolvedJeeberId) => BlocProvider<ReviewsCubit>(
-        create: (_) => ReviewsCubit(
-          repository: _resolveRepository(),
-          jeeberId: resolvedJeeberId,
-        )..load(),
-        child: const _ReviewsView(),
-      );
+    create: (_) => ReviewsCubit(
+      repository: _resolveRepository(),
+      jeeberId: resolvedJeeberId,
+    )..load(),
+    child: const _ReviewsView(),
+  );
+
+  @override
+  State<ReviewsListScreen> createState() => _ReviewsListScreenState();
+}
+
+class _ReviewsListScreenState extends State<ReviewsListScreen> {
+  /// Memoised: a future built inside `build` re-fires on every rebuild (LR-31).
+  late Future<String?> _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _userId = _readUserId();
+  }
+
+  Future<String?> _readUserId() {
+    final Future<String?> read =
+        (widget.authTokenStore ?? AuthTokenStore()).userId;
+    // Claim the error now: a retry's future rejects before the rebuilt
+    // FutureBuilder subscribes, which would report it as unhandled.
+    unawaited(read.then((_) {}, onError: (Object _, StackTrace _) {}));
+    return read;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final explicit = jeeberId?.trim();
+    final explicit = widget.jeeberId?.trim();
     if (explicit != null && explicit.isNotEmpty) {
       // `?jeeberId=` present — view that jeeber's public reviews directly.
-      return _buildFor(explicit);
+      return widget._buildFor(explicit);
     }
     // No `?jeeberId=` (cold deep-link): resolve the REAL authenticated session
     // user's own reviews from the auth source — never a hardcoded fixture id.
     return FutureBuilder<String?>(
-      future: (authTokenStore ?? AuthTokenStore()).userId,
+      future: _userId,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           // NOT `OmdsLoadingState` — it inks its ring `colorScheme.primary`,
           // which under Midnight is `#D73B00`: orange spent on a session read.
           return const _ReviewsScaffold(child: _LoadingBlock());
         }
-        return _buildFor((snapshot.data ?? '').trim());
+        final Object? error = snapshot.error;
+        if (error != null) {
+          final l10n = AppLocalizations.of(context);
+          final failure = AppFailure.of(error);
+          final unauthorized = failure is UnauthorizedFailure;
+          return _ReviewsScaffold(
+            child: JeebStateHost(
+              child: JeebFailureBlock(
+                failure: failure,
+                identifier: 'reviews_error',
+                variant: _kStateVariant,
+                retryIdentifier: 'reviews_retry_cta',
+                onRetry: failure.isRetryable
+                    ? () {
+                        setState(() {
+                          _userId = _readUserId();
+                        });
+                      }
+                    : null,
+                onExit: () => unauthorized
+                    ? context.goNamed('login')
+                    : (context.canPop() ? context.pop() : context.go('/')),
+                exitLabel: unauthorized ? l10n.actionSignIn : l10n.actionBack,
+                exitIdentifier: unauthorized
+                    ? 'reviews_error_signin_cta'
+                    : null,
+              ),
+            ),
+          );
+        }
+        return widget._buildFor((snapshot.data ?? '').trim());
       },
     );
   }
@@ -215,18 +283,37 @@ class _ReviewsView extends StatelessWidget {
           (n.reportStatus == ReportStatus.succeeded ||
               n.reportStatus == ReportStatus.failed),
       listener: (context, state) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              state.reportStatus == ReportStatus.succeeded
-                  ? copy.reportSuccess
-                  : copy.reportFailure,
-            ),
-          ),
-        );
-        context.read<ReviewsCubit>().acknowledgeReport();
+        final cubit = context.read<ReviewsCubit>();
+        final reportingId = state.reportingReviewId;
+        if (state.reportStatus == ReportStatus.succeeded) {
+          showJeebSuccessSnack(
+            context,
+            identifier: 'reviews_report_success',
+            message: copy.reportSuccess,
+          );
+        } else {
+          final l10n = AppLocalizations.of(context);
+          final failure = state.reportFailure;
+          // AE-25: a 409 names the reason and can never succeed — no Retry.
+          final message = failure is ConflictFailure
+              ? switch (failure.problem?.typeSuffix) {
+                  'already-rated' => l10n.reviewsErrorAlreadyRated,
+                  'rating-window-closed' => l10n.reviewsErrorWindowClosed,
+                  'not-rateable' => l10n.reviewsErrorNotRateable,
+                  _ => copy.reportFailure,
+                }
+              : copy.reportFailure;
+          final canRetry =
+              (failure?.isRetryable ?? false) && reportingId != null;
+          showJeebErrorSnack(
+            context,
+            identifier: 'reviews_report_error',
+            message: message,
+            retryLabel: canRetry ? l10n.actionRetry : null,
+            onRetry: canRetry ? () => cubit.reportReview(reportingId) : null,
+          );
+        }
+        cubit.acknowledgeReport();
       },
       builder: (context, state) {
         switch (state.status) {
@@ -234,39 +321,39 @@ class _ReviewsView extends StatelessWidget {
           case ReviewsStatus.loading:
             return const _LoadingBlock();
           case ReviewsStatus.failed:
-            return _ErrorBody(
-              headline: copy.loadError,
-              detail: _errorDetail(copy, state.error),
-              retryLabel: copy.retry,
-              onRetry: () => context.read<ReviewsCubit>().refresh(),
-            );
+            return _ErrorBody(state: state);
           case ReviewsStatus.loaded:
-            // `OmdsPullToRefresh`, not a raw `RefreshIndicator` — the house
-            // wrapper the order-history / wallet lists use, and what
-            // `tool/check_design_tokens.sh` gates on.
-            return OmdsPullToRefresh(
-              onRefresh: () => context.read<ReviewsCubit>().refresh(),
-              child: !state.hasReviews
-                  ? _EmptyBody(copy: copy)
-                  : _LoadedList(state: state, copy: copy),
+            final cubit = context.read<ReviewsCubit>();
+            return JeebPullToRefresh(
+              onRefresh: cubit.refresh,
+              child: Column(
+                children: [
+                  if (state.refreshError != null)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        Spacing.xLarge,
+                        Spacing.small,
+                        Spacing.xLarge,
+                        0,
+                      ),
+                      child: JeebRefreshFailedNote(
+                        failure: state.refreshError!,
+                        identifier: 'reviews_refresh_error',
+                        onDismiss: cubit.acknowledgeRefreshError,
+                        onRetry: cubit.refresh,
+                      ),
+                    ),
+                  Expanded(
+                    child: !state.hasReviews
+                        ? _EmptyBody(copy: copy)
+                        : _LoadedList(state: state, copy: copy),
+                  ),
+                ],
+              ),
             );
         }
       },
     );
-  }
-
-  /// `loadError` is now the headline, so only the network case still has a
-  /// second line to add — the other failures would just repeat themselves.
-  static String? _errorDetail(ReviewsL10n copy, ReviewsFailure? f) {
-    switch (f) {
-      case ReviewsFailure.network:
-        return copy.networkError;
-      case ReviewsFailure.notFound:
-      case ReviewsFailure.unauthorized:
-      case ReviewsFailure.unknown:
-      case null:
-        return null;
-    }
   }
 }
 
@@ -293,28 +380,20 @@ class _StateBlock extends StatelessWidget {
     required this.status,
     required this.headline,
     required this.identifier,
-    this.body,
-    this.action,
   });
 
   final JeebEmptyStateStatus status;
   final String headline;
   final String identifier;
-  final String? body;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          variant: _kStateVariant,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: action,
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        status: status,
+        variant: _kStateVariant,
+        headline: headline,
+        identifier: identifier,
       ),
     );
   }
@@ -325,30 +404,29 @@ class _StateBlock extends StatelessWidget {
 /// `<screen>_retry_cta` convention), so a flow can assert the error AND tap the
 /// retry by id. Mirrors JM-055.
 class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({
-    required this.headline,
-    required this.detail,
-    required this.retryLabel,
-    required this.onRetry,
-  });
+  const _ErrorBody({required this.state});
 
-  final String headline;
-  final String? detail;
-  final String retryLabel;
-  final VoidCallback onRetry;
+  final ReviewsState state;
 
   @override
   Widget build(BuildContext context) {
-    return _StateBlock(
-      status: JeebEmptyStateStatus.error,
-      headline: headline,
-      body: detail,
-      identifier: 'reviews_error',
-      action: JeebCtaButton.primary(
-        identifier: 'reviews_retry_cta',
-        label: retryLabel,
-        leadingIcon: Icons.refresh,
-        onTap: onRetry,
+    final l10n = AppLocalizations.of(context);
+    final AppFailure failure = state.appFailure ?? const UnknownFailure();
+    final unauthorized = state.error == ReviewsFailure.unauthorized;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'reviews_error',
+        variant: _kStateVariant,
+        retryIdentifier: 'reviews_retry_cta',
+        onRetry: failure.isRetryable
+            ? () => context.read<ReviewsCubit>().retry()
+            : null,
+        onExit: () => unauthorized
+            ? context.goNamed('login')
+            : (context.canPop() ? context.pop() : context.go('/')),
+        exitLabel: unauthorized ? l10n.actionSignIn : l10n.actionBack,
+        exitIdentifier: unauthorized ? 'reviews_error_signin_cta' : null,
       ),
     );
   }
@@ -369,9 +447,7 @@ class _LoadingBlock extends StatelessWidget {
     final copy = ReviewsL10n.of(context);
     return _StateBlock(
       status: JeebEmptyStateStatus.loading,
-      // TODO(midnight): l10n-queued `reviewsLoadingHeadline`; the screen title
-      // is the nearest existing key — see docs/redesign-midnight/l10n-queue.
-      headline: copy.title,
+      headline: copy.loadingHeadline,
       identifier: 'reviews_loading',
     );
   }
@@ -394,6 +470,7 @@ class _EmptyBody extends StatelessWidget {
       children: [
         JeebEmptyState(
           variant: _kStateVariant,
+          reason: JeebEmptyStateReason.nothingYet,
           headline: copy.emptyTitle,
           body: copy.emptyBody,
           identifier: 'reviews_empty',
@@ -441,10 +518,6 @@ class _AggregateHeader extends StatelessWidget {
     }
     return Row(
       children: [
-        // DEFECT (pass-1 carry): the glyph AND the score both read
-        // `colorScheme.primary` under a comment claiming that ink was navy.
-        // Under Midnight `primary` IS `#D73B00` — two orange elements on a
-        // read-only aggregate. Amber is §3's ink for "stars/ratings".
         const _AggregateStar(),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
@@ -452,8 +525,9 @@ class _AggregateHeader extends StatelessWidget {
             identifier: 'reviews_aggregate',
             child: Text(
               copy.aggregate(state.averageScore!, state.reviewCount),
-              style: context.jeebText.titleProminent
-                  .copyWith(color: scheme.onSurface),
+              style: context.jeebText.titleProminent.copyWith(
+                color: scheme.onSurface,
+              ),
             ),
           ),
         ),
@@ -476,7 +550,7 @@ class _AggregateStar extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return SizedBox.square(
       dimension: size,
       child: Stack(
@@ -567,9 +641,8 @@ class _LoadedListState extends State<_LoadedList> {
       // R7/R12: the card outlines ARE the separation — a divider between two
       // outlined cards draws a third line nobody asked for. The header keeps
       // the wider block rhythm below it; the cards sit on the 12px list gap.
-      separatorBuilder: (_, index) => SizedBox(
-        height: index < headerCount ? Spacing.large : Spacing.small,
-      ),
+      separatorBuilder: (_, index) =>
+          SizedBox(height: index < headerCount ? Spacing.large : Spacing.small),
       itemBuilder: (context, index) {
         if (index < headerCount) {
           return _AggregateHeader(state: state, copy: copy);
@@ -631,7 +704,12 @@ class _Footer extends StatelessWidget {
         children: [
           Flexible(
             child: Text(
-              copy.loadMoreError,
+              state.loadMoreFailure == null
+                  ? copy.loadMoreError
+                  : failureCopy(
+                      AppLocalizations.of(context),
+                      state.loadMoreFailure!,
+                    ).body,
               style: context.jeebText.bodySmall.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -640,7 +718,7 @@ class _Footer extends StatelessWidget {
           const SizedBox(width: Spacing.xSmall),
           JeebCtaButton.text(
             identifier: 'reviews_load_more_retry',
-            label: copy.retry,
+            label: AppLocalizations.of(context).actionRetry,
             labelStyle: context.jeebText.bodySmall,
             contentPadding: EdgeInsetsDirectional.zero,
             onTap: () => context.read<ReviewsCubit>().retryLoadMore(),

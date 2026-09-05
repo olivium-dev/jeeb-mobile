@@ -428,7 +428,15 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     try {
       final message = _parseMessage(payload.cast<String, dynamic>());
       _events.add(IncomingMessage(message));
-    } catch (_) {}
+    } catch (error) {
+      // A silently dropped frame is a message the thread will never show and
+      // no retry can fetch. Report it, and tell the cubit.
+      Diag.event('chat_frame_dropped', <String, Object?>{
+        'topic': frame['topic'],
+        'error': error.runtimeType.toString(),
+      });
+      if (!_events.isClosed) _events.add(const MessageDropped('parse'));
+    }
   }
 
   Map<String, Object?> _bodyFor(DeliveryChatMessage message) {

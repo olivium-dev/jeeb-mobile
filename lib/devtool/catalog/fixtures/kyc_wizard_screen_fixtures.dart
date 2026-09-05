@@ -4,8 +4,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/kyc/application/kyc_wizard_cubit.dart';
 import '../../../features/kyc/application/kyc_wizard_state.dart';
+import '../../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../../features/kyc/domain/kyc_form_schema.dart';
 import '../../../features/kyc/domain/kyc_gateway.dart';
 import '../../../features/kyc/domain/kyc_submission.dart';
@@ -227,4 +229,61 @@ class _SeededKycWizardCubit extends KycWizardCubit {
         ) {
     emit(seed);
   }
+}
+
+/// F1: the status read THROWS, so the wizard must land on
+/// `kyc_wizard_status_error` instead of spinning forever.
+class KycWizardScreenThrowingStatusGateway extends FakeKycGateway {
+  KycWizardScreenThrowingStatusGateway({
+    this.failure = const ServerFailure(status: 500),
+  });
+
+  final AppFailure failure;
+
+  @override
+  Future<KycSubmission> fetchStatus() async =>
+      throw KycGatewayException(failure);
+}
+
+/// F26: a loaded status whose BACKGROUND refresh fails — the note over the
+/// body, never a blanked screen.
+class KycWizardScreenRefreshFailingGateway extends FakeKycGateway {
+  KycWizardScreenRefreshFailingGateway({super.initial});
+
+  bool _first = true;
+
+  @override
+  Future<KycSubmission> fetchStatus() async {
+    if (_first) {
+      _first = false;
+      return super.fetchStatus();
+    }
+    throw const KycGatewayException(NetworkFailure(offline: true));
+  }
+}
+
+/// F25: the CDN rejects an upload inside `submit()` — 413, 415 and 500 are
+/// three different sentences, not one "submit failed".
+class KycWizardScreenCdnRejectingGateway implements CdnAssetGateway {
+  const KycWizardScreenCdnRejectingGateway({this.status = 413});
+
+  final int status;
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async =>
+      throw CdnUploadException(
+        'cdn_signed_put',
+        failure: status >= 500
+            ? ServerFailure(status: status)
+            : const ValidationFailure(),
+        status: status,
+      );
+
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async =>
+      throw const CdnFetchException('cdn_fetch');
 }

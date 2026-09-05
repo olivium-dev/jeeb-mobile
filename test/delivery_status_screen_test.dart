@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_pull_to_refresh.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_address.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_snapshot.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_stage.dart';
@@ -167,7 +168,64 @@ void main() {
     await _pumpScreen(tester, gateway: _BrokenGateway());
     expect(find.text("Couldn't load the status"), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+    // The rung is findable by identifier now, not by the OMDS widget type.
+    expect(
+      find.bySemanticsIdentifier('delivery_status_error'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('delivery_status_retry_cta'),
+      findsOneWidget,
+    );
   });
+
+  testWidgets('UX-44: streamLost produces ONE surface, not two',
+      (tester) async {
+    await _pumpScreen(tester, gateway: _BrokenGateway());
+    // The error rung already states the transport loss — a snack on top of it
+    // said the same thing twice.
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('the loading rung is findable', (tester) async {
+    await _pumpScreen(tester, gateway: _PendingGateway());
+    expect(
+      find.bySemanticsIdentifier('delivery_status_loading'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the ready body is pull-to-refreshable', (tester) async {
+    await _pumpScreen(
+      tester,
+      gateway: InMemoryDeliveryStatusGateway(seed: _snapshot()),
+    );
+    expect(find.byType(JeebPullToRefresh), findsOneWidget);
+  });
+
+  testWidgets('UX-26: no gateway renders a failure block, never a demo order',
+      (tester) async {
+    await tester.pumpWidget(
+      wrapForTest(const DeliveryStatusScreen(deliveryId: 'ORD-1')),
+    );
+    await tester.pump();
+
+    expect(
+      find.bySemanticsIdentifier('delivery_status_error'),
+      findsOneWidget,
+    );
+  });
+}
+
+/// Never answers — the cold-open rung, held open.
+class _PendingGateway implements DeliveryStatusGateway {
+  @override
+  Stream<DeliverySnapshot> watch(String deliveryId) =>
+      const Stream<DeliverySnapshot>.empty().asBroadcastStream();
+
+  @override
+  Future<CancellationOutcome> cancel(String deliveryId) async =>
+      CancellationOutcome.networkError;
 }
 
 class _BrokenGateway implements DeliveryStatusGateway {

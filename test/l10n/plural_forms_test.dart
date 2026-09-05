@@ -70,6 +70,12 @@ const _arabicCases = <_PluralCase>[
     'otpHandoverAttemptsRemaining',
     _handoverAttemptsRemaining,
   ),
+  // Stage 2 · WP-7 dispute evidence photo counter.
+  _PluralCase(
+    'disputeStatusPhotosAttached',
+    'disputeStatusPhotosAttached',
+    _disputePhotosAttached,
+  ),
 ];
 
 String _availability(AppLocalizations l, int n) =>
@@ -90,6 +96,8 @@ String _otpRateLimitedSeconds(AppLocalizations l, int n) =>
     l.registrationOtpRateLimitedSeconds(n);
 String _handoverAttemptsRemaining(AppLocalizations l, int n) =>
     l.otpHandoverAttemptsRemaining(n);
+String _disputePhotosAttached(AppLocalizations l, int n) =>
+    l.disputeStatusPhotosAttached(n);
 
 String _expectedForm(int n) {
   if (n == 0) return 'Zero';

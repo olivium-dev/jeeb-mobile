@@ -18,7 +18,29 @@ class CancellationTooLateException implements Exception {
 
 /// Generic cancellation failure (network / 4xx / 5xx).
 class CancellationException implements Exception {
-  const CancellationException(this.message);
+  const CancellationException([this.message, this.kind]);
 
-  final String message;
+  /// Diagnostics only. Never rendered — the screen switches on [kind].
+  final String? message;
+
+  final CancellationFailure? kind;
+
+  @override
+  String toString() => 'CancellationException(${kind?.name ?? 'unknown'})';
+}
+
+/// Why the cancel was refused, in the vocabulary the screen renders.
+enum CancellationFailure {
+  network,
+  timeout,
+  reasonRequired,
+  notAParty,
+
+  /// A plain 403 with no `not-a-party` type: suspended / KYC-gated, not
+  /// "you are not on this delivery".
+  forbidden,
+  tooLate,
+  rateLimited,
+  server,
+  unknown,
 }

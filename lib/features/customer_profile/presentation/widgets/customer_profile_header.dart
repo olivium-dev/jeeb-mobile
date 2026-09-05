@@ -38,6 +38,7 @@ class CustomerProfileHeader extends StatelessWidget {
     required this.isVerified,
     required this.rating,
     required this.ratingCount,
+    this.ratingUnavailable = false,
     this.onAvatarTap,
   });
 
@@ -45,8 +46,10 @@ class CustomerProfileHeader extends StatelessWidget {
   static const double radius = JeebRadii.lg;
 
   /// `15px 16px` (board `tpl 1354`).
-  static const EdgeInsetsGeometry padding =
-      EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 15);
+  static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
+    horizontal: 16,
+    vertical: 15,
+  );
 
   /// Avatar diameter (board `tpl 1355`). Ø50 is off the kit's four named sizes,
   /// so it uses [JeebAvatar]'s unnamed constructor; its measured initial size
@@ -62,6 +65,7 @@ class CustomerProfileHeader extends StatelessWidget {
   final bool isVerified;
   final double? rating;
   final int ratingCount;
+  final bool ratingUnavailable;
   final VoidCallback? onAvatarTap;
 
   bool get _hasName => (name ?? '').trim().isNotEmpty;
@@ -88,6 +92,7 @@ class CustomerProfileHeader extends StatelessWidget {
               verified: isVerified,
               rating: rating,
               ratingCount: ratingCount,
+              ratingUnavailable: ratingUnavailable,
             ),
           ),
         ],
@@ -144,6 +149,7 @@ class _Identity extends StatelessWidget {
     required this.verified,
     required this.rating,
     required this.ratingCount,
+    required this.ratingUnavailable,
   });
 
   final String? name;
@@ -151,6 +157,7 @@ class _Identity extends StatelessWidget {
   final bool verified;
   final double? rating;
   final int ratingCount;
+  final bool ratingUnavailable;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +167,11 @@ class _Identity extends StatelessWidget {
       children: [
         _NameRow(name: name, verified: verified),
         const SizedBox(height: Spacing.twoXSmall),
-        CustomerProfileRating(rating: rating, ratingCount: ratingCount),
+        CustomerProfileRating(
+          rating: rating,
+          ratingCount: ratingCount,
+          ratingUnavailable: ratingUnavailable,
+        ),
         if (email != null) ...[
           const SizedBox(height: Spacing.twoXSmall),
           _Email(email: email!),
@@ -234,8 +245,9 @@ class _NameBadge extends StatelessWidget {
       ),
       child: JeebVerifiedBadge(
         size: Sizes.medium,
-        semanticsLabel:
-            AppLocalizations.of(context).customerProfileVerifiedBadgeLabel,
+        semanticsLabel: AppLocalizations.of(
+          context,
+        ).customerProfileVerifiedBadgeLabel,
       ),
     );
   }

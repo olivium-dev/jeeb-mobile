@@ -38,6 +38,9 @@ class _FakeRepo implements ProhibitedAcknowledgmentRepository {
   Future<void> saveLocalAcknowledgment() async => localSaved = true;
 }
 
+/// Shared so the F4 assertion can read `localSaved` after the act.
+final _FakeRepo _ackFailingRepo = _FakeRepo(acknowledgeThrows: true);
+
 void main() {
   group('ProhibitedAcknowledgmentCubit', () {
     test('initial state is initial status', () {
@@ -90,9 +93,11 @@ void main() {
     );
 
     blocTest<ProhibitedAcknowledgmentCubit, ProhibitedAcknowledgmentState>(
-      'acknowledge still acks locally when server call throws',
+      // F4 (P0, inverted): a FAILED server ack must NOT latch locally. It used
+      // to, so the user was never asked again and the server never recorded it.
+      'acknowledge does NOT latch locally when the server call throws',
       build: () => ProhibitedAcknowledgmentCubit(
-        repository: _FakeRepo(acknowledgeThrows: true),
+        repository: _ackFailingRepo,
       ),
       seed: () => const ProhibitedAcknowledgmentState(
         status: ProhibitedAckStatus.loaded,
@@ -102,6 +107,27 @@ void main() {
       expect: () => [
         isA<ProhibitedAcknowledgmentState>()
             .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledging),
+        isA<ProhibitedAcknowledgmentState>()
+            .having(
+              (s) => s.status,
+              'status',
+              ProhibitedAckStatus.acknowledgeFailed,
+            )
+            .having((s) => s.failure, 'failure', isNotNull),
+      ],
+      verify: (_) => expect(_ackFailingRepo.localSaved, isFalse),
+    );
+
+    blocTest<ProhibitedAcknowledgmentCubit, ProhibitedAcknowledgmentState>(
+      'a retry after acknowledgeFailed can still succeed',
+      build: () => ProhibitedAcknowledgmentCubit(repository: _FakeRepo()),
+      seed: () => const ProhibitedAcknowledgmentState(
+        status: ProhibitedAckStatus.acknowledgeFailed,
+        items: [ProhibitedItem(id: 'arak', name: 'Arak')],
+      ),
+      act: (cubit) => cubit.acknowledge(),
+      skip: 1,
+      expect: () => [
         isA<ProhibitedAcknowledgmentState>()
             .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledged),
       ],

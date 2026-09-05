@@ -27,6 +27,9 @@ import '../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../core/network/app_failure.dart';
+import '../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
 import '../chat/domain/order_chat_summary.dart';
@@ -230,20 +233,24 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     if (_statusLoadInFlight) return;
     _statusLoadInFlight = true;
     OrderChatSummary? next;
+    AppFailure? failure;
     try {
       next = await repo.fetchSummary(widget.deliveryId);
-    } on OrderChatSummaryException {
-      // Unavailable — keep last-known status (fail-open while still null).
-    } catch (_) {
-      // Defensive: never let a status read crash the hub.
+    } on OrderChatSummaryException catch (e) {
+      // Keep the last-known status, but "settled after a failure" is not
+      // "settled with a status": Cancel must not ride out of an unread one.
+      failure = AppFailure.of(e);
+    } catch (e) {
+      failure = AppFailure.of(e);
     } finally {
       _statusLoadInFlight = false;
     }
     if (!mounted) return;
     final bool changed = next != null && next != _summary;
-    if (!_statusSettled || changed) {
+    if (!_statusSettled || changed || failure != _statusFailure) {
       setState(() {
         _statusSettled = true;
+        _statusFailure = failure;
         if (next != null) _summary = next;
       });
     }
@@ -251,6 +258,10 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
 
   /// Single-flight latch for [_loadStatus]. See the note there.
   bool _statusLoadInFlight = false;
+
+  /// Set when the last status read FAILED, so the unknown bucket can say so
+  /// instead of quietly offering every act including Cancel.
+  AppFailure? _statusFailure;
 
   _StatusBucket get _bucket {
     final id = _statusId;
@@ -302,10 +313,14 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
                         context.canPop() ? context.pop() : context.go('/'),
                   ),
                   Expanded(
-                    child: ListView(
-                      key: const Key('delivery-detail-list'),
-                      padding: _kBandPadding,
-                      children: _buildChildren(context, l10n),
+                    child: JeebPullToRefresh(
+                      onRefresh: _loadStatus,
+                      child: ListView(
+                        key: const Key('delivery-detail-list'),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: _kBandPadding,
+                        children: _buildChildren(context, l10n),
+                      ),
                     ),
                   ),
                 ],
@@ -334,7 +349,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
           identifier: 'order_detail_loading',
           status: JeebEmptyStateStatus.loading,
           variant: JeebEmptyStateVariant.parcel,
-          headline: l10n.deliveryDetailsTitle,
+          headline: l10n.deliveryDetailLoadingHeadline,
         ),
       ];
     }
@@ -355,6 +370,39 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// working. The delivered bucket omits Cancel structurally, so this fail-open
   /// path can never expose Cancel on a known-Delivered order.
   List<Widget> _failOpenChildren(BuildContext context, AppLocalizations l10n) {
+    final AppFailure? failure = _statusFailure;
+    if (failure != null) {
+      // The read FAILED: offering Cancel here fires a destructive act against
+      // a status nobody could read.
+      return [
+        JeebRefreshFailedNote(
+          failure: failure,
+          identifier: 'order_detail_status_failed',
+          messageOverride: l10n.deliveryDetailStatusUnavailable,
+          // One act, one affordance: the docked `order_detail_retry_cta` below
+          // is the Retry, so the strip carries dismiss only.
+          onDismiss: () => setState(() => _statusFailure = null),
+        ),
+        const SizedBox(height: Spacing.small),
+        JeebOutlinedCard.grouped(
+          children: [
+            _ActionRow(action: _trackAction(l10n)),
+            _ActionRow(action: _chatAction(context, l10n)),
+            _ActionRow(action: _otpAction(l10n)),
+            _ActionRow(action: _escalateAction(l10n)),
+          ],
+        ),
+        Semantics(
+          identifier: 'order_detail_retry_cta',
+          button: true,
+          container: true,
+          child: JeebCtaButton.outline(
+            label: l10n.actionRetry,
+            onTap: _loadStatus,
+          ),
+        ),
+      ];
+    }
     return [
       JeebOutlinedCard.grouped(
         children: [

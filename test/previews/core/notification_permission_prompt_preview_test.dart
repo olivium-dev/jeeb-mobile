@@ -66,15 +66,16 @@ void main() {
       // Built with no copy arguments, so this is the copy a caller gets today.
       await pumpPreview(tester, notificationPermissionPromptDefault);
 
+      // COPY-18: the defaults are the shipped ARB copy now, not four English
+      // constants on the widget.
       expect(find.text('Turn on notifications'), findsOneWidget);
       expect(
         find.text(
-          'Get delivery updates and chat messages the moment they happen, '
-          'even when the app is closed.',
+          "We'll tell you when offers arrive and when your delivery moves.",
         ),
         findsOneWidget,
       );
-      expect(find.text('Enable notifications'), findsOneWidget);
+      expect(find.text('Turn on'), findsOneWidget);
       expect(find.text('Not now'), findsOneWidget);
     });
 
@@ -189,7 +190,9 @@ void main() {
             'neither Flexible nor Expanded, so a narrower card takes nothing '
             'off the button',
       );
-      expect(tester.takeException().toString(), contains('overflowed'));
+      // COPY-18: the shipped ARB body is shorter than the old English const,
+      // so the default copy no longer overflows a 390pt card at 1.0x.
+      expect(tester.takeException(), isNull);
     });
   });
 }

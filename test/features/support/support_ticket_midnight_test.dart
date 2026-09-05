@@ -54,23 +54,23 @@ SupportCubit _seeded(SupportRepository repo) => SupportCubit(repo)
 
 void main() {
   Widget harness(SupportCubit? cubit) => MaterialApp(
-        theme: AppTheme.midnight(),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-          SyncAppLocalizationsDelegate(),
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        // The empty-family illustrations loop ∞ by design; reduce motion is
-        // what lets `pumpAndSettle` reach a rest frame.
-        home: Builder(
-          builder: (context) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(disableAnimations: true),
-            child: SupportTicketScreen(cubit: cubit),
-          ),
-        ),
-      );
+    theme: AppTheme.midnight(),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    // The empty-family illustrations loop ∞ by design; reduce motion is
+    // what lets `pumpAndSettle` reach a rest frame.
+    home: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: SupportTicketScreen(cubit: cubit),
+      ),
+    ),
+  );
 
   Future<void> pump(WidgetTester tester, SupportCubit? cubit) async {
     await tester.pumpWidget(harness(cubit));
@@ -78,8 +78,9 @@ void main() {
   }
 
   group('field', () {
-    testWidgets('mounts R22\'s content field: topEnd glow, no wash, still',
-        (tester) async {
+    testWidgets('mounts R22\'s content field: topEnd glow, no wash, still', (
+      tester,
+    ) async {
       await pump(tester, _seeded(const _CannedRepo()));
 
       final field = tester.widget<JeebMidnightField>(
@@ -92,8 +93,9 @@ void main() {
       expect(field.animateDecor, isFalse);
     });
 
-    testWidgets('the scaffold is transparent so the field is what paints',
-        (tester) async {
+    testWidgets('the scaffold is transparent so the field is what paints', (
+      tester,
+    ) async {
       await pump(tester, _seeded(const _CannedRepo()));
 
       final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
@@ -102,14 +104,14 @@ void main() {
   });
 
   group('submitting', () {
-    testWidgets('is the empty family at loading status, not an OMDS spinner',
-        (tester) async {
+    testWidgets('is the empty family at loading status, not an OMDS spinner', (
+      tester,
+    ) async {
       final cubit = _seeded(const _PendingRepo());
       unawaited(cubit.submit());
       await pump(tester, cubit);
 
-      final state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final state = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
       expect(state.status, JeebEmptyStateStatus.loading);
       expect(state.variant, JeebEmptyStateVariant.radar);
       // E2's ring discs are jeebers; a support ticket has none to name.
@@ -122,15 +124,16 @@ void main() {
   });
 
   group('error', () {
-    testWidgets('is the empty family at error status, ids intact',
-        (tester) async {
+    testWidgets('is the empty family at error status, ids intact', (
+      tester,
+    ) async {
       final cubit = _seeded(const _FailingRepo());
       await cubit.submit();
       await pump(tester, cubit);
 
-      final state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(state.status, JeebEmptyStateStatus.error);
+      final state = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(state.reason, JeebEmptyStateReason.failed);
       expect(state.variant, JeebEmptyStateVariant.radar);
       expect(find.bySemanticsIdentifier('support_error'), findsOneWidget);
       expect(find.bySemanticsIdentifier('support_retry_cta'), findsOneWidget);
@@ -139,8 +142,9 @@ void main() {
   });
 
   group('confirmation', () {
-    testWidgets('the settled mark takes the success role, never primary',
-        (tester) async {
+    testWidgets('the settled mark takes the success role, never primary', (
+      tester,
+    ) async {
       final cubit = _seeded(const _CannedRepo());
       await cubit.submit();
       await pump(tester, cubit);

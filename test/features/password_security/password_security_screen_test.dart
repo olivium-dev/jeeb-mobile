@@ -75,6 +75,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsIdentifier('password_submit_cta'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('password_unavailable_note'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsIdentifier('password_set_entry'), findsOneWidget);
     expect(find.bySemanticsIdentifier('password_back'), findsOneWidget);
   });
@@ -89,7 +93,9 @@ void main() {
     await tester.enterText(_field('password_confirm_field'), 'NewPassword3');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.bySemanticsIdentifier('password_submit_cta'));
+    // PS-02: the CTA is disabled up front now, so the keyboard's done action is
+    // the submit path that remains.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsIdentifier('password_mismatch_error'), findsOneWidget);
@@ -108,7 +114,7 @@ void main() {
     await tester.enterText(_field('password_confirm_field'), 'weak');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.bySemanticsIdentifier('password_submit_cta'));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsIdentifier('password_strength_error'), findsOneWidget);
@@ -126,15 +132,19 @@ void main() {
     await tester.enterText(_field('password_confirm_field'), 'NewPassword2');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.bySemanticsIdentifier('password_submit_cta'));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     // NO false success: the screen must NOT navigate back to the profile as if
     expect(find.text('customer-profile-host'), findsNothing);
     expect(find.bySemanticsIdentifier('password_security_root'), findsOneWidget);
-    // The honest notice is surfaced.
+    // The honest notice is surfaced — up front AND in the snack.
     expect(
-      find.text("Changing your password isn't available yet. Nothing was saved."),
+      find.bySemanticsIdentifier('password_unavailable_note'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('password_unavailable_snack'),
       findsOneWidget,
     );
   });

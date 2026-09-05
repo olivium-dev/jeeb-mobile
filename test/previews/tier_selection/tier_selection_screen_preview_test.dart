@@ -11,6 +11,7 @@ import 'package:jeeb_mobile/features/tier_selection/presentation/tier_selection_
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/load_test_fonts.dart';
+import '../../support/midnight_test_harness.dart';
 import '../../support/sync_app_localizations.dart';
 import '../preview_test_harness.dart';
 
@@ -35,10 +36,10 @@ const String _slaNone = 'No SLA';
 const String _slaEco = '≤ 48 hr';
 const String _slaFlash = '≤ 1 hr';
 
-/// The ONE failure sentence this screen has — `requestSummaryEr
-const String _failureCopy =
-    "Couldn't reach Jeeb. Check your connection and try again.";
-const String _retryLabel = 'Try again';
+/// The connectivity sentence — now reachable ONLY from a Network/Timeout
+/// failure. `errorNetworkBody`.
+const String _networkCopy = 'Check your connection and try again.';
+const String _retryLabel = 'Retry';
 
 /// The banner nothing in the app can raise.
 const String _cachedBannerCopy = 'Showing cached options — prices may differ';
@@ -86,6 +87,9 @@ Future<void> _pumpAtDevice(
   double textScale = 1,
   Locale locale = const Locale('en'),
 }) async {
+  // The §2.7 illustrations loop forever, so pumpAndSettle only terminates
+  // under reduce motion (R6).
+  useReduceMotion(tester);
   tester.view.physicalSize = logical * 3;
   tester.view.devicePixelRatio = 3;
   tester.platformDispatcher.textScaleFactorTestValue = textScale;
@@ -153,7 +157,10 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.text(TierSelectionScreenCaptions.loading), findsOneWidget);
-        expect(find.byType(OmdsLoadingState), findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('tier_selection_loading'),
+          findsOneWidget,
+        );
       });
     }
 
@@ -293,32 +300,39 @@ void main() {
         'message, no retry, CTA dead', (WidgetTester tester) async {
       await _pumpAtDevice(tester, tierSelectionScreenEmptyCatalogue);
 
+      // F13/ES-21: a zero-tier 200 is now its OWN rung inside a refresh host —
+      // never the danger error, and never a subtitle over a dead Confirm.
       expect(find.byType(TierCard), findsNothing);
-      expect(find.text(_subtitle), findsOneWidget);
-      expect(find.byKey(TierSelectionScreen.listKey), findsOneWidget);
-      expect(find.byType(OmdsErrorState), findsNothing);
-      expect(find.text(_failureCopy), findsNothing);
-      expect(find.byType(FilledButton), findsNothing);
-      expect(_confirmCta, findsOneWidget);
-      expect(_ctaEnabled(tester), isFalse);
+      expect(
+        find.bySemanticsIdentifier('tier_selection_empty'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('tier_selection_error'), findsNothing);
+      expect(find.text(_networkCopy), findsNothing);
+      expect(_confirmCta, findsNothing);
     });
   });
 
-  group('TierSelectionScreen previews · the two failures', () {
-    testWidgets('network: the retryable failure, with a retry that is not '
-        'keyed by `retryButtonKey`', (WidgetTester tester) async {
+  group('TierSelectionScreen previews · the three failures', () {
+    testWidgets('offline: the retryable failure, now keyed by `retryButtonKey`',
+        (WidgetTester tester) async {
       await _pumpAtDevice(tester, tierSelectionScreenErrorNetwork);
 
-      expect(find.byType(OmdsErrorState), findsOneWidget);
-      expect(find.text(_failureCopy), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('tier_selection_error'),
+        findsOneWidget,
+      );
+      expect(find.text(_networkCopy), findsOneWidget);
       expect(find.text(_retryLabel), findsOneWidget);
-      expect(find.byKey(TierSelectionScreen.retryButtonKey), findsNothing);
-      expect(find.byType(FilledButton), findsOneWidget);
+      // The frozen key was DECLARED and never attached; it resolves now.
+      expect(find.byKey(TierSelectionScreen.retryButtonKey), findsOneWidget);
       expect(find.byType(TierCard), findsNothing);
       expect(_confirmCta, findsNothing);
     });
 
-    testWidgets('server 5xx renders the SAME screen, word for word', (
+    // F19: the two readings used to be word-for-word identical, so a 5xx told
+    // the customer to check a connection that was fine.
+    testWidgets('server 5xx renders DIFFERENT copy from the offline reading', (
       WidgetTester tester,
     ) async {
       await _pumpAtDevice(tester, tierSelectionScreenErrorNetwork);
@@ -329,8 +343,23 @@ void main() {
       final List<String> server =
           _screenCopy(tester, TierSelectionScreenCaptions.errorServer);
 
-      expect(server, network);
-      expect(server, contains(_failureCopy));
+      expect(server, isNot(network));
+      expect(server, isNot(contains(_networkCopy)));
+    });
+
+    // R6: an unrecoverable kind gets an exit, never an inert Retry.
+    testWidgets('403 offers no Retry', (WidgetTester tester) async {
+      await _pumpAtDevice(tester, tierSelectionScreenErrorForbidden);
+
+      expect(
+        find.bySemanticsIdentifier('tier_selection_error'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('tier_selection_retry_cta'),
+        findsNothing,
+      );
+      expect(find.text(_networkCopy), findsNothing);
     });
   });
 

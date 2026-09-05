@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
@@ -313,5 +314,79 @@ abstract final class SettingsScreenPreviewFixtures {
     );
     unawaited(cubit.load());
     return cubit;
+  }
+}
+
+/// LR-05: the local profile read THROWS, so the screen has to draw
+/// `settings_error` instead of an empty body that looks loaded.
+class SettingsScreenThrowingProfileRepository implements ProfileRepository {
+  const SettingsScreenThrowingProfileRepository([
+    this.failure = const ServerFailure(status: 500),
+  ]);
+
+  final AppFailure failure;
+
+  @override
+  Future<UserProfile?> load() async => throw failure;
+
+  @override
+  Future<void> save(UserProfile profile) async => throw failure;
+
+  @override
+  Future<void> clear() async {}
+}
+
+/// LR-15: the read lands, the SAVE does not — the optimistic name rolls back
+/// and the banner says so instead of "Profile saved".
+class SettingsScreenSaveFailingProfileRepository implements ProfileRepository {
+  SettingsScreenSaveFailingProfileRepository([this._profile]);
+
+  UserProfile? _profile;
+
+  @override
+  Future<UserProfile?> load() async => _profile;
+
+  @override
+  Future<void> save(UserProfile profile) async =>
+      throw const NetworkFailure(offline: true);
+
+  @override
+  Future<void> clear() async => _profile = null;
+}
+
+/// A read that never lands: the `settings_loading` rung.
+class SettingsScreenSlowProfileRepository implements ProfileRepository {
+  const SettingsScreenSlowProfileRepository();
+
+  @override
+  Future<UserProfile?> load() => Completer<UserProfile?>().future;
+
+  @override
+  Future<void> save(UserProfile profile) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+/// F11: the device-local notification store, in memory. [writeFails] proves
+/// the revert-and-say-so path.
+class SettingsScreenFakeNotificationStore
+    implements SettingsNotificationPrefsStore {
+  SettingsScreenFakeNotificationStore({
+    NotificationPreferences? seed,
+    this.writeFails = false,
+  }) : _stored = seed;
+
+  NotificationPreferences? _stored;
+
+  final bool writeFails;
+
+  @override
+  Future<NotificationPreferences?> read() async => _stored;
+
+  @override
+  Future<void> write(NotificationPreferences preferences) async {
+    if (writeFails) throw const ServerFailure(status: 500);
+    _stored = preferences;
   }
 }

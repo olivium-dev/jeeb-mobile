@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../earnings/application/earnings_cubit.dart';
@@ -15,7 +19,7 @@ import 'dart:async';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../earnings/domain/earnings_summary.dart';
 
-class EarningsTab extends StatelessWidget {
+class EarningsTab extends StatefulWidget {
   const EarningsTab({super.key, this.sessionUserId});
 
   /// Catalog / preview seam for the session read. `null` (every production call
@@ -29,43 +33,102 @@ class EarningsTab extends StatelessWidget {
   static const String unavailableIdentifier = 'earnings_tab_unavailable';
 
   @override
+  State<EarningsTab> createState() => _EarningsTabState();
+}
+
+class _EarningsTabState extends State<EarningsTab> {
+  /// SHELL-09: built ONCE. `future: widget.sessionUserId ?? _read()` re-ran the
+  /// keychain read on every rebuild of the tab.
+  late Future<String?> _future = widget.sessionUserId ?? _sessionUserId();
+
+  void _retry() {
+    final Future<String?> next = _sessionUserId();
+    setState(() {
+      _future = next;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: sessionUserId ?? _sessionUserId(),
+      future: _future,
       builder: (context, snapshot) {
-        final userId = snapshot.data;
-        if (userId != null && userId.isNotEmpty) {
-          return BlocProvider<EarningsCubit>(
-            create: (_) => EarningsCubit(
-              repository: sl<EarningsRepository>(),
-              jeeberId: userId,
-            ),
-            child: const EarningsDashboardScreen(),
-          );
-        }
         final l10n = AppLocalizations.of(context);
         if (snapshot.connectionState != ConnectionState.done) {
           return _EarningsGate(
             child: JeebEmptyState(
               variant: JeebEmptyStateVariant.radar,
               status: JeebEmptyStateStatus.loading,
+              reason: JeebEmptyStateReason.loading,
               medallions: const <JeebEmptyMedallion>[],
-              identifier: loadingIdentifier,
+              identifier: EarningsTab.loadingIdentifier,
               headline: l10n.earningsLoadingHeadline,
             ),
           );
         }
-        return _EarningsGate(
-          child: JeebEmptyState(
-            variant: JeebEmptyStateVariant.radar,
-            status: JeebEmptyStateStatus.error,
-            medallions: const <JeebEmptyMedallion>[],
-            identifier: unavailableIdentifier,
-            headline: l10n.earningsAccountUnavailable,
+        // "We could not check" is not "you have no account": the error arm used
+        // to fall through to the fail-closed copy.
+        if (snapshot.hasError) {
+          return _unavailable(context, l10n, AppFailure.of(snapshot.error!));
+        }
+        final userId = snapshot.data;
+        if (userId == null || userId.isEmpty) {
+          return _unavailable(context, l10n, const UnauthorizedFailure());
+        }
+        if (!sl.isRegistered<EarningsRepository>()) {
+          return _unavailable(context, l10n, const UnknownFailure());
+        }
+        return BlocProvider<EarningsCubit>(
+          create: (_) => EarningsCubit(
+            repository: sl<EarningsRepository>(),
+            jeeberId: userId,
           ),
+          child: const EarningsDashboardScreen(),
         );
       },
     );
+  }
+
+  /// ES-11/EP-18: a headline alone stranded the Jeeber on a dead screen. Both
+  /// acts are always mounted — the block picks which one is the primary pill.
+  Widget _unavailable(
+    BuildContext context,
+    AppLocalizations l10n,
+    AppFailure failure,
+  ) {
+    final bool retryable = failure.isRetryable;
+    return _EarningsGate(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: EarningsTab.unavailableIdentifier,
+        retryIdentifier: 'earnings_tab_retry_cta',
+        exitIdentifier: 'earnings_tab_signout_cta',
+        variant: JeebEmptyStateVariant.radar,
+        headlineOverride: l10n.earningsAccountUnavailable,
+        bodyOverride: l10n.earningsAccountUnavailableBody,
+        onRetry: _retry,
+        onExit: () => _signOut(context),
+        exitLabel: l10n.actionSignOut,
+        secondaryAction: retryable
+            ? JeebCtaButton.text(
+                identifier: 'earnings_tab_signout_cta',
+                label: l10n.actionSignOut,
+                onTap: () => _signOut(context),
+              )
+            : JeebCtaButton.text(
+                identifier: 'earnings_tab_retry_cta',
+                label: l10n.actionRetry,
+                onTap: _retry,
+              ),
+      ),
+    );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    if (sl.isRegistered<AuthTokenStore>()) {
+      await sl<AuthTokenStore>().clear();
+    }
+    if (context.mounted) context.go('/');
   }
 
   Future<String?> _sessionUserId() async {
@@ -105,7 +168,7 @@ class _EarningsGate extends StatelessWidget {
 /// stats row and the first breakdown rows without the `ListView` hiding what
 const Size _earningsTabBox = Size(390, 760);
 
-/// The empty state is pills + one centred `OmdsEmptyState` block.
+/// The empty state is pills + one centred `JeebEmptyState` block.
 const Size _earningsTabEmptyBox = Size(390, 560);
 
 /// The error state is a centred icon + message + retry button.

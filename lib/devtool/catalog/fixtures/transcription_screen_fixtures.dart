@@ -79,3 +79,40 @@ TranscriptionCubit transcriptionScreenArabicCubit() =>
 TranscriptionCubit transcriptionScreenEditingCubit({
   VoiceClip clip = transcriptionScreenEditingClip,
 }) => transcriptionScreenCubit(clip)..startEditing();
+
+/// A player that refuses every act — the unplayable-clip rung (TRANS-01).
+class ThrowingTranscriptAudioPlayer implements TranscriptAudioPlayer {
+  const ThrowingTranscriptAudioPlayer();
+
+  @override
+  Future<void> play(
+    String path, {
+    required void Function(Duration) onPosition,
+    required void Function() onCompleted,
+  }) async =>
+      throw StateError('unplayable source');
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> seek(Duration position) async =>
+      throw StateError('unplayable source');
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// A clip whose playback fails: `playbackError` on, the toggle back at rest.
+TranscriptionCubit transcriptionScreenPlaybackErrorCubit({
+  VoiceClip clip = transcriptionScreenArabicClip,
+}) {
+  final TranscriptionCubit cubit =
+      TranscriptionCubit(player: const ThrowingTranscriptAudioPlayer())
+        ..seedFromClip(clip);
+  cubit.togglePlayback();
+  return cubit;
+}

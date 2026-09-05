@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'order_summary.dart';
 
 abstract class OrderRepository {
@@ -10,10 +11,13 @@ abstract class OrderRepository {
 }
 
 class OrderRepositoryException implements Exception {
-  const OrderRepositoryException(this.kind, [this.cause]);
+  const OrderRepositoryException(this.kind, [this.cause, this.failure]);
 
   final OrderRepositoryErrorKind kind;
   final Object? cause;
+
+  /// The classified failure; null on a legacy throw site.
+  final AppFailure? failure;
 
   @override
   String toString() =>

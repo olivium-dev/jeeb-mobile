@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import '../../../l10n/app_localizations.dart';
@@ -180,18 +181,25 @@ class _PromptBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (state == BiometricState.checking) {
-      return const Padding(
+      return Padding(
         padding: _padding,
-        child: Center(child: OmdsLoadingState()),
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          identifier: 'biometric_prompt_loading',
+          headline: l10n.loadingGenericHeadline,
+        ),
       );
     }
-    if (state == BiometricState.unavailable) {
+    // F38: `failed` used to render BLANK. The stub cubit cannot fail today, but
+    // no state on this screen may be empty.
+    if (state == BiometricState.unavailable || state == BiometricState.failed) {
       return Padding(
         padding: _padding,
         child: JeebInfoNote.muted(
           icon: Icons.info_outline,
-          text: AppLocalizations.of(context).biometricNotAvailable,
+          text: l10n.biometricNotAvailable,
         ),
       );
     }

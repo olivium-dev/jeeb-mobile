@@ -143,8 +143,9 @@ void main() {
 
       // Still on the step (not resolved), the error copy is surfaced, and the
       expect(done, 0);
+      // UX-48: the snack is the kit primitive now, found by its identifier.
       expect(
-        find.text('We couldn’t save your name. Try again, or skip for now.'),
+        find.bySemanticsIdentifier('profile_name_save_error_snack'),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('profile-name.skip')));

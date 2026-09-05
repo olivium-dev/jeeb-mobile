@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'guardrail_sources.dart';
 
 /// Unasserted ids on `origin/main` the day WP-0B landed. Stage 2 lowers it.
-const int _kFloor = 27;
+const int _kFloor = 0;
 
 /// `identifier: 'thing_error'` and the four suffixes the contract names.
 /// Literals only: ids behind a `static const` or an interpolation are invisible.

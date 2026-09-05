@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../catalog_models.dart';
+import '../fixtures/jeeber_active_deliveries_fixtures.dart';
 
 import '../../../features/escalate/application/escalate_cubit.dart';
 import '../../../features/escalate/domain/escalate_repository.dart';
@@ -76,8 +80,40 @@ final CatalogEntry _escalateEntry = CatalogEntry(
         preSubmit: true,
       ),
     ),
+    CatalogState(
+      'Evidence preview — empty (ES-15)',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.emptyPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — failed (ESC-08)',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.failingPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — in flight',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.stalledPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — rich',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.richPreview()),
+    ),
+    CatalogState(
+      'Error — dispute not found (exit CTA, no Retry)',
+      (_) => _escalateScreen(
+        EscalateScreenPreviewFixtures.notFoundSubmit(),
+        preSubmit: true,
+      ),
+    ),
   ],
 );
+
+/// The three ES-15 rungs only light when the repository implements the preview
+/// interface, which the shipped Dio one deliberately does not.
+Widget _escalatePreview(EscalateRepository repository) =>
+    BlocProvider<EscalateCubit>(
+      create: (_) =>
+          EscalateScreenPreviewFixtures.cubit(repository)..loadEvidence(),
+      child: const EscalateScreen(),
+    );
 
 /// `repository` is the only seam; it builds its own cubit and calls loadCurrency() at mount.
 final CatalogEntry _goodsCostEntry = CatalogEntry(
@@ -103,6 +139,20 @@ final CatalogEntry _goodsCostEntry = CatalogEntry(
       (_) => GoodsCostScreen(
         deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
         repository: GoodsCostScreenPreviewFixtures.currencyUnavailable(),
+      ),
+    ),
+    CatalogState(
+      'Currency absent — neutral label + inline retry',
+      (_) => GoodsCostScreen(
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.currencyAbsent(),
+      ),
+    ),
+    CatalogState(
+      'Amount unconfirmed — the server confirmed nothing',
+      (_) => GoodsCostScreen(
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.amountUnconfirmed(),
       ),
     ),
   ],
@@ -177,6 +227,27 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
+    CatalogState(
+      'Partial failure — In Progress dead, the rest live',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.partialFailureRepository(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
+    CatalogState(
+      'Refresh failed over rows',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.refreshFailingRepository(),
+        initialTab: ClientHomeTab.pendingRequests,
+      ),
+    ),
+    CatalogState(
+      'Forbidden — no inert retry',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.forbiddenRepository(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
   ],
 );
 
@@ -248,7 +319,31 @@ final CatalogEntry _jeeberActiveDeliveriesEntry = CatalogEntry(
         ),
       ]),
     ),
+    CatalogState(
+      'Load failed — compact failure block',
+      (_) => _activeDeliveriesSeated(
+        failedActiveDeliveriesCubit(const NetworkFailure()),
+      ),
+    ),
+    CatalogState(
+      'Loading — the banner hides itself',
+      (_) => _activeDeliveriesSeated(
+        ActiveDeliveriesCubit(
+          repository: const StalledActiveDeliveriesRepository(),
+        )..start(),
+      ),
+    ),
   ],
+);
+
+/// Seats a pre-built cubit, for the rungs a canned repository cannot reach.
+Widget _activeDeliveriesSeated(ActiveDeliveriesCubit cubit) => Scaffold(
+  body: SafeArea(
+    child: BlocProvider<ActiveDeliveriesCubit>.value(
+      value: cubit,
+      child: ActiveDeliveriesBanner(onOpenChat: (_) {}, onManageDelivery: (_) {}),
+    ),
+  ),
 );
 
 /// Provides AvailabilityCubit the screen reads from didChangeDependencies (calls load()).
@@ -318,6 +413,39 @@ final CatalogEntry _jeeberHomeEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Feed load failed (503)',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+        feedCubit: JeeberHomeScreenPreviewFixtures.failedFeed(
+          const ServerFailure(status: 503),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Feed refresh failed — stale rows stay up',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+        feedCubit: JeeberHomeScreenPreviewFixtures.refreshFailedFeed(
+          JeeberHomeScreenPreviewFixtures.incomingFeed(),
+          const NetworkFailure(offline: true),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Not registered — availability answered 404',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.notRegisteredAvailability(),
+      ),
+    ),
+    CatalogState(
+      'Availability forbidden — KYC exit, no inert retry',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.failingAvailabilityOf(
+          const ForbiddenFailure(),
+        ),
+      ),
+    ),
   ],
 );
 
@@ -358,3 +486,4 @@ final CatalogEntry _jeeberOnboardingEntry = CatalogEntry(
     ),
   ],
 );
+

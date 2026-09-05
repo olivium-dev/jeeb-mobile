@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'guardrail_sources.dart';
 
 /// Sites on `origin/main` the day WP-0B landed. Stage 2 drives this to 0.
-const int _kFloor = 12;
+const int _kFloor = 1;
 
 void main() {
   test('OmdsErrorState / OmdsLoadingState do not spread in lib/features', () {

@@ -17,6 +17,7 @@ import '../../core/di/injection_container.dart';
 import '../../core/diagnostics/diag.dart';
 import '../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../core/formatting/friendly_reference.dart';
+import '../../core/network/app_failure.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/network/network_reachability_signals.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
@@ -27,6 +28,7 @@ import '../../core/role/user_role.dart';
 import '../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
@@ -48,6 +50,7 @@ import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../chat/presentation/widgets/chat_app_bar.dart';
+import '../chat/presentation/widgets/order_chat_summary_unavailable_strip.dart';
 import '../kyc/domain/cdn_asset_gateway.dart';
 import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
@@ -122,6 +125,7 @@ class ChatDetailScreen extends StatefulWidget {
     this.debugPhase,
     this.debugHasWinner = false,
     this.debugSummary,
+    this.debugSummaryFailure,
     this.debugCounterpartName = '',
     this.refreshSignals,
   });
@@ -154,6 +158,10 @@ class ChatDetailScreen extends StatefulWidget {
   /// Paired with [debugGateway]; seeds the JM-025 AC2 pinned summary strip.
   final OrderChatSummary? debugSummary;
 
+  /// DEVTOOL-ONLY seam: the failure behind a MISSING [debugSummary], so the
+  /// catalog can mount the F44 unavailable strip.
+  final AppFailure? debugSummaryFailure;
+
   /// Paired with [debugGateway]; seeds the resolved header title.
   final String debugCounterpartName;
 
@@ -185,6 +193,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// JM-025 AC2: locked summary for the accepted order. Null in compose state
   /// or when the fetch could not resolve one (the strip then hides).
   OrderChatSummary? _summary;
+
+  /// F44: why the strip is missing. A vanished strip and an order that never
+  /// had one are indistinguishable to the user; this tells them apart.
+  AppFailure? _summaryFailure;
+
+  /// Session user id stamped on OFF-04 outbox rows by the chat cubit.
+  String _sessionUserId = '';
+
+  /// Written by [_resolveSummary]; folded into [_summaryFailure] by its caller.
+  AppFailure? _lastSummaryFailure;
 
   /// P3: role captured at resolution time so the async summary paths (initial
   /// fetch + refresh) pick the right read mode without a post-await
@@ -325,6 +343,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
     final debugGateway = widget.debugGateway;
     if (debugGateway != null) {
+      _lastSummaryFailure = widget.debugSummaryFailure;
       // DEVTOOL-ONLY seam — see [ChatDetailScreen.debugGateway]. Bypasses the
       // GetIt/Dio resolution entirely so the catalog can mount a designed
       // state with zero network calls.
@@ -585,6 +604,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // login / super-login). Empty when unauthenticated → degrades safely (all
     // messages render as `them`), never crashes.
     final currentUserId = await _resolveSessionUserId(getIt);
+    _sessionUserId = currentUserId;
 
     var conversationId = widget.chatId;
     Map<String, dynamic>? conversationData;
@@ -1107,8 +1127,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       try {
         final resp = await dio.get<Map<String, dynamic>>('/users/$winnerId');
         return resp.data?['name'] as String? ?? '';
-      } on DioException {
-        // Fall through.
+      } on DioException catch (error) {
+        // Acceptable degrade to the role fallback name — but observable.
+        Diag.event('chat_counterpart_name_unresolved', <String, Object?>{
+          'error': error.type.name,
+        });
       }
     }
 
@@ -1127,16 +1150,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }) async {
     final summaryId = requestId.isNotEmpty ? requestId : conversationId;
     if (summaryId.isEmpty) return null;
+    _lastSummaryFailure = null;
     try {
       return await DioOrderChatSummaryRepository(
         dio,
         ownerScopedReads: ownerScopedReads,
       ).fetchSummary(summaryId);
-    } on OrderChatSummaryException {
+    } on OrderChatSummaryException catch (error) {
+      _lastSummaryFailure = switch (error.failure) {
+        OrderChatSummaryFailure.notFound => const NotFoundFailure(),
+        OrderChatSummaryFailure.network => const NetworkFailure(),
+        OrderChatSummaryFailure.unknown => UnknownFailure(cause: error),
+      };
       return null;
-    } catch (_) {
+    } catch (error) {
+      _lastSummaryFailure = AppFailure.of(error);
       return null;
     }
+  }
+
+  /// Folds the failure the last resolve recorded into the rendered state: a
+  /// resolved summary clears it, an unresolved one keeps it visible.
+  void _noteSummaryFailure(OrderChatSummary? resolved) {
+    final AppFailure? failure = resolved == null ? _lastSummaryFailure : null;
+    _lastSummaryFailure = null;
+    if (failure == _summaryFailure) return;
+    setState(() => _summaryFailure = failure);
   }
 
   /// JEBV4-282 / b02 wave B.2: subscribe the pinned delivery-status chip to the
@@ -1208,7 +1247,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!getIt.isRegistered<Dio>()) return;
     _summaryRefreshInFlight = true;
     _summaryFetchCount++;
-    final OrderChatSummary? next;
+    OrderChatSummary? next;
     try {
       next = await _resolveSummary(
         getIt<Dio>(),
@@ -1217,10 +1256,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         // Belt-and-braces — the refresh is never armed for the Jeeber.
         ownerScopedReads: !_resolvedIsJeeber,
       );
+    } catch (error) {
+      // Called through `unawaited(...)` from three sites, so an uncaught throw
+      // here becomes an unhandled zone error. Warm failure: keep the strip.
+      next = null;
+      _lastSummaryFailure = AppFailure.of(error);
     } finally {
       _summaryRefreshInFlight = false;
     }
-    if (!mounted || next == null) return;
+    if (!mounted) return;
+    _noteSummaryFailure(next);
+    if (next == null) return;
     if (next != _summary) {
       setState(() => _summary = next);
     }
@@ -1297,7 +1343,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!getIt.isRegistered<AuthTokenStore>()) return '';
     try {
       return (await getIt<AuthTokenStore>().userId) ?? '';
-    } catch (_) {
+    } catch (error) {
+      Diag.event('chat_session_user_unresolved', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
       return '';
     }
   }
@@ -1416,6 +1465,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       _phase = phase;
       _hasWinner = hasWinner;
       _summary = summary;
+      _summaryFailure = summary == null ? _lastSummaryFailure : null;
+      _lastSummaryFailure = null;
       _loading = false;
       // A resolution that produced a gateway retires the error body (the retry
       // CTA re-enters here).
@@ -1533,9 +1584,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
     if (realId == null) {
       if (mounted) {
-        showOmdsErrorSnackbar(
+        showJeebErrorSnack(
           context,
           message: AppLocalizations.of(context).chatCreateRequestFailed,
+          identifier: 'chat_detail_create_failed_snack',
         );
       }
       return false;
@@ -1791,6 +1843,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       isOrderChat: !isJeeber,
       // Run-22: role-aware party naming on the pinned order-summary strip.
       viewerIsJeeber: isJeeber,
+      // OFF-04: the outbox row needs a sender id, and this screen is the one
+      // place that has already resolved the session user.
+      currentUserId: _sessionUserId,
       onStartActiveDelivery: canStartDelivery
           ? () => context.push('/jeeber/deliveries/$_deliveryId/active')
           : null,
@@ -1812,6 +1867,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // view-summary LINK stays customer-only (the `order-summary` route is
       // owner-scoped); OrderChatPinnedSummary hides the link when it is null.
       pinnedSummary: _summary,
+      // F44: an unavailable skeleton with tap-to-retry, never a vanished strip.
+      pinnedSummaryFallback:
+          _summary == null && _summaryFailure != null && isClientAccepted
+              ? OrderChatSummaryUnavailableStrip(
+                  failure: _summaryFailure!,
+                  onRetry: () => unawaited(_refreshSummary()),
+                )
+              : null,
       // DEFECT (live COD run, 2026-07-31): `order_summary_status` read "Matched"
       // at 21:44 and still at 21:46, while the jeeber had marked Picked at
       // 21:43:43 and InTransit at 21:44:16. The chip is on the PUSH-ONLY status

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -16,6 +18,7 @@ import '../application/set_password_cubit.dart';
 import '../application/set_password_state.dart';
 import '../data/dio_auth_repository.dart';
 import '../domain/auth_repository.dart';
+import '../domain/set_password_policy.dart';
 
 /// The exit of the set-password screen (JM-061 password-security, D90).
 ///   * [inAppSocial] — reached from password-security for a social-only account;
@@ -279,7 +282,7 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                                 // `error_outline` matches the caller's two
                                 // notes — one glyph across the password family.
                                 icon: Icons.error_outline,
-                                text: l10n.setpwValidationError,
+                                text: _setPasswordErrorCopy(state, l10n),
                               ),
                             ),
                           ],
@@ -313,4 +316,26 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
       ),
     );
   }
+}
+
+/// AUTH-02: one string used to cover a mismatch, a weak password, a dead reset
+/// token and a 5xx alike. Validation wins; then the classified auth failure.
+String _setPasswordErrorCopy(SetPasswordState state, AppLocalizations l10n) {
+  final validation = state.validation;
+  if (validation != null && validation != SetPasswordValidation.valid) {
+    return l10n.setpwValidationError;
+  }
+  return switch (state.failure) {
+    AuthFailure.network => l10n.setpwErrorNetwork,
+    AuthFailure.invalidToken ||
+    AuthFailure.invalidRecoveryCode => l10n.setpwErrorInvalidToken,
+    AuthFailure.badRequest => l10n.setpwErrorBadRequest,
+    AuthFailure.emailCollision => l10n.registrationSocialErrorAccountDisabled,
+    // A bare 401 here is a dead reset token, not a typo in the second field.
+    AuthFailure.invalidCredentials => l10n.setpwErrorInvalidToken,
+    AuthFailure.serverError => l10n.errorServerBody,
+    AuthFailure.rateLimited => l10n.errorRateLimitedBody,
+    AuthFailure.unknown ||
+    null => failureCopy(l10n, state.appFailure ?? const UnknownFailure()).body,
+  };
 }

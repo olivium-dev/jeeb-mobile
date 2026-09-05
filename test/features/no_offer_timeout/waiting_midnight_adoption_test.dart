@@ -161,7 +161,8 @@ void main() {
       );
 
       final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(block.status, JeebEmptyStateStatus.error);
+      // `reason:` now derives the rung, so `status:` stays at its default.
+      expect(block.effectiveStatus, JeebEmptyStateStatus.error);
       expect(
         block.center,
         isNotNull,

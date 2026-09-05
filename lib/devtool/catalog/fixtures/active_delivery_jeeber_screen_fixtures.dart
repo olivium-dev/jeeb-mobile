@@ -7,6 +7,7 @@ import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delive
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import 'package:jeeb_mobile/features/background_gps/application/background_gps_state.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 
 /// The repository the seeded cubit is built over. Every method throws, because
 /// none of them may ever run: the screen's `cubit:` seam skips `loadDelivery()`
@@ -154,7 +155,36 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
   /// `GET /v1/deliveries/{id}` failed — the full-screen error with its retry.
   static const ActiveDeliveryState loadFailed = ActiveDeliveryState(
     mode: ActiveDeliveryMode.error,
-    errorMessage: loadErrorMessage,
+    loadFailureKind: ActiveDeliveryFailure.network,
+  );
+
+  /// The 404 lane: the block offers an exit, never an inert Retry.
+  static const ActiveDeliveryState loadFailedNotFound = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.error,
+    loadFailureKind: ActiveDeliveryFailure.notFound,
+  );
+
+  /// The GPS uploader tore itself down mid-delivery (BGPS-01).
+  static final ActiveDeliveryState gpsUploadStopped = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.inTransit),
+    gpsPhase: BackgroundGpsPhase.error,
+  );
+
+  /// The camera leg was refused (F27) — the snack, not a silent no-op.
+  static final ActiveDeliveryState proofPhotoPermissionDenied =
+      ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.atDoor),
+    proofPhotoStatus: ProofPhotoStatus.failed,
+    proofPhotoFailure: PhotoPickFailure.permissionDenied,
+  );
+
+  /// A push refresh failed with the rows still on screen (F28).
+  static final ActiveDeliveryState refreshFailedWarm = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.inTransit),
+    refreshFailure: ActiveDeliveryFailure.network,
   );
 
   /// M4: proof photo mid-upload. The only frame that draws the evidence tile's

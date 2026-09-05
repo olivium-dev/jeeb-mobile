@@ -9,6 +9,10 @@ enum JeeberUnregisterOutcome {
   positiveBalance,
   unavailable,
   networkError,
+
+  /// The gateway answered with a 4xx/5xx we cannot act on — never blame the
+  /// user's connection for it.
+  serverError,
 }
 
 abstract class JeeberUnregisterService {

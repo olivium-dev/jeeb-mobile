@@ -138,22 +138,39 @@ void main() {
       );
     });
 
-    testWidgets('at 100% the composition has room to spare on the smallest '
-        'phone', (WidgetTester tester) async {
-      // The reference measurement: if this slack ever drops near zero the
-      // screen has started scrolling at the DEFAULT text size.
-      final Rect frame = await frameRect(tester, profileUnavailableScreenCompact);
+    testWidgets('at 100% the composition still fits on an ordinary phone',
+        (WidgetTester tester) async {
+      // EP-19 added the exit CTA, which the smallest phone (332x612) can no
+      // longer host without scrolling — so the reference measurement moved to
+      // the ordinary phone, and the compact case is asserted as SCROLLABLE
+      // rather than clipped below.
+      final Rect frame = await frameRect(tester, profileUnavailableScreenPhone);
       final Rect bar = tester.getRect(find.byType(JeebTopBar));
       final Rect content = tester.getRect(find.byType(JeebEmptyState));
 
       expect(
         frame.bottom - bar.bottom - content.height,
         greaterThan(40),
-        reason: 'measured 68 pt — the drawn E4 box is much taller than the '
-            'OMDS glyph it replaced, so the slack shrank from 244; if it ever '
-            'vanishes the screen has started scrolling at the DEFAULT size',
+        reason: 'if this slack ever vanishes the screen has started scrolling '
+            'at the DEFAULT text size on an ordinary phone',
       );
       expect(scrollExtent(tester), 0, reason: 'nothing to scroll at 1.0x');
+    });
+
+    testWidgets('the smallest phone scrolls rather than clipping the exit',
+        (WidgetTester tester) async {
+      await pumpPreview(tester, profileUnavailableScreenCompact);
+
+      expect(scrollExtent(tester), greaterThan(0));
+      expect(tester.takeException(), isNull, reason: 'scrolls, never overflows');
+      await tester.ensureVisible(
+        find.bySemanticsIdentifier('profile_unavailable_exit_cta'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsIdentifier('profile_unavailable_exit_cta'),
+        findsOneWidget,
+      );
     });
 
     // The measured defect, now fixed: the OMDS `Column(mainAxisSize: min)`
@@ -257,24 +274,26 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('and the arrow is the ONLY control on the screen', (
+    // EP-19: the back circle is dead at the stack root, so the screen used to
+    // be a dead end. It now carries exactly ONE exit act besides the arrow.
+    testWidgets('the exit CTA is the screen\'s one act besides the arrow', (
       WidgetTester tester,
     ) async {
-      // No destination exists for a "retry", so `JeebEmptyState.action` stays
-      // unmounted — a CTA with nowhere to go is worse than an absent one.
       await pumpPreview(tester, profileUnavailableScreenStackRoot);
 
       expect(
-        find.descendant(
-          of: find.byType(ProfileUnavailableScreen),
-          matching: find.byType(ButtonStyleButton),
-        ),
-        findsNothing,
-        reason: 'no retry, no CTA',
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).action,
+        isNotNull,
       );
       expect(
-        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).action,
+        find.bySemanticsIdentifier('profile_unavailable_exit_cta'),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState))
+            .secondaryAction,
         isNull,
+        reason: 'one act, not a menu',
       );
       expect(
         find.descendant(

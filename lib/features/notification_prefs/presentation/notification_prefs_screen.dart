@@ -4,10 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/layout/bottom_inset.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -137,18 +142,65 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
 
   void _onSaveError(BuildContext context, NotificationPrefsState state) {
     final l10n = AppLocalizations.of(context);
-    showOmdsSnackbar(context, message: l10n.notificationPrefsSaveError);
-    context.read<NotificationPrefsCubit>().acknowledgeError();
+    final cubit = context.read<NotificationPrefsCubit>();
+    final AppFailure? failure =
+        state is NotificationPrefsLoaded ? state.saveFailure : null;
+    showJeebErrorSnack(
+      context,
+      message: failure == null
+          ? l10n.notificationPrefsSaveError
+          : failureCopy(l10n, failure).body,
+      identifier: 'notif_prefs_save_error_snack',
+      retryLabel: l10n.actionRetry,
+      onRetry: cubit.retryLastSave,
+    );
+    cubit.acknowledgeError();
   }
 
   Widget _buildBody(BuildContext context, NotificationPrefsState state) {
     switch (state) {
       case NotificationPrefsLoading():
         return const _LoadingView();
-      case NotificationPrefsError():
-        return _ErrorView(onRetry: context.read<NotificationPrefsCubit>().load);
-      case NotificationPrefsLoaded(:final prefs):
-        return _PrefsBody(prefs: prefs);
+      // Error before empty (R6).
+      case NotificationPrefsError(:final failure, :final appFailure):
+        return _ErrorView(
+          view: failure,
+          failure: appFailure ?? const UnknownFailure(),
+          onRetry: context.read<NotificationPrefsCubit>().load,
+        );
+      case NotificationPrefsLoaded(
+          :final prefs,
+          :final saveFailure,
+          :final refreshFailure,
+          :final isRefreshing,
+        ):
+        final Widget body = _PrefsBody(prefs: prefs);
+        final AppFailure? noteFailure = refreshFailure ?? saveFailure;
+        if (isRefreshing || noteFailure == null) return body;
+        final NotificationPrefsCubit cubit =
+            context.read<NotificationPrefsCubit>();
+        final bool isRefreshNote = refreshFailure != null;
+        return Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.medium,
+                Spacing.small,
+                Spacing.medium,
+                0,
+              ),
+              child: JeebRefreshFailedNote(
+                failure: noteFailure,
+                identifier: 'notif_prefs_save_failed_note',
+                onRetry: isRefreshNote ? cubit.load : cubit.retryLastSave,
+                onDismiss: isRefreshNote
+                    ? cubit.dismissRefreshFailure
+                    : cubit.acknowledgeError,
+              ),
+            ),
+            Expanded(child: body),
+          ],
+        );
     }
   }
 }
@@ -163,10 +215,10 @@ class _LoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
+    return JeebStateHost(
       child: JeebEmptyState(
         variant: JeebEmptyStateVariant.radar,
-        status: JeebEmptyStateStatus.loading,
+        reason: JeebEmptyStateReason.loading,
         medallions: const <JeebEmptyMedallion>[],
         identifier: NotificationPrefsScreen.loadingIdentifier,
         headline: l10n.notificationPrefsLoadingHeadline,
@@ -178,27 +230,39 @@ class _LoadingView extends StatelessWidget {
 /// The failed cold read: same illustration, danger-tinted centre (kit ruling 1),
 /// and the retry stays the glass pill — never an orange act R22 does not draw.
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.onRetry});
+  const _ErrorView({
+    required this.view,
+    required this.failure,
+    required this.onRetry,
+  });
 
+  /// F24: the kind-specific view. The screen used to print one sentence for
+  /// every failure.
+  final NotificationPrefsFailureView view;
+
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: JeebEmptyState(
+    // R6: on a terminal kind the block hides Retry, so it must still offer an
+    // exit rather than leaving the screen with no act at all.
+    final bool retryable = failureCopy(l10n, failure).retryable;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
         variant: JeebEmptyStateVariant.radar,
-        status: JeebEmptyStateStatus.error,
-        medallions: const <JeebEmptyMedallion>[],
         identifier: NotificationPrefsScreen.loadErrorIdentifier,
-        headline: l10n.notificationPrefsErrorTitle,
-        body: l10n.notificationPrefsLoadError,
-        action: JeebCtaButton.outline(
-          label: l10n.notificationPrefsRetry,
-          onTap: onRetry,
-          expand: false,
-          identifier: 'notif_prefs_retry_cta',
-        ),
+        retryIdentifier: 'notif_prefs_retry_cta',
+        headlineOverride:
+            retryable ? l10n.notificationPrefsErrorTitle : null,
+        bodyOverride: view == NotificationPrefsFailureView.network
+            ? l10n.notificationPrefsErrorNetwork
+            : null,
+        onRetry: onRetry,
+        exitLabel: retryable ? null : l10n.actionBack,
+        onExit: retryable ? null : () => Navigator.of(context).maybePop(),
       ),
     );
   }

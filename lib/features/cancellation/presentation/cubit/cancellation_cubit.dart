@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/network/app_failure.dart';
+
 import '../../domain/cancellation_repository.dart';
 import 'cancellation_state.dart';
 
@@ -28,11 +30,21 @@ class CancellationCubit extends Cubit<CancellationState> {
     } on CancellationTooLateException {
       emit(const CancellationTooLate());
     } on CancellationException catch (e) {
-      emit(CancellationError(e.message));
-    } catch (_) {
-      emit(const CancellationError());
+      emit(CancellationError(null, e.kind ?? CancellationFailure.unknown));
+    } catch (e) {
+      emit(CancellationError(null, _kindOf(AppFailure.of(e))));
     }
   }
 
   void reset() => emit(const CancellationIdle());
+
+  static CancellationFailure _kindOf(AppFailure failure) =>
+      switch (failure.kind) {
+        AppFailureKind.network => CancellationFailure.network,
+        AppFailureKind.timeout => CancellationFailure.timeout,
+        AppFailureKind.forbidden => CancellationFailure.forbidden,
+        AppFailureKind.rateLimited => CancellationFailure.rateLimited,
+        AppFailureKind.server => CancellationFailure.server,
+        _ => CancellationFailure.unknown,
+      };
 }

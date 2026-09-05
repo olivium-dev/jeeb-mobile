@@ -386,7 +386,7 @@ void main() {
     ) async {
       await _pumpWithRepo(tester, _PendingPrefsRepo());
       final empty = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(empty.status, JeebEmptyStateStatus.loading);
+      expect(empty.effectiveStatus, JeebEmptyStateStatus.loading);
       expect(empty.variant, JeebEmptyStateVariant.radar);
       expect(empty.medallions, isEmpty);
       expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -400,7 +400,7 @@ void main() {
         final empty = tester.widget<JeebEmptyState>(
           find.byType(JeebEmptyState),
         );
-        expect(empty.status, JeebEmptyStateStatus.error);
+        expect(empty.effectiveStatus, JeebEmptyStateStatus.error);
         expect(empty.variant, JeebEmptyStateVariant.radar);
         expect(repo.fetchCount, 1);
 

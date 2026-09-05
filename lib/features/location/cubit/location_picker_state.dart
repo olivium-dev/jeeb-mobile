@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../data/location_repository.dart';
 
 enum LocationPickerStep { pickup, dropoff, done }
@@ -7,6 +8,9 @@ enum LocationPickerStep { pickup, dropoff, done }
 enum LocationPickerError {
   gpsPermissionDenied,
   gpsUnavailable,
+
+  /// The transport failed, not the sensor: never blame GPS for an outage.
+  networkUnavailable,
   searchFailed,
   geocodingFailed,
   saveFailed,
@@ -25,6 +29,7 @@ class LocationPickerState extends Equatable {
     this.isSearching = false,
     this.isSaving = false,
     this.error,
+    this.appFailure,
   });
 
   final LocationPickerStep step;
@@ -47,6 +52,9 @@ class LocationPickerState extends Equatable {
   final bool isSaving;
 
   final LocationPickerError? error;
+
+  /// The classified cause behind [error], for kind-aware copy.
+  final AppFailure? appFailure;
 
   bool get canConfirm => draftSelection != null && !isSaving;
 
@@ -71,6 +79,7 @@ class LocationPickerState extends Equatable {
     bool? isSaving,
     LocationPickerError? error,
     bool clearError = false,
+    AppFailure? appFailure,
   }) {
     return LocationPickerState(
       step: step ?? this.step,
@@ -86,6 +95,7 @@ class LocationPickerState extends Equatable {
       isSearching: isSearching ?? this.isSearching,
       isSaving: isSaving ?? this.isSaving,
       error: clearError ? null : (error ?? this.error),
+      appFailure: clearError ? null : (appFailure ?? this.appFailure),
     );
   }
 
@@ -102,5 +112,6 @@ class LocationPickerState extends Equatable {
         isSearching,
         isSaving,
         error,
+        appFailure,
       ];
 }

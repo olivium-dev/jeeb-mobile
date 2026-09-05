@@ -318,10 +318,14 @@ class _Metadata extends StatelessWidget {
         const SizedBox(width: Spacing.medium),
         Flexible(
           child: _EarningsBadge(
-            label: l10n.requestFeedEarnings(
-              request.potentialEarnings.toStringAsFixed(2),
-              request.currency,
-            ),
+            // R6-13a: neither a missing price nor a missing currency is
+            // presented as a real figure.
+            label: request.earningsKnown && request.currencyKnown
+                ? l10n.requestFeedEarnings(
+                    request.potentialEarnings.toStringAsFixed(2),
+                    request.currency,
+                  )
+                : l10n.jeeberFeedPriceUnavailable,
           ),
         ),
       ],

@@ -5,9 +5,13 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
+import '../domain/chat_message.dart';
+import '../domain/chat_outbox.dart';
 import '../domain/delivery_chat_message.dart';
 import 'chat_state.dart';
 
@@ -109,7 +113,12 @@ class ChatCubit extends Cubit<ChatState> {
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
     Stream<void>? refreshSignals,
+    ChatOutbox? outbox,
+    String currentUserId = '',
+    Stream<void>? reconnectSignals,
   }) : _deliveryId = deliveryId,
+       _outbox = outbox,
+       _currentUserId = currentUserId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
@@ -145,6 +154,10 @@ class ChatCubit extends Cubit<ChatState> {
     // parallel bus is how one subscriber silently keeps polling while its twin
     // goes push-driven.
     _refreshSubscription = refreshSignals?.listen((_) => _refreshFromPush());
+    // OFF-04: an offline→online edge is the moment a queued send can win.
+    _reconnectSubscription =
+        (reconnectSignals ?? NetworkReachabilitySignals.instance.stream)
+            .listen((_) => unawaited(_flushOutbox()));
   }
 
   final String _deliveryId;
@@ -153,7 +166,26 @@ class ChatCubit extends Cubit<ChatState> {
   final PhotoCompressor _compressor;
   final DateTime Function() _clock;
 
+  /// Durable store for text sends that failed. Null keeps the pre-outbox
+  /// behaviour exactly: a failed bubble that lives only in memory.
+  final ChatOutbox? _outbox;
+
+  /// Sender id stamped on outbox rows. Empty when the host did not resolve one.
+  final String _currentUserId;
+
   StreamSubscription<ChatEvent>? _subscription;
+
+  /// Reachability-edge subscription driving the outbox flush. Cancelled in
+  /// [close].
+  StreamSubscription<void>? _reconnectSubscription;
+
+  /// In-flight latch for [load] — a double-tapped retry must not issue two
+  /// history reads whose completions can land out of order.
+  bool _loadInFlight = false;
+
+  /// The error the phase read absorbed, kept so the cold-load failure has a
+  /// classified failure to render.
+  Object? _lastPhaseError;
 
   /// Push→refetch subscription (b02). Cancelled in [close].
   StreamSubscription<void>? _refreshSubscription;
@@ -207,10 +239,15 @@ class ChatCubit extends Cubit<ChatState> {
   /// and starts listening for inbound events. Also fetches the conversation
   /// phase so the composer/offer-card UI renders correctly on first paint.
   Future<void> load() async {
+    if (_loadInFlight) return;
+    _loadInFlight = true;
+    _lastPhaseError = null;
     emit(state.copyWith(
       isLoadingHistory: true,
       clearError: true,
       historyLoadFailed: false,
+      clearHistoryFailure: true,
+      clearRefreshFailure: true,
     ));
     // Both reads still leave together — one round-trip of latency, not two —
     // but their FAILURES are no longer shared. `Future.wait` made a phase-read
@@ -222,7 +259,10 @@ class ChatCubit extends Cubit<ChatState> {
     final historyFuture = _gateway.loadHistory(_deliveryId);
     final phaseFuture = _gateway
         .loadPhase(_deliveryId)
-        .then<ConversationPhase?>((p) => p, onError: (Object _) => null);
+        .then<ConversationPhase?>((p) => p, onError: (Object e) {
+          _lastPhaseError = e;
+          return null;
+        });
     try {
       final history = await historyFuture;
       final phase = await phaseFuture;
@@ -247,13 +287,17 @@ class ChatCubit extends Cubit<ChatState> {
           isLoadingHistory: false,
           historyLoadFailed: knowsNothing,
           error: knowsNothing ? ChatError.historyLoadFailed : null,
+          historyFailure: knowsNothing
+              ? AppFailure.of(_lastPhaseError ?? const UnknownFailure())
+              : null,
+          clearHistoryFailure: !knowsNothing,
         ),
       );
       // P4/P5: pull the bytes for any inbound `image` that arrived as a bare
       // CDN ref, so the peer's photo renders rather than a placeholder.
       _resolveImageBytes();
       _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
-    } catch (_) {
+    } catch (error) {
       // b02 — A 500 IS NOT AN EMPTY THREAD.
       //
       // This used to be a bare collapse to `messages: const [], phase:
@@ -281,8 +325,14 @@ class ChatCubit extends Cubit<ChatState> {
         isLoadingHistory: false,
         historyLoadFailed: true,
         error: ChatError.historyLoadFailed,
+        historyFailure: AppFailure.of(error),
       ));
+    } finally {
+      _loadInFlight = false;
     }
+    // OFF-04: a queued row is not in server history, so the cold load has to
+    // rebuild its failed bubble or the user never sees the unsent message.
+    await _rehydrateOutbox();
     // A cold load that FAILED is the one case with nothing left to re-read it:
     // the push bus only fires on inbound traffic, and a thread the user cannot
     // see generates none. Arm the bounded retry (and cancel it on success).
@@ -462,20 +512,25 @@ class ChatCubit extends Cubit<ChatState> {
           // `broadcasting` here would silently UN-ACCEPT a live order on one
           // flaky read, mid-delivery.
           phase: phase,
-          // Self-heal: a resume / push-driven read that succeeds retires the
-          // error body raised by an earlier cold-load failure.
+          // Self-heal: a read that succeeds retires BOTH the cold error body
+          // and the warm strip a previous failed re-read raised.
           historyLoadFailed: false,
+          clearRefreshFailure: true,
         ),
       );
       _resolveImageBytes();
       // A read that came back is proof the thread is reachable again, so the
       // cold-load-failure retry stands down.
       _cancelHistoryRetry();
-    } catch (_) {
-      // Keep the current thread on a transient refresh failure. Note this does
-      // NOT raise `historyLoadFailed`: there is (or may be) a rendered thread
-      // here, and stale-but-present beats blank. The error body is for the COLD
-      // path, where the failure is the only reason the screen has no rows.
+      unawaited(_flushOutbox());
+    } catch (error) {
+      // F35 — keep the thread, never raise the cold rung or `isLoadingHistory`,
+      // but stop being silent about the failed re-read.
+      if (isClosed) return;
+      emit(state.copyWith(
+        refreshFailure: AppFailure.of(error),
+        error: ChatError.refreshFailed,
+      ));
     }
   }
 
@@ -799,6 +854,8 @@ class ChatCubit extends Cubit<ChatState> {
     _cancelHistoryRetry();
     await _refreshSubscription?.cancel();
     _refreshSubscription = null;
+    await _reconnectSubscription?.cancel();
+    _reconnectSubscription = null;
     await _subscription?.cancel();
     return super.close();
   }
@@ -942,9 +999,32 @@ class ChatCubit extends Cubit<ChatState> {
         ),
       );
     } catch (_) {
-      // Leave the placeholder; a later poll tick retries after eviction.
+      // F36 — the poll tick this used to wait for was deleted in N4, so a bare
+      // placeholder was permanent. Mark it so the bubble can offer a reload.
       _resolvingImageRefs.remove(objectRef);
+      if (isClosed) return;
+      final current = state.messages.firstWhere(
+        (m) => m.id == messageId,
+        orElse: () => _missing,
+      );
+      if (current.id != messageId) return;
+      _replaceMessage(messageId, current.copyWith(imageLoadFailed: true));
     }
+  }
+
+  /// Re-enter the image fetch for a tile whose bytes could not be resolved.
+  Future<void> retryImage(String messageId) async {
+    final current = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (current.id != messageId) return;
+    final String ref = current.imageUrl ?? '';
+    if (ref.isEmpty) return;
+    _replaceMessage(messageId, current.copyWith(imageLoadFailed: false));
+    if (_resolvingImageRefs.contains(ref)) return;
+    _resolvingImageRefs.add(ref);
+    await _fetchImageInto(messageId, ref);
   }
 
   /// "Not found" sentinel for a `firstWhere` lookup — never rendered, never
@@ -957,7 +1037,10 @@ class ChatCubit extends Cubit<ChatState> {
     hasServerTimestamp: false,
   );
 
-  Future<void> _dispatch(DeliveryChatMessage draft) async {
+  Future<void> _dispatch(
+    DeliveryChatMessage draft, {
+    bool userInitiated = true,
+  }) async {
     try {
       final ack = await _gateway.send(_deliveryId, draft);
       _updateMessage(draft.id, ack.status);
@@ -967,11 +1050,141 @@ class ChatCubit extends Cubit<ChatState> {
       });
     } catch (_) {
       _updateMessage(draft.id, MessageStatus.failed);
-      emit(state.copyWith(error: ChatError.sendFailed));
+      // A background flush that fails again is not a user action, so it must
+      // not fire the "send failed" snack on every reachability edge.
+      if (userInitiated) emit(state.copyWith(error: ChatError.sendFailed));
       Diag.event('chat_message_send', <String, Object?>{
         'deliveryId': _deliveryId,
         'result': 'failed',
       });
+      await _persistFailedSend(draft);
+    }
+  }
+
+  /// OFF-04 — a failed TEXT send survives the process. Attachments carry no
+  /// `body`, so they keep the in-memory failed bubble and [retryMessage].
+  Future<void> _persistFailedSend(DeliveryChatMessage draft) async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || draft.kind != MessageKind.text) return;
+    final row = ChatMessage(
+      clientId: draft.id,
+      conversationId: _deliveryId,
+      senderId: _currentUserId,
+      body: draft.text,
+      createdAt: draft.sentAt.toUtc(),
+      status: ChatMessageStatus.failed,
+    );
+    try {
+      // `enqueue` is a plain append on both stores, so a retry that fails again
+      // must UPDATE its row — otherwise every edge duplicates it.
+      final queued = await outbox.load();
+      if (queued.any((m) => m.clientId == row.clientId)) {
+        await outbox.update(row);
+      } else {
+        await outbox.enqueue(row);
+      }
+      await _syncOutboxPending();
+    } catch (error) {
+      Diag.event('chat_outbox_enqueue_failed', <String, Object?>{
+        'deliveryId': _deliveryId,
+        'error': error.runtimeType.toString(),
+      });
+    }
+  }
+
+  /// OFF-05 — re-dispatch one failed message. Works for EVERY kind, because
+  /// the draft is still in [ChatState.messages].
+  Future<void> retryMessage(String messageId, {bool userInitiated = true}) async {
+    final message = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (message.id != messageId) return;
+    if (!message.isMine || message.status != MessageStatus.failed) return;
+    _updateMessage(messageId, MessageStatus.sending);
+    await _dispatch(
+      message.copyWith(status: MessageStatus.sending),
+      userInitiated: userInitiated,
+    );
+    if (isClosed) return;
+    final settled = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (settled.id == messageId && settled.status != MessageStatus.failed) {
+      await _outbox?.remove(messageId);
+      await _syncOutboxPending();
+    }
+  }
+
+  /// OFF-04 — rebuild the failed bubbles for rows that outlived the process.
+  /// Server history never carries an unsent draft, so without this the
+  /// persisted row is invisible AND unreachable by [retryMessage].
+  Future<List<ChatMessage>> _rehydrateOutbox() async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || isClosed) return const <ChatMessage>[];
+    final List<ChatMessage> queued;
+    try {
+      queued = (await outbox.load())
+          .where((m) => m.conversationId == _deliveryId)
+          .toList(growable: false);
+    } catch (error) {
+      Diag.event('chat_outbox_load_failed', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
+      return const <ChatMessage>[];
+    }
+    if (isClosed) return const <ChatMessage>[];
+    final known = state.messages.map((m) => m.id).toSet();
+    final restored = <DeliveryChatMessage>[
+      for (final ChatMessage row in queued)
+        if (!known.contains(row.clientId))
+          DeliveryChatMessage.text(
+            id: row.clientId,
+            author: ChatAuthor.me,
+            sentAt: row.createdAt,
+            status: MessageStatus.failed,
+            text: row.body,
+          ),
+    ];
+    if (restored.isNotEmpty) {
+      emit(state.copyWith(
+        messages: _ordered(<DeliveryChatMessage>[
+          ...state.messages,
+          ...restored,
+        ]),
+      ));
+    }
+    await _syncOutboxPending();
+    return queued;
+  }
+
+  /// Re-attempt every queued row for THIS conversation. Bounded by the outbox
+  /// size; no timer, no schedule.
+  Future<void> _flushOutbox() async {
+    if (_outbox == null || isClosed) return;
+    final List<ChatMessage> queued = await _rehydrateOutbox();
+    for (final ChatMessage row in queued) {
+      if (isClosed) return;
+      await retryMessage(row.clientId, userInitiated: false);
+    }
+    await _syncOutboxPending();
+  }
+
+  /// Publish the queued count for THIS conversation so the connection banner
+  /// can render it.
+  Future<void> _syncOutboxPending() async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || isClosed) return;
+    try {
+      final rows = await outbox.load();
+      if (isClosed) return;
+      final int mine =
+          rows.where((m) => m.conversationId == _deliveryId).length;
+      if (mine == state.outboxPending) return;
+      emit(state.copyWith(outboxPending: mine));
+    } catch (_) {
+      // A count we could not read is not worth a rung of its own.
     }
   }
 
@@ -982,6 +1195,7 @@ class ChatCubit extends Cubit<ChatState> {
         // decides whether the push-driven HTTP fallback is still needed.
         if (_realtimeLive == live) return;
         _realtimeLive = live;
+        emit(state.copyWith(realtimeLive: live));
         Diag.event('chat_realtime_transport', <String, Object?>{
           'conversation_id': _deliveryId,
           'live': live,
@@ -1020,6 +1234,14 @@ class ChatCubit extends Cubit<ChatState> {
         _promoteAtLeast(id, MessageStatus.delivered);
       case ReadReceipt(throughMessageId: final id):
         _promoteThroughRead(id);
+      case MessageDropped(reason: final reason):
+        // F34 — a frame the transport could not parse. The thread is missing a
+        // message and no retry will fetch it, so say so and offer the re-read.
+        emit(state.copyWith(error: ChatError.messageDropped));
+        Diag.event('chat_frame_dropped', <String, Object?>{
+          'conversation_id': _deliveryId,
+          'reason': reason,
+        });
       case PhaseChanged(phase: final phase, deliveryId: final deliveryId):
         emit(state.copyWith(phase: phase, acceptedDeliveryId: deliveryId));
         Diag.event('delivery_status', <String, Object?>{

@@ -60,7 +60,7 @@ void main() {
     expect(block.status, JeebEmptyStateStatus.loading);
     expect(block.variant, JeebEmptyStateVariant.parcel);
     expect(block.identifier, 'jeeber_request_detail_loading_state');
-    expect(block.headline, l10n.jeeberRequestDetailTitle);
+    expect(block.headline, l10n.jeeberRequestDetailLoadingHeadline);
     // Loading withholds the CTA (kit contract) — nothing to pass here either.
     expect(block.action, isNull);
   });

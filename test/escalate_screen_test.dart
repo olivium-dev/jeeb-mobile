@@ -300,7 +300,9 @@ void main() {
     await tester.tap(find.text('Submit Report'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining("Couldn't submit"), findsOneWidget);
+    // The copy family owns the words now; the id is the contract.
+    expect(byId('dispute_error'), findsOneWidget);
+    expect(byId('dispute_error_retry_cta'), findsOneWidget);
   });
 
   testWidgets('renders in Arabic locale', (tester) async {
@@ -362,14 +364,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(byId('dispute_error'), findsOneWidget);
-    expect(find.textContaining('could not be uploaded'), findsOneWidget);
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<EditableText>(commentFinder).controller.text,
-      'The box was crushed.',
-    );
-    await tester.tap(find.text('Submit Report'));
+    expect(find.textContaining("Couldn't upload your evidence"), findsOneWidget);
+
+    // ESC-06: the Retry CTA actually re-submits, and reuses the operationId,
+    // so the Idempotency-Key is unchanged and no duplicate report is opened.
+    await tester.tap(byId('dispute_error_retry_cta'));
     await tester.pumpAndSettle();
 
     expect(repo.operationIds, hasLength(2));

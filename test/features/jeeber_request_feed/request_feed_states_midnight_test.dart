@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/request_feed_cubit.dart';
@@ -66,7 +67,7 @@ const RequestFeedState _loadingSeed = RequestFeedState(
 );
 const RequestFeedState _errorSeed = RequestFeedState(
   status: RequestFeedStatus.error,
-  errorMessageKey: 'requestFeedErrorLoad',
+  error: NetworkFailure(),
 );
 const RequestFeedState _emptySeed = RequestFeedState(
   status: RequestFeedStatus.ready,
@@ -126,8 +127,7 @@ void main() {
       expect(block.status, JeebEmptyStateStatus.loading);
       expect(block.variant, JeebEmptyStateVariant.street);
       expect(block.identifier, 'request_feed_loading_state');
-      // Byte-identical to the LIVE twin (`jeeber_home_screen::_FeedLoadingView`).
-      expect(block.headline, _l10n(tester).requestFeedEmptyTitle);
+      expect(block.headline, _l10n(tester).requestFeedLoadingHeadline);
       expect(block.action, isNull);
 
       await _unmount(tester);
@@ -144,11 +144,12 @@ void main() {
 
         final JeebEmptyState block = _block(tester);
         final AppLocalizations l10n = _l10n(tester);
-        expect(block.status, JeebEmptyStateStatus.error);
+        expect(block.reason, JeebEmptyStateReason.failed);
         expect(block.variant, JeebEmptyStateVariant.street);
         expect(block.identifier, 'request_feed_error_state');
-        expect(block.headline, l10n.requestFeedErrorTitle);
-        expect(block.body, l10n.requestFeedErrorLoad);
+        // The kind's copy family, never a flat "check your connection".
+        expect(block.headline, l10n.errorNetworkTitle);
+        expect(block.body, l10n.errorNetworkBody);
         expect(block.action, isNotNull);
         expect(repo.reads, 0);
 

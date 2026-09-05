@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/escalate_repository.dart';
 import 'escalate_state.dart';
@@ -19,17 +20,35 @@ class EscalateCubit extends Cubit<EscalateState> {
   final String deliveryId;
   bool _loadingEvidence = false;
 
+  /// Reads the evidence preview. A repository with no preview endpoint leaves
+  /// the rung unrendered rather than claiming an empty payload (ESC-08).
   Future<void> loadEvidence() async {
     if (isClosed || state.evidenceLoaded || _loadingEvidence) return;
+    final repository = _repository;
+    if (repository is! EscalateEvidencePreviewRepository) return;
     _loadingEvidence = true;
+    emit(state.copyWith(evidenceLoading: true, evidenceLoadFailed: false));
     try {
-      final evidence = await _repository.fetchEvidence(deliveryId: deliveryId);
-      if (isClosed) return;
-      emit(state.copyWith(evidence: evidence, evidenceLoaded: true));
-    } catch (_) {
+      final evidence = await (repository as EscalateEvidencePreviewRepository)
+          .previewEvidence(deliveryId: deliveryId);
       if (isClosed) return;
       emit(
-        state.copyWith(evidence: EscalateEvidence.empty, evidenceLoaded: true),
+        state.copyWith(
+          evidence: evidence,
+          evidenceLoaded: true,
+          evidenceLoading: false,
+          evidenceLoadFailed: false,
+        ),
+      );
+    } catch (error) {
+      if (isClosed) return;
+      emit(
+        state.copyWith(
+          evidenceLoaded: false,
+          evidenceLoading: false,
+          evidenceLoadFailed: true,
+          failure: AppFailure.of(error),
+        ),
       );
     } finally {
       _loadingEvidence = false;
@@ -115,21 +134,34 @@ class EscalateCubit extends Cubit<EscalateState> {
       emit(state.copyWith(phase: EscalatePhase.success, caseId: result.caseId));
     } on EscalateException catch (e) {
       if (isClosed) return;
-      emit(state.copyWith(phase: EscalatePhase.error, errorKind: e.kind));
-    } catch (_) {
+      emit(
+        state.copyWith(
+          phase: EscalatePhase.error,
+          errorKind: e.kind,
+          failure: e.failure ?? AppFailure.of(e.cause ?? e),
+        ),
+      );
+    } catch (error) {
       if (isClosed) return;
       emit(
         state.copyWith(
           phase: EscalatePhase.error,
           errorKind: EscalateErrorKind.server,
+          failure: AppFailure.of(error),
         ),
       );
     }
   }
 
-  void retryFromError() {
+  /// Returns to the form, and re-submits when the failure is one a retry can
+  /// win. The operationId is unchanged, so the Idempotency-Key is too.
+  Future<void> retryFromError() async {
     if (isClosed) return;
+    final retryable = state.failure?.isRetryable ?? false;
     emit(state.copyWith(phase: EscalatePhase.inputting, clearError: true));
+    if (retryable) {
+      await submit();
+    }
   }
 
   List<CaseAttachmentDraft> _attachments() {

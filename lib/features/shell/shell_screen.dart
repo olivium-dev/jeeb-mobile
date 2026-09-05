@@ -14,6 +14,7 @@ import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/jeeb/jeeb_pill_nav.dart';
+import '../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
@@ -218,15 +219,14 @@ class _ShellScreenState extends State<ShellScreen> {
       return;
     }
     _lastBackAt = now;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).shellExitConfirm),
-          duration: _exitConfirmWindow,
-        ),
-      );
+    if (ScaffoldMessenger.maybeOf(context) == null) return;
+    // The window is load-bearing: it IS the double-back timer.
+    showJeebSnack(
+      context,
+      message: AppLocalizations.of(context).shellExitConfirm,
+      identifier: 'shell_exit_confirm_snack',
+      duration: _exitConfirmWindow,
+    );
   }
 
   void _recordTabNavigation({

@@ -46,6 +46,9 @@ DioException _dioError({
 }) =>
     DioException(
       requestOptions: RequestOptions(path: _path),
+      // Real Dio always sets this for an HTTP error response; the classifier
+      // reads it.
+      type: DioExceptionType.badResponse,
       response: Response<dynamic>(
         requestOptions: RequestOptions(path: _path),
         statusCode: status,
@@ -139,7 +142,9 @@ void main() {
       expect(await sut.unregister(), JeeberUnregisterOutcome.positiveBalance);
     });
 
-    test('409 with an unrecognised type: falls back to networkError, never '
+    // AE-21: a 409 the client does not recognise is a SERVER refusal, not a
+    // connectivity problem — the old networkError blamed the user's signal.
+    test('409 with an unrecognised type: falls back to serverError, never '
         'guesses a discriminator', () async {
       final dio = _FakeDio(
         error: _dioError(
@@ -149,7 +154,7 @@ void main() {
       );
       final sut = DioJeeberUnregisterService(dio, tokenStore);
 
-      expect(await sut.unregister(), JeeberUnregisterOutcome.networkError);
+      expect(await sut.unregister(), JeeberUnregisterOutcome.serverError);
     });
 
     test('502 upstream_fault: maps to unavailable (the dark path), never '
@@ -177,11 +182,11 @@ void main() {
       expect(await sut.unregister(), JeeberUnregisterOutcome.networkError);
     });
 
-    test('a non-Dio throw still resolves to networkError, never rethrows',
+    test('a non-Dio throw still resolves to an outcome, never rethrows',
         () async {
       final sut = DioJeeberUnregisterService(_ThrowingDio(), tokenStore);
 
-      expect(await sut.unregister(), JeeberUnregisterOutcome.networkError);
+      expect(await sut.unregister(), JeeberUnregisterOutcome.serverError);
     });
   });
 }

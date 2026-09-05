@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:jeeb_mobile/core/jeeb_commission.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_ledger_repository.dart'
     show WalletLedgerType;
 import 'package:jeeb_mobile/features/wallet/domain/wallet_transaction_repository.dart';
@@ -38,13 +39,48 @@ class TransactionDetailScreenStalledRepository
 /// The specific value picks which of the two error strings the screen renders:
 class TransactionDetailScreenFailingRepository
     implements WalletTransactionRepository {
-  const TransactionDetailScreenFailingRepository(this.failure);
+  const TransactionDetailScreenFailingRepository(this.failure, {this.cause});
 
   final WalletTransactionFailure failure;
 
+  /// The classified failure the rung renders: a 404 gets the exit CTA, a 500
+  /// gets Retry (R6 — never an inert Retry).
+  final AppFailure? cause;
+
   @override
   Future<WalletTransaction> fetchTransaction(String id) async {
-    throw WalletTransactionRepositoryException(failure);
+    throw WalletTransactionRepositoryException(failure, cause: cause);
+  }
+}
+
+/// A 404 — the terminal rung whose only act is the way out.
+const TransactionDetailScreenFailingRepository
+    transactionDetailScreenNotFoundRepository =
+    TransactionDetailScreenFailingRepository(
+  WalletTransactionFailure.notFound,
+  cause: NotFoundFailure(),
+);
+
+/// A 500 — the retryable rung.
+const TransactionDetailScreenFailingRepository
+    transactionDetailScreenServerRepository =
+    TransactionDetailScreenFailingRepository(
+  WalletTransactionFailure.unknown,
+  cause: ServerFailure(status: 500),
+);
+
+/// A row the gateway sent with no `sign`: the detail screen has one row, so it
+/// cannot drop it — it fails instead of guessing the direction (UX-17).
+class TransactionDetailScreenSignlessRepository
+    implements WalletTransactionRepository {
+  const TransactionDetailScreenSignlessRepository();
+
+  @override
+  Future<WalletTransaction> fetchTransaction(String id) async {
+    throw const WalletTransactionRepositoryException(
+      WalletTransactionFailure.unknown,
+      cause: UnknownFailure(parse: true),
+    );
   }
 }
 

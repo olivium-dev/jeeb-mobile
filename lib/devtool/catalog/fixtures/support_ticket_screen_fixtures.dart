@@ -2,7 +2,10 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
+import '../../../features/case_evidence/domain/case_evidence.dart';
 import '../../../features/support/application/support_cubit.dart';
+import '../../../features/support/data/unavailable_support_repository.dart';
 import '../../../features/support/domain/support_repository.dart';
 
 /// Answers every submit with one canned [SupportTicket], with no latency.
@@ -36,13 +39,50 @@ class SupportTicketScreenPendingRepository implements SupportRepository {
 /// Both error readings the screen has — the network line and the generic
 /// "Couldn't submit." — arrive through this one class, so the D30 error body is
 class SupportTicketScreenFailingRepository implements SupportRepository {
-  const SupportTicketScreenFailingRepository(this.failure);
+  const SupportTicketScreenFailingRepository(this.failure, [this.appFailure]);
 
   final SupportFailure failure;
 
+  /// The classified failure the screen actually renders through.
+  final AppFailure? appFailure;
+
   @override
   Future<SupportTicket> submitTicket(SupportTicketDraft draft) async {
-    throw SupportRepositoryException(failure, 'fixture');
+    throw SupportRepositoryException.classified(
+      failure,
+      message: 'fixture',
+      appFailure: appFailure ?? const UnknownFailure(),
+    );
+  }
+}
+
+/// UX-28: the upload leg fails, so the form shows the per-row failure note and
+/// its retry rather than a bare "!".
+class SupportTicketScreenUploadFailingRepository
+    implements SupportRepository, SupportTicketV2Repository {
+  const SupportTicketScreenUploadFailingRepository();
+
+  @override
+  Future<SupportTicket> submitTicket(SupportTicketDraft draft) =>
+      submitTicketV2(draft);
+
+  @override
+  Future<SupportTicket> submitTicketV2(
+    SupportTicketDraft draft, {
+    CaseAttachmentProgressCallback? onProgress,
+  }) async {
+    for (final CaseAttachmentDraft attachment in draft.attachments) {
+      onProgress?.call(
+        CaseAttachmentProgress(
+          localId: attachment.localId,
+          state: CaseAttachmentUploadState.failed,
+        ),
+      );
+    }
+    throw const SupportRepositoryException.classified(
+      SupportFailure.upload,
+      appFailure: ServerFailure(status: 502),
+    );
   }
 }
 
@@ -102,11 +142,14 @@ abstract final class SupportTicketScreenPreviewFixtures {
 
   /// CATALOG · "Success — confirmation". The ticket was created.
   static SupportCubit get success {
-    final SupportCubit cubit = SupportCubit(
-      const SupportTicketScreenCannedRepository(ticketId: 'ticket-preview-902'),
-    )
-      ..setCategory(SupportCategory.account)
-      ..setBody('Please update my phone number on file.');
+    final SupportCubit cubit =
+        SupportCubit(
+            const SupportTicketScreenCannedRepository(
+              ticketId: 'ticket-preview-902',
+            ),
+          )
+          ..setCategory(SupportCategory.account)
+          ..setBody('Please update my phone number on file.');
     unawaited(cubit.submit());
     return cubit;
   }
@@ -114,11 +157,12 @@ abstract final class SupportTicketScreenPreviewFixtures {
   /// CATALOG · "Error — network failure". The phone is offline.
   /// Note the category the catalog chose: [SupportCategory.payment], which a
   static SupportCubit get networkError {
-    final SupportCubit cubit = SupportCubit(
-      const SupportTicketScreenFailingRepository(SupportFailure.network),
-    )
-      ..setCategory(SupportCategory.payment)
-      ..setBody('I was charged twice for the same delivery.');
+    final SupportCubit cubit =
+        SupportCubit(
+            const SupportTicketScreenFailingRepository(SupportFailure.network),
+          )
+          ..setCategory(SupportCategory.payment)
+          ..setBody('I was charged twice for the same delivery.');
     unawaited(cubit.submit());
     return cubit;
   }
@@ -126,12 +170,52 @@ abstract final class SupportTicketScreenPreviewFixtures {
   /// A 401/403 from the gateway — the session expired while the form was open.
   /// `_ErrorView._message` folds [SupportFailure.unauthorized] in with
   static SupportCubit get sessionExpired {
-    final SupportCubit cubit = SupportCubit(
-      const SupportTicketScreenFailingRepository(SupportFailure.unauthorized),
-    )
-      ..setCategory(SupportCategory.delivery)
-      ..setBody(kSupportTicketScreenSessionExpiredBody)
-      ..setOrderRef('REQ-4821');
+    final SupportCubit cubit =
+        SupportCubit(
+            const SupportTicketScreenFailingRepository(
+              SupportFailure.unauthorized,
+            ),
+          )
+          ..setCategory(SupportCategory.delivery)
+          ..setBody(kSupportTicketScreenSessionExpiredBody)
+          ..setOrderRef('REQ-4821');
+    unawaited(cubit.submit());
+    return cubit;
+  }
+
+  /// UX-25: a 401 gets the sign-in way out, never a Retry that 401s forever.
+  static SupportCubit get unauthorized {
+    final SupportCubit cubit =
+        SupportCubit(
+            const SupportTicketScreenFailingRepository(
+              SupportFailure.unauthorized,
+              UnauthorizedFailure(),
+            ),
+          )
+          ..setCategory(SupportCategory.delivery)
+          ..setBody('I cannot reach my courier.');
+    unawaited(cubit.submit());
+    return cubit;
+  }
+
+  /// UX-28: an attachment that did not upload, with its own note + retry.
+  static SupportCubit get uploadFailure {
+    final SupportCubit cubit =
+        SupportCubit(const SupportTicketScreenUploadFailingRepository())
+          ..setCategory(SupportCategory.delivery)
+          ..setBody('The parcel arrived crushed.')
+          ..addAttachment('support_attach_1.jpg');
+    unawaited(cubit.submit());
+    return cubit;
+  }
+
+  /// WP7-N4: DI has no SupportRepository — the release fallback fails loudly
+  /// instead of confirming a ticket that was never created.
+  static SupportCubit get unavailableRepository {
+    final SupportCubit cubit =
+        SupportCubit(const UnavailableSupportRepository())
+          ..setCategory(SupportCategory.other)
+          ..setBody('Anything at all.');
     unawaited(cubit.submit());
     return cubit;
   }

@@ -226,9 +226,10 @@ class _SubmittingBody extends StatelessWidget {
       padding: _padding,
       children: [
         JeebEmptyState(
+          identifier: 'kyc_submitting_state',
           variant: kycStateVariant,
           medallions: kycStateMedallions,
-          status: JeebEmptyStateStatus.loading,
+          reason: JeebEmptyStateReason.loading,
           headline: l10n.kycSubmittingTitle,
           headlineIdentifier: KycSubmittingView.titleIdentifier,
           body: l10n.kycSubmittingBody,

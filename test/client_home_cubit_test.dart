@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
@@ -284,6 +285,69 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       verify(() => repo.loadSnapshot()).called(greaterThan(1));
       await cubit.close();
+    });
+  });
+
+  group('per-bucket failures and the warm band (WP-3)', () {
+    test('a partial failure emits READY with only that bucket marked',
+        () async {
+      final repo = _MockRepo();
+      when(repo.loadSnapshot).thenAnswer(
+        (_) async => const ClientHomeSnapshot(
+          inProgressFailure: NetworkFailure(offline: true),
+        ),
+      );
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      expect(cubit.state.status, ClientHomeStatus.ready);
+      expect(cubit.state.inProgressError, isA<NetworkFailure>());
+      expect(cubit.state.repliesError, isNull);
+    });
+
+    test('a warm failure sets refreshError and keeps the rows', () async {
+      final repo = _MockRepo();
+      var calls = 0;
+      when(repo.loadSnapshot).thenAnswer((_) async {
+        if (calls++ == 0) {
+          return ClientHomeSnapshot(
+            inProgress: [_req('a', ClientRequestStatus.accepted)],
+          );
+        }
+        throw const _Boom();
+      });
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      await cubit.refresh();
+
+      expect(cubit.state.status, ClientHomeStatus.ready);
+      expect(cubit.state.inProgress, hasLength(1));
+      expect(cubit.state.refreshError, isA<UnknownFailure>());
+      cubit.acknowledgeRefreshError();
+      expect(cubit.state.refreshError, isNull);
+    });
+
+    test('rateLimited alone never reaches FAILED', () async {
+      final repo = _MockRepo();
+      when(repo.loadSnapshot)
+          .thenAnswer((_) async => const ClientHomeSnapshot(rateLimited: true));
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      expect(cubit.state.status, isNot(ClientHomeStatus.failed));
     });
   });
 }

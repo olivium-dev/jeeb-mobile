@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../domain/earnings_repository.dart';
 import 'earnings_state.dart';
@@ -10,9 +12,9 @@ class EarningsCubit extends Cubit<EarningsState> {
     required EarningsRepository repository,
     WalletRepository? walletRepository,
     this.jeeberId = '',
-  })  : _repository = repository,
-        _walletRepository = walletRepository ?? _resolveWalletRepository(),
-        super(const EarningsState()) {
+  }) : _repository = repository,
+       _walletRepository = walletRepository ?? _resolveWalletRepository(),
+       super(const EarningsState()) {
     loadEarnings();
     // Fire-and-forget, once per mount: the footer's wallet pill is a nicety,
     // so it must never gate or delay the earnings load it sits under.
@@ -31,46 +33,90 @@ class EarningsCubit extends Cubit<EarningsState> {
 
   final String jeeberId;
 
+  bool _inFlight = false;
+
+  /// The cold load and the period change — the only two reads allowed to blank
+  /// the dashboard to a skeleton (LR-16).
   Future<void> loadEarnings({EarningsPeriod? period}) async {
+    if (_inFlight) return;
     final activePeriod = period ?? state.period;
-    emit(state.copyWith(
-      mode: EarningsViewMode.loading,
-      clearError: true,
-      period: activePeriod,
-    ));
+    emit(
+      state.copyWith(
+        mode: EarningsViewMode.loading,
+        clearError: true,
+        clearRefreshError: true,
+        period: activePeriod,
+      ),
+    );
+    await _read(activePeriod, warm: false);
+  }
+
+  /// The pull-to-refresh target: keeps `ready` and the current summary, and
+  /// raises a dismissible note when it fails.
+  Future<void> refresh() async {
+    if (_inFlight) return;
+    await _read(state.period, warm: true);
+  }
+
+  Future<void> _read(EarningsPeriod period, {required bool warm}) async {
+    _inFlight = true;
     try {
       final summary = await _repository.fetchEarnings(
         jeeberId: jeeberId,
-        period: activePeriod,
+        period: period,
       );
-      emit(state.copyWith(mode: EarningsViewMode.ready, summary: summary));
-    } on EarningsRepositoryException catch (e) {
-      emit(state.copyWith(
-        mode: EarningsViewMode.error,
-        errorMessage: _mapError(e.kind),
-      ));
+      emit(
+        state.copyWith(
+          mode: EarningsViewMode.ready,
+          summary: summary,
+          clearError: true,
+          clearRefreshError: true,
+        ),
+      );
+    } catch (e) {
+      final failure = classifyEarningsFailure(e);
+      emit(
+        warm
+            ? state.copyWith(refreshError: failure)
+            : state.copyWith(mode: EarningsViewMode.error, failure: failure),
+      );
+    } finally {
+      _inFlight = false;
     }
   }
 
+  void clearRefreshError() {
+    if (state.refreshError == null) return;
+    emit(state.copyWith(clearRefreshError: true));
+  }
+
   Future<void> exportPdf() async {
-    emit(state.copyWith(
-      exportMode: EarningsExportMode.exporting,
-      clearExportError: true,
-    ));
+    // A double-tap on the export CTA would otherwise start two downloads.
+    if (state.exportMode == EarningsExportMode.exporting) return;
+    emit(
+      state.copyWith(
+        exportMode: EarningsExportMode.exporting,
+        clearExportError: true,
+      ),
+    );
     try {
       final path = await _repository.exportEarningsPdf(
         jeeberId: jeeberId,
         period: state.period,
       );
-      emit(state.copyWith(
-        exportMode: EarningsExportMode.done,
-        exportedFilePath: path,
-      ));
-    } on EarningsRepositoryException catch (e) {
-      emit(state.copyWith(
-        exportMode: EarningsExportMode.error,
-        exportError: _mapError(e.kind),
-      ));
+      emit(
+        state.copyWith(
+          exportMode: EarningsExportMode.done,
+          exportedFilePath: path,
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          exportMode: EarningsExportMode.error,
+          exportFailure: classifyEarningsFailure(e),
+        ),
+      );
     }
   }
 
@@ -80,27 +126,34 @@ class EarningsCubit extends Cubit<EarningsState> {
     try {
       final balance = await repo.fetchBalance();
       if (!isClosed) emit(state.copyWith(walletBalance: balance));
-    } on WalletRepositoryException {
+    } catch (e) {
       // A wallet read must never degrade the earnings screen: no error state,
-      // no retry — the footer pill simply renders without the balance suffix.
+      // no retry — but the swallow leaves evidence.
+      Diag.event('earnings.wallet_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
   void resetExport() {
-    emit(state.copyWith(
-      exportMode: EarningsExportMode.idle,
-      clearExportError: true,
-    ));
+    emit(
+      state.copyWith(
+        exportMode: EarningsExportMode.idle,
+        clearExportError: true,
+      ),
+    );
   }
+}
 
-  String _mapError(EarningsErrorKind kind) {
-    switch (kind) {
-      case EarningsErrorKind.network:
-        return 'Unable to connect. Check your internet.';
-      case EarningsErrorKind.server:
-        return 'Server error. Please try again later.';
-      case EarningsErrorKind.parse:
-        return 'Unexpected response format.';
-    }
+/// Unwraps the repository's own classification so the kind survives.
+AppFailure classifyEarningsFailure(Object error) {
+  if (error is EarningsRepositoryException) {
+    return error.failure ??
+        switch (error.kind) {
+          EarningsErrorKind.network => const NetworkFailure(),
+          EarningsErrorKind.server => const ServerFailure(status: 500),
+          EarningsErrorKind.parse => const UnknownFailure(parse: true),
+        };
   }
+  return AppFailure.of(error);
 }

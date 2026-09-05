@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
 import 'package:dio/dio.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
+import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/dm_onboarding_cubit.dart';
 import '../application/dm_onboarding_state.dart';
@@ -64,6 +65,7 @@ class DmOnboardingScreen extends StatelessWidget {
       create: (_) => DmOnboardingCubit(
         pickerService: _resolvePicker(),
         gateway: _resolveGateway(),
+        cdn: _resolveCdn(),
         initialStep: initialStep,
       ),
       child: _Scaffold(onCompleted: onCompleted),
@@ -90,6 +92,13 @@ class DmOnboardingScreen extends StatelessWidget {
       return DioDmOnboardingGateway(sl<Dio>());
     }
     return FakeDmOnboardingGateway();
+  }
+
+  /// UX-06: the portrait upload path. Absent in a bare harness, where the
+  /// upload is skipped.
+  CdnAssetGateway? _resolveCdn() {
+    if (!sl.isRegistered<CdnAssetGateway>()) return null;
+    return sl<CdnAssetGateway>();
   }
 }
 
@@ -156,14 +165,24 @@ class _Scaffold extends StatelessWidget {
   }
 
   void _onError(BuildContext context, DmOnboardingState state) {
+    // UX-40: out-of-coverage is a decision, not a transient fault — it
+    // renders ON the service-area step, never as a snack.
+    if (state.error == DmOnboardingError.outOfCoverage) return;
     final l10n = AppLocalizations.of(context);
     final message = switch (state.error) {
       DmOnboardingError.submitFailed => l10n.dmOnboardingCoverageCheckFailed,
       DmOnboardingError.photoPickFailed => l10n.dmOnboardingPhotoPickFailed,
+      DmOnboardingError.photoUploadFailed =>
+        l10n.dmOnboardingPhotoUploadFailed,
+      DmOnboardingError.outOfCoverage => null,
       null => null,
     };
     if (message != null) {
-      showOmdsErrorSnackbar(context, message: message);
+      showJeebErrorSnack(
+        context,
+        message: message,
+        identifier: 'dm_onboarding_error_snack',
+      );
     }
     context.read<DmOnboardingCubit>().acknowledgeError();
   }

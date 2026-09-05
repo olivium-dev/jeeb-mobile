@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/auth_repository.dart';
 import '../domain/set_password_policy.dart';
 import 'set_password_state.dart';
@@ -82,10 +83,11 @@ class SetPasswordCubit extends Cubit<SetPasswordState> {
         failure: e.failure,
         clearValidation: true,
       ));
-    } catch (_) {
+    } catch (e) {
       emit(state.copyWith(
         status: SetPasswordStatus.failed,
         failure: AuthFailure.unknown,
+        appFailure: AppFailure.of(e),
         clearValidation: true,
       ));
     }

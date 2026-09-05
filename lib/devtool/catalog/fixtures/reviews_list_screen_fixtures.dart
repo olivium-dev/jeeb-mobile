@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../features/reviews/domain/reviews_repository.dart';
 
@@ -34,9 +35,12 @@ class ReviewsListScreenPendingRepository implements ReviewsRepository {
 /// The type matters: `ReviewsCubit.load` maps [ReviewsRepositoryException] to
 /// the specific copy for its [ReviewsFailure] and buckets everything else into
 class ReviewsListScreenFailingRepository implements ReviewsRepository {
-  const ReviewsListScreenFailingRepository(this.failure);
+  const ReviewsListScreenFailingRepository(this.failure, [this.appFailure]);
 
   final ReviewsFailure failure;
+
+  /// The classified failure the screen renders through.
+  final AppFailure? appFailure;
 
   @override
   Future<ReviewsPage> fetchReviews({
@@ -44,11 +48,84 @@ class ReviewsListScreenFailingRepository implements ReviewsRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
-    throw ReviewsRepositoryException(failure);
+    throw ReviewsRepositoryException.classified(
+      failure,
+      appFailure: appFailure ?? const UnknownFailure(),
+    );
   }
 
   @override
   Future<void> reportReview(String reviewId) async {}
+}
+
+/// The first read lands, every read after it fails — LR-07's warm failure,
+/// where the rows must stay and the strip reports the miss.
+class ReviewsListScreenRefreshFailingRepository implements ReviewsRepository {
+  ReviewsListScreenRefreshFailingRepository(this.page);
+
+  final ReviewsPage page;
+  int calls = 0;
+
+  @override
+  Future<ReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    calls += 1;
+    if (calls == 1) return this.page;
+    throw const ReviewsRepositoryException.classified(
+      ReviewsFailure.network,
+      appFailure: NetworkFailure(offline: true),
+    );
+  }
+
+  @override
+  Future<void> reportReview(String reviewId) async {}
+}
+
+/// Page 1 lands with `hasMore`; every page after it fails — TEST-16's footer.
+class ReviewsListScreenLoadMoreFailingRepository implements ReviewsRepository {
+  const ReviewsListScreenLoadMoreFailingRepository(this.firstPage);
+
+  final ReviewsPage firstPage;
+
+  @override
+  Future<ReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    if (page == 1) return firstPage;
+    throw const ReviewsRepositoryException.classified(
+      ReviewsFailure.unknown,
+      appFailure: ServerFailure(status: 500),
+    );
+  }
+
+  @override
+  Future<void> reportReview(String reviewId) async {}
+}
+
+/// AE-25: the report comes back 409 `already-rated`.
+class ReviewsListScreenReportConflictRepository implements ReviewsRepository {
+  const ReviewsListScreenReportConflictRepository(this.page);
+
+  final ReviewsPage page;
+
+  @override
+  Future<ReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) async => this.page;
+
+  @override
+  Future<void> reportReview(String reviewId) async =>
+      throw const ReviewsRepositoryException.classified(
+        ReviewsFailure.unknown,
+        appFailure: ConflictFailure(),
+      );
 }
 
 /// D59 cold-start posture: fewer than five ratings hides the aggregate score
@@ -96,8 +173,7 @@ class ReviewsListScreenStaticRepository implements ReviewsRepository {
     required String jeeberId,
     int page = 1,
     int pageSize = 20,
-  }) async =>
-      this.page;
+  }) async => this.page;
 
   @override
   Future<void> reportReview(String reviewId) async {}
@@ -144,7 +220,8 @@ class ReviewsListScreenPages {
         reviewerFirstName: 'Abdulrahman Al-Muhandis',
         score: 2,
         timestamp: '2026-07-30T12:00:00.000Z',
-        body: 'He arrived almost an hour after the window I picked and did not '
+        body:
+            'He arrived almost an hour after the window I picked and did not '
             'answer the two calls I made in between. The package itself was '
             'fine and he was polite at the door, but I had to reschedule the '
             'rest of my afternoon around a delivery that was supposed to take '

@@ -213,9 +213,10 @@ void main() {
         firebaseSignOut: firebase.call,
       );
 
+      // F37: a 500 is a SERVER error, never a connectivity one.
       expect(
         await sut.requestAccountDeletion(),
-        AccountActionOutcome.networkError,
+        AccountActionOutcome.serverError,
       );
       expect(
         firebase.calls,

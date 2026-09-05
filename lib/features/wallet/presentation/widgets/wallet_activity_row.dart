@@ -12,10 +12,7 @@ import '../wallet_activity_l10n.dart';
 /// snaps to `JeebRadii.lg` (18) under the §5 ±2 rule and is the rung
 /// `notification_row.dart` already ships.
 const EdgeInsetsGeometry kWalletActivityRowPadding =
-    EdgeInsetsDirectional.symmetric(
-  horizontal: Spacing.medium,
-  vertical: 14,
-);
+    EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
 
 /// A single typed ledger row for wallet-activity-list (JM-055). Dumb widget
 /// (40_GUARDRAILS_ARCH §1 layer rules): data in via constructor, the tap out via

@@ -8,8 +8,10 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/display_name_cubit.dart';
 import '../data/dio_display_name_repository.dart';
@@ -116,19 +118,37 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
     switch (state.status) {
       case DisplayNameStatus.saved:
         _finish();
+      case DisplayNameStatus.unavailable:
+      // UX-39: nothing was sent, so the step must not report a save. It stays
+      // optional — the user can still skip on.
       case DisplayNameStatus.failure:
-        _showSaveError(context);
+        _showSaveError(context, state);
       case DisplayNameStatus.idle:
       case DisplayNameStatus.saving:
         break;
     }
   }
 
-  void _showSaveError(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.profileNameStepError)),
+  void _showSaveError(BuildContext context, DisplayNameState state) {
+    showJeebErrorSnack(
+      context,
+      message: _copyFor(context, state),
+      identifier: 'profile_name_save_error_snack',
     );
+  }
+
+  String _copyFor(BuildContext context, DisplayNameState state) {
+    final l10n = AppLocalizations.of(context);
+    if (state.failure == DisplayNameFailure.unauthorized) {
+      return l10n.displayNameErrorUnauthorized;
+    }
+    final appFailure = state.appFailure;
+    if (appFailure != null) return failureCopy(l10n, appFailure).body;
+    return switch (state.failure) {
+      DisplayNameFailure.network => l10n.errorNetworkBody,
+      DisplayNameFailure.serverError => l10n.errorServerBody,
+      _ => l10n.profileNameStepError,
+    };
   }
 
   @override

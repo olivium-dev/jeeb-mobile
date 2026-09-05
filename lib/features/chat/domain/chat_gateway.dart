@@ -90,6 +90,13 @@ class ReadReceipt extends ChatEvent {
   final String throughMessageId;
 }
 
+/// F34 — an inbound frame that would not decode, so the thread is missing a
+/// message no retry will fetch. [reason] is a diagnostic token, never rendered.
+class MessageDropped extends ChatEvent {
+  const MessageDropped(this.reason);
+  final String reason;
+}
+
 /// Phase transition (e.g. broadcasting → accepted).
 class PhaseChanged extends ChatEvent {
   const PhaseChanged(this.phase, {this.deliveryId});

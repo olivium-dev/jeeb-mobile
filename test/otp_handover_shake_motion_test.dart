@@ -120,7 +120,10 @@ void main() {
     await tester.pump();
 
     // The whole message survives the missing motion: headline, live counter.
-    expect(find.text('Incorrect code — please try again'), findsOneWidget);
+    expect(
+      find.text("That code isn't right. Check it and try again."),
+      findsOneWidget,
+    );
     expect(find.textContaining('2 attempt'), findsOneWidget);
     expect(_entryOffset(tester), 0);
   });

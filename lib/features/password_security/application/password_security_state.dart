@@ -13,6 +13,7 @@ class PasswordSecurityState extends Equatable {
     this.newObscured = true,
     this.confirmObscured = true,
     this.validation,
+    this.unavailableNonce = 0,
   });
 
   final PasswordSecurityStatus status;
@@ -24,6 +25,10 @@ class PasswordSecurityState extends Equatable {
   final bool confirmObscured;
 
   final ChangePasswordValidation? validation;
+
+  /// PS-01: two identical `unavailable` emits are one state under Equatable, so
+  /// `listenWhen` never fired again and the CTA read as inert. This bumps.
+  final int unavailableNonce;
 
   bool get hasMismatchError =>
       status == PasswordSecurityStatus.failed &&
@@ -41,6 +46,7 @@ class PasswordSecurityState extends Equatable {
     bool? newObscured,
     bool? confirmObscured,
     ChangePasswordValidation? validation,
+    int? unavailableNonce,
     bool clearValidation = false,
   }) {
     return PasswordSecurityState(
@@ -49,6 +55,7 @@ class PasswordSecurityState extends Equatable {
       newObscured: newObscured ?? this.newObscured,
       confirmObscured: confirmObscured ?? this.confirmObscured,
       validation: clearValidation ? null : (validation ?? this.validation),
+      unavailableNonce: unavailableNonce ?? this.unavailableNonce,
     );
   }
 
@@ -59,5 +66,6 @@ class PasswordSecurityState extends Equatable {
         newObscured,
         confirmObscured,
         validation,
+        unavailableNonce,
       ];
 }
