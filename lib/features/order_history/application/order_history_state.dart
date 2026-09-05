@@ -9,6 +9,7 @@ class OrderTabState extends Equatable {
     this.page = 0,
     this.hasMore = true,
     this.status = OrderTabStatus.initial,
+    this.settled = false,
     this.errorKind,
     this.failure,
     this.loadMoreError,
@@ -22,6 +23,10 @@ class OrderTabState extends Equatable {
   final bool hasMore;
 
   final OrderTabStatus status;
+
+  /// True once a fetch has RETURNED for this tab. A refresh over a tab that
+  /// never settled is a first load and must paint the loading rung.
+  final bool settled;
 
   /// Legacy 2-value display kind; [failure] is the classifier the screen reads.
   final OrderTabErrorKind? errorKind;
@@ -41,6 +46,7 @@ class OrderTabState extends Equatable {
     int? page,
     bool? hasMore,
     OrderTabStatus? status,
+    bool? settled,
     OrderTabErrorKind? errorKind,
     AppFailure? failure,
     AppFailure? loadMoreError,
@@ -54,6 +60,7 @@ class OrderTabState extends Equatable {
       page: page ?? this.page,
       hasMore: hasMore ?? this.hasMore,
       status: status ?? this.status,
+      settled: settled ?? this.settled,
       errorKind: clearError ? errorKind : (errorKind ?? this.errorKind),
       failure: clearError ? failure : (failure ?? this.failure),
       loadMoreError: clearLoadMoreError
@@ -71,6 +78,7 @@ class OrderTabState extends Equatable {
         page,
         hasMore,
         status,
+        settled,
         errorKind,
         failure,
         loadMoreError,

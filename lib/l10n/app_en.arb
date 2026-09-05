@@ -6155,6 +6155,10 @@
   "@jeeberDeliveryTabStatusUnknownTitle": {"description": "WP-8: the jeeber delivery tab read a status it does not know."},
   "jeeberDeliveryTabStatusUnknownBody": "Pull down to refresh this delivery.",
   "@jeeberDeliveryTabStatusUnknownBody": {"description": "WP-8: body under an unknown delivery status."},
+  "jeeberTabsUnavailableTitle": "Couldn't load your Jeeber tools",
+  "@jeeberTabsUnavailableTitle": {"description": "WP-2: title shown when the Jeeber shell tabs fail to load."},
+  "jeeberTabsLoadingHeadline": "Checking your account",
+  "@jeeberTabsLoadingHeadline": {"description": "WP-2: headline shown while the Jeeber shell tabs load."},
   "profileUnavailableCta": "Retry",
   "@profileUnavailableCta": {"description": "WP-8: retry CTA on the profile-unavailable route."},
 

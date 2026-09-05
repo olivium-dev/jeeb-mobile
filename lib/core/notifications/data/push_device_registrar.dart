@@ -1,12 +1,15 @@
+import "dart:async" show unawaited;
 import "dart:io" show Platform;
 import "dart:math" show Random;
 
 import "package:dio/dio.dart";
 import "package:flutter_secure_storage/flutter_secure_storage.dart";
+import "package:shared_preferences/shared_preferences.dart";
 
 import "../../diagnostics/diag.dart";
 import "../../network/app_failure.dart";
 import "../../network/auth_token_store.dart";
+import "shared_prefs_local_push_inbox.dart";
 
 class PushDeviceRegistrar {
   PushDeviceRegistrar({
@@ -28,8 +31,11 @@ class PushDeviceRegistrar {
   String? _lastRegisteredKey;
 
   Future<void> register(String? token) async {
-    if (token == null || token.isEmpty) return;
     final userId = await _currentUserId();
+    // F7: stamp before the token guard so the inbox scope follows the session
+    // even with no FCM token; unawaited — registration must not wait on prefs.
+    unawaited(_stampInboxOwner(userId));
+    if (token == null || token.isEmpty) return;
     final key = "${userId ?? ''}::$token";
     if (key == _lastRegisteredKey) return;
     try {
@@ -54,6 +60,19 @@ class PushDeviceRegistrar {
       // NET-31: silent in release before; a device that never registers is
       // exactly the outage class this needs to be visible for.
       Diag.event("push_device_register_failed", <String, Object?>{
+        "kind": AppFailure.of(error).kind.name,
+      });
+    }
+  }
+
+  Future<void> _stampInboxOwner(String? userId) async {
+    try {
+      await SharedPrefsLocalPushInbox.stampOwner(
+        await SharedPreferences.getInstance(),
+        userId,
+      );
+    } catch (error) {
+      Diag.event("push_inbox_owner_stamp_failed", <String, Object?>{
         "kind": AppFailure.of(error).kind.name,
       });
     }

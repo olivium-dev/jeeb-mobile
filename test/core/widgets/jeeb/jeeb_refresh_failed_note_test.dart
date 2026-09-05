@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/app_failure_copy.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_info_note.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_refresh_failed_note.dart';
@@ -169,5 +170,87 @@ void main() {
       ),
       throwsAssertionError,
     );
+  });
+
+  group('F6 · the note retires itself when the connection returns', () {
+    late NetworkReachabilitySignals bus;
+
+    setUp(() {
+      bus = NetworkReachabilitySignals(minInterval: Duration.zero);
+      NetworkReachabilitySignals.instance = bus;
+    });
+
+    tearDown(NetworkReachabilitySignals.debugReset);
+
+    /// The offline -> online edge: the first observation is only a baseline.
+    void reconnect() {
+      bus
+        ..debugObserve(online: false)
+        ..debugObserve(online: true);
+    }
+
+    for (final Locale locale in kFailureLocales) {
+      testWidgets(
+        'a connectivity note dismisses itself on the edge · '
+        '${locale.languageCode}',
+        (WidgetTester tester) async {
+          int dismissals = 0;
+          await _pump(
+            tester,
+            JeebRefreshFailedNote(
+              failure: const NetworkFailure(offline: true),
+              identifier: 'order_history_refresh_failed',
+              onDismiss: () => dismissals++,
+            ),
+            locale: locale,
+          );
+          expect(
+            find.bySemanticsIdentifier('order_history_refresh_failed'),
+            findsOneWidget,
+          );
+
+          reconnect();
+          await tester.pump();
+          expect(dismissals, 1);
+        },
+      );
+    }
+
+    testWidgets('a server failure is left alone — nothing about it changed', (
+      WidgetTester tester,
+    ) async {
+      int dismissals = 0;
+      await _pump(
+        tester,
+        JeebRefreshFailedNote(
+          failure: const ServerFailure(status: 500),
+          identifier: 'order_history_refresh_failed',
+          onDismiss: () => dismissals++,
+        ),
+      );
+
+      reconnect();
+      await tester.pump();
+      expect(dismissals, 0);
+    });
+
+    testWidgets('dismissOnReconnect:false opts a screen out', (
+      WidgetTester tester,
+    ) async {
+      int dismissals = 0;
+      await _pump(
+        tester,
+        JeebRefreshFailedNote(
+          failure: const NetworkFailure(offline: true),
+          identifier: 'order_history_refresh_failed',
+          onDismiss: () => dismissals++,
+          dismissOnReconnect: false,
+        ),
+      );
+
+      reconnect();
+      await tester.pump();
+      expect(dismissals, 0);
+    });
   });
 }

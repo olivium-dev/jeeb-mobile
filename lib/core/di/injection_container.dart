@@ -22,6 +22,7 @@ import '../../features/client_offers/domain/offers_repository.dart';
 import '../../features/chat/domain/chat_gateway.dart';
 import '../../features/chat/data/dio_chat_gateway.dart';
 import '../../features/chat/chat_di.dart';
+import '../../features/cancel_request/cancel_request_di.dart';
 import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
@@ -539,6 +540,7 @@ void configureDependencies({
   // Stage 2: feature-owned registrations. Each is idempotent and resolves
   // lazily, so ordering against the block above does not matter.
   registerChatDependencies(sl);
+  registerCancelRequestDependencies(sl);
   registerDeliveryManProfileDependencies(sl);
   registerGoodsCostDependencies(sl);
   registerJeeberRequestDetailDependencies(sl);

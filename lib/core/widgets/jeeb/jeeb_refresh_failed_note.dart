@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../network/app_failure.dart';
+import '../../network/network_reachability_signals.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../previews/jeeb_preview.dart';
 import 'app_failure_copy.dart';
@@ -9,7 +12,7 @@ import 'jeeb_info_note.dart';
 
 /// The warm-failure strip: a refresh failed while rows are on screen, so the
 /// notice goes above the list rather than throwing those rows away.
-class JeebRefreshFailedNote extends StatelessWidget {
+class JeebRefreshFailedNote extends StatefulWidget {
   const JeebRefreshFailedNote({
     super.key,
     required this.failure,
@@ -17,6 +20,7 @@ class JeebRefreshFailedNote extends StatelessWidget {
     required this.onDismiss,
     this.onRetry,
     this.messageOverride,
+    this.dismissOnReconnect = true,
   }) : assert(identifier.length > 0, 'An unfindable note is untestable');
 
   /// The classified refresh failure.
@@ -34,13 +38,41 @@ class JeebRefreshFailedNote extends StatelessWidget {
   /// Replaces the copy family's body.
   final String? messageOverride;
 
+  /// F6: a note that blames the connection retires itself when it returns.
+  final bool dismissOnReconnect;
+
+  @override
+  State<JeebRefreshFailedNote> createState() => _JeebRefreshFailedNoteState();
+}
+
+class _JeebRefreshFailedNoteState extends State<JeebRefreshFailedNote> {
+  StreamSubscription<void>? _reconnected;
+
+  @override
+  void initState() {
+    super.initState();
+    _reconnected = NetworkReachabilitySignals.instance.stream.listen((void _) {
+      if (!mounted || !widget.dismissOnReconnect) return;
+      if (!failureBlamesConnectivity(widget.failure)) return;
+      widget.onDismiss();
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_reconnected?.cancel());
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AppFailure failure = widget.failure;
+    final String identifier = widget.identifier;
     final AppLocalizations l10n = AppLocalizations.of(context);
     final FailureCopy copy = failureCopy(l10n, failure);
     final ColorScheme scheme = Theme.of(context).colorScheme;
 
-    final String message = messageOverride ?? copy.body;
+    final String message = widget.messageOverride ?? copy.body;
 
     // The id, the label and the liveRegion flag must sit on ONE node: an
     // announced node with no text of its own is read out as silence.
@@ -56,7 +88,7 @@ class JeebRefreshFailedNote extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            if (onRetry != null)
+            if (widget.onRetry != null)
               Semantics(
                 identifier: '${identifier}_retry_cta',
                 button: true,
@@ -65,7 +97,7 @@ class JeebRefreshFailedNote extends StatelessWidget {
                   icon: const Icon(Icons.refresh),
                   color: scheme.onErrorContainer,
                   tooltip: l10n.actionRetry,
-                  onPressed: onRetry,
+                  onPressed: widget.onRetry,
                 ),
               ),
             Semantics(
@@ -76,7 +108,7 @@ class JeebRefreshFailedNote extends StatelessWidget {
                 icon: const Icon(Icons.close),
                 color: scheme.onErrorContainer,
                 tooltip: l10n.actionDismiss,
-                onPressed: onDismiss,
+                onPressed: widget.onDismiss,
               ),
             ),
           ],

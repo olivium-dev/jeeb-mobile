@@ -1,6 +1,9 @@
 // G3: the inbox must UNION the durable local push store with the server inbox,
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:jeeb_mobile/core/notifications/data/shared_prefs_local_push_inbox.dart';
 
 import 'package:jeeb_mobile/core/notifications/domain/local_push_inbox.dart';
 import 'package:jeeb_mobile/features/notifications/data/local_merging_notifications_repository.dart';
@@ -272,4 +275,59 @@ void main() {
       expect(afterRestart.single.read, isTrue);
     },
   );
+
+  // F7: the merge is what actually put the previous account's rows on screen,
+  // so prove it against the REAL store rather than the in-memory double.
+  group('F7 owner-scoped merge', () {
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
+    test("a foreign owner's local row never reaches the merged list", () async {
+      final prefs = await SharedPreferences.getInstance();
+      await SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'karim').append(
+        const LocalPushRecord(
+          id: '1788531140789665%5f925b925f925b92',
+          type: kNewRequestPushType,
+          title: 'New request nearby',
+          body: 'Barbar',
+          ts: '2026-07-03T10:00:00Z',
+          ref: 'req-karim',
+        ),
+      );
+
+      final repository = LocalMergingNotificationsRepository(
+        remote: _StubRemote(),
+        localInbox:
+            SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'fresh-client'),
+      );
+
+      final snapshot = await repository.fetchSnapshot();
+      expect(snapshot.items, isEmpty);
+      expect(snapshot.degraded, isFalse);
+      expect(snapshot.failure, isNull);
+    });
+
+    test("the owner's own local row still merges", () async {
+      final prefs = await SharedPreferences.getInstance();
+      await SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'karim').append(
+        const LocalPushRecord(
+          id: 'own-1',
+          type: kNewRequestPushType,
+          title: 't',
+          body: 'b',
+          ts: '2026-07-03T10:00:00Z',
+          ref: 'req-own',
+        ),
+      );
+
+      final repository = LocalMergingNotificationsRepository(
+        remote: _StubRemote(),
+        localInbox: SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'karim'),
+      );
+
+      expect((await repository.fetchNotifications()).single.id, 'own-1');
+    });
+  });
 }

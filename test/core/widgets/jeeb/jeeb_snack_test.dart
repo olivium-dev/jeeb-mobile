@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/app_failure_copy.dart';
@@ -27,10 +28,8 @@ double _contrast(Color a, Color b) {
 /// A button that fires [onTap] with the tapped element's own context, which is
 /// how every real call site reaches `ScaffoldMessenger`.
 Widget _trigger(void Function(BuildContext context) onTap) => Builder(
-  builder: (BuildContext context) => TextButton(
-    onPressed: () => onTap(context),
-    child: const Text('fire'),
-  ),
+  builder: (BuildContext context) =>
+      TextButton(onPressed: () => onTap(context), child: const Text('fire')),
 );
 
 Future<void> _fire(
@@ -49,7 +48,9 @@ SnackBar _snack(WidgetTester tester) =>
 
 Color _ink(WidgetTester tester) => tester
     .widget<Text>(
-      find.descendant(of: find.byType(SnackBar), matching: find.byType(Text)).first,
+      find
+          .descendant(of: find.byType(SnackBar), matching: find.byType(Text))
+          .first,
     )
     .style!
     .color!;
@@ -74,7 +75,8 @@ void main() {
       expect(
         _snack(tester).backgroundColor,
         isNot(AppTheme.midnight().snackBarTheme.backgroundColor),
-        reason: 'the theme hard-codes surfaceHigh, which carries no failure '
+        reason:
+            'the theme hard-codes surfaceHigh, which carries no failure '
             'signal at all',
       );
     });
@@ -166,7 +168,10 @@ void main() {
       final AppLocalizations l10n = AppLocalizations.of(
         tester.element(find.byType(SnackBar)),
       );
-      expect(find.widgetWithText(SnackBarAction, l10n.actionRetry), findsOneWidget);
+      expect(
+        find.widgetWithText(SnackBarAction, l10n.actionRetry),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('order_history_error_snack_retry_cta')),
         findsOneWidget,
@@ -338,16 +343,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       wrapMidnight(
-        _trigger(
-          (BuildContext c) {
-            showJeebSnack(c, message: 'first', identifier: 'a_snack');
-            showJeebErrorSnack(
-              c,
-              identifier: 'b_snack',
-              message: 'second',
-            );
-          },
-        ),
+        _trigger((BuildContext c) {
+          showJeebSnack(c, message: 'first', identifier: 'a_snack');
+          showJeebErrorSnack(c, identifier: 'b_snack', message: 'second');
+        }),
       ),
     );
     await tester.tap(find.text('fire'));
@@ -357,5 +356,160 @@ void main() {
     expect(find.byType(SnackBar), findsOneWidget);
     expect(find.text('second'), findsOneWidget);
     expect(find.text('first'), findsNothing);
+  });
+
+  group('F6 · a snack has a bounded life', () {
+    late NetworkReachabilitySignals bus;
+
+    setUp(() {
+      bus = NetworkReachabilitySignals(minInterval: Duration.zero);
+      NetworkReachabilitySignals.instance = bus;
+    });
+
+    tearDown(NetworkReachabilitySignals.debugReset);
+
+    /// The offline -> online edge: the first observation is only a baseline.
+    void reconnect() {
+      bus
+        ..debugObserve(online: false)
+        ..debugObserve(online: true);
+    }
+
+    testWidgets('a retryable snack never persists — persist is explicit', (
+      WidgetTester tester,
+    ) async {
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebErrorSnack(
+          c,
+          identifier: 'order_history_refresh_failed_snack',
+          failure: const NetworkFailure(offline: true),
+          onRetry: () {},
+        ),
+      );
+
+      final SnackBar snack = _snack(tester);
+      expect(
+        snack.persist,
+        isFalse,
+        reason:
+            'SnackBar derives persist from `action != null`, and a '
+            'persisting snack is never timed out at all',
+      );
+      expect(snack.duration, kJeebSnackActionDuration);
+    });
+
+    testWidgets('and it is gone once that duration elapses', (
+      WidgetTester tester,
+    ) async {
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebErrorSnack(
+          c,
+          identifier: 'order_history_refresh_failed_snack',
+          failure: const NetworkFailure(offline: true),
+          onRetry: () {},
+        ),
+      );
+      expect(find.byType(SnackBar), findsOneWidget);
+
+      await tester.pump(kJeebSnackActionDuration);
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('a plain snack keeps the shorter default', (
+      WidgetTester tester,
+    ) async {
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebSnack(
+          c,
+          message: 'Saved',
+          identifier: 'settings_saved_snack',
+        ),
+      );
+
+      expect(_snack(tester).duration, kJeebSnackDuration);
+      expect(_snack(tester).persist, isFalse);
+    });
+
+    for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
+      testWidgets(
+        'the reconnect edge retires a connectivity snack · '
+        '${locale.languageCode}',
+        (WidgetTester tester) async {
+          await _fire(
+            tester,
+            (BuildContext c) => showJeebErrorSnack(
+              c,
+              identifier: 'order_history_refresh_failed_snack',
+              failure: const NetworkFailure(offline: true),
+              onRetry: () {},
+            ),
+            locale: locale,
+          );
+          expect(
+            find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
+            findsOneWidget,
+          );
+
+          reconnect();
+          await tester.pumpAndSettle();
+          expect(
+            find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
+            findsNothing,
+          );
+          expect(find.byType(SnackBar), findsNothing);
+        },
+      );
+    }
+
+    testWidgets('but leaves a snack that never blamed the connection', (
+      WidgetTester tester,
+    ) async {
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebErrorSnack(
+          c,
+          identifier: 'order_history_error_snack',
+          failure: const ServerFailure(status: 500),
+          onRetry: () {},
+        ),
+      );
+
+      reconnect();
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('and never kills the snack that replaced it', (
+      WidgetTester tester,
+    ) async {
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebErrorSnack(
+          c,
+          identifier: 'order_history_refresh_failed_snack',
+          failure: const NetworkFailure(offline: true),
+          onRetry: () {},
+        ),
+      );
+      await tester.tap(find.text('fire'));
+      await tester.pump();
+
+      await _fire(
+        tester,
+        (BuildContext c) => showJeebSuccessSnack(
+          c,
+          message: 'Offer sent',
+          identifier: 'offer_sent_snack',
+        ),
+      );
+
+      reconnect();
+      await tester.pumpAndSettle();
+      expect(find.text('Offer sent'), findsOneWidget);
+    });
   });
 }

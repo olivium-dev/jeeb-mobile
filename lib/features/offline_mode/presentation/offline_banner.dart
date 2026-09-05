@@ -35,29 +35,38 @@ class _OfflineMaterialBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final roles = context.jeebRoles;
     final l10n = AppLocalizations.of(context);
-    return MaterialBanner(
-      content: Text(
-        l10n.offlineBannerMessage,
-        style: TextStyle(color: roles.onWarningContainer),
-      ),
-      leading: Icon(
-        Icons.cloud_off,
-        color: roles.onWarningContainer,
-      ),
-      backgroundColor: roles.warningContainer,
-      actions: [
-        Semantics(
-          identifier: 'offline_banner_dismiss_cta',
-          container: true,
-          button: true,
-          child: OmdsPrimaryButton(
-            text: l10n.commonDismiss,
-            variant: OmdsButtonVariant.text,
-            textColor: roles.onWarningContainer,
-            onTap: () => context.read<OfflineCubit>().dismissBanner(),
-          ),
+    // MaterialBanner wraps itself in Semantics only when animated (banner.dart
+    // 430-453), so this inline use emitted no node at all.
+    return Semantics(
+      identifier: 'offline_banner',
+      label: l10n.offlineBannerMessage,
+      liveRegion: true,
+      container: true,
+      explicitChildNodes: true,
+      child: MaterialBanner(
+        content: Text(
+          l10n.offlineBannerMessage,
+          style: TextStyle(color: roles.onWarningContainer),
         ),
-      ],
+        leading: Icon(
+          Icons.cloud_off,
+          color: roles.onWarningContainer,
+        ),
+        backgroundColor: roles.warningContainer,
+        actions: <Widget>[
+          Semantics(
+            identifier: 'offline_banner_dismiss_cta',
+            container: true,
+            button: true,
+            child: OmdsPrimaryButton(
+              text: l10n.commonDismiss,
+              variant: OmdsButtonVariant.text,
+              textColor: roles.onWarningContainer,
+              onTap: () => context.read<OfflineCubit>().dismissBanner(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

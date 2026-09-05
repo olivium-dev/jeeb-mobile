@@ -2478,6 +2478,8 @@
   "languageSyncPendingBody": "ستتم مزامنة لغتك عند عودة الاتصال.",
   "jeeberDeliveryTabStatusUnknownTitle": "الحالة غير متاحة",
   "jeeberDeliveryTabStatusUnknownBody": "اسحب للأسفل لتحديث هذه التوصيلة.",
+  "jeeberTabsUnavailableTitle": "تعذّر تحميل أدوات الجِيبر",
+  "jeeberTabsLoadingHeadline": "عم نتحقق من حسابك",
   "profileUnavailableCta": "إعادة المحاولة",
 
   "supportThreadTitle": "الدعم",

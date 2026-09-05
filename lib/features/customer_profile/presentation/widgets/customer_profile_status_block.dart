@@ -19,9 +19,8 @@ import '../../domain/customer_profile_repository.dart';
 /// subject — a mic, a parcel, a scooter — and would tell the wrong story on a
 /// profile surface.
 ///
-/// It is [JeebEmptyState.compact] because it sits INSIDE the page under a
-/// mounted identity card rather than owning the screen, and it never replaces
-/// the row groups: signing out has to stay reachable when the read fails.
+/// It is [JeebEmptyState.compact] because it sits INSIDE the page; a failed
+/// COLD read drops the card and rows around it (F4) but keeps sign out.
 class CustomerProfileStatusBlock extends StatelessWidget {
   const CustomerProfileStatusBlock({
     super.key,
@@ -32,7 +31,7 @@ class CustomerProfileStatusBlock extends StatelessWidget {
 
   static const String loadingIdentifier = 'customer_profile_loading';
   static const String errorIdentifier = 'customer_profile_load_error';
-  static const String retryIdentifier = 'customer_profile_load_retry';
+  static const String retryIdentifier = 'customer_profile_retry_cta';
 
   static const String refreshErrorIdentifier = 'customer_profile_refresh_error';
 
@@ -50,26 +49,21 @@ class CustomerProfileStatusBlock extends StatelessWidget {
       state.data.avatarUrl == null &&
       state.data.rating == null;
 
+  /// The cold-read failure that owns the whole body, or null.
+  static AppFailure? coldFailure(CustomerProfileState state) =>
+      state.status == CustomerProfileStatus.failed ? state.appFailure : null;
+
   /// Whether this block draws at all for [state].
   static bool showsFor(CustomerProfileState state) =>
-      state.appFailure != null ||
+      coldFailure(state) != null ||
       state.refreshError != null ||
       isBlankLoad(state);
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final AppFailure? refreshError = state.refreshError;
-    if (refreshError != null) {
-      // The stale profile stays on screen; only the strip reports the miss.
-      return JeebRefreshFailedNote(
-        failure: refreshError,
-        identifier: refreshErrorIdentifier,
-        onDismiss: onDismissRefreshError ?? () {},
-        onRetry: onRetry,
-      );
-    }
-    final AppFailure? failure = state.appFailure;
+    // Error before the refresh strip: a failed cold read owns the body.
+    final AppFailure? failure = coldFailure(state);
     if (failure != null) {
       final unauthorized = state.error == CustomerProfileFailure.unauthorized;
       // A terminal kind gets an exit, never an inert block with no CTA at all.
@@ -91,6 +85,16 @@ class CustomerProfileStatusBlock extends StatelessWidget {
         exitIdentifier: exit && unauthorized
             ? 'customer_profile_error_signin_cta'
             : null,
+      );
+    }
+    final AppFailure? refreshError = state.refreshError;
+    if (refreshError != null) {
+      // The stale profile stays on screen; only the strip reports the miss.
+      return JeebRefreshFailedNote(
+        failure: refreshError,
+        identifier: refreshErrorIdentifier,
+        onDismiss: onDismissRefreshError ?? () {},
+        onRetry: onRetry,
       );
     }
     return JeebEmptyState.compact(

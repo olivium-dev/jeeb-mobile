@@ -3,8 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../diagnostics/diag.dart';
+import 'app_failure.dart';
 
 const Duration kNetworkReachabilityMinInterval = Duration(seconds: 2);
+
+/// Only these two kinds blame the connection, so only these are the ones a
+/// reconnect can make stale (F6). A 500 stays on screen until it is answered.
+bool failureBlamesConnectivity(AppFailure failure) =>
+    failure.kind == AppFailureKind.network ||
+    failure.kind == AppFailureKind.timeout;
 
 class NetworkReachabilitySignals {
   NetworkReachabilitySignals({

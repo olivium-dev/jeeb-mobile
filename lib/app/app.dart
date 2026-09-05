@@ -66,7 +66,7 @@ import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/offline_mode/application/offline_cubit.dart';
-import '../features/offline_mode/presentation/offline_banner.dart';
+import '../features/offline_mode/presentation/offline_banner_host.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../devtool/shake/devtool_shake.dart';
 import '../l10n/app_localizations.dart';
@@ -190,7 +190,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit(
     const RoleAvailability(),
     widget.preferences,
+    _cachedRolesOwnerId,
   );
+
+  /// Stamps/validates the cached `available_roles` so a second account never
+  /// inherits the first one's jeeber surface.
+  static Future<String?> _cachedRolesOwnerId() async =>
+      sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>().userId : null;
 
   /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
   /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
@@ -816,28 +822,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                         );
                   // OFF-02/EP-10: the offline notice rides above the router
                   // content, so it survives every route change.
-                  final banded = BlocBuilder<OfflineCubit, OfflineState>(
-                    builder: (BuildContext context, OfflineState state) {
-                      // The banner already sits under the status bar; the
-                      // content below must not reserve that inset twice.
-                      final bool shown = OfflineBanner.showsFor(state);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          const OfflineBanner(),
-                          Expanded(
-                            child: shown
-                                ? MediaQuery.removePadding(
-                                    context: context,
-                                    removeTop: true,
-                                    child: wrapped,
-                                  )
-                                : wrapped,
-                          ),
-                        ],
-                      );
-                    },
-                  );
+                  final banded = OfflineBannerHost(child: wrapped);
                   final routed = jeebA11yBuilder(context, banded);
                   // GESTURE-LOG hook (dev-affordances only): a translucent,
                   // pass-through root Listener that records taps/gestures the

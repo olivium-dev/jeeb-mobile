@@ -157,7 +157,10 @@ void main() {
       await cubit.close();
     });
 
-    test('drops re-entrant calls while a load is in flight', () async {
+    // F9 rewrote this contract: a re-entrant refresh is DEFERRED, not dropped
+    // — dropping it is how a landed cancel lost its only re-read.
+    test('defers re-entrant calls while a load is in flight and pays them '
+        'exactly once', () async {
       var calls = 0;
       when(() => repo.loadSnapshot()).thenAnswer((_) async {
         calls += 1;
@@ -166,10 +169,12 @@ void main() {
       });
       final cubit = build();
       final first = cubit.load();
-      // refresh fires while load is mid-flight; should be dropped
       await cubit.refresh();
+      await cubit.refresh();
+      await cubit.refresh();
+      expect(calls, 1, reason: 'none of them fans out mid-load');
       await first;
-      expect(calls, 1);
+      expect(calls, 2, reason: 'one follow-up read, not three and not zero');
       await cubit.close();
     });
   });
@@ -200,14 +205,15 @@ void main() {
       await cubit.close();
     });
 
-    // b02 wave D: the poll and the push bus are two INDEPENDENTLY-timed
-    test('SINGLE FLIGHT: two signals inside one round trip produce one read',
+    // F9: the second signal is DEBT, not noise. Pre-fix `_refreshInFlight`
+    // dropped it outright, which is how a landed cancel lost its only re-read.
+    test('a signal arriving mid-read produces exactly ONE follow-up read',
         () async {
       final gate = Completer<void>();
       var calls = 0;
       when(() => repo.loadSnapshot()).thenAnswer((_) async {
         calls++;
-        await gate.future;
+        if (calls == 1) await gate.future;
         return const ClientHomeSnapshot();
       });
       final signals = StreamController<void>.broadcast();
@@ -220,53 +226,19 @@ void main() {
 
       signals.add(null);
       await Future<void>.delayed(Duration.zero);
-      signals.add(null);
+      for (var i = 0; i < 4; i++) {
+        signals.add(null);
+      }
       await Future<void>.delayed(Duration.zero);
-      expect(calls, 1, reason: 'the second signal must collapse onto the first');
+      expect(calls, 1, reason: 'four more signals must not fan out mid-read');
 
       gate.complete();
-      await Future<void>.delayed(Duration.zero);
-      // ...and the latch RELEASES: a later signal still reads.
-      signals.add(null);
-      await Future<void>.delayed(Duration.zero);
-      expect(calls, 2);
-      await cubit.close();
-    });
-
-    // b02 wave D: the poll and the push bus are two INDEPENDENTLY-timed
-    // triggers on one cubit, and only the poller ever coordinated with itself
-    // (LifecyclePoller skips a tick while the previous one is outstanding).
-    // `state.status == loading` is not this guard either — refresh() is the
-    // SILENT path and never sets `loading`, so it could not see itself.
-    test('SINGLE FLIGHT: two signals inside one round trip produce one read',
-        () async {
-      final gate = Completer<void>();
-      var calls = 0;
-      when(() => repo.loadSnapshot()).thenAnswer((_) async {
-        calls++;
-        await gate.future;
-        return const ClientHomeSnapshot();
-      });
-      final signals = StreamController<void>.broadcast();
-      addTearDown(signals.close);
-      final cubit = ClientHomeCubit(
-        repository: repo,
-        greetingNameProvider: () => null,
-        refreshSignals: signals.stream,
+      await pumpEventQueue();
+      expect(
+        calls,
+        2,
+        reason: 'the deferred signals collapse into ONE follow-up read',
       );
-
-      signals.add(null);
-      await Future<void>.delayed(Duration.zero);
-      signals.add(null);
-      await Future<void>.delayed(Duration.zero);
-      expect(calls, 1, reason: 'the second signal must collapse onto the first');
-
-      gate.complete();
-      await Future<void>.delayed(Duration.zero);
-      // ...and the latch RELEASES: a later signal still reads.
-      signals.add(null);
-      await Future<void>.delayed(Duration.zero);
-      expect(calls, 2);
       await cubit.close();
     });
 
@@ -348,6 +320,153 @@ void main() {
 
       await cubit.load();
       expect(cubit.state.status, isNot(ClientHomeStatus.failed));
+    });
+  });
+
+  group('F9 — cancel is local truth, and no refresh is ever dropped', () {
+    test('removeRequest drops exactly one row and keeps the rest', () async {
+      when(() => repo.loadSnapshot()).thenAnswer(
+        (_) async => ClientHomeSnapshot(
+          pending: [
+            _req('p-1', ClientRequestStatus.searching),
+            _req('p-2', ClientRequestStatus.searching),
+          ],
+          replies: [_req('r-9', ClientRequestStatus.searching)],
+          offerStatusRequests: [_req('p-1', ClientRequestStatus.searching)],
+        ),
+      );
+      final cubit = build();
+      addTearDown(cubit.close);
+      await cubit.load();
+
+      cubit.removeRequest('p-1');
+
+      expect(cubit.state.pending.map((r) => r.id), ['p-2']);
+      expect(cubit.state.replies.map((r) => r.id), ['r-9']);
+      expect(cubit.state.offerStatusRequests, isEmpty);
+      expect(cubit.state.inProgress, isEmpty);
+    });
+
+    test('removeRequest for an unknown id emits nothing', () async {
+      when(() => repo.loadSnapshot()).thenAnswer(
+        (_) async => ClientHomeSnapshot(
+          pending: [_req('p-1', ClientRequestStatus.searching)],
+        ),
+      );
+      final cubit = build();
+      addTearDown(cubit.close);
+      await cubit.load();
+      final before = cubit.state;
+
+      cubit.removeRequest('nope');
+
+      expect(cubit.state, same(before));
+    });
+
+    test('a cancelled row is not resurrected by a read that was already in '
+        'flight', () async {
+      final gate = Completer<void>();
+      var calls = 0;
+      when(() => repo.loadSnapshot()).thenAnswer((_) async {
+        calls++;
+        if (calls == 2) await gate.future;
+        return ClientHomeSnapshot(
+          pending: [_req('p-1', ClientRequestStatus.searching)],
+        );
+      });
+      final cubit = build();
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      unawaited(cubit.refresh());
+      await pumpEventQueue();
+      expect(calls, 2);
+
+      cubit.removeRequest('p-1');
+      expect(cubit.state.pending, isEmpty);
+
+      gate.complete();
+      await pumpEventQueue();
+      expect(
+        cubit.state.pending,
+        isEmpty,
+        reason: 'the stale snapshot must not put the cancelled row back',
+      );
+    });
+
+    test('a refresh requested while one is in flight runs exactly once '
+        'afterwards', () async {
+      final gate = Completer<void>();
+      var calls = 0;
+      when(() => repo.loadSnapshot()).thenAnswer((_) async {
+        calls++;
+        if (calls == 2) await gate.future;
+        return const ClientHomeSnapshot();
+      });
+      final cubit = build();
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      unawaited(cubit.refresh());
+      await pumpEventQueue();
+      expect(calls, 2);
+
+      await cubit.refresh();
+      await cubit.refresh();
+      expect(calls, 2, reason: 'both are deferred behind the in-flight read');
+
+      gate.complete();
+      await pumpEventQueue();
+      expect(calls, 3, reason: 'exactly one follow-up read, not two');
+    });
+
+    test('a refresh requested during load() is not swallowed', () async {
+      final gate = Completer<void>();
+      var calls = 0;
+      when(() => repo.loadSnapshot()).thenAnswer((_) async {
+        calls++;
+        if (calls == 1) await gate.future;
+        return const ClientHomeSnapshot();
+      });
+      final cubit = build();
+      addTearDown(cubit.close);
+
+      unawaited(cubit.load());
+      await pumpEventQueue();
+      await cubit.refresh();
+      expect(calls, 1, reason: 'deferred behind the cold load');
+
+      gate.complete();
+      await pumpEventQueue();
+      expect(calls, 2);
+    });
+
+    test('a refresh requested inside the rate-limit window runs when the '
+        'window expires', () async {
+      var calls = 0;
+      when(() => repo.loadSnapshot()).thenAnswer((_) async {
+        calls++;
+        return const ClientHomeSnapshot(
+          rateLimited: true,
+          retryAfter: Duration(milliseconds: 60),
+        );
+      });
+      final cubit = build();
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      expect(calls, 1);
+
+      await cubit.refresh();
+      expect(calls, 1, reason: 'the open backoff window still suppresses it');
+
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+      await pumpEventQueue();
+      expect(
+        calls,
+        greaterThanOrEqualTo(2),
+        reason: 'the suppressed refresh must be rescheduled, not dropped',
+      );
     });
   });
 }

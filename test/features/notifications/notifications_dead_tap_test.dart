@@ -53,6 +53,7 @@ void main() {
     WidgetTester tester,
     NotificationsRepository repo, {
     Locale locale = const Locale('en'),
+    UserRole role = UserRole.jeeber,
   }) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();
@@ -88,11 +89,17 @@ void main() {
           name: 'dispute-status',
           builder: (_, s) => _stub('dispute_root_${s.pathParameters['id']}'),
         ),
+        GoRoute(
+          path: '/jeeber/requests/:id',
+          name: 'jeeber-request',
+          builder: (_, s) =>
+              _stub('jeeber_request_root_${s.pathParameters['id']}'),
+        ),
       ],
     );
     await tester.pumpWidget(
       BlocProvider<RoleCubit>(
-        create: (_) => RoleCubit(prefs: prefs, initialRole: UserRole.jeeber),
+        create: (_) => RoleCubit(prefs: prefs, initialRole: role),
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.midnight(),
@@ -173,5 +180,64 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(byId('dispute_root_dsp-3'), findsOneWidget);
+  });
+
+  // F8 (device-verified, empty/44): a CLIENT tapping an addressed `new_request`
+  // row was pushed to `/` — the resolver's refusal sentinel read as a route.
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    final tag = locale.languageCode;
+
+    testWidgets('[$tag] a client tapping an addressed new_request row is told '
+        'it cannot open and stays on the inbox', (tester) async {
+      useReduceMotion(tester);
+      final repo = _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.newRequest, ref: 'req-7'),
+      ]);
+      await pump(tester, repo, locale: locale, role: UserRole.client);
+
+      await tester.tap(byId('notif_row_n-1'));
+      await tester.pumpAndSettle();
+
+      expect(byId('notifications_cannot_open'), findsOneWidget);
+      expect(byId('notif_row_n-1'), findsOneWidget);
+      expect(byId('shell_root'), findsNothing,
+          reason: 'the refusal sentinel must never navigate to client home');
+      expect(byId('jeeber_request_root_req-7'), findsNothing);
+      expect(repo.marked, <String>['n-1']);
+    });
+
+    testWidgets('[$tag] a client tapping an addressed offer_accepted row is '
+        'told it cannot open', (tester) async {
+      useReduceMotion(tester);
+      final repo = _SeededRepository(<NotificationItem>[
+        _item('n-2', NotificationKind.offerAccepted, ref: 'conv-9'),
+      ]);
+      await pump(tester, repo, locale: locale, role: UserRole.client);
+
+      await tester.tap(byId('notif_row_n-2'));
+      await tester.pumpAndSettle();
+
+      expect(byId('notifications_cannot_open'), findsOneWidget);
+      expect(byId('chat_root_conv-9'), findsNothing);
+      expect(byId('shell_root'), findsNothing);
+    });
+  }
+
+  testWidgets('a JEEBER tapping the same new_request row still routes',
+      (tester) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.newRequest, ref: 'req-7'),
+      ]),
+      role: UserRole.jeeber,
+    );
+
+    await tester.tap(byId('notif_row_n-1'));
+    await tester.pumpAndSettle();
+
+    expect(byId('jeeber_request_root_req-7'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
   });
 }

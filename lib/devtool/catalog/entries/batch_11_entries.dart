@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/home_client/data/dev_client_home_fixtures.dart';
 import '../../../features/home_client/data/in_memory_client_home_repository.dart';
 import '../../../features/shell/shell_screen.dart';
@@ -11,6 +12,7 @@ import '../../../features/shell/tabs/earnings_tab.dart';
 import '../../../features/shell/tabs/home_tab.dart';
 import '../../../features/shell/tabs/orders_tab.dart';
 import '../../../features/shell/widgets/jeeber_tab_empty_state.dart';
+import '../../../features/shell/widgets/jeeber_tab_failure_state.dart';
 import '../../../features/shell/widgets/shell_header_actions.dart';
 import '../../../features/support/presentation/support_ticket_detail_screen.dart';
 import '../../../features/support/presentation/support_ticket_screen.dart';
@@ -48,6 +50,7 @@ import '../fixtures/wallet_hub_screen_fixtures.dart';
 /// DashboardTab skipped — no override seam for sl<...>() service locators.
 List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _jeeberTabEmptyStateEntry,
+  _jeeberTabFailureStateEntry,
   _shellHeaderActionsEntry,
   _homeTabEntry,
   _chatTabEntry,
@@ -80,6 +83,39 @@ final CatalogEntry _jeeberTabEmptyStateEntry = CatalogEntry(
     CatalogState(
       'Earnings tab — become-a-jeeber invitation',
       (_) => _tabPreview(const JeeberTabEmptyState.earnings()),
+    ),
+  ],
+);
+
+final CatalogEntry _jeeberTabFailureStateEntry = CatalogEntry(
+  feature: 'shell',
+  screen: 'JeeberTabFailureState',
+  states: [
+    CatalogState(
+      'Dashboard tab — availability unreachable',
+      (_) => _tabPreview(
+        JeeberTabFailureState.dashboard(
+          failure: const NetworkFailure(offline: true),
+          onRetry: () {},
+        ),
+      ),
+    ),
+    CatalogState(
+      'Earnings tab — availability unreachable',
+      (_) => _tabPreview(
+        JeeberTabFailureState.earnings(
+          failure: const ServerFailure(status: 503),
+          onRetry: () {},
+        ),
+      ),
+    ),
+    CatalogState(
+      'Dashboard tab — availability loading',
+      (_) => _tabPreview(const JeeberTabLoadingState.dashboard()),
+    ),
+    CatalogState(
+      'Earnings tab — availability loading',
+      (_) => _tabPreview(const JeeberTabLoadingState.earnings()),
     ),
   ],
 );

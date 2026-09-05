@@ -372,7 +372,14 @@ class _OrderTabViewState extends State<_OrderTabView>
         final actingAsJeeber =
             context.watch<RoleCubit?>()?.state == UserRole.jeeber;
 
-        if (tabState.status == OrderTabStatus.loadingFirstPage) {
+        // F1: a `refreshing` frame with nothing settled behind it is still a
+        // first load — without this it falls through to "No orders yet".
+        final bool showLoading =
+            tabState.status == OrderTabStatus.loadingFirstPage ||
+            (tabState.status == OrderTabStatus.refreshing &&
+                tabState.orders.isEmpty &&
+                !tabState.settled);
+        if (showLoading) {
           return _StateBlock(
             key: const Key('order-history-loading'),
             status: JeebEmptyStateStatus.loading,

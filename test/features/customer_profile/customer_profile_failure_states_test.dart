@@ -2,6 +2,8 @@
 // the identity card, a review-join outage does not read as "no reviews yet",
 // and an unavailable store-review API is not a silent no-op.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +40,26 @@ class _FailingRepository implements CustomerProfileRepository {
         kind,
         appFailure: failure,
       );
+}
+
+/// A `getMe` whose reads stay in flight until the test fails one by hand.
+class _GatedFailingRepository implements CustomerProfileRepository {
+  final List<Completer<CustomerProfileViewData>> reads =
+      <Completer<CustomerProfileViewData>>[];
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() {
+    final completer = Completer<CustomerProfileViewData>();
+    reads.add(completer);
+    return completer.future;
+  }
+
+  void failPendingRead() => reads.last.completeError(
+    const CustomerProfileRepositoryException.classified(
+      CustomerProfileFailure.network,
+      appFailure: NetworkFailure(offline: true),
+    ),
+  );
 }
 
 class _UnavailableReviewLauncher
@@ -213,6 +235,110 @@ void main() {
         ),
         findsNothing,
       );
+    });
+  }
+
+  // F4 (device evidence outage/70): a failed cold read must never coexist with
+  // fabricated placeholders derived from the blank seed.
+  const List<String> fabricatedIds = <String>[
+    'customer_profile_avatar',
+    'customer_profile_name',
+    'customer_profile_rating',
+    'customer_profile_register_delivery_row',
+  ];
+
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    final tag = locale.languageCode;
+
+    testWidgets(
+      '[$tag] F4 · a failed cold read renders the failure block alone',
+      (tester) async {
+        useReduceMotion(tester);
+        await tester.pumpWidget(
+          harness(
+            data: const CustomerProfileViewData(),
+            repository: const _FailingRepository(
+              CustomerProfileFailure.network,
+              NetworkFailure(offline: true),
+            ),
+            locale: locale,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          byId(CustomerProfileStatusBlock.errorIdentifier),
+          findsOneWidget,
+        );
+        expect(byId('customer_profile_retry_cta'), findsOneWidget);
+        for (final id in fabricatedIds) {
+          expect(byId(id), findsNothing, reason: id);
+        }
+        // The sign-out escape hatch has to survive a read that failed.
+        expect(byId('customer_profile_logout_row'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '[$tag] F4 · a warm failure keeps every row AND the refresh note',
+      (tester) async {
+        useReduceMotion(tester);
+        await tester.pumpWidget(
+          harness(
+            repository: const _FailingRepository(
+              CustomerProfileFailure.network,
+              NetworkFailure(offline: true),
+            ),
+            locale: locale,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          byId(CustomerProfileStatusBlock.refreshErrorIdentifier),
+          findsOneWidget,
+        );
+        expect(byId(CustomerProfileStatusBlock.errorIdentifier), findsNothing);
+        for (final id in fabricatedIds) {
+          expect(byId(id), findsOneWidget, reason: id);
+        }
+      },
+    );
+
+    testWidgets('[$tag] F4 · Retry flips to loading before it fails again', (
+      tester,
+    ) async {
+      useReduceMotion(tester);
+      final repository = _GatedFailingRepository();
+      await tester.pumpWidget(
+        harness(
+          data: const CustomerProfileViewData(),
+          repository: repository,
+          locale: locale,
+        ),
+      );
+      await tester.pump();
+      expect(
+        byId(CustomerProfileStatusBlock.loadingIdentifier),
+        findsOneWidget,
+      );
+
+      repository.failPendingRead();
+      await tester.pumpAndSettle();
+      expect(byId(CustomerProfileStatusBlock.errorIdentifier), findsOneWidget);
+
+      await tester.tap(byId('customer_profile_retry_cta'));
+      await tester.pump();
+      expect(
+        byId(CustomerProfileStatusBlock.loadingIdentifier),
+        findsOneWidget,
+      );
+      expect(byId(CustomerProfileStatusBlock.errorIdentifier), findsNothing);
+
+      repository.failPendingRead();
+      await tester.pumpAndSettle();
+      expect(byId(CustomerProfileStatusBlock.errorIdentifier), findsOneWidget);
+      expect(repository.reads, hasLength(2));
     });
   }
 

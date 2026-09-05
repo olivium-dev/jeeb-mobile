@@ -138,12 +138,16 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
     bool silent = false,
   }) async {
     final current = state.tabs[tab]!;
+    // F1: a "refresh" with nothing to keep (error rung, never settled, no rows)
+    // is a FIRST load — painting `refreshing` there shows the empty rung.
+    final bool warm = isRefresh &&
+        current.status != OrderTabStatus.error &&
+        (current.settled || current.orders.isNotEmpty);
     emit(state.withTabState(
       tab,
       current.copyWith(
-        status: isRefresh
-            ? OrderTabStatus.refreshing
-            : OrderTabStatus.loadingFirstPage,
+        status:
+            warm ? OrderTabStatus.refreshing : OrderTabStatus.loadingFirstPage,
         clearError: true,
       ),
     ));
@@ -161,6 +165,7 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
           page: page.page,
           hasMore: page.hasMore,
           status: OrderTabStatus.ready,
+          settled: true,
         ),
       ));
     } catch (e) {

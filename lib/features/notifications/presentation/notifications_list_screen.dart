@@ -398,6 +398,22 @@ class _LoadedList extends StatelessWidget {
 
       // Offer-accepted → the conversation when addressed, otherwise the shell.
       case NotificationKind.offerAccepted:
+        // F8: `offer_accepted` addresses a jeeber surface; a client holding one
+        // (leaked/stale row) has no destination for it.
+        if (deepLinkRefusedForRole(
+          NotificationMessage(
+            id: item.id,
+            category: NotificationCategory.offerAccepted,
+            title: item.title,
+            body: item.body,
+            receivedAt: DateTime.now(),
+            data: <String, String>{'requestId': ?ref},
+          ),
+          role: context.read<RoleCubit>().state,
+        )) {
+          _cannotOpen(context);
+          break;
+        }
         if (ref != null) {
           context.goNamed('chat-detail', pathParameters: {'id': ref});
         } else {
@@ -518,6 +534,23 @@ class _LoadedList extends StatelessWidget {
       // to the inbox.
       case NotificationKind.newRequest:
         if (ref == null) {
+          _cannotOpen(context);
+          break;
+        }
+        final newRequestMessage = NotificationMessage(
+          id: item.id,
+          category: NotificationCategory.newRequest,
+          title: item.title,
+          body: item.body,
+          receivedAt: DateTime.now(),
+          data: {'requestId': ref},
+        );
+        // F8: the resolver answers `/` for a client here — home is not this
+        // row's destination, so say the row can't be opened and stay put.
+        if (deepLinkRefusedForRole(
+          newRequestMessage,
+          role: context.read<RoleCubit>().state,
+        )) {
           _cannotOpen(context);
           break;
         }

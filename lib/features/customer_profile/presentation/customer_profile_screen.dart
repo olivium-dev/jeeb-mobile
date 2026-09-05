@@ -148,17 +148,39 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final CustomerProfileViewData data = state.data;
+    // The board's 24px side gutter, owned once by the list instead of by each
+    // band; the insets clear the shell header and the floating pill nav.
+    final padding = EdgeInsetsDirectional.fromSTEB(
+      Spacing.xLarge,
+      Sizes.fiveXLarge,
+      Spacing.xLarge,
+      Spacing.twoXLarge + context.scrollBodyBottomInset,
+    );
+    if (CustomerProfileStatusBlock.coldFailure(state) != null) {
+      // F4: a read that failed may not paint an identity card, a rating or a
+      // "Register as a delivery" row derived from the blank seed.
+      return ListView(
+        key: CustomerProfileScreen.rootKey,
+        padding: padding,
+        children: [
+          CustomerProfileStatusBlock(
+            state: state,
+            onRetry: () =>
+                unawaited(context.read<CustomerProfileCubit>().retry()),
+          ),
+          const SizedBox(height: Spacing.large),
+          CustomerProfileRows.signOutOnly(
+            onLogout: () => LogoutDeleteConfirmSheet.show(
+              context,
+              mode: LogoutDeleteMode.both,
+            ),
+          ),
+        ],
+      );
+    }
     return ListView(
       key: CustomerProfileScreen.rootKey,
-      // The board's 24px side gutter, owned once by the list instead of by each
-      // band. The top inset clears the shell-overlaid header actions; the bottom
-      // one reserves the floating pill nav this tab scrolls under.
-      padding: EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Sizes.fiveXLarge,
-        Spacing.xLarge,
-        Spacing.twoXLarge + context.scrollBodyBottomInset,
-      ),
+      padding: padding,
       children: [
         CustomerProfileHeader(
           name: data.name,
@@ -183,19 +205,17 @@ class _Body extends StatelessWidget {
           const SizedBox(height: Spacing.small),
           CustomerProfileStatusBlock(
             state: state,
-            onRetry: () => unawaited(
-              CustomerProfileStatusBlock.isBlankLoad(state) ||
-                      state.appFailure != null
-                  ? context.read<CustomerProfileCubit>().retry()
-                  : context.read<CustomerProfileCubit>().refresh(),
-            ),
+            onRetry: () =>
+                unawaited(context.read<CustomerProfileCubit>().refresh()),
             onDismissRefreshError: () =>
                 context.read<CustomerProfileCubit>().acknowledgeRefreshError(),
           ),
         ],
         const SizedBox(height: Spacing.small),
         CustomerProfileRows(
-          showRegister: !data.isJeeber,
+          // Never derived from an unloaded profile.
+          showRegister:
+              state.status == CustomerProfileStatus.loaded && !data.isJeeber,
           onRegisterDelivery: () => context.goNamed('delivery-register-prompt'),
           onNotifications: () => context.pushNamed('settings-notifications'),
           onAddresses: () => context.pushNamed('settings-addresses'),

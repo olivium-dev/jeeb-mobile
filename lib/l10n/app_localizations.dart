@@ -3540,6 +3540,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get languageSyncPendingBody => _get('languageSyncPendingBody');
   String get jeeberDeliveryTabStatusUnknownTitle => _get('jeeberDeliveryTabStatusUnknownTitle');
   String get jeeberDeliveryTabStatusUnknownBody => _get('jeeberDeliveryTabStatusUnknownBody');
+  String get jeeberTabsUnavailableTitle => _get('jeeberTabsUnavailableTitle');
+  String get jeeberTabsLoadingHeadline => _get('jeeberTabsLoadingHeadline');
   String get profileUnavailableCta => _get('profileUnavailableCta');
 
   // WP-7 support thread copy, lifted out of the inline _copy() ternaries

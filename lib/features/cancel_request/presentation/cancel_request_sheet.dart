@@ -14,6 +14,7 @@ import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/cancel_request_cubit.dart';
 import '../application/cancel_request_state.dart';
+import '../application/cancelled_request_signals.dart';
 import '../data/fake_cancel_request_repository.dart';
 import '../domain/cancel_request_repository.dart';
 
@@ -89,14 +90,23 @@ class CancelRequestSheet extends StatelessWidget {
         requestId: requestId,
         initialState: initialState,
       ),
-      child: _CancelRequestView(onCancelled: onCancelled, onKept: onKept),
+      child: _CancelRequestView(
+        requestId: requestId,
+        onCancelled: onCancelled,
+        onKept: onKept,
+      ),
     );
   }
 }
 
 class _CancelRequestView extends StatelessWidget {
-  const _CancelRequestView({this.onCancelled, this.onKept});
+  const _CancelRequestView({
+    required this.requestId,
+    this.onCancelled,
+    this.onKept,
+  });
 
+  final String requestId;
   final VoidCallback? onCancelled;
   final VoidCallback? onKept;
 
@@ -139,6 +149,9 @@ class _CancelRequestView extends StatelessWidget {
           prev.status != next.status &&
           next.status == CancelRequestStatus.succeeded,
       listener: (context, state) {
+        // F9: local truth first — the deferred re-read below can be swallowed
+        // while this sheet's route is on top.
+        resolveCancelledRequestSignals().signalCancelled(requestId);
         if (sl.isRegistered<PushRefreshSignals>()) {
           sl<PushRefreshSignals>().signalStatusChange();
         }

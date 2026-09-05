@@ -374,19 +374,23 @@ void main() {
     );
 
     // C10c (P2/F5): the FIX-REQUESTS 403 fix on the inbox surface — a CLIENT
-    testWidgets('new_request (ref) as a CLIENT → shell, never the jeeber '
-        'request screen (F5)', (tester) async {
+    // F8 supersedes the original F5 assertion (client → shell): home is not
+    // this row's destination, so the tap is refused instead of redirected.
+    testWidgets('new_request (ref) as a CLIENT → cannot-open snack, never the '
+        'jeeber request screen and never home (F5/F8)', (tester) async {
       await tapKind(
         tester,
         NotificationKind.newRequest,
         ref: 'req-1',
         role: UserRole.client,
-        expectRootId: 'shell_root',
+        expectRootId: 'notifications_cannot_open',
       );
       expect(
         find.bySemanticsIdentifier('jeeber_request_root_req-1'),
         findsNothing,
       );
+      expect(find.bySemanticsIdentifier('shell_root'), findsNothing);
+      expect(find.bySemanticsIdentifier('notif_row_n'), findsOneWidget);
     });
 
     // C10d: fence — the guard must not over-refuse a real jeeber.

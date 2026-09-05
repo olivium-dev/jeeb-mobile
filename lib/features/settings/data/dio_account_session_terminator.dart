@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/notifications/data/shared_prefs_local_push_inbox.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/session/firebase_identity_teardown.dart';
@@ -130,9 +131,13 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     for (final key in const <String>[
       SharedPrefsProfileRepository.profilePrefsKey,
       RoleAvailabilityCubit.availableRolesPrefKey,
+      RoleAvailabilityCubit.availableRolesOwnerPrefKey,
       RoleCubit.rolePrefKey,
     ]) {
       await prefs.remove(key);
     }
+    // F7: the local push inbox outlived the token too, so the next account
+    // inherited the previous one's notification rows.
+    await SharedPrefsLocalPushInbox.clearAll(prefs);
   }
 }
