@@ -319,6 +319,7 @@ const Set<String> kAuditedStaticInteractionIdentifiers = <String>{
   'jeeber_home_feed_exit_cta',
   'jeeber_home_feed_loading',
   'jeeber_home_feed_retry_cta',
+  'jeeber_home_greeting_loading',
   'jeeber_home_load_error_retry_cta',
   'jeeber_home_loading',
   'jeeber_home_not_registered_state',

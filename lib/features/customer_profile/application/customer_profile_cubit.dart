@@ -85,12 +85,7 @@ class CustomerProfileCubit extends Cubit<CustomerProfileState> {
   /// A cold blank read is a real failure; a warm read over a seeded profile
   /// keeps the identity card and rides the refresh strip (UX-42).
   void _emitFailure(CustomerProfileFailure kind, AppFailure failure) {
-    final data = state.data;
-    final blank =
-        (data.name ?? '').isEmpty &&
-        (data.email ?? '').isEmpty &&
-        (data.avatarUrl ?? '').isEmpty;
-    if (blank) {
+    if (state.data.isBlank) {
       emit(
         state.copyWith(
           status: CustomerProfileStatus.failed,

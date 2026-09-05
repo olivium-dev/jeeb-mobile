@@ -104,6 +104,59 @@ void main() {
       },
     );
 
+    test('load() ends in `resolved` on success', () async {
+      final cubit = GreetingProfileCubit(
+        repository: _ScriptedRepository(
+          profile: const CustomerProfileViewData(name: 'Sami'),
+        ),
+      );
+      final states = <GreetingProfileStatus>[];
+      final sub = cubit.stream.listen((s) => states.add(s.status));
+      await cubit.load();
+      await Future<void>.delayed(Duration.zero);
+      expect(states, <GreetingProfileStatus>[
+        GreetingProfileStatus.loading,
+        GreetingProfileStatus.resolved,
+      ]);
+      await sub.cancel();
+      await cubit.close();
+    });
+
+    test('a FAILED load() still ends in `resolved`, never stuck loading',
+        () async {
+      final cubit = GreetingProfileCubit(
+        repository: _ScriptedRepository(throws: CustomerProfileFailure.network),
+      );
+      await cubit.load();
+      expect(cubit.state.status, GreetingProfileStatus.resolved);
+      expect(cubit.state.name, isNull);
+      await cubit.close();
+    });
+
+    test('a refresh does not flip a resolved greeting back to loading',
+        () async {
+      final repo = _ScriptedRepository(
+        profile: const CustomerProfileViewData(name: 'Ahmad'),
+      );
+      final cubit = GreetingProfileCubit(repository: repo);
+      await cubit.load();
+      final seen = <GreetingProfileStatus>[];
+      final sub = cubit.stream.listen((s) => seen.add(s.status));
+      await cubit.load();
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, isNot(contains(GreetingProfileStatus.loading)));
+      await sub.cancel();
+      await cubit.close();
+    });
+
+    test('load() with no repository never leaves `idle`', () async {
+      final cubit = GreetingProfileCubit();
+      await cubit.load();
+      expect(cubit.state.status, GreetingProfileStatus.idle);
+      expect(cubit.state.isLoading, isFalse);
+      await cubit.close();
+    });
+
     test('close() cancels the refresh subscription (no emit-after-close)',
         () async {
       final repo = _ScriptedRepository(

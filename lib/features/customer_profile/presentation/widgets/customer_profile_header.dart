@@ -212,9 +212,11 @@ class _NameText extends StatelessWidget {
     final resolved = (name ?? '').trim().isEmpty
         ? AppLocalizations.of(context).profileNamePlaceholder
         : name!;
+    // Identifier + `container`, never a competing `label`: the label repeated
+    // the text below it, so TalkBack read the name twice (device evidence 2).
     return Semantics(
       identifier: 'customer_profile_name',
-      label: resolved,
+      container: true,
       child: AutoDirectionText(
         resolved,
         maxLines: 1,

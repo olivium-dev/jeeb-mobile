@@ -41,13 +41,10 @@ class CustomerProfileStatusBlock extends StatelessWidget {
   /// Clears `refreshError`; null renders the strip without a dismiss act.
   final VoidCallback? onDismissRefreshError;
 
-  /// True while the read is in flight and there is nothing seeded to show.
+  /// True while the read is in flight and there is nothing seeded to show —
+  /// `isBlank` is the same predicate the cubit's cold-failure branch takes.
   static bool isBlankLoad(CustomerProfileState state) =>
-      state.status == CustomerProfileStatus.loading &&
-      state.data.name == null &&
-      state.data.email == null &&
-      state.data.avatarUrl == null &&
-      state.data.rating == null;
+      state.status == CustomerProfileStatus.loading && state.data.isBlank;
 
   /// The cold-read failure that owns the whole body, or null.
   static AppFailure? coldFailure(CustomerProfileState state) =>

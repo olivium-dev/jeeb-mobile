@@ -156,9 +156,10 @@ class _Body extends StatelessWidget {
       Spacing.xLarge,
       Spacing.twoXLarge + context.scrollBodyBottomInset,
     );
-    if (CustomerProfileStatusBlock.coldFailure(state) != null) {
-      // F4: a read that failed may not paint an identity card, a rating or a
-      // "Register as a delivery" row derived from the blank seed.
+    final bool blankLoad = CustomerProfileStatusBlock.isBlankLoad(state);
+    if (CustomerProfileStatusBlock.coldFailure(state) != null || blankLoad) {
+      // F4: a read that failed, or is in flight with no profile behind it, may
+      // not paint an identity card, a rating or a "Register" row from the seed.
       return ListView(
         key: CustomerProfileScreen.rootKey,
         padding: padding,

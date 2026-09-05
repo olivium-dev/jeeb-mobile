@@ -502,8 +502,10 @@ void main() {
       );
     });
 
-    testWidgets('a read in flight draws the radar loading block, keeping the '
-        'identity ids and every row', (tester) async {
+    // F4 (device evidence 2): the in-flight window used to keep the identity
+    // ids, so the loading rung rode a '?' disc + "Add your name" placeholders.
+    testWidgets('a read in flight draws the radar loading block ALONE, with no '
+        'identity placeholders', (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue =
           const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
@@ -531,7 +533,7 @@ void main() {
         'customer_profile_name',
         'customer_profile_rating',
       ]) {
-        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+        expect(find.bySemanticsIdentifier(id), findsNothing, reason: id);
       }
       handle.dispose();
     });

@@ -39,8 +39,8 @@ import 'widgets/notification_row.dart';
 /// D84 per-row dispatch (30_BACKLOG JM-057 AC; 21_NAV_PLAN §C):
 ///   offer (P2)                 → offer-review list  (`/requests/:id/offers`,
 ///                                via the SAME resolver the push tap uses;
-///                                no `ref` → `shell`)
-///   offer_accepted             → order-chat when addressed, else `shell`
+///                                no `ref` → cannot-open snack, stay put)
+///   offer_accepted             → order-chat when addressed, else cannot-open
 ///   status                     → order-chat         (`chat-detail`, ref=conv/req)
 ///   low_balance / fee_won /
 ///     refund_penalty / topup   → wallet-hub         (`wallet`)
@@ -414,11 +414,13 @@ class _LoadedList extends StatelessWidget {
           _cannotOpen(context);
           break;
         }
-        if (ref != null) {
-          context.goNamed('chat-detail', pathParameters: {'id': ref});
-        } else {
-          context.goNamed('shell');
+        // F8 (device run 2): an `offer_accepted` row names ONE conversation.
+        // With no ref there is no destination — home is a different screen.
+        if (ref == null) {
+          _cannotOpen(context);
+          break;
         }
+        context.goNamed('chat-detail', pathParameters: {'id': ref});
         break;
 
       // Order status → the addressed conversation thread.
@@ -446,11 +448,11 @@ class _LoadedList extends StatelessWidget {
       //      structurally unable to drift apart again — the P2 defect.
       //   3. `NotificationCategory.newOffer` exists in the resolver; routing
       //      around it would leave that branch with no caller from here.
-      // No `ref` → the shell, as before (handled before the resolver, so the
-      // resolver's own id-less `'/'` return is never reached from this screen).
+      // F8 (device run 2): no `ref` → no offer list to open, so say so rather
+      // than dropping the tap on home (the resolver's id-less `'/'` sentinel).
       case NotificationKind.offer:
         if (ref == null) {
-          context.goNamed('shell');
+          _cannotOpen(context);
           break;
         }
         final offerTarget = deepLinkForMessage(

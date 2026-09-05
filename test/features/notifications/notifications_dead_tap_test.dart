@@ -75,6 +75,12 @@ void main() {
           builder: (_, s) => _stub('chat_root_${s.pathParameters['id']}'),
         ),
         GoRoute(
+          path: '/requests/:id/offers',
+          name: 'offer-review',
+          builder: (_, s) =>
+              _stub('offer_review_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
           path: '/requests/:id/waiting',
           name: 'waiting-no-coverage',
           builder: (_, s) => _stub('waiting_root_${s.pathParameters['id']}'),
@@ -131,6 +137,9 @@ void main() {
       NotificationKind.confirmReceipt,
       NotificationKind.dispute,
       NotificationKind.newRequest,
+      // F8 (device run 2): both used to fall through to `goNamed('shell')`.
+      NotificationKind.offerAccepted,
+      NotificationKind.offer,
       NotificationKind.unknown,
     ]) {
       testWidgets('[$tag] a ref-less ${kind.name} row says it cannot open', (
@@ -147,6 +156,8 @@ void main() {
         // The row is still marked read, and nothing navigated away.
         expect(repo.marked, <String>['n-1']);
         expect(byId('notif_row_n-1'), findsOneWidget);
+        expect(byId('notifications_root'), findsOneWidget);
+        expect(byId('shell_root'), findsNothing);
       });
     }
   }
@@ -222,6 +233,42 @@ void main() {
       expect(byId('shell_root'), findsNothing);
     });
   }
+
+  testWidgets('an addressed offer_accepted row still routes for a jeeber', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-3', NotificationKind.offerAccepted, ref: 'conv-4'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-3'));
+    await tester.pumpAndSettle();
+
+    expect(byId('chat_root_conv-4'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
+
+  testWidgets('an addressed offer row still routes to the offer list', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-4', NotificationKind.offer, ref: 'req-5'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-4'));
+    await tester.pumpAndSettle();
+
+    expect(byId('offer_review_root_req-5'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
 
   testWidgets('a JEEBER tapping the same new_request row still routes',
       (tester) async {

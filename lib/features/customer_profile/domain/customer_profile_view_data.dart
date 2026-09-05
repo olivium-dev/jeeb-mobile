@@ -34,6 +34,14 @@ class CustomerProfileViewData extends Equatable {
 
   bool get hasRating => rating != null && ratingCount > 0;
 
+  /// Nothing about this person has been read yet — the single reading the
+  /// loading rung and the cold-failure branch both take (blank == absent).
+  bool get isBlank =>
+      (name ?? '').trim().isEmpty &&
+      (email ?? '').trim().isEmpty &&
+      (avatarUrl ?? '').trim().isEmpty &&
+      rating == null;
+
   final String? activeRole;
 
   final List<String> availableRoles;
