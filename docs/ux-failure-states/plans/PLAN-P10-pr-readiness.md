@@ -168,7 +168,7 @@ Build numbers are date-coded `YYMMDDNN`, must exceed `26090403` (Android) and `2
 
 ### 7.3 Rollback
 - **Device lane** (immediate): `adb -s RZCT505K7WF install -r $SCRATCH/rollback/app-dev-debug-ab610933.apk` (in-place downgrade of a debug build keeps the session; never uninstall). If Android refuses the downgrade (`INSTALL_FAILED_VERSION_DOWNGRADE`), use `adb install -r -d`.
-- **Store lane** (forward-only): Play/TestFlight reject reused build numbers, so rollback = `git revert -m 1 <M>` (or revert the squash commit) on a branch → PR → merge → new RC with the next build number via §7.2. The prior retained artifacts (`26090403`, `26090402`) stay installed on testers' devices until then.
+- **Store lane** (forward-only): Play/TestFlight reject reused build numbers, so rollback = redeploy a known-good build forward: commit a new change on a branch that undoes `<M>` (or the squash commit) → PR → merge → new RC with the next build number via §7.2. The prior retained artifacts (`26090403`, `26090402`) stay installed on testers' devices until then.
 - There is **no server-side flag** for this change (pure client-side error model); the kill switch is the build. State this in the PR.
 
 ---
