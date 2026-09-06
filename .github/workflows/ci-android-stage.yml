@@ -104,3 +104,6 @@ jobs:
 
       - name: Validate protected Android Firebase injection contract
         run: bash tool/test_android_firebase_config.sh
+
+      - name: Validate device cleanup safety with offline stubs
+        run: bash tool/test_device_validation_cleanup.sh

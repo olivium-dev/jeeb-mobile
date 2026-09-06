@@ -1,0 +1,42 @@
+{
+  "scenario": "S12",
+  "rules": [
+    {
+      "id": "validation",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 400,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.1\",\"title\":\"One or more validation errors occurred.\",\"status\":400,\"errors\":{\"$.phone\":[\"Expected depth to be zero …\"]},\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "validation",
+    "copyTitle": "errorGenericTitle",
+    "copyBody": "errorValidationBody",
+    "retryable": true,
+    "fieldError": "$.phone"
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

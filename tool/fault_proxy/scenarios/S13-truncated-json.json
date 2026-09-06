@@ -1,0 +1,42 @@
+{
+  "scenario": "S13",
+  "rules": [
+    {
+      "id": "truncated-json",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"id\":\"106078a3\",\"displayName\":\"Karim TestJeeber\","
+      }
+    }
+  ],
+  "expect": {
+    "kind": "unknown",
+    "copyTitle": "errorGenericTitle",
+    "copyBody": "errorGenericBody",
+    "retryable": true,
+    "parse": true
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

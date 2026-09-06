@@ -1,0 +1,43 @@
+{
+  "scenario": "S05",
+  "rules": [
+    {
+      "id": "rate-limit",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 429,
+        "headers": {
+          "Content-Type": "application/problem+json",
+          "Retry-After": "30"
+        },
+        "body": "{\"type\":\"https://httpstatuses.com/429\",\"title\":\"Too Many Requests\",\"status\":429,\"detail\":\"Rate limit exceeded. Retry after the duration in the Retry-After header.\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "rateLimited",
+    "copyTitle": "errorRateLimitedTitle",
+    "copyBody": "errorRateLimitedRetryIn",
+    "retryable": true,
+    "retryAfterSeconds": 30
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Retry inside 30s must add no upstream hit; deliveries scope remains healthy."
+  }
+}

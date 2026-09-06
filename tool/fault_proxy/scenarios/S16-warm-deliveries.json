@@ -1,0 +1,41 @@
+{
+  "scenario": "S16",
+  "rules": [
+    {
+      "id": "warm-deliveries",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?deliveries(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 503,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://httpstatuses.com/503\",\"title\":\"Service Unavailable\",\"status\":503}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "server",
+    "copyTitle": "errorServerTitle",
+    "copyBody": "errorServiceUnavailableBody",
+    "retryable": true,
+    "unavailable": true
+  },
+  "device": {
+    "screen": "deliveries",
+    "mode": "warm",
+    "expectedHits": 3,
+    "requiredIds": [
+      "order_history_refresh_failed_snack"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Load healthy content before activating fault. Preserve measured baseline rows/identity; no historical counts assumed."
+  }
+}
