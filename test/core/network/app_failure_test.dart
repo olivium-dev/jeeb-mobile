@@ -33,6 +33,20 @@ void main() {
   });
 
   group('isRetryable', () {
+    test('recovering authentication retries while terminal variants do not', () {
+      expect(const UnauthorizedFailure(recovering: true).isRetryable, isTrue);
+      expect(const UnauthorizedFailure().isRetryable, isFalse);
+      expect(
+        const UnauthorizedFailure(storeUnavailable: true).isRetryable,
+        isFalse,
+      );
+      expect(
+        const UnauthorizedFailure(recovering: true, storeUnavailable: true)
+            .isRetryable,
+        isTrue,
+      );
+    });
+
     const table = <AppFailureKind, bool>{
       AppFailureKind.network: true,
       AppFailureKind.timeout: true,

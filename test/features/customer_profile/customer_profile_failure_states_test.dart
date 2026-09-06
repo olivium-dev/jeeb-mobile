@@ -42,6 +42,20 @@ class _FailingRepository implements CustomerProfileRepository {
       );
 }
 
+class _RecoveringRepository extends _FailingRepository {
+  _RecoveringRepository()
+      : super(CustomerProfileFailure.unauthorized,
+            const UnauthorizedFailure(recovering: true));
+
+  int calls = 0;
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() {
+    calls++;
+    return super.fetchProfile();
+  }
+}
+
 /// A `getMe` whose reads stay in flight until the test fails one by hand.
 class _GatedFailingRepository implements CustomerProfileRepository {
   final List<Completer<CustomerProfileViewData>> reads =
@@ -130,6 +144,33 @@ void main() {
   }
 
   Finder byId(String id) => find.bySemanticsIdentifier(id);
+
+  for (final locale in const [Locale('en'), Locale('ar')]) {
+    testWidgets('[${locale.languageCode}] recovering auth offers working Retry', (
+      tester,
+    ) async {
+      useReduceMotion(tester);
+      final repo = _RecoveringRepository();
+      await tester.pumpWidget(harness(
+        data: const CustomerProfileViewData(),
+        repository: repo,
+        locale: locale,
+      ));
+      await tester.pumpAndSettle();
+      expect(byId(CustomerProfileStatusBlock.errorIdentifier), findsOneWidget);
+      expect(byId(CustomerProfileStatusBlock.retryIdentifier), findsOneWidget);
+      expect(byId('customer_profile_error_signin_cta'), findsNothing);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CustomerProfileScreen)),
+      );
+      expect(find.text(l10n.errorReconnectingBody), findsOneWidget);
+      expect(find.text(l10n.actionSignIn), findsNothing);
+      await tester.tap(byId(CustomerProfileStatusBlock.retryIdentifier));
+      await tester.pumpAndSettle();
+      expect(repo.calls, 2);
+      expect(byId(CustomerProfileStatusBlock.retryIdentifier), findsOneWidget);
+    });
+  }
 
   testWidgets('a cold blank read failure draws the error block', (
     tester,

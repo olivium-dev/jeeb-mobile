@@ -29,6 +29,9 @@ class NetworkReachabilitySignals {
   final StreamController<void> _offlineController =
       StreamController<void>.broadcast(sync: true);
 
+  final StreamController<bool> _stateController =
+      StreamController<bool>.broadcast(sync: true);
+
   StreamSubscription<bool>? _sourceSub;
 
   bool? _online;
@@ -44,8 +47,12 @@ class NetworkReachabilitySignals {
   /// Offline -> online edge.
   Stream<void> get stream => _controller.stream;
 
-  /// OFF-18: the opposite edge, for the banner and the deferred-refresh gates.
+  /// OFF-18: the online -> offline edge. [stateStream] carries both directions.
   Stream<void> get offlineStream => _offlineController.stream;
+
+  /// Unthrottled mirror of [isOnline] for persistent UI. Refresh triggers stay
+  /// on the throttled [stream]; this channel never drops a state transition.
+  Stream<bool> get stateStream => _stateController.stream;
 
   /// Unknown reads as online: never blame connectivity without evidence.
   bool get isOnline => _online ?? true;
@@ -79,7 +86,11 @@ class NetworkReachabilitySignals {
 
   void _observe(bool online) {
     final previous = _online;
+    final wasOnline = isOnline;
     _online = online;
+    if (wasOnline != isOnline && !_stateController.isClosed) {
+      _stateController.add(isOnline);
+    }
     if (!online) {
       if (previous == false) return;
       _emitOffline();
@@ -125,6 +136,7 @@ class NetworkReachabilitySignals {
     _sourceSub = null;
     await _controller.close();
     await _offlineController.close();
+    await _stateController.close();
   }
 
   static NetworkReachabilitySignals? _instance;

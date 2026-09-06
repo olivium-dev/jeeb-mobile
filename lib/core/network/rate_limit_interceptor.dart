@@ -31,11 +31,16 @@ class RateLimitInterceptor extends Interceptor {
   /// longer blank `/v1/wallet`.
   final Map<String, DateTime> _suppressedUntil = <String, DateTime>{};
 
+  final Map<String, DateTime> _catchUpDue = <String, DateTime>{};
+
+  /// Catch-ups fired per scope since that scope last answered 2xx.
+  final Map<String, int> _consecutiveCatchUps = <String, int>{};
+
   Timer? _catchUpTimer;
 
-  int _consecutiveCatchUps = 0;
-
   static const int _maxConsecutiveCatchUps = 3;
+
+  static const Duration _catchUpSlack = Duration(milliseconds: 250);
 
   static final RegExp _versionSegment = RegExp(r'^v\d+$');
 
@@ -91,9 +96,9 @@ class RateLimitInterceptor extends Interceptor {
     options.extra[scopeExtraKey] = scope;
     final until = _suppressedUntil[scope];
     if (until != null && !_now().isBefore(until)) {
-      // NET-20: a window that ran out without a fresh 429 means we recovered.
+      // NET-20: an elapsed window allows a read; only a 2xx on this scope
+      // proves recovery and restores its catch-up budget.
       _suppressedUntil.remove(scope);
-      _consecutiveCatchUps = 0;
     }
     final isRead = options.method.toUpperCase() == 'GET';
     if (isRead && isScopeSuppressed(scope)) {
@@ -117,7 +122,10 @@ class RateLimitInterceptor extends Interceptor {
   @override
   void onResponse(
       Response<dynamic> response, ResponseInterceptorHandler handler) {
-    _consecutiveCatchUps = 0;
+    final status = response.statusCode;
+    if (status != null && status >= 200 && status < 300) {
+      _consecutiveCatchUps.remove(_sentScopeOf(response.requestOptions));
+    }
     handler.next(response);
   }
 
@@ -131,30 +139,64 @@ class RateLimitInterceptor extends Interceptor {
           ? 0
           : _random.nextInt(_maxJitter.inMilliseconds + 1);
       final window = capped + Duration(milliseconds: jitterMs);
-      final Object? sent = err.requestOptions.extra[scopeExtraKey];
-      final String scope =
-          sent is String ? sent : scopeOf(err.requestOptions.path);
+      final String scope = _sentScopeOf(err.requestOptions);
       _suppressedUntil[scope] = _now().add(window);
-      _scheduleCatchUp(window);
+      _armCatchUp(scope, window);
     }
     handler.next(err);
   }
 
-  void _scheduleCatchUp(Duration window) {
-    final callback = onBackoffWindowClosed;
-    if (callback == null) return;
-    if (_consecutiveCatchUps >= _maxConsecutiveCatchUps) return;
+  static String _sentScopeOf(RequestOptions options) {
+    final Object? sent = options.extra[scopeExtraKey];
+    return sent is String ? sent : scopeOf(options.path);
+  }
+
+  void _armCatchUp(String scope, Duration window) {
+    if (onBackoffWindowClosed == null) return;
+    if ((_consecutiveCatchUps[scope] ?? 0) >= _maxConsecutiveCatchUps) return;
+    _catchUpDue[scope] = _now().add(window + _catchUpSlack);
+    _scheduleCatchUp();
+  }
+
+  /// Deadlines within one jitter span share a timer, so a burst of 429s
+  /// produces one global refresh while independent deadlines stay queued.
+  void _scheduleCatchUp() {
     _catchUpTimer?.cancel();
-    _catchUpTimer = Timer(window + const Duration(milliseconds: 250), () {
-      _catchUpTimer = null;
-      _consecutiveCatchUps++;
-      callback();
-    });
+    _catchUpTimer = null;
+    if (_catchUpDue.isEmpty) return;
+    final DateTime earliest =
+        _catchUpDue.values.reduce((a, b) => a.isBefore(b) ? a : b);
+    final DateTime horizon = earliest.add(_maxJitter);
+    DateTime fireAt = earliest;
+    for (final DateTime due in _catchUpDue.values) {
+      if (!due.isAfter(horizon) && due.isAfter(fireAt)) fireAt = due;
+    }
+    final Duration wait = fireAt.difference(_now());
+    _catchUpTimer =
+        Timer(wait.isNegative ? Duration.zero : wait, _onCatchUpTimer);
+  }
+
+  void _onCatchUpTimer() {
+    _catchUpTimer = null;
+    final DateTime now = _now();
+    final List<String> served = <String>[
+      for (final MapEntry<String, DateTime> entry in _catchUpDue.entries)
+        if (!now.isBefore(entry.value)) entry.key,
+    ];
+    for (final String scope in served) {
+      _catchUpDue.remove(scope);
+      _consecutiveCatchUps[scope] = (_consecutiveCatchUps[scope] ?? 0) + 1;
+    }
+    // Re-arm first because the callback's reads can open new windows.
+    _scheduleCatchUp();
+    if (served.isNotEmpty) onBackoffWindowClosed?.call();
   }
 
   void dispose() {
     _catchUpTimer?.cancel();
     _catchUpTimer = null;
+    _catchUpDue.clear();
+    _consecutiveCatchUps.clear();
     _suppressedUntil.clear();
   }
 }

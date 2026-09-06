@@ -110,6 +110,20 @@ class _FailThenSucceedRepository implements NotificationsRepository {
   Future<void> markRead(String id) async {}
 }
 
+class _RecoveringRepository extends _FailingRepository {
+  _RecoveringRepository()
+      : super(NotificationsFailure.unauthorized,
+            const UnauthorizedFailure(recovering: true));
+
+  int calls = 0;
+
+  @override
+  Future<List<NotificationItem>> fetchNotifications() {
+    calls++;
+    return super.fetchNotifications();
+  }
+}
+
 void main() {
   Widget harness(
     NotificationsRepository repo, {
@@ -156,6 +170,25 @@ void main() {
 
   for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
     final tag = locale.languageCode;
+
+    testWidgets('[$tag] recovering auth offers working Retry', (tester) async {
+      useReduceMotion(tester);
+      final repo = _RecoveringRepository();
+      await tester.pumpWidget(harness(repo, locale: locale));
+      await tester.pumpAndSettle();
+      expect(byId('notifications_error'), findsOneWidget);
+      expect(byId('notifications_retry_cta'), findsOneWidget);
+      expect(byId('notifications_error_signin_cta'), findsNothing);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(NotificationsListScreen)),
+      );
+      expect(find.text(l10n.errorReconnectingBody), findsOneWidget);
+      expect(find.text(l10n.actionSignIn), findsNothing);
+      await tester.tap(byId('notifications_retry_cta'));
+      await tester.pumpAndSettle();
+      expect(repo.calls, 2);
+      expect(byId('notifications_retry_cta'), findsOneWidget);
+    });
 
     testWidgets('[$tag] a failed refresh keeps the rows and shows the strip', (
       tester,

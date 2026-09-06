@@ -171,6 +171,55 @@ void main() {
     );
   }
 
+  test('terminal refresh rejection emits the session-expired reason', () async {
+    final reasons = <AuthLossReason>[];
+    final sub = AuthLossSignals.instance.stream.listen(reasons.add);
+    addTearDown(sub.cancel);
+    final h = buildHarness(
+      mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+      retryResponder: (_) => _json({'unexpected': true}, 200),
+      refreshResponder: (_) => _json({'error': 'invalid_grant'}, 401),
+    );
+    await expectLater(
+      h.mainDio.get<dynamic>('/v1/jeeb/wallet',
+          options: _asSession('stale-access')),
+      throwsA(isA<DioException>()),
+    );
+    expect(reasons, [AuthLossReason.sessionExpired]);
+    expect(h.logoutCalls, ['logout']);
+    verify(() => store.clear()).called(1);
+  });
+
+  test('proactive and reactive refresh share the same cooldown', () async {
+    var now = DateTime.utc(2026, 9, 6);
+    var rejectMain = true;
+    final h = buildHarness(
+      mainResponder: (_) => _json({'ok': !rejectMain}, rejectMain ? 401 : 200),
+      retryResponder: (_) => _json({'unexpected': true}, 200),
+      refreshResponder: (options) => throw DioException.connectionError(
+        requestOptions: options,
+        reason: 'offline',
+      ),
+      clock: () => now,
+    );
+    await expectLater(
+      h.mainDio.get<dynamic>('/v1/jeeb/wallet',
+          options: _asSession('stale-access')),
+      throwsA(isA<DioException>()),
+    );
+    expect(h.refreshAdapter.callCount, 1);
+    rejectMain = false;
+    await h.mainDio.get<dynamic>('/v1/jeeb/wallet',
+        options: _asSession(_jwtWithExp(now.add(const Duration(seconds: 10)))));
+    expect(h.refreshAdapter.callCount, 1);
+    now = now.add(const Duration(seconds: 21));
+    await h.mainDio.get<dynamic>('/v1/jeeb/wallet',
+        options: _asSession(_jwtWithExp(now.add(const Duration(seconds: 10)))));
+    expect(h.refreshAdapter.callCount, 2);
+    expect(h.logoutCalls, isEmpty);
+    verifyNever(() => store.clear());
+  });
+
   test('returns response on success — 200 passes through unchanged', () async {
     final h = buildHarness(
       mainResponder: (_) => _json({'ok': true}, 200),
@@ -865,6 +914,30 @@ void main() {
   });
 
   group('NET-02: an unreadable token store is classified, not terminal', () {
+    test('the store fail-safe wins even if a session bearer is also stamped',
+        () async {
+      final reasons = <AuthLossReason>[];
+      final sub = AuthLossSignals.instance.stream.listen(reasons.add);
+      addTearDown(sub.cancel);
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'unexpected': true}, 200),
+        refreshResponder: (_) => _json({'unexpected': true}, 200),
+      );
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet',
+            options: _asSession('stale-access', extra: {
+              BearerAuthInterceptor.storeUnavailableFlag: true,
+            })),
+        throwsA(isA<DioException>()),
+      );
+      expect(h.refreshAdapter.callCount, 0);
+      expect(h.retryAdapter.callCount, 0);
+      expect(h.logoutCalls, isEmpty);
+      expect(reasons, isEmpty);
+      verifyNever(() => store.clear());
+    });
+
     test('BearerAuthInterceptor marks the request instead of swallowing',
         () async {
       when(() => store.accessToken).thenThrow(Exception('keystore locked'));

@@ -244,7 +244,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // F3: surface (never throw) the throttle so the cubit degrades gracefully.
       rateLimited: rateLimit.rateLimited,
       // B1: an all-transport-failed load is NOT an empty home — say so.
-      inProgressFailure: rateLimit.failures[_Bucket.inProgress],
+      // Either active source can fill this tab; accepted role rows also survive.
+      inProgressFailure: inProgress.isEmpty &&
+              rateLimit.failures.containsKey(_Bucket.activeRequests)
+          ? rateLimit.failures[_Bucket.inProgress]
+          : null,
       requestsFailure: rateLimit.failures[_Bucket.requests],
       recentFailure: rateLimit.failures[_Bucket.recent],
       probeFailure: rateLimit.failures[_Bucket.probe],
@@ -286,13 +290,19 @@ class DioClientHomeRepository implements ClientHomeRepository {
       }
       return items;
     } on DioException catch (e) {
-      rateLimit.record(e, bucket: _Bucket.requests);
+      rateLimit.record(e, bucket: _Bucket.activeRequests);
       return const [];
     } on FormatException catch (e) {
-      rateLimit.recordFailure(_Bucket.requests, UnknownFailure(cause: e, parse: true));
+      rateLimit.recordFailure(
+        _Bucket.activeRequests,
+        UnknownFailure(cause: e, parse: true),
+      );
       return const [];
     } catch (e) {
-      rateLimit.recordFailure(_Bucket.requests, UnknownFailure(cause: e, parse: true));
+      rateLimit.recordFailure(
+        _Bucket.activeRequests,
+        UnknownFailure(cause: e, parse: true),
+      );
       return const [];
     }
   }
@@ -979,8 +989,8 @@ class _ClientRequestBuckets {
   final List<ClientHomeRequest> offerStatusRequests;
 }
 
-/// The four reads a home load makes; each carries its own failure.
-enum _Bucket { requests, inProgress, recent, probe }
+/// Independent home sources; active requests never poison the role-only read.
+enum _Bucket { requests, activeRequests, inProgress, recent, probe }
 
 /// Accumulates whether ANY read in a single [DioClientHomeRepository.loadSnapshot]
 /// was throttled with HTTP 429, and the longest advertised `Retry-After`.

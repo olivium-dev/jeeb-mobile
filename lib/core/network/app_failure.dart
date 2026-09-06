@@ -174,6 +174,9 @@ final class UnauthorizedFailure extends AppFailure {
   AppFailureKind get kind => AppFailureKind.unauthorized;
 
   @override
+  bool get isRetryable => recovering;
+
+  @override
   bool operator ==(Object other) =>
       super == other &&
       other is UnauthorizedFailure &&

@@ -334,6 +334,7 @@ class ChatScreen extends StatelessWidget {
       );
     }
     return BlocProvider<ChatCubit>(
+      key: ValueKey((deliveryId, currentUserId)),
       create: (_) => ChatCubit(
         deliveryId: deliveryId,
         gateway: gateway ?? InMemoryChatGateway(),

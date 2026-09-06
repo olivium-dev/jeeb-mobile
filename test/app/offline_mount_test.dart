@@ -43,6 +43,41 @@ void main() {
 
   tearDown(NetworkReachabilitySignals.debugReset);
 
+  testWidgets('mounting on an already-offline bus shows the banner', (
+    tester,
+  ) async {
+    final signals = NetworkReachabilitySignals.instance;
+    signals.debugObserve(online: false);
+    await _pumpApp(tester);
+    final cubit = tester.element(find.byType(OfflineBanner)).read<OfflineCubit>();
+    expect(cubit.state.status, ConnectivityStatus.offline);
+    expect(find.byType(MaterialBanner), findsOneWidget);
+    signals.debugObserve(online: true);
+    await tester.pump();
+    expect(find.byType(MaterialBanner), findsNothing);
+    await _drain(tester);
+  });
+
+  testWidgets('a rapid flap clears the banner despite a throttled refresh', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 9, 6);
+    final signals = NetworkReachabilitySignals(clock: () => now);
+    NetworkReachabilitySignals.instance = signals;
+    await _pumpApp(tester);
+    signals.debugObserve(online: false);
+    signals.debugObserve(online: true);
+    now = now.add(const Duration(milliseconds: 100));
+    signals.debugObserve(online: false);
+    await tester.pump();
+    expect(find.byType(MaterialBanner), findsOneWidget);
+    signals.debugObserve(online: true);
+    await tester.pump();
+    expect(signals.suppressedCount, 1);
+    expect(find.byType(MaterialBanner), findsNothing);
+    await _drain(tester);
+  });
+
   testWidgets('the banner is mounted above the router content', (
     WidgetTester tester,
   ) async {

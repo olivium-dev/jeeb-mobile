@@ -335,10 +335,6 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// [didChangeAppLifecycleState]. Closed in [dispose].
   StreamSubscription<void>? _resumeSub;
 
-  StreamSubscription<void>? _onlineSub;
-
-  StreamSubscription<void>? _offlineSub;
-
   /// OFF-02: the one connectivity surface, provided above the router so every
   /// route inherits it and the banner can sit in the [MaterialApp.builder] slot.
   final OfflineCubit _offline = OfflineCubit();
@@ -414,8 +410,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   void _bindNetworkReachability() {
     const source = ConnectivityReachabilitySource();
     final signals = NetworkReachabilitySignals.instance;
-    _onlineSub = signals.stream.listen((_) => _offline.setOnline());
-    _offlineSub = signals.offlineStream.listen((_) => _offline.setOffline());
+    _offline.bindReachability(signals);
     try {
       signals.bindSource(
         source.onlineStates(),
@@ -723,8 +718,6 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _onboarding.close();
     _sessionSub?.cancel();
     _resumeSub?.cancel();
-    _onlineSub?.cancel();
-    _offlineSub?.cancel();
     _offline.close();
     _ownedSession?.close();
     _locale.close();

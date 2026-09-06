@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/idempotency/operation_id.dart';
 import '../../../core/network/app_failure.dart';
 import '../../kyc/domain/cdn_asset_gateway.dart';
@@ -88,11 +89,10 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
     try {
       portraitRef = await _uploadPortrait(operationId);
     } on CdnUploadException catch (e) {
-      emit(state.copyWith(
-        isSubmitting: false,
-        error: DmOnboardingError.photoUploadFailed,
-        failure: e.failure ?? const UnknownFailure(),
-      ));
+      _failPortraitUpload(e.failure ?? const UnknownFailure());
+      return;
+    } catch (e) {
+      _failPortraitUpload(AppFailure.of(e));
       return;
     }
     try {
@@ -119,6 +119,17 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
         failure: AppFailure.of(e),
       ));
     }
+  }
+
+  void _failPortraitUpload(AppFailure failure) {
+    Diag.event('dm_onboarding_portrait_upload_failed', {
+      'kind': failure.kind.name,
+    });
+    emit(state.copyWith(
+      isSubmitting: false,
+      error: DmOnboardingError.photoUploadFailed,
+      failure: failure,
+    ));
   }
 
   Future<String?> _uploadPortrait(String operationId) async {

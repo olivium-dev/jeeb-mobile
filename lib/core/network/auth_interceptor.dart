@@ -126,8 +126,8 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     final status = err.response?.statusCode;
     final options = err.requestOptions;
 
-    // NET-02: no bearer went out because the store was unreadable — a local,
-    // often transient fault (locked keychain), never a gateway verdict.
+    // NET-02: a local store fault is never a gateway verdict. Keep this explicit
+    // fail-safe even if a caller also stamps the session-bearer flag.
     if (status == 401 &&
         options.extra[BearerAuthInterceptor.storeUnavailableFlag] == true) {
       handler.next(err);
@@ -201,10 +201,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
   Future<String?> _refreshSession({required bool allowTerminal}) {
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
-    final until = _cooldownUntil;
-    if (until != null && _clock().toUtc().isBefore(until)) {
-      return Future<String?>.value(null);
-    }
+    if (_inCooldown) return Future<String?>.value(null);
     final started = _doRefresh(
       allowTerminal: allowTerminal,
     ).whenComplete(() => _inFlight = null);
@@ -278,9 +275,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     return token.isEmpty ? null : token;
   }
 
-  Future<void> _logout({
-    AuthLossReason reason = AuthLossReason.sessionExpired,
-  }) async {
+  Future<void> _logout() async {
     try {
       await _tokenStore.clear();
     } catch (_) {}
@@ -290,7 +285,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
         await cb();
       } catch (_) {}
     }
-    AuthLossSignals.instance.signal(reason: reason);
+    AuthLossSignals.instance.signal();
   }
 
   Future<String?> _safeRead(Future<String?> Function() read) async {

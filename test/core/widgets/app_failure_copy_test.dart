@@ -148,6 +148,23 @@ void main() {
   });
 
   group('failureCopy · retryable matches what the CTA can achieve', () {
+    test('auth retry policy and copy agree for every flag combination EN/AR', () {
+      for (final l10n in [en, ar]) {
+        for (final recovering in [false, true]) {
+          for (final storeUnavailable in [false, true]) {
+            final failure = UnauthorizedFailure(
+              recovering: recovering,
+              storeUnavailable: storeUnavailable,
+            );
+            final copy = failureCopy(l10n, failure);
+            expect(failure.isRetryable, copy.retryable);
+            expect(copy.action,
+                recovering ? l10n.actionRetry : l10n.actionSignIn);
+          }
+        }
+      }
+    });
+
     test('unrecoverable kinds are never marked retryable', () {
       for (final AppFailure failure in <AppFailure>[
         const UnauthorizedFailure(),
