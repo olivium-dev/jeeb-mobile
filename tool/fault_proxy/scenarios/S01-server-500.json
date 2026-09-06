@@ -1,0 +1,42 @@
+{
+  "scenario": "S01",
+  "rules": [
+    {
+      "id": "server-500",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 500,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.6.1\",\"title\":\"An error occurred while processing your request.\",\"status\":500,\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "server",
+    "copyTitle": "errorServerTitle",
+    "copyBody": "errorServerBody",
+    "retryable": true,
+    "unavailable": false
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

@@ -238,7 +238,9 @@ void main() {
 
         final positions = diag.named(kTrackingPositionEvent);
         expect(positions, hasLength(1));
-        expect(positions.single['error'], 'FormatException');
+        // The field is the CLASSIFIED kind now, not a raw runtime type name —
+        // a parse fault is an UnknownFailure.
+        expect(positions.single['error'], 'unknown');
         expect(positions.single['applied'], isFalse);
         expect(
           cubit.state.mode,

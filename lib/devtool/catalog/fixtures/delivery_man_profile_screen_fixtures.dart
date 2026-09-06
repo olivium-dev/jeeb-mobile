@@ -1,6 +1,10 @@
 // Shared dev-only fixtures for `DeliveryManProfileScreen` (screen 27,
 
+import 'dart:async';
+
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/data/dev_delivery_man_profile_fixtures.dart';
+import 'package:jeeb_mobile/features/delivery_man_profile/domain/delivery_man_profile_repository.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 
 /// The designed states, named once for both dev surfaces.
@@ -185,4 +189,69 @@ abstract final class DeliveryManProfileScreenFixtures {
       ),
     ],
   );
+
+  // ─────────────────── the reviews-band repository triple ──────────────────
+
+  /// The band never resolves — `delivery_man_profile_reviews_loading`.
+  static DeliveryManProfileRepository loadingReviewsRepository() =>
+      _StalledDeliveryManProfileRepository();
+
+  /// The band fails — `delivery_man_profile_reviews_error` + retry.
+  static DeliveryManProfileRepository failingReviewsRepository() =>
+      const _FailingDeliveryManProfileRepository();
+
+  /// The band loads, empty — the count line must be suppressed (DMP-01).
+  static DeliveryManProfileRepository emptyReviewsRepository() =>
+      const _EmptyDeliveryManProfileRepository();
+
+  /// The seed for the three states above: a jeeber id, no seeded reviews, so
+  /// the cubit really reads.
+  static const DeliveryManProfileViewData unseeded = DeliveryManProfileViewData(
+    name: 'Kamal Hajj',
+    rating: 4.3,
+    reviewCount: 113,
+    location: 'Lebanon',
+    isAvailable: true,
+    jeeberId: 'jeeber-kamal',
+    reviews: <DeliveryReviewData>[],
+  );
+}
+
+class _StalledDeliveryManProfileRepository
+    implements DeliveryManProfileRepository {
+  _StalledDeliveryManProfileRepository();
+
+  @override
+  Future<DeliveryManReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) =>
+      Completer<DeliveryManReviewsPage>().future;
+}
+
+class _FailingDeliveryManProfileRepository
+    implements DeliveryManProfileRepository {
+  const _FailingDeliveryManProfileRepository();
+
+  @override
+  Future<DeliveryManReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) async =>
+      throw const NetworkFailure(offline: true);
+}
+
+class _EmptyDeliveryManProfileRepository
+    implements DeliveryManProfileRepository {
+  const _EmptyDeliveryManProfileRepository();
+
+  @override
+  Future<DeliveryManReviewsPage> fetchReviews({
+    required String jeeberId,
+    int page = 1,
+    int pageSize = 20,
+  }) async =>
+      DeliveryManReviewsPage.empty;
 }

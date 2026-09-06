@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -11,6 +12,7 @@ import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../features/support/domain/support_contact.dart';
 import '../../../l10n/app_localizations.dart';
@@ -120,105 +122,106 @@ class WalletChargeInfoScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-              JeebTopBar(
-                // New interactive element -> `<screen>_<element>`. The in-body
-                // `charge_info_back_cta` below keeps its own id untouched (the
-                // `kyc_rejected_back` / `kyc_rejected_back_cta` precedent).
-                identifier: 'charge_info_back',
-                title: l10n.chargeInfoTitle,
-                leadingTooltip:
-                    MaterialLocalizations.of(context).backButtonTooltip,
-                // Mirror the body `charge_info_back_cta` destination contract:
-                // pop to the caller when pushed (+Top up flows), else go to
-                // wallet-hub when launched standalone.
-                onLeadingPressed: () => _back(context),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: _kBodyPadding,
-                  children: [
-                    // ── The numbered, ordered instruction steps (D92/D93
-                    //    charge-at-store flow) as one outlined card: the kit's
-                    //    1px inset dividers read as the sequence, and an
-                    //    outlined card needs no shadow (R7/R12).
-                    JeebOutlinedCard.grouped(
-                      children: [
-                        _Step(
-                          index: 1,
-                          semanticsIdentifier: 'charge_info_store_step',
-                          text: l10n.chargeInfoStoreStep,
+                JeebTopBar(
+                  // New interactive element -> `<screen>_<element>`. The in-body
+                  // `charge_info_back_cta` below keeps its own id untouched (the
+                  // `kyc_rejected_back` / `kyc_rejected_back_cta` precedent).
+                  identifier: 'charge_info_back',
+                  title: l10n.chargeInfoTitle,
+                  leadingTooltip: MaterialLocalizations.of(
+                    context,
+                  ).backButtonTooltip,
+                  // Mirror the body `charge_info_back_cta` destination contract:
+                  // pop to the caller when pushed (+Top up flows), else go to
+                  // wallet-hub when launched standalone.
+                  onLeadingPressed: () => _back(context),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: _kBodyPadding,
+                    children: [
+                      // ── The numbered, ordered instruction steps (D92/D93
+                      //    charge-at-store flow) as one outlined card: the kit's
+                      //    1px inset dividers read as the sequence, and an
+                      //    outlined card needs no shadow (R7/R12).
+                      JeebOutlinedCard.grouped(
+                        children: [
+                          _Step(
+                            index: 1,
+                            semanticsIdentifier: 'charge_info_store_step',
+                            text: l10n.chargeInfoStoreStep,
+                          ),
+                          _Step(
+                            index: 2,
+                            semanticsIdentifier: 'charge_info_identity_step',
+                            text: l10n.chargeInfoIdentityStep,
+                          ),
+                          _Step(
+                            index: 3,
+                            semanticsIdentifier: 'charge_info_pay_cash_step',
+                            text: l10n.chargeInfoPayCashStep,
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: Spacing.medium),
+
+                      // ── Note 1 — balance auto-updates, no in-app payment
+                      //    (D92/D93). The frozen id keeps its own wrapper; the
+                      //    kit note is the panel inside it.
+                      Semantics(
+                        identifier: 'charge_info_auto_update_note',
+                        container: true,
+                        child: JeebInfoNote.muted(
+                          // Filled glyphs only (R10).
+                          icon: Icons.sync,
+                          text: l10n.chargeInfoAutoUpdateNote,
                         ),
-                        _Step(
-                          index: 2,
-                          semanticsIdentifier: 'charge_info_identity_step',
-                          text: l10n.chargeInfoIdentityStep,
+                      ),
+
+                      const SizedBox(height: Spacing.xSmall),
+
+                      // ── Note 2 — the 10% PLATFORM FEE (never "commission",
+                      //    D41/D44) comes from the pre-charged balance (D1
+                      //    reserve-per-offer). Copy unchanged.
+                      Semantics(
+                        identifier: 'charge_info_fee_note',
+                        container: true,
+                        child: JeebInfoNote.muted(
+                          icon: Icons.percent,
+                          text: l10n.chargeInfoFeeNote,
                         ),
-                        _Step(
-                          index: 3,
-                          semanticsIdentifier: 'charge_info_pay_cash_step',
-                          text: l10n.chargeInfoPayCashStep,
+                      ),
+
+                      // F2 — second top-up path; release-gated: an empty number
+                      // (the shipped default) hides the block entirely.
+                      if (supportWhatsAppNumberE164.isNotEmpty) ...[
+                        const SizedBox(height: Spacing.xSmall),
+                        _WhatsAppSupportCta(
+                          supportPhoneE164: supportWhatsAppNumberE164,
+                          whatsAppLauncher: whatsAppLauncher,
+                          accountPhoneProvider: accountPhoneProvider,
                         ),
                       ],
-                    ),
-
-                    const SizedBox(height: Spacing.medium),
-
-                    // ── Note 1 — balance auto-updates, no in-app payment
-                    //    (D92/D93). The frozen id keeps its own wrapper; the
-                    //    kit note is the panel inside it.
-                    Semantics(
-                      identifier: 'charge_info_auto_update_note',
-                      container: true,
-                      child: JeebInfoNote.muted(
-                        // Filled glyphs only (R10).
-                        icon: Icons.sync,
-                        text: l10n.chargeInfoAutoUpdateNote,
-                      ),
-                    ),
-
-                    const SizedBox(height: Spacing.xSmall),
-
-                    // ── Note 2 — the 10% PLATFORM FEE (never "commission",
-                    //    D41/D44) comes from the pre-charged balance (D1
-                    //    reserve-per-offer). Copy unchanged.
-                    Semantics(
-                      identifier: 'charge_info_fee_note',
-                      container: true,
-                      child: JeebInfoNote.muted(
-                        icon: Icons.percent,
-                        text: l10n.chargeInfoFeeNote,
-                      ),
-                    ),
-
-                    // F2 — second top-up path; release-gated: an empty number
-                    // (the shipped default) hides the block entirely.
-                    if (supportWhatsAppNumberE164.isNotEmpty) ...[
-                      const SizedBox(height: Spacing.xSmall),
-                      _WhatsAppSupportCta(
-                        supportPhoneE164: supportWhatsAppNumberE164,
-                        whatsAppLauncher: whatsAppLauncher,
-                        accountPhoneProvider: accountPhoneProvider,
-                      ),
                     ],
-                  ],
-                ),
-              ),
-
-              // ── The residual space above the footer stays field — the one
-              //    exit docks, in the position every screen in this journey
-              //    puts it. `primary` is periwinkle (theme ruling 3): the exit
-              //    is navigation, not the money act R4 rations orange to.
-              JeebCtaFooter.single(
-                child: Semantics(
-                  identifier: 'charge_info_back_cta',
-                  button: true,
-                  container: true,
-                  child: JeebCtaButton.primary(
-                    label: l10n.chargeInfoBackCta,
-                    onTap: () => _back(context),
                   ),
                 ),
-              ),
+
+                // ── The residual space above the footer stays field — the one
+                //    exit docks, in the position every screen in this journey
+                //    puts it. `primary` is periwinkle (theme ruling 3): the exit
+                //    is navigation, not the money act R4 rations orange to.
+                JeebCtaFooter.single(
+                  child: Semantics(
+                    identifier: 'charge_info_back_cta',
+                    button: true,
+                    container: true,
+                    child: JeebCtaButton.primary(
+                      label: l10n.chargeInfoBackCta,
+                      onTap: () => _back(context),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -227,6 +230,7 @@ class WalletChargeInfoScreen extends StatelessWidget {
     );
   }
 }
+
 /// A single ordered instruction step: a numbered glass badge + the step copy,
 /// sized to sit inside a [JeebOutlinedCard.grouped] ([JeebListRow]'s own 14/16
 /// padding and 12 gap, so a step row keeps the same rhythm as every other row
@@ -253,7 +257,7 @@ class _Step extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors glass =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return Semantics(
       identifier: semanticsIdentifier,
       container: true,
@@ -321,6 +325,8 @@ class _WhatsAppSupportCta extends StatelessWidget {
     try {
       userPhone = await (accountPhoneProvider ?? (() async => null))();
     } catch (_) {
+      // Degrades to the copyable-number fallback; the swallow leaves evidence.
+      Diag.event('charge_info.phone_read_failed');
       userPhone = null;
     }
     final Uri uri = WhatsAppTopUpLink.build(
@@ -334,6 +340,7 @@ class _WhatsAppSupportCta extends StatelessWidget {
     try {
       launched = await (whatsAppLauncher ?? (_) async => false)(uri);
     } catch (_) {
+      Diag.event('charge_info.whatsapp_launch_failed');
       launched = false;
     }
     if (!launched && context.mounted) {
@@ -342,22 +349,20 @@ class _WhatsAppSupportCta extends StatelessWidget {
   }
 
   void _showFallback(BuildContext context, AppLocalizations l10n) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          l10n.chargeInfoWhatsAppFallbackMessage(supportPhoneE164),
-        ),
-        action: SnackBarAction(
-          label: l10n.chargeInfoWhatsAppCopyAction,
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: supportPhoneE164));
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.chargeInfoWhatsAppNumberCopied)),
-            );
-          },
-        ),
-      ),
+    showJeebSnack(
+      context,
+      message: l10n.chargeInfoWhatsAppFallbackMessage(supportPhoneE164),
+      identifier: 'charge_info_whatsapp_fallback_snack',
+      actionLabel: l10n.chargeInfoWhatsAppCopyAction,
+      onAction: () async {
+        await Clipboard.setData(ClipboardData(text: supportPhoneE164));
+        if (!context.mounted) return;
+        showJeebSuccessSnack(
+          context,
+          message: l10n.chargeInfoWhatsAppNumberCopied,
+          identifier: 'charge_info_whatsapp_copied_snack',
+        );
+      },
     );
   }
 

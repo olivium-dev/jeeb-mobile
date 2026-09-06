@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/theme/jeeb_scrim.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../core/widgets/jeeb/jeeb_tier_row.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../request_summary/application/compose_request_controller.dart';
@@ -31,8 +34,14 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
   /// True while the cold-entry default tier is being resolved from the catalog.
   bool _resolving = false;
 
-  /// True when the default could not be resolved — the retry re-fetches.
+  /// True when the read FAILED — the retry re-fetches.
   bool _failed = false;
+
+  /// True when the read SUCCEEDED with no priceable tier: a coverage gap.
+  bool _empty = false;
+
+  /// The classified read failure, when [_failed].
+  AppFailure? _failure;
 
   ComposeRequestController? get _compose =>
       sl.isRegistered<ComposeRequestController>()
@@ -64,7 +73,8 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
               ? null
               : tiers.firstWhere((t) => t.recommended,
                   orElse: () => tiers.first));
-    } catch (_) {
+    } catch (e) {
+      _failure = AppFailure.of(e);
       tier = null;
     }
     if (!mounted) return;
@@ -72,16 +82,19 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
     if (tier == null || compose == null) {
       setState(() {
         _resolving = false;
-        _failed = true;
+        _failed = _failure != null;
+        _empty = _failure == null;
       });
       return;
     }
     // A tier that landed while the sheet resolved (resume race) is respected.
     if (compose.tier == null) compose.chooseTier(tier);
     widget.onTierChanged?.call(compose.tier ?? tier);
+    _failure = null;
     setState(() {
       _resolving = false;
       _failed = false;
+      _empty = false;
     });
   }
 
@@ -91,7 +104,9 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
     // No compose session at all (an isolated host): nothing to disclose.
     if (compose == null) return const SizedBox.shrink();
     final tier = compose.tier;
-    if (tier == null && !_resolving && !_failed) return const SizedBox.shrink();
+    if (tier == null && !_resolving && !_failed && !_empty) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final canChange = sl.isRegistered<TierRepository>();
     return Column(
@@ -129,17 +144,40 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
           )
         else if (_resolving)
           const _TierResolving()
+        else if (_failed)
+          JeebFailureBlock.compact(
+            failure: _failure ?? const UnknownFailure(),
+            identifier: 'compose_tier_error',
+            retryIdentifier: 'compose_tier_retry',
+            onRetry: _retryDefault,
+          )
         else
-          _TierUnavailable(onRetry: () {
-            setState(() {
-              _resolving = true;
-              _failed = false;
-            });
-            _resolveDefault();
-          }),
+          JeebEmptyState.compact(
+            reason: JeebEmptyStateReason.noResults,
+            variant: JeebEmptyStateVariant.parcel,
+            headline: l10n.requestTypeTiersEmptyHeadline,
+            identifier: 'compose_tier_empty',
+            action: JeebCtaButton.outline(
+              label: l10n.actionRetry,
+              leadingIcon: Icons.refresh,
+              expand: false,
+              identifier: 'compose_tier_empty_retry_cta',
+              onTap: _retryDefault,
+            ),
+          ),
         const SizedBox(height: Spacing.medium),
       ],
     );
+  }
+
+  void _retryDefault() {
+    _failure = null;
+    setState(() {
+      _resolving = true;
+      _failed = false;
+      _empty = false;
+    });
+    _resolveDefault();
   }
 
   Future<void> _openPicker() async {
@@ -166,46 +204,24 @@ class _TierResolving extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsetsDirectional.symmetric(vertical: Spacing.medium),
-      child: Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2.5),
+    return Semantics(
+      identifier: 'compose_tier_loading',
+      container: true,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          vertical: Spacing.medium,
         ),
-      ),
-    );
-  }
-}
-
-/// The default tier could not be priced: an honest inline error with a retry —
-/// the create CTA stays gated until a priceable tier lands.
-class _TierUnavailable extends StatelessWidget {
-  const _TierUnavailable({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          l10n.homeVoiceTierUnavailable,
-          style: context.jeebText.bodySmall.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: JeebSurfaceTone.of(context).mutedInk,
+            ),
           ),
         ),
-        const SizedBox(height: Spacing.small),
-        JeebCtaButton.outline(
-          label: l10n.voiceRecordingRetry,
-          identifier: 'compose_tier_retry',
-          expand: false,
-          onTap: onRetry,
-        ),
-      ],
+      ),
     );
   }
 }
@@ -321,21 +337,40 @@ class _ComposeTierSheetState extends State<_ComposeTierSheet> {
     Tier? selected,
   ) {
     if (snapshot.connectionState != ConnectionState.done) {
-      return const Padding(
-        padding: EdgeInsets.all(Spacing.xLarge),
-        child: Center(child: CircularProgressIndicator()),
+      return Semantics(
+        identifier: 'compose_tier_sheet_loading',
+        container: true,
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.xLarge),
+          child: Center(
+            child: CircularProgressIndicator(
+              color: JeebSurfaceTone.of(context).mutedInk,
+            ),
+          ),
+        ),
       );
     }
     final tiers = snapshot.data;
-    if (snapshot.hasError || tiers == null || tiers.isEmpty) {
-      return JeebEmptyState(
-        status: JeebEmptyStateStatus.error,
-        headline: l10n.homeVoiceTierUnavailable,
+    if (snapshot.hasError) {
+      return JeebFailureBlock.compact(
+        failure: AppFailure.of(snapshot.error!),
+        identifier: 'compose_tier_sheet_error',
+        retryIdentifier: 'compose_tier_sheet_retry',
+        onRetry: () => setState(() => _tiers = _fetch()),
+      );
+    }
+    if (tiers == null || tiers.isEmpty) {
+      return JeebEmptyState.compact(
+        reason: JeebEmptyStateReason.noResults,
+        variant: JeebEmptyStateVariant.parcel,
+        headline: l10n.requestTypeTiersEmptyHeadline,
+        identifier: 'compose_tier_sheet_empty',
         action: IntrinsicWidth(
-          child: JeebCtaButton.primary(
-            label: l10n.voiceRecordingRetry,
-            identifier: 'compose_tier_sheet_retry',
+          child: JeebCtaButton.outline(
+            label: l10n.actionRetry,
+            leadingIcon: Icons.refresh,
             expand: false,
+            identifier: 'compose_tier_sheet_empty_retry_cta',
             onTap: () => setState(() => _tiers = _fetch()),
           ),
         ),

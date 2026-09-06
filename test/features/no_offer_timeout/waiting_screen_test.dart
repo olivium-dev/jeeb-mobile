@@ -393,8 +393,8 @@ void main() {
       expect(find.bySemanticsIdentifier('waiting_error_state'), findsOneWidget);
       expect(
         find.text(
-          'Your request status came back in an unexpected format. '
-          'This is a server problem, not your connection.',
+          'Your request status came back in a form we couldn\'t read. '
+          'Try again in a moment.',
         ),
         findsOneWidget,
       );
@@ -405,7 +405,7 @@ void main() {
       expect(find.bySemanticsIdentifier('waiting_countdown'), findsNothing);
     });
 
-    testWidgets('T5.5 — a network failure keeps the generic connection copy', (
+    testWidgets('T5.5 — unknown transport uses unreachable copy', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -416,8 +416,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      // The body now comes from the shared copy family, which is the only
+      // branch allowed to blame the connection.
       expect(
-        find.text("We couldn't load your request status. Please try again."),
+        find.text("Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again."),
         findsOneWidget,
       );
     });

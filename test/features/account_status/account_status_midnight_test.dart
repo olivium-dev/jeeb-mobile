@@ -202,7 +202,7 @@ void main() {
 
     final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
     expect(block.variant, JeebEmptyStateVariant.radar);
-    expect(block.status, JeebEmptyStateStatus.loading);
+    expect(block.effectiveStatus, JeebEmptyStateStatus.loading);
     expect(block.medallions, isEmpty);
     // The CTA is withheld while loading (kit ruling 1), so nothing on this
     // frame can be tapped into a dead end.
@@ -215,9 +215,10 @@ void main() {
 
     final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
     expect(block.variant, JeebEmptyStateVariant.radar);
-    expect(block.status, JeebEmptyStateStatus.error);
-    // E2 draws jeebers in range; there is no second party on this surface.
-    expect(block.medallions, isEmpty);
+    expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+    // JeebFailureBlock leaves the variant's own medallions in place; the
+    // radar draws three, and none of them is a second party's identity.
+    expect(block.medallions, isNull);
 
     final retry = tester.widget<JeebCtaButton>(find.byType(JeebCtaButton));
     expect(retry.variant, JeebCtaVariant.outline);

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/diagnostics/diag.dart';
+import '../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../devtool/catalog/fixtures/kyc_status_screen_fixtures.dart';
 import '../../core/previews/jeeb_preview.dart';
@@ -20,7 +24,7 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[placeholder] $_featureId opened');
+    Diag.event('placeholder_opened', {'feature': _featureId});
   }
 
   @override
@@ -33,19 +37,26 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: JeebEmptyState(
-                // The same art the real KYC funnel draws, so the deep-link
-                // target and its destination read as one thing.
-                variant: kycStateVariant,
-                medallions: kycStateMedallions,
-                center: const KycStateMark(),
-                identifier: 'deep_link_kyc_status_root',
-                // No semanticLabel: it restated headline+body, so the container
-                // and its explicit children announced the copy twice.
-                headline: l10n.kycStatusTitle,
-                body: l10n.kycStatusPlaceholder,
+          child: JeebStateHost(
+            child: JeebEmptyState(
+              // The same art the real KYC funnel draws, so the deep-link
+              // target and its destination read as one thing.
+              variant: kycStateVariant,
+              medallions: kycStateMedallions,
+              center: const KycStateMark(),
+              identifier: 'deep_link_kyc_status_root',
+              // No semanticLabel: it restated headline+body, so the container
+              // and its explicit children announced the copy twice.
+              headline: l10n.kycStatusTitle,
+              body: l10n.kycStatusPlaceholder,
+              // LR-35: the stub was a dead end. This is the one act that makes
+              // it truthful — it lands on the real wizard.
+              action: JeebCtaButton.primary(
+                label: l10n.kycStatusOpenWizardCta,
+                expand: false,
+                wrapLabel: true,
+                identifier: 'deep_link_kyc_status_open_cta',
+                onTap: () => context.goNamed('kyc-status'),
               ),
             ),
           ),
@@ -54,6 +65,7 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
     );
   }
 }
+
 // ============================== JEEB PREVIEWS ==============================
 const Size _kycStatusScreenPhoneCanvas = Size(402, 888);
 
@@ -66,10 +78,7 @@ const Size _kycStatusScreenNotchedCanvas = Size(405, 896);
 /// Every state is the same screen in a different window — see the fixture.
 /// The `const KycStatusScreen()` is constructed HERE rather than inside the
 Widget _kycStatusScreenHosted(KycStatusScreenWindow window) =>
-    KycStatusScreenPreviewHost(
-      window: window,
-      screen: const KycStatusScreen(),
-    );
+    KycStatusScreenPreviewHost(window: window, screen: const KycStatusScreen());
 
 @JeebPreview(
   group: 'deep_link_targets',

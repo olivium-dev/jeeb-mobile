@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
@@ -15,6 +16,9 @@ import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -181,23 +185,45 @@ class _KycStatusViewState extends State<KycStatusView>
     final l10n = AppLocalizations.of(context);
     return BlocBuilder<KycWizardCubit, KycWizardState>(
       builder: (context, state) {
-        final Widget body;
+        Widget body;
         if (state.isLoadingStatus) {
-          body = Center(
-            child: SingleChildScrollView(
-              child: JeebEmptyState(
-                identifier: 'kyc_status_loading',
-                variant: kycStateVariant,
-                medallions: kycStateMedallions,
-                status: JeebEmptyStateStatus.loading,
-                // TODO(midnight): l10n-queued `kycStatusLoadingHeadline`; the
-                // gate's key is the only shipped string for this exact read.
-                headline: l10n.offerKycGateStatusChecking,
-              ),
+          body = JeebStateHost(
+            child: JeebEmptyState(
+              identifier: 'kyc_status_loading',
+              variant: kycStateVariant,
+              medallions: kycStateMedallions,
+              reason: JeebEmptyStateReason.loading,
+              headline: l10n.kycStatusLoadingHeadline,
             ),
           );
         } else {
           body = _bodyFor(context, state, l10n);
+        }
+        final AppFailure? refreshFailure = state.refreshFailure;
+        if (refreshFailure != null && !state.isLoadingStatus) {
+          // F26: a stale status must say so, over the loaded body.
+          body = Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  Spacing.medium,
+                  Spacing.xSmall,
+                  Spacing.medium,
+                  0,
+                ),
+                child: JeebRefreshFailedNote(
+                  failure: refreshFailure,
+                  identifier: 'kyc_status_refresh_failed_note',
+                  onRetry: () =>
+                      context.read<KycWizardCubit>().refreshStatus(),
+                  onDismiss: () => context
+                      .read<KycWizardCubit>()
+                      .acknowledgeRefreshFailure(),
+                ),
+              ),
+              Expanded(child: body),
+            ],
+          );
         }
         return Semantics(
           identifier: 'kyc_status_root',
@@ -677,9 +703,10 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
     if (outcome == JeeberActivationOutcome.failed ||
         outcome == JeeberActivationOutcome.kycGated) {
       _activation = null; // allow the next tap to retry the switch
-      showOmdsSnackbar(
+      showJeebErrorSnack(
         context,
         message: AppLocalizations.of(context).roleSettingSwitchError,
+        identifier: 'kyc_status_activation_error_snack',
       );
       return;
     }

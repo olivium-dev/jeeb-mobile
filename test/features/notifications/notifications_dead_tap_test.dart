@@ -1,0 +1,356 @@
+// NOTIF-04: a row that cannot address a destination says so instead of
+// swallowing the tap.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:jeeb_mobile/core/role/role_cubit.dart';
+import 'package:jeeb_mobile/core/role/user_role.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
+import 'package:jeeb_mobile/features/notifications/presentation/notifications_list_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import '../../support/midnight_test_harness.dart';
+import '../../support/sync_app_localizations.dart';
+
+NotificationItem _item(String id, NotificationKind kind, {String? ref}) =>
+    NotificationItem(
+      id: id,
+      kind: kind,
+      title: 'title-$id',
+      body: 'body-$id',
+      timestamp: '2026-07-03T10:00:00Z',
+      read: false,
+      ref: ref,
+    );
+
+class _SeededRepository implements NotificationsRepository {
+  _SeededRepository(this._items);
+
+  final List<NotificationItem> _items;
+  final List<String> marked = <String>[];
+
+  @override
+  Future<List<NotificationItem>> fetchNotifications() async => _items;
+
+  @override
+  Future<void> markRead(String id) async => marked.add(id);
+}
+
+Widget _stub(String id) => Semantics(
+  identifier: id,
+  container: true,
+  child: const Scaffold(body: SizedBox.expand()),
+);
+
+void main() {
+  Future<void> pump(
+    WidgetTester tester,
+    NotificationsRepository repo, {
+    Locale locale = const Locale('en'),
+    UserRole role = UserRole.jeeber,
+  }) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final router = GoRouter(
+      initialLocation: '/notifications',
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/notifications',
+          builder: (_, _) => NotificationsListScreen(repository: repo),
+        ),
+        GoRoute(
+          path: '/',
+          name: 'shell',
+          builder: (_, _) => _stub('shell_root'),
+        ),
+        GoRoute(
+          path: '/chat/:id',
+          name: 'chat-detail',
+          builder: (_, s) => _stub('chat_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
+          path: '/requests/:id/offers',
+          name: 'offer-review',
+          builder: (_, s) =>
+              _stub('offer_review_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
+          path: '/requests/:id/waiting',
+          name: 'waiting-no-coverage',
+          builder: (_, s) => _stub('waiting_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
+          path: '/orders/:id/receipt',
+          name: 'delivered-receipt',
+          builder: (_, s) => _stub('receipt_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
+          path: '/disputes/:id',
+          name: 'dispute-status',
+          builder: (_, s) => _stub('dispute_root_${s.pathParameters['id']}'),
+        ),
+        GoRoute(
+          path: '/jeeber/requests/:id',
+          name: 'jeeber-request',
+          builder: (_, s) =>
+              _stub('jeeber_request_root_${s.pathParameters['id']}'),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      BlocProvider<RoleCubit>(
+        create: (_) => RoleCubit(prefs: prefs, initialRole: role),
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.midnight(),
+          locale: locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+            SyncAppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Finder byId(String id) => find.bySemanticsIdentifier(id);
+
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    final tag = locale.languageCode;
+    for (final kind in const <NotificationKind>[
+      NotificationKind.status,
+      NotificationKind.chat,
+      NotificationKind.requestExpired,
+      NotificationKind.confirmReceipt,
+      NotificationKind.dispute,
+      NotificationKind.newRequest,
+      // F8 (device run 2): both used to fall through to `goNamed('shell')`.
+      NotificationKind.offerAccepted,
+      NotificationKind.offer,
+      NotificationKind.unknown,
+    ]) {
+      testWidgets('[$tag] a ref-less ${kind.name} row says it cannot open', (
+        tester,
+      ) async {
+        useReduceMotion(tester);
+        final repo = _SeededRepository(<NotificationItem>[_item('n-1', kind)]);
+        await pump(tester, repo, locale: locale);
+
+        await tester.tap(byId('notif_row_n-1'));
+        await tester.pumpAndSettle();
+
+        expect(byId('notifications_cannot_open'), findsOneWidget);
+        // The row is still marked read, and nothing navigated away.
+        expect(repo.marked, <String>['n-1']);
+        expect(byId('notif_row_n-1'), findsOneWidget);
+        expect(byId('notifications_root'), findsOneWidget);
+        expect(byId('shell_root'), findsNothing);
+      });
+    }
+  }
+
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    for (final kind in const <NotificationKind>[
+      NotificationKind.chat,
+      NotificationKind.status,
+      NotificationKind.offerAccepted,
+    ]) {
+      testWidgets(
+        '[${locale.languageCode}] ${kind.name} opens request chat and Back restores inbox',
+        (tester) async {
+          useReduceMotion(tester);
+          final repo = _SeededRepository([
+            _item('n-chat', kind, ref: 'request-9'),
+          ]);
+          await pump(tester, repo, locale: locale);
+          if (kind == NotificationKind.chat) {
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(NotificationsListScreen)),
+            );
+            expect(
+              find.text(l10n.notificationsCategoryLabelChat),
+              findsOneWidget,
+            );
+            expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+          }
+          await tester.tap(byId('notif_row_n-chat'));
+          await tester.pumpAndSettle();
+          expect(byId('chat_root_request-9'), findsOneWidget);
+          expect(byId('notifications_cannot_open'), findsNothing);
+          expect(repo.marked, ['n-chat']);
+          GoRouter.of(tester.element(byId('chat_root_request-9'))).pop();
+          await tester.pumpAndSettle();
+          expect(byId('notifications_root'), findsOneWidget);
+          expect(byId('notif_row_n-chat'), findsOneWidget);
+        },
+      );
+    }
+    testWidgets(
+      '[${locale.languageCode}] availability opens role home without a ref',
+      (tester) async {
+        useReduceMotion(tester);
+        final repo = _SeededRepository([
+          _item('n-availability', NotificationKind.availability),
+        ]);
+        await pump(tester, repo, locale: locale);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(NotificationsListScreen)),
+        );
+        expect(
+          find.text(l10n.notificationsCategoryLabelAvailability),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.power_settings_new_outlined), findsOneWidget);
+        await tester.tap(byId('notif_row_n-availability'));
+        await tester.pumpAndSettle();
+        expect(byId('shell_root'), findsOneWidget);
+        expect(byId('notifications_cannot_open'), findsNothing);
+        expect(repo.marked, ['n-availability']);
+      },
+    );
+  }
+
+  testWidgets('an addressed status row still routes', (tester) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.status, ref: 'conv-9'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-1'));
+    await tester.pumpAndSettle();
+
+    expect(byId('chat_root_conv-9'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
+
+  testWidgets('an addressed dispute row still routes', (tester) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.dispute, ref: 'dsp-3'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-1'));
+    await tester.pumpAndSettle();
+
+    expect(byId('dispute_root_dsp-3'), findsOneWidget);
+  });
+
+  // F8 (device-verified, empty/44): a CLIENT tapping an addressed `new_request`
+  // row was pushed to `/` — the resolver's refusal sentinel read as a route.
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    final tag = locale.languageCode;
+
+    testWidgets('[$tag] a client tapping an addressed new_request row is told '
+        'it cannot open and stays on the inbox', (tester) async {
+      useReduceMotion(tester);
+      final repo = _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.newRequest, ref: 'req-7'),
+      ]);
+      await pump(tester, repo, locale: locale, role: UserRole.client);
+
+      await tester.tap(byId('notif_row_n-1'));
+      await tester.pumpAndSettle();
+
+      expect(byId('notifications_cannot_open'), findsOneWidget);
+      expect(byId('notif_row_n-1'), findsOneWidget);
+      expect(
+        byId('shell_root'),
+        findsNothing,
+        reason: 'the refusal sentinel must never navigate to client home',
+      );
+      expect(byId('jeeber_request_root_req-7'), findsNothing);
+      expect(repo.marked, <String>['n-1']);
+    });
+
+    testWidgets('[$tag] a client tapping an addressed offer_accepted row is '
+        'told it cannot open', (tester) async {
+      useReduceMotion(tester);
+      final repo = _SeededRepository(<NotificationItem>[
+        _item('n-2', NotificationKind.offerAccepted, ref: 'conv-9'),
+      ]);
+      await pump(tester, repo, locale: locale, role: UserRole.client);
+
+      await tester.tap(byId('notif_row_n-2'));
+      await tester.pumpAndSettle();
+
+      expect(byId('notifications_cannot_open'), findsOneWidget);
+      expect(byId('chat_root_conv-9'), findsNothing);
+      expect(byId('shell_root'), findsNothing);
+    });
+  }
+
+  testWidgets('an addressed offer_accepted row still routes for a jeeber', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-3', NotificationKind.offerAccepted, ref: 'conv-4'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-3'));
+    await tester.pumpAndSettle();
+
+    expect(byId('chat_root_conv-4'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
+
+  testWidgets('an addressed offer row still routes to the offer list', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-4', NotificationKind.offer, ref: 'req-5'),
+      ]),
+    );
+
+    await tester.tap(byId('notif_row_n-4'));
+    await tester.pumpAndSettle();
+
+    expect(byId('offer_review_root_req-5'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
+
+  testWidgets('a JEEBER tapping the same new_request row still routes', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    await pump(
+      tester,
+      _SeededRepository(<NotificationItem>[
+        _item('n-1', NotificationKind.newRequest, ref: 'req-7'),
+      ]),
+      role: UserRole.jeeber,
+    );
+
+    await tester.tap(byId('notif_row_n-1'));
+    await tester.pumpAndSettle();
+
+    expect(byId('jeeber_request_root_req-7'), findsOneWidget);
+    expect(byId('notifications_cannot_open'), findsNothing);
+  });
+}

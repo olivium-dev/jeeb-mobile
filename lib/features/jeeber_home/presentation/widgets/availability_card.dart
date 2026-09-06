@@ -3,9 +3,9 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
@@ -169,11 +169,15 @@ class _StripRow extends StatelessWidget {
       return InactivityWarningBanner(onExtend: extend);
     }
     if (view.status.state != AvailabilityState.autoOffline) return null;
-    return Text(
-      AppLocalizations.of(context).availabilityAutoOfflineHint,
-      style: context.jeebText.bodySmall.copyWith(color: _mutedInk(context)),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+    final l10n = AppLocalizations.of(context);
+    // OFF-29: idle is the only reason the client can produce, and the strip's
+    // own switch is the go-online act — no second CTA here.
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
+      child: JeebInfoNote.warning(
+        title: l10n.availabilityAutoOfflineBannerTitle,
+        text: l10n.availabilityAutoOfflineReasonIdle,
+      ),
     );
   }
 }
@@ -293,20 +297,17 @@ class _ToggleSpinner extends StatelessWidget {
       width: Sizes.fiveXLarge,
       height: Sizes.fourXLarge,
       child: Center(
-        child: OmdsLoadingState(
+        child: SizedBox(
           key: AvailabilityCard.spinnerKey,
-          size: Sizes.large,
-          color: Theme.of(context).colorScheme.onSurface,
-          padding: EdgeInsets.zero,
+          width: Sizes.large,
+          height: Sizes.large,
+          // Muted ink, never `primary`: on Midnight that is the accent orange.
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
   }
 }
-
-/// Periwinkle — the board's subtitle ink on navy. Read defensively so a bare
-/// `ThemeData.light()` harness does not crash.
-Color _mutedInk(BuildContext context) =>
-    (Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight())
-        .mutedText;

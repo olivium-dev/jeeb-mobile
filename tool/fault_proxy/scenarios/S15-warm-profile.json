@@ -1,0 +1,41 @@
+{
+  "scenario": "S15",
+  "rules": [
+    {
+      "id": "warm-profile",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 500,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.6.1\",\"title\":\"An error occurred while processing your request.\",\"status\":500,\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "server",
+    "copyTitle": "errorServerTitle",
+    "copyBody": "errorServerBody",
+    "retryable": true,
+    "unavailable": false
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "warm",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_refresh_failed"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Load healthy content before activating fault. Preserve measured baseline rows/identity; no historical counts assumed."
+  }
+}

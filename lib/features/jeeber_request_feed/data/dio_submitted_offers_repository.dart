@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
@@ -31,9 +32,8 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
         },
       );
       return _parse(response.data ?? const {});
-    } on DioException {
-
-      return const <SubmittedOffer>[];
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
     }
   }
 
@@ -44,9 +44,9 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
       await _dio.delete<void>('$_path/$offerId');
       return true;
     } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      if (status == 404) return true;
-      return false;
+      // Already gone == withdrawn; anything else is a real failure.
+      if (e.response?.statusCode == 404) return true;
+      throw AppFailure.of(e);
     }
   }
 
@@ -70,12 +70,15 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
     final price = _amount(json['price']) ??
         _amount(json['amount']) ??
         _amount(json['fee']);
+    // An unparseable price would render as a real $0.00 offer — drop the row.
+    if (price == null) return null;
     final currency = _currency(json['price']) ?? _currency(json['amount']);
     return SubmittedOffer(
       id: id,
       requestId: requestId,
-      price: price ?? 0.0,
+      price: price,
       currency: currency ?? 'USD',
+      currencyKnown: currency != null,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       note: json['note'] as String?,
       status: OfferStatus.fromWire(json['status'] as String?),

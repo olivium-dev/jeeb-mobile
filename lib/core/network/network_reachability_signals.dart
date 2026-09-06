@@ -3,8 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../diagnostics/diag.dart';
+import 'app_failure.dart';
 
 const Duration kNetworkReachabilityMinInterval = Duration(seconds: 2);
+
+/// Only these two kinds blame the connection, so only these are the ones a
+/// reconnect can make stale (F6). A 500 stays on screen until it is answered.
+bool failureBlamesConnectivity(AppFailure failure) =>
+    failure.kind == AppFailureKind.network ||
+    failure.kind == AppFailureKind.timeout;
 
 class NetworkReachabilitySignals {
   NetworkReachabilitySignals({
@@ -19,6 +26,12 @@ class NetworkReachabilitySignals {
   final StreamController<void> _controller =
       StreamController<void>.broadcast(sync: true);
 
+  final StreamController<void> _offlineController =
+      StreamController<void>.broadcast(sync: true);
+
+  final StreamController<bool> _stateController =
+      StreamController<bool>.broadcast(sync: true);
+
   StreamSubscription<bool>? _sourceSub;
 
   bool? _online;
@@ -29,7 +42,23 @@ class NetworkReachabilitySignals {
 
   int suppressedCount = 0;
 
+  int offlineEmitCount = 0;
+
+  /// Offline -> online edge.
   Stream<void> get stream => _controller.stream;
+
+  /// OFF-18: the online -> offline edge. [stateStream] carries both directions.
+  Stream<void> get offlineStream => _offlineController.stream;
+
+  /// Unthrottled mirror of [isOnline] for persistent UI. Refresh triggers stay
+  /// on the throttled [stream]; this channel never drops a state transition.
+  Stream<bool> get stateStream => _stateController.stream;
+
+  /// Unknown reads as online: never blame connectivity without evidence.
+  bool get isOnline => _online ?? true;
+
+  /// Null until the connectivity source has provided transport evidence.
+  bool? get knownOnline => _online;
 
   bool? get debugOnline => _online;
 
@@ -50,7 +79,7 @@ class NetworkReachabilitySignals {
   Future<void> _applySeed(Future<bool> seed) async {
     try {
       final online = await seed;
-      _online ??= online;
+      if (_online == null) _observe(online);
     } catch (error) {
       Diag.event('network_reachability_seed_failed', <String, Object?>{
         'error': '$error',
@@ -60,8 +89,17 @@ class NetworkReachabilitySignals {
 
   void _observe(bool online) {
     final previous = _online;
+    final wasOnline = isOnline;
     _online = online;
-    if (previous != false || !online) return;
+    if (wasOnline != isOnline && !_stateController.isClosed) {
+      _stateController.add(isOnline);
+    }
+    if (!online) {
+      if (previous == false) return;
+      _emitOffline();
+      return;
+    }
+    if (previous != false) return;
 
     final now = _now();
     final last = _lastEmit;
@@ -84,6 +122,15 @@ class NetworkReachabilitySignals {
     _controller.add(null);
   }
 
+  void _emitOffline() {
+    if (_offlineController.isClosed) return;
+    offlineEmitCount++;
+    Diag.event('network_unreachable', <String, Object?>{
+      'count': offlineEmitCount,
+    });
+    _offlineController.add(null);
+  }
+
   @visibleForTesting
   void debugObserve({required bool online}) => _observe(online);
 
@@ -91,6 +138,8 @@ class NetworkReachabilitySignals {
     await _sourceSub?.cancel();
     _sourceSub = null;
     await _controller.close();
+    await _offlineController.close();
+    await _stateController.close();
   }
 
   static NetworkReachabilitySignals? _instance;

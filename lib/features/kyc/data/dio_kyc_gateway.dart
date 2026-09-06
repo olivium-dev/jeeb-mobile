@@ -1,5 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../domain/cdn_asset_gateway.dart';
 import '../domain/kyc_contract_template.dart';
 import '../domain/kyc_form_schema.dart';
@@ -20,20 +25,28 @@ class DioKycGateway implements KycGateway {
 
   @override
   Future<KycFormSchema> fetchFormSchema({String variant = 'national_id'}) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      _formSchemaPath,
-      queryParameters: {'variant': variant},
-    );
-    return KycFormSchema.fromJson(response.data ?? {});
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _formSchemaPath,
+        queryParameters: {'variant': variant},
+      );
+      return KycFormSchema.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      throw KycGatewayException(AppFailure.of(e));
+    }
   }
 
   @override
   Future<KycContractTemplate> fetchContractTemplate() async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      _contractTemplatePath,
-      queryParameters: {'type': 'tos'},
-    );
-    return KycContractTemplate.fromJson(response.data ?? {});
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _contractTemplatePath,
+        queryParameters: {'type': 'tos'},
+      );
+      return KycContractTemplate.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      throw KycGatewayException(AppFailure.of(e));
+    }
   }
 
   @override
@@ -42,20 +55,26 @@ class DioKycGateway implements KycGateway {
     required String tosVersion,
     required String signatureBlob,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      _signPath,
-      data: {
-        'template_id': templateId,
-        'tos_version': tosVersion,
-        'signature_blob': signatureBlob,
-      },
-    );
-    return KycSignStamp.fromJson(response.data ?? {});
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _signPath,
+        data: {
+          'template_id': templateId,
+          'tos_version': tosVersion,
+          'signature_blob': signatureBlob,
+        },
+      );
+      return KycSignStamp.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      throw KycGatewayException(AppFailure.of(e));
+    }
   }
 
   @override
   Future<KycSubmission> submit(KycSubmission draft) async {
-    final refs = await _uploadAssets(draft);
+    // ONE id shared by the four uploads of THIS attempt; a retried submit
+    // mints a fresh scope (the gateway is const, so it holds no attempt id).
+    final refs = await _uploadAssets(draft, newOperationId());
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         _submitPath,
@@ -63,30 +82,13 @@ class DioKycGateway implements KycGateway {
       );
       return _parseSubmission(response.data ?? {});
     } on DioException catch (e) {
-      final field = _fieldFrom(e);
-      if (field != null) {
-        throw KycSubmitFieldException(
-          field: field,
-          detail: _detailFrom(e),
-        );
+      final problem = GatewayProblem.tryParse(e.response?.data);
+      final field = problem?.field;
+      if (e.response?.statusCode == 400 && field != null) {
+        throw KycSubmitFieldException(field: field, detail: problem?.detail);
       }
-      rethrow;
+      throw KycGatewayException(AppFailure.of(e));
     }
-  }
-
-  static String? _fieldFrom(DioException e) {
-    if (e.response?.statusCode != 400) return null;
-    final data = e.response?.data;
-    if (data is! Map) return null;
-    final field = data['field'];
-    return field is String && field.isNotEmpty ? field : null;
-  }
-
-  static String? _detailFrom(DioException e) {
-    final data = e.response?.data;
-    if (data is! Map) return null;
-    final detail = data['detail'];
-    return detail is String ? detail : null;
   }
 
   @override
@@ -98,7 +100,7 @@ class DioKycGateway implements KycGateway {
       if (e.response?.statusCode == 404) {
         return const KycSubmission(status: KycStatus.notSubmitted);
       }
-      rethrow;
+      throw KycGatewayException(AppFailure.of(e));
     }
   }
 
@@ -168,35 +170,41 @@ class DioKycGateway implements KycGateway {
     }
   }
 
-  Future<_UploadedAssetRefs> _uploadAssets(KycSubmission draft) async {
+  Future<String> _upload(
+    CdnUploadSlot slot,
+    Uint8List bytes,
+    String operationId,
+  ) {
+    final CdnAssetGateway cdn = _cdn;
+    return cdn is IdempotentCdnAssetGateway
+        ? cdn.uploadAssetIdempotent(
+            slot: slot,
+            bytes: bytes,
+            operationId: operationId,
+          )
+        : cdn.uploadAsset(slot: slot, bytes: bytes);
+  }
+
+  Future<_UploadedAssetRefs> _uploadAssets(
+    KycSubmission draft,
+    String operationId,
+  ) async {
     final idFrontBytes = draft.idFront?.bytes;
     final idBackBytes = draft.idBack?.bytes;
     final selfieBytes = draft.selfie?.bytes;
     final vehicleBytes = draft.vehicleRegistration?.bytes;
 
     final idFrontUrl = idFrontBytes != null
-        ? await _cdn.uploadAsset(
-            slot: CdnUploadSlot.idDocumentFront,
-            bytes: idFrontBytes,
-          )
+        ? await _upload(CdnUploadSlot.idDocumentFront, idFrontBytes, operationId)
         : null;
     final idBackUrl = idBackBytes != null
-        ? await _cdn.uploadAsset(
-            slot: CdnUploadSlot.idDocumentBack,
-            bytes: idBackBytes,
-          )
+        ? await _upload(CdnUploadSlot.idDocumentBack, idBackBytes, operationId)
         : null;
     final selfieUrl = selfieBytes != null
-        ? await _cdn.uploadAsset(
-            slot: CdnUploadSlot.selfieWithLiveness,
-            bytes: selfieBytes,
-          )
+        ? await _upload(CdnUploadSlot.selfieWithLiveness, selfieBytes, operationId)
         : null;
     final vehicleUrl = vehicleBytes != null
-        ? await _cdn.uploadAsset(
-            slot: CdnUploadSlot.vehicleRegistration,
-            bytes: vehicleBytes,
-          )
+        ? await _upload(CdnUploadSlot.vehicleRegistration, vehicleBytes, operationId)
         : null;
 
     return _UploadedAssetRefs(

@@ -3,9 +3,26 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/dev_flags.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_snack.dart';
 
 void main() {
   group('Dev Tool compile gate', () {
+    test('the snack stretch is inert unless a dev build asks for it', () {
+      const override = int.fromEnvironment('JEEB_DEV_SNACK_ACTION_MS');
+      expect(kDevSnackActionMsOverride, override);
+      expect(
+        jeebSnackActionDuration,
+        kDevAffordancesAllowed && override > 0
+            ? const Duration(milliseconds: override)
+            : kJeebSnackActionDuration,
+      );
+      expect(kJeebSnackActionDuration, const Duration(seconds: 8));
+      expect(
+        File('lib/core/widgets/jeeb/jeeb_snack.dart').readAsStringSync(),
+        contains('kDevAffordancesAllowed && kDevSnackActionMsOverride > 0'),
+      );
+    });
+
     test('defaults off unless explicitly requested', () {
       const requested = bool.fromEnvironment(
         'JEEB_DEVTOOL_ENABLED',

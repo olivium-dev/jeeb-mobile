@@ -12,6 +12,7 @@ import '../../../features/earnings/application/earnings_cubit.dart';
 import '../../../features/earnings/domain/earnings_repository.dart';
 import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/chat_detail_screen_fixtures.dart';
 import '../fixtures/delivery_detail_screen_fixtures.dart';
 import '../fixtures/delivery_man_profile_screen_fixtures.dart';
@@ -49,6 +50,11 @@ final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
         'Accepted — 1:1 thread + pinned summary',
         (context) => _chatDetail(ChatDetailScreenPreviewFixtures.accepted),
       ),
+      CatalogState(
+        'Summary unavailable — reload strip (F44)',
+        (context) =>
+            _chatDetail(ChatDetailScreenPreviewFixtures.summaryUnavailable),
+      ),
     ],
   ),
 ];
@@ -60,6 +66,7 @@ Widget _chatDetail(ChatDetailScreenPreviewState state) => ChatDetailScreen(
       debugHasWinner: state.hasWinner,
       debugCounterpartName: state.counterpartName,
       debugSummary: state.summary,
+      debugSummaryFailure: state.summaryFailure,
     );
 
 final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
@@ -172,6 +179,30 @@ final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
           data: DeliveryManProfileScreenFixtures.empty,
         ),
       ),
+      CatalogState(
+        'Reviews — loading',
+        (context) => DeliveryManProfileScreen(
+          data: DeliveryManProfileScreenFixtures.unseeded,
+          repositoryOverride:
+              DeliveryManProfileScreenFixtures.loadingReviewsRepository(),
+        ),
+      ),
+      CatalogState(
+        'Reviews — failed',
+        (context) => DeliveryManProfileScreen(
+          data: DeliveryManProfileScreenFixtures.unseeded,
+          repositoryOverride:
+              DeliveryManProfileScreenFixtures.failingReviewsRepository(),
+        ),
+      ),
+      CatalogState(
+        'Reviews — empty, count suppressed',
+        (context) => DeliveryManProfileScreen(
+          data: DeliveryManProfileScreenFixtures.unseeded,
+          repositoryOverride:
+              DeliveryManProfileScreenFixtures.emptyReviewsRepository(),
+        ),
+      ),
     ],
   ),
 ];
@@ -208,6 +239,13 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
           deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
           repository: DeliveryReceiptScreenFixtures.notFound(),
         ),
+      ),
+      CatalogState(
+        'Warm — refresh failed over a loaded receipt',
+        (context) => catalogReceiptRefresh(DeliveryReceiptScreen(
+          deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
+          repository: DeliveryReceiptScreenFixtures.refreshFailedWarm(),
+        )),
       ),
     ],
   ),
@@ -289,6 +327,16 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
           DisputeStatusScreenFixtures.notFoundFallback,
         ),
       ),
+      CatalogState(
+        'Refresh failed over a loaded dispute',
+        (context) =>
+            catalogDisputeRefresh(_disputeStatusScreen(DisputeStatusScreenFixtures.refreshFailure)),
+      ),
+      CatalogState(
+        'Empty status history (ES-20)',
+        (context) =>
+            _disputeStatusScreen(DisputeStatusScreenFixtures.emptyHistory),
+      ),
     ],
   ),
 ];
@@ -319,6 +367,30 @@ final List<CatalogEntry> _earningsEntries = <CatalogEntry>[
         'Empty — no earnings this period (T11/SW-01 honest empty)',
         (context) =>
             _earningsHost(EarningsDashboardScreenPreviewFixtures.empty()),
+      ),
+      CatalogState(
+        'Refresh failed — the dashboard stays up',
+        (context) => catalogEarningsFailure(_earningsHost(
+          RefreshFailingEarningsRepository(
+            EarningsDashboardScreenPreviewFixtures.populatedWeek,
+          ),
+        )),
+      ),
+      CatalogState(
+        'Export failed — error snack',
+        (context) => catalogEarningsFailure(_earningsHost(
+          const ExportFailingEarningsRepository(
+            EarningsDashboardScreenPreviewFixtures.populatedWeek,
+          ),
+        ), export: true),
+      ),
+      CatalogState(
+        'Error — server 500, retryable and never blames the network',
+        (context) => _earningsHost(serverFailingEarningsRepository),
+      ),
+      CatalogState(
+        'Error — offline, the one rung allowed to blame connectivity',
+        (context) => _earningsHost(networkFailingEarningsRepository),
       ),
     ],
   ),

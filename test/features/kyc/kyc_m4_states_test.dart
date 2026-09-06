@@ -91,8 +91,8 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsNothing);
       final JeebEmptyState state = block(tester);
-      expect(state.status, JeebEmptyStateStatus.loading);
-      expect(state.status, isNot(JeebEmptyStateStatus.empty));
+      expect(state.effectiveStatus, JeebEmptyStateStatus.loading);
+      expect(state.effectiveStatus, isNot(JeebEmptyStateStatus.empty));
       expect(state.variant, kycStateVariant);
       expect(state.medallions, kycStateMedallions);
       expect(state.identifier, 'kyc_wizard_schema_loading');
@@ -111,8 +111,8 @@ void main() {
       );
 
       final JeebEmptyState state = block(tester);
-      expect(state.status, JeebEmptyStateStatus.error);
-      expect(state.status, isNot(JeebEmptyStateStatus.loading));
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(state.effectiveStatus, isNot(JeebEmptyStateStatus.loading));
       expect(state.identifier, 'kyc_wizard_schema_error');
       expect(state.action, isNotNull);
       // The frozen id survived the chrome that used to host it.
@@ -151,7 +151,7 @@ void main() {
       );
 
       final JeebEmptyState state = block(tester);
-      expect(state.status, JeebEmptyStateStatus.loading);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.loading);
       expect(state.variant, kycStateVariant);
       expect(state.identifier, 'kyc_status_loading');
       expect(find.byType(CircularProgressIndicator), findsNothing);

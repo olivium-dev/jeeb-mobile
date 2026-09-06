@@ -14,8 +14,10 @@ import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
 import '../data/voice_recording_repository.dart';
@@ -188,9 +190,10 @@ class _VoiceRecordingView extends StatelessWidget {
               // deliberately excluded: the retained clip renders a persistent
               // OMDS error state with retry-submit and record-again actions.
               ScaffoldMessenger.of(context).clearSnackBars();
-              showOmdsErrorSnackbar(
+              showJeebErrorSnack(
                 context,
                 message: voiceErrorCopy(l10n, error),
+                identifier: 'voice_request_transient_error',
               );
               context.read<VoiceRecordingCubit>().acknowledgeError();
             }
@@ -389,6 +392,15 @@ class _BlockedSurface extends StatelessWidget {
         onTap: onRetry,
         identifier: 'voice_request_retry_button',
       ),
+      // A permanently denied OS permission cannot be granted by "Try again".
+      secondaryAction: isPermission
+          ? JeebCtaButton.text(
+              label: l10n.actionOpenSettings,
+              expand: false,
+              identifier: 'voice_request_open_settings_cta',
+              onTap: () => GeolocatorGeocaptureGateway().openAppSettings(),
+            )
+          : null,
     );
   }
 }
@@ -581,7 +593,11 @@ class _ActionRow extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<VoiceRecordingCubit>();
     if (state.hasUploadFailure) {
-      return _UploadFailureActions(cubit: cubit, l10n: l10n);
+      return _UploadFailureActions(
+        cubit: cubit,
+        l10n: l10n,
+        canRetryUpload: !state.hasTerminalUploadFailure,
+      );
     }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
@@ -649,23 +665,32 @@ class _ActionRow extends StatelessWidget {
 }
 
 class _UploadFailureActions extends StatelessWidget {
-  const _UploadFailureActions({required this.cubit, required this.l10n});
+  const _UploadFailureActions({
+    required this.cubit,
+    required this.l10n,
+    required this.canRetryUpload,
+  });
 
   final VoiceRecordingCubit cubit;
   final AppLocalizations l10n;
 
+  /// False for 413/415: re-uploading the SAME clip can never succeed, so the
+  /// only honest act left is recording again.
+  final bool canRetryUpload;
+
   @override
   Widget build(BuildContext context) {
+    final Widget discard = JeebCtaButton.outline(
+      key: VoiceRecordingKeys.discardButton,
+      label: l10n.voiceRecordingRecordAgain,
+      wrapLabel: true,
+      onTap: () => cubit.discardClip(),
+      expand: true,
+    );
+    if (!canRetryUpload) return discard;
     return Row(
       children: [
-        Expanded(
-          child: JeebCtaButton.outline(
-            key: VoiceRecordingKeys.discardButton,
-            label: l10n.voiceRecordingRecordAgain,
-            onTap: () => cubit.discardClip(),
-            expand: true,
-          ),
-        ),
+        Expanded(child: discard),
         const SizedBox(width: Spacing.medium),
         Expanded(
           child: Semantics(
@@ -673,6 +698,7 @@ class _UploadFailureActions extends StatelessWidget {
             child: JeebCtaButton.primary(
               key: VoiceRecordingKeys.retryUploadButton,
               label: l10n.voiceRecordingRetryUploadSubmit,
+              wrapLabel: true,
               onTap: () => cubit.send(),
               expand: true,
             ),

@@ -267,14 +267,19 @@ void main() {
     await failing.submit();
     await tester.pumpAndSettle();
 
+    // The identifier now sits ON the block the kit draws (JeebFailureBlock →
+    // JeebEmptyState), so the finder targets it directly.
+    expect(find.bySemanticsIdentifier('dispute_error'), findsOneWidget);
     final JeebEmptyState error = tester.widget<JeebEmptyState>(
-      find.descendant(
-        of: find.bySemanticsIdentifier('dispute_error'),
-        matching: find.byType(JeebEmptyState),
-      ),
+      find.byType(JeebEmptyState),
     );
-    expect(error.status, JeebEmptyStateStatus.error);
+    expect(error.effectiveStatus, JeebEmptyStateStatus.error);
+    expect(error.reason, JeebEmptyStateReason.failed);
     expect(error.variant, JeebEmptyStateVariant.parcel);
     expect(error.action, isNotNull);
+    expect(
+      find.bySemanticsIdentifier('dispute_error_retry_cta'),
+      findsOneWidget,
+    );
   });
 }

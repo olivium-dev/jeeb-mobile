@@ -9,11 +9,16 @@ import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
@@ -24,6 +29,7 @@ import '../application/client_offers_state.dart';
 import '../data/fake_offers_repository.dart';
 import '../domain/offer.dart';
 import '../domain/offers_repository.dart';
+import 'offers_failure_copy.dart';
 import 'widgets/offer_accept_sheet.dart';
 import 'widgets/offer_card.dart';
 import 'widgets/offer_sort_bar.dart';
@@ -121,7 +127,7 @@ class ClientOffersScreen extends StatelessWidget {
       // `cubit.load()` above is the MOUNT one-shot; a push delivered while the
       // app is backgrounded never reaches the refresh bus, so without this the
       // bid list stayed stale after resume. Milder than N9 only because
-      // pull-to-refresh (`_LoadedBody`'s `OmdsPullToRefresh`) lets the customer
+      // pull-to-refresh (`_LoadedBody`'s `JeebPullToRefresh`) lets the customer
       // self-rescue — which is not a fix, it is a workaround the user has to
       // know to perform.
       child: RouteResumeRefetch(
@@ -214,13 +220,17 @@ class _ClientOffersView extends StatelessWidget {
       case OffersScreenStatus.loading:
         // The waiting block's own skeleton, so loading → waiting stays one
         // block. The kit draws E1's skeleton for every variant.
-        return const _CenteredBlock(
+        return _CenteredBlock(
           child: OffersWaitingState(
-            blockKey: Key('offer-loading-state'),
+            blockKey: const Key('offer-loading-state'),
             status: JeebEmptyStateStatus.loading,
+            headline: l10n.offerReviewLoadingHeadline,
           ),
         );
       case OffersScreenStatus.failed:
+        final AppFailure? appFailure = state.appFailure;
+        final bool recoverable =
+            appFailure == null || failureCopy(l10n, appFailure).retryable;
         return _CenteredBlock(
           maxWidth: Sizes.threeHundredLarge,
           child: OffersWaitingState(
@@ -231,12 +241,23 @@ class _ClientOffersView extends StatelessWidget {
               l10n,
               state.error,
               phase: OffersErrorPhase.load,
+              appFailure: appFailure,
             ),
-            action: JeebCtaButton.primary(
-              label: l10n.offersRetryAction,
-              identifier: 'offer_review_retry_cta',
-              onTap: () => context.read<ClientOffersCubit>().load(),
-            ),
+            // Never a Retry the user cannot win.
+            action: recoverable
+                ? JeebCtaButton.outline(
+                    label: l10n.actionRetry,
+                    identifier: 'offer_review_retry_cta',
+                    leadingIcon: Icons.refresh,
+                    expand: false,
+                    onTap: () => context.read<ClientOffersCubit>().load(),
+                  )
+                : JeebCtaButton.primary(
+                    label: l10n.actionBack,
+                    identifier: 'offer_review_exit_cta',
+                    expand: false,
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
           ),
         );
       case OffersScreenStatus.loaded:
@@ -320,7 +341,27 @@ class _LoadedBody extends StatelessWidget {
               text: l10n.offersRequestClosedTitle,
             ),
           ),
-        if (state.error != null)
+        if (state.error != null && state.errorSource == OffersErrorSource.load)
+          Padding(
+            padding: _gutter.add(
+              const EdgeInsetsDirectional.only(top: Spacing.small),
+            ),
+            child: JeebRefreshFailedNote(
+              key: const Key('offer-error-banner'),
+              failure: state.appFailure ?? const UnknownFailure(),
+              identifier: 'offer_review_error_banner',
+              messageOverride: offersFailureCopy(
+                l10n,
+                state.error!,
+                phase: OffersErrorPhase.load,
+                appFailure: state.appFailure,
+              ),
+              onDismiss: () =>
+                  context.read<ClientOffersCubit>().acknowledgeError(),
+              onRetry: () => context.read<ClientOffersCubit>().refresh(),
+            ),
+          ),
+        if (state.error != null && state.errorSource != OffersErrorSource.load)
           Padding(
             padding: _gutter.add(
               const EdgeInsetsDirectional.only(top: Spacing.small),
@@ -332,9 +373,8 @@ class _LoadedBody extends StatelessWidget {
               text: offersFailureCopy(
                 l10n,
                 state.error!,
-                phase: state.errorSource == OffersErrorSource.load
-                    ? OffersErrorPhase.load
-                    : OffersErrorPhase.accept,
+                phase: OffersErrorPhase.accept,
+                appFailure: state.appFailure,
               ),
               trailing: Semantics(
                 identifier: 'offer_review_error_dismiss_cta',
@@ -359,7 +399,7 @@ class _LoadedBody extends StatelessWidget {
         // ── The list. Top-aligned in the remaining height: >3 offers scroll,
         // fewer leave the rest of the field showing, which is the render.
         Expanded(
-          child: OmdsPullToRefresh(
+          child: JeebPullToRefresh(
             onRefresh: onRefresh,
             child: state.hasOffers
                 ? ListView(
@@ -468,6 +508,9 @@ class _LoadedBody extends StatelessWidget {
         isAvailable: true,
         reviews: const <DeliveryReviewData>[],
         avatarUrl: offer.avatarUrl,
+        // DMP-02: without this the profile's "View all" showed the CLIENT's
+        // own reviews.
+        jeeberId: offer.jeeberId,
       ),
     );
   }
@@ -487,40 +530,6 @@ class _LoadedBody extends StatelessWidget {
 /// Which phase of the offer-review flow raised the failure — the classified
 /// branches share copy, only the unclassified/`unknown` fallback is
 /// phase-specific (F9): a load failure must never say "accepting".
-enum OffersErrorPhase { load, accept }
-
-/// Single shared source of truth for offer-review failure copy (F9). Both the
-/// full-screen load error ([OffersWaitingState]) and the inline accept banner
-/// route through here so the five [OffersFailure] strings stay consistent; only
-/// the generic fallback diverges by [phase].
-String offersFailureCopy(
-  AppLocalizations l10n,
-  OffersFailure? failure, {
-  required OffersErrorPhase phase,
-}) {
-  switch (failure) {
-    case OffersFailure.network:
-      return l10n.offersErrorNetwork;
-    case OffersFailure.requestNotOpen:
-      return l10n.offersErrorRequestNotOpen;
-    case OffersFailure.offerNotPending:
-      return l10n.offersErrorOfferNotPending;
-    case OffersFailure.jeeberAtCapacity:
-      return l10n.offersErrorJeeberAtCapacity;
-    // rateLimited is a TRANSIENT state the cubit handles by staying in loading
-    // and auto-retrying — it must never reach a rendered error surface. Fold it
-    // into the generic fallback for switch-exhaustiveness (defensive only).
-    case OffersFailure.rateLimited:
-    case OffersFailure.unknown:
-    case null:
-      return switch (phase) {
-        OffersErrorPhase.load => l10n.offersLoadErrorGeneric,
-        OffersErrorPhase.accept => l10n.offersErrorGeneric,
-      };
-  }
-}
-
-
 /// Vertically centred block for the states that own the whole body — the
 /// waiting skeleton and the load failure. Scrollable so 200% text and the pull
 /// gesture both still work.
@@ -533,26 +542,16 @@ class _CenteredBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = maxWidth;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.symmetric(
-                vertical: Spacing.xLarge,
-              ),
-              child: width == null
-                  ? child
-                  : ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: width),
-                      child: child,
-                    ),
-            ),
-          ),
-        ),
+    return JeebStateHost(
+      padding: const EdgeInsetsDirectional.symmetric(
+        vertical: Spacing.xLarge,
       ),
+      child: width == null
+          ? child
+          : ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width),
+              child: child,
+            ),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../../../core/network/app_failure.dart';
+
 enum CaseAttachmentKind { photo, voice, file }
 
 class CaseAttachmentDraft {
@@ -81,10 +83,23 @@ abstract class CaseEvidenceUploader {
 }
 
 class CaseEvidenceUploadException implements Exception {
-  const CaseEvidenceUploadException(this.message, {this.offline = false});
+  const CaseEvidenceUploadException(
+    this.message, {
+    this.offline = false,
+    this.failure,
+  });
 
+  /// DIAGNOSTIC ONLY — never rendered to a user; the copy comes from
+  /// [appFailure] through `failureCopy`.
   final String message;
   final bool offline;
+
+  /// The classified failure, when the thrower could produce one.
+  final AppFailure? failure;
+
+  AppFailure get appFailure =>
+      failure ??
+      (offline ? const NetworkFailure(offline: true) : const UnknownFailure());
 
   @override
   String toString() => 'CaseEvidenceUploadException($message)';

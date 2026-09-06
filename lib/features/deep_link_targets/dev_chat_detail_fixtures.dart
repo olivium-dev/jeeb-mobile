@@ -16,12 +16,16 @@ class DevChatDetailFixtures {
     'ip-2',
     'ip-3',
     'conv-rep-1',
+    // The failure rungs the dev seam could not otherwise reach.
+    'fail-1',
+    'partial-1',
   };
 
   static ChatGateway? resolveGateway(String chatId) {
     if (!kDebugMode) return null;
     if (!DevSeam.current.hasHomeTab) return null;
     if (!_seededChatIds.contains(chatId)) return null;
+    if (chatId == 'fail-1') return FailingChatGateway();
     return DevChatFixtureGateway(phase: ConversationPhase.accepted);
   }
 }

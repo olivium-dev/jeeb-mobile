@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
+import '../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../gateway/dev_gateway_client.dart';
+import '../gateway/dev_gateway_failure.dart';
 import 'fund_jeeber_wallet_page.dart';
 
 class FundJeeberWalletPickerPage extends StatefulWidget {
@@ -63,7 +68,7 @@ class _FundJeeberWalletPickerPageState
         showBackButton: true,
         centerTitle: false,
       ),
-      body: OmdsPullToRefresh(
+      body: JeebPullToRefresh(
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -104,24 +109,40 @@ class _JeeberPickerSnapshot extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return OmdsLoadingState(message: l10n.walletFundingPickerLoading);
+      return JeebEmptyState.compact(
+        identifier: 'devtool_wallet_funding_picker_loading',
+        status: JeebEmptyStateStatus.loading,
+        reason: JeebEmptyStateReason.loading,
+        variant: JeebEmptyStateVariant.pocket,
+        headline: l10n.walletFundingPickerLoading,
+      );
     }
     if (snapshot.error case final error?) {
-      return OmdsErrorState(
-        title: l10n.walletFundingPickerErrorTitle,
-        message: _errorMessage(error),
-        retryLabel: l10n.scenarioUsersRetry,
+      return JeebFailureBlock.compact(
+        failure: devGatewayFailure(error),
+        identifier: 'devtool_wallet_funding_picker_error',
+        headlineOverride: l10n.walletFundingPickerErrorTitle,
+        bodyOverride: devGatewayMessage(error),
+        variant: JeebEmptyStateVariant.pocket,
         onRetry: onRetry,
+        onExit: () => Navigator.of(context).maybePop(),
       );
     }
     final jeebers = snapshot.data ?? const <DevUser>[];
     if (jeebers.isEmpty) {
-      return OmdsEmptyState(
-        icon: Icons.account_balance_wallet_outlined,
-        title: l10n.walletFundingPickerEmptyTitle,
-        subtitle: l10n.walletFundingPickerEmptyBody,
-        buttonText: l10n.scenarioUsersRetry,
-        onButtonTap: onRetry,
+      return JeebEmptyState.compact(
+        identifier: 'devtool_wallet_funding_picker_empty',
+        reason: JeebEmptyStateReason.nothingYet,
+        variant: JeebEmptyStateVariant.pocket,
+        headline: l10n.walletFundingPickerEmptyTitle,
+        body: l10n.walletFundingPickerEmptyBody,
+        action: JeebCtaButton.outline(
+          label: l10n.actionRetry,
+          leadingIcon: Icons.refresh,
+          expand: false,
+          identifier: 'devtool_wallet_funding_picker_empty_retry_cta',
+          onTap: onRetry,
+        ),
       );
     }
     return _JeeberPickerList(jeebers: jeebers, onSelected: onSelected);
@@ -175,8 +196,5 @@ String _localizedStatus(AppLocalizations l10n, String value) =>
       'pending' || 'kyc-pending' => l10n.scenarioUsersStatusPending,
       _ => value,
     };
-
-String _errorMessage(Object error) =>
-    error is DevGatewayException ? error.message : error.toString();
 
 String _bidi(String value) => '\u2068$value\u2069';

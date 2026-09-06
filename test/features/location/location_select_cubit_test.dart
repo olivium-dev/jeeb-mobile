@@ -3,6 +3,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_cubit.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
 import 'package:jeeb_mobile/features/location/data/dio_location_select_repository.dart';
@@ -281,8 +282,7 @@ void main() {
       expect(result.first.longitude, 2.0);
     });
 
-    test('maps a transport failure to LocationSelectException.network',
-        () async {
+    test('maps a transport failure to a NetworkFailure', () async {
       final repo = DioLocationSelectRepository(
         _dioThrowing(DioException.connectionError(
           requestOptions: RequestOptions(path: '/api/users/me/saved-locations'),
@@ -291,18 +291,19 @@ void main() {
       );
       expect(
         () => repo.fetchSavedAddresses('u'),
-        throwsA(isA<LocationSelectException>().having(
-          (e) => e.failure,
-          'failure',
-          LocationSelectFailure.network,
-        )),
+        throwsA(isA<NetworkFailure>()),
       );
     });
 
-    test('degrades a malformed body to an empty list', () async {
+    // A body we cannot read is NOT "this customer has no saved addresses":
+    // swallowing it to `const []` renders the empty state over a failed read.
+    test('throws UnknownFailure(parse) on a malformed body', () async {
       final repo =
           DioLocationSelectRepository(_dioReplying({'unexpected': true}));
-      expect(await repo.fetchSavedAddresses('u'), isEmpty);
+      expect(
+        () => repo.fetchSavedAddresses('u'),
+        throwsA(predicate<UnknownFailure>((UnknownFailure f) => f.parse)),
+      );
     });
   });
 }

@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../rate_app/domain/app_review_launcher.dart';
 import '../../settings/data/shared_prefs_profile_repository.dart';
 import '../../settings/presentation/widgets/logout_delete_confirm_sheet.dart';
@@ -67,9 +69,9 @@ class CustomerProfileScreen extends StatelessWidget {
 
   static Future<String?> _storedPhone() async {
     if (!sl.isRegistered<SharedPreferences>()) return null;
-    final profile =
-        await SharedPrefsProfileRepository(prefs: sl<SharedPreferences>())
-            .load();
+    final profile = await SharedPrefsProfileRepository(
+      prefs: sl<SharedPreferences>(),
+    ).load();
     return profile?.phoneE164;
   }
 
@@ -84,10 +86,9 @@ class CustomerProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<CustomerProfileCubit>(
-      create: (_) => CustomerProfileCubit(
-        seed: data,
-        repository: _resolveRepository(),
-      )..load(),
+      create: (_) =>
+          CustomerProfileCubit(seed: data, repository: _resolveRepository())
+            ..load(),
       child: _CustomerProfileView(reviewLauncher: _resolveReviewLauncher()),
     );
   }
@@ -127,20 +128,60 @@ class _Body extends StatelessWidget {
   final CustomerProfileState state;
   final AppReviewLauncher reviewLauncher;
 
+  /// RATE-01: a store-review API that cannot open must not be a silent no-op.
+  Future<void> _rateApp(BuildContext context) async {
+    final launcher = reviewLauncher;
+    if (launcher is! AppReviewOutcomeLauncher) {
+      await launcher.requestReview();
+      return;
+    }
+    final outcome = await (launcher as AppReviewOutcomeLauncher)
+        .requestReviewOutcome();
+    if (!context.mounted || outcome == AppReviewOutcome.requested) return;
+    showJeebSnack(
+      context,
+      identifier: 'customer_profile_rate_app_unavailable',
+      message: AppLocalizations.of(context).rateAppUnavailable,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final CustomerProfileViewData data = state.data;
+    // The board's 24px side gutter, owned once by the list instead of by each
+    // band; the insets clear the shell header and the floating pill nav.
+    final padding = EdgeInsetsDirectional.fromSTEB(
+      Spacing.xLarge,
+      Sizes.fiveXLarge,
+      Spacing.xLarge,
+      Spacing.twoXLarge + context.scrollBodyBottomInset,
+    );
+    final bool blankLoad = CustomerProfileStatusBlock.isBlankLoad(state);
+    if (CustomerProfileStatusBlock.coldFailure(state) != null || blankLoad) {
+      // F4: a read that failed, or is in flight with no profile behind it, may
+      // not paint an identity card, a rating or a "Register" row from the seed.
+      return ListView(
+        key: CustomerProfileScreen.rootKey,
+        padding: padding,
+        children: [
+          CustomerProfileStatusBlock(
+            state: state,
+            onRetry: () =>
+                unawaited(context.read<CustomerProfileCubit>().retry()),
+          ),
+          const SizedBox(height: Spacing.large),
+          CustomerProfileRows.signOutOnly(
+            onLogout: () => LogoutDeleteConfirmSheet.show(
+              context,
+              mode: LogoutDeleteMode.both,
+            ),
+          ),
+        ],
+      );
+    }
     return ListView(
       key: CustomerProfileScreen.rootKey,
-      // The board's 24px side gutter, owned once by the list instead of by each
-      // band. The top inset clears the shell-overlaid header actions; the bottom
-      // one reserves the floating pill nav this tab scrolls under.
-      padding: EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Sizes.fiveXLarge,
-        Spacing.xLarge,
-        Spacing.twoXLarge + context.scrollBodyBottomInset,
-      ),
+      padding: padding,
       children: [
         CustomerProfileHeader(
           name: data.name,
@@ -149,6 +190,7 @@ class _Body extends StatelessWidget {
           isVerified: data.isVerified,
           rating: data.rating,
           ratingCount: data.ratingCount,
+          ratingUnavailable: data.ratingUnavailable,
           // F5: into the PR #232 avatar edit flow; re-read /me on return —
           // IndexedStack keeps this tab mounted, nothing else refreshes it.
           onAvatarTap: () {
@@ -166,18 +208,22 @@ class _Body extends StatelessWidget {
             state: state,
             onRetry: () =>
                 unawaited(context.read<CustomerProfileCubit>().refresh()),
+            onDismissRefreshError: () =>
+                context.read<CustomerProfileCubit>().acknowledgeRefreshError(),
           ),
         ],
         const SizedBox(height: Spacing.small),
         CustomerProfileRows(
-          showRegister: !data.isJeeber,
+          // Never derived from an unloaded profile.
+          showRegister:
+              state.status == CustomerProfileStatus.loaded && !data.isJeeber,
           onRegisterDelivery: () => context.goNamed('delivery-register-prompt'),
           onNotifications: () => context.pushNamed('settings-notifications'),
           onAddresses: () => context.pushNamed('settings-addresses'),
           onPassword: () => context.pushNamed('password-security'),
           onLanguage: () => context.pushNamed('language-settings'),
           onContact: () => context.pushNamed('support-ticket'),
-          onRateApp: () => unawaited(reviewLauncher.requestReview()),
+          onRateApp: () => unawaited(_rateApp(context)),
           onLogout: () => LogoutDeleteConfirmSheet.show(
             context,
             mode: LogoutDeleteMode.both,
@@ -187,19 +233,24 @@ class _Body extends StatelessWidget {
     );
   }
 }
+
 // ============================== JEEB PREVIEWS ==============================
 const double _customerProfileScreenPhoneWidth = 390;
 
 /// The narrowest phone the app still supports (iPhone SE 1st ge
 const double _customerProfileScreenCompactWidth = 320;
 
-/// A whole phone viewport — this is a full-screen tab body, so 
-const Size _customerProfileScreenPhoneBox =
-    Size(_customerProfileScreenPhoneWidth, 844);
+/// A whole phone viewport — this is a full-screen tab body, so
+const Size _customerProfileScreenPhoneBox = Size(
+  _customerProfileScreenPhoneWidth,
+  844,
+);
 
 /// The compact device, at its real height.
-const Size _customerProfileScreenCompactBox =
-    Size(_customerProfileScreenCompactWidth, 568);
+const Size _customerProfileScreenCompactBox = Size(
+  _customerProfileScreenCompactWidth,
+  568,
+);
 
 /// One seated screen: a seed, a scripted repository, an inert r
 Widget _customerProfileScreenHosted({
@@ -230,26 +281,26 @@ Widget _customerProfileScreenHosted({
   matrix: true,
 )
 Widget customerProfileScreenClient() => _customerProfileScreenHosted(
-      state: 'client',
-      data: CustomerProfileScreenPreviewFixtures.ratedClient,
-      repository: const CustomerProfileScreenStaticRepository(
-        CustomerProfileScreenPreviewFixtures.ratedClient,
-      ),
-    );
+  state: 'client',
+  data: CustomerProfileScreenPreviewFixtures.ratedClient,
+  repository: const CustomerProfileScreenStaticRepository(
+    CustomerProfileScreenPreviewFixtures.ratedClient,
+  ),
+);
 
-/// The Screen Catalog's "Jeeber — no ratings yet": the account 
+/// The Screen Catalog's "Jeeber — no ratings yet": the account
 @JeebPreview(
   group: 'customer_profile',
   name: 'Jeeber · register row hidden',
   size: _customerProfileScreenPhoneBox,
 )
 Widget customerProfileScreenJeeber() => _customerProfileScreenHosted(
-      state: 'jeeber',
-      data: CustomerProfileScreenPreviewFixtures.jeeber,
-      repository: const CustomerProfileScreenStaticRepository(
-        CustomerProfileScreenPreviewFixtures.jeeber,
-      ),
-    );
+  state: 'jeeber',
+  data: CustomerProfileScreenPreviewFixtures.jeeber,
+  repository: const CustomerProfileScreenStaticRepository(
+    CustomerProfileScreenPreviewFixtures.jeeber,
+  ),
+);
 
 /// The empty state, and the true first frame of the Profile tab
 @JeebPreview(
@@ -258,10 +309,10 @@ Widget customerProfileScreenJeeber() => _customerProfileScreenHosted(
   size: _customerProfileScreenPhoneBox,
 )
 Widget customerProfileScreenColdStart() => _customerProfileScreenHosted(
-      state: 'cold-start',
-      data: CustomerProfileScreenPreviewFixtures.coldStart,
-      repository: const CustomerProfileScreenPendingRepository(),
-    );
+  state: 'cold-start',
+  data: CustomerProfileScreenPreviewFixtures.coldStart,
+  repository: const CustomerProfileScreenPendingRepository(),
+);
 
 /// The error state on the path that actually reaches users: the
 @JeebPreview(
@@ -270,12 +321,12 @@ Widget customerProfileScreenColdStart() => _customerProfileScreenHosted(
   size: _customerProfileScreenPhoneBox,
 )
 Widget customerProfileScreenFailedColdRead() => _customerProfileScreenHosted(
-      state: 'failed-cold-read',
-      data: CustomerProfileScreenPreviewFixtures.coldStart,
-      repository: const CustomerProfileScreenFailingRepository(
-        CustomerProfileFailure.network,
-      ),
-    );
+  state: 'failed-cold-read',
+  data: CustomerProfileScreenPreviewFixtures.coldStart,
+  repository: const CustomerProfileScreenFailingRepository(
+    CustomerProfileFailure.network,
+  ),
+);
 
 /// The other error path: a profile handed in through the route'
 @JeebPreview(
@@ -300,10 +351,10 @@ Widget customerProfileScreenStaleAfterUnauthorized() =>
   matrix: true,
 )
 Widget customerProfileScreenLongestContent() => _customerProfileScreenHosted(
-      state: 'longest-content',
-      data: CustomerProfileScreenPreviewFixtures.longestContent,
-      repository: const CustomerProfileScreenStaticRepository(
-        CustomerProfileScreenPreviewFixtures.longestContent,
-      ),
-      width: _customerProfileScreenCompactWidth,
-    );
+  state: 'longest-content',
+  data: CustomerProfileScreenPreviewFixtures.longestContent,
+  repository: const CustomerProfileScreenStaticRepository(
+    CustomerProfileScreenPreviewFixtures.longestContent,
+  ),
+  width: _customerProfileScreenCompactWidth,
+);

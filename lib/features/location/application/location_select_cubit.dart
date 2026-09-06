@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/current_location_resolver.dart';
 import '../domain/location_select_repository.dart';
 import 'location_select_state.dart';
@@ -18,21 +19,27 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
   final String _userId;
   final CurrentLocationResolver? _resolver;
 
+  /// Two overlapping pulls would otherwise race, second result winning.
+  bool _refreshing = false;
+
   Future<void> load() async {
-    if (state.status != LocationSelectStatus.initial) return;
-    emit(state.copyWith(status: LocationSelectStatus.loading, clearError: true));
+    if (state.status == LocationSelectStatus.loading) return;
+    emit(state.copyWith(
+      status: LocationSelectStatus.loading,
+      clearError: true,
+      clearRefreshError: true,
+    ));
     try {
       final addresses = await _repository.fetchSavedAddresses(_userId);
       emit(state.copyWith(
         status: LocationSelectStatus.loaded,
         savedAddresses: addresses,
       ));
-    } on LocationSelectException catch (e) {
-      emit(state.copyWith(status: LocationSelectStatus.failed, error: e.failure));
-    } catch (_) {
+    } catch (e) {
       emit(state.copyWith(
         status: LocationSelectStatus.failed,
-        error: LocationSelectFailure.unknown,
+        error: _legacy(e),
+        appFailure: AppFailure.of(e),
       ));
     }
     if (state.choiceKind == LocationChoiceKind.current) {
@@ -40,22 +47,43 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
     }
   }
 
+  /// A refresh NEVER blanks a loaded list: the failure rides beside the rows.
   Future<void> refresh() async {
+    if (_refreshing) return;
+    _refreshing = true;
     try {
       final addresses = await _repository.fetchSavedAddresses(_userId);
       emit(state.copyWith(
         status: LocationSelectStatus.loaded,
         savedAddresses: addresses,
         clearError: true,
+        clearRefreshError: true,
       ));
-    } on LocationSelectException catch (e) {
-      emit(state.copyWith(status: LocationSelectStatus.failed, error: e.failure));
-    } catch (_) {
-      emit(state.copyWith(
-        status: LocationSelectStatus.failed,
-        error: LocationSelectFailure.unknown,
-      ));
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
+      if (state.savedAddresses.isEmpty) {
+        emit(state.copyWith(
+          status: LocationSelectStatus.failed,
+          error: _legacy(e),
+          appFailure: failure,
+        ));
+        return;
+      }
+      emit(state.copyWith(refreshError: failure));
+    } finally {
+      _refreshing = false;
     }
+  }
+
+  /// Clears the warm-failure note once the user dismisses it.
+  void acknowledgeError() => emit(state.copyWith(clearRefreshError: true));
+
+  LocationSelectFailure _legacy(Object error) {
+    if (error is LocationSelectException) return error.failure;
+    final AppFailure failure = AppFailure.of(error);
+    return failure is NetworkFailure || failure is TimeoutFailure
+        ? LocationSelectFailure.network
+        : LocationSelectFailure.unknown;
   }
 
   void selectCurrent() {

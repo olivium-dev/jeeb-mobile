@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/escalate_repository.dart';
 
@@ -17,8 +18,11 @@ class EscalateState extends Equatable {
     this.voicePath,
     this.evidence = EscalateEvidence.empty,
     this.evidenceLoaded = false,
+    this.evidenceLoading = false,
+    this.evidenceLoadFailed = false,
     this.caseId,
     this.errorKind,
+    this.failure,
     this.uploads = const <String, CaseAttachmentProgress>{},
     this.operationId = '',
   });
@@ -35,8 +39,17 @@ class EscalateState extends Equatable {
 
   final bool evidenceLoaded;
 
+  /// The preview read is in flight.
+  final bool evidenceLoading;
+
+  /// The preview read failed — distinct from "there is no evidence".
+  final bool evidenceLoadFailed;
+
   final String? caseId;
   final EscalateErrorKind? errorKind;
+
+  /// The classified failure behind [errorKind] / [evidenceLoadFailed].
+  final AppFailure? failure;
   final Map<String, CaseAttachmentProgress> uploads;
   final String operationId;
 
@@ -58,8 +71,12 @@ class EscalateState extends Equatable {
     bool clearVoice = false,
     EscalateEvidence? evidence,
     bool? evidenceLoaded,
+    bool? evidenceLoading,
+    bool? evidenceLoadFailed,
     String? caseId,
     EscalateErrorKind? errorKind,
+    AppFailure? failure,
+    bool clearFailure = false,
     bool clearError = false,
     Map<String, CaseAttachmentProgress>? uploads,
     String? operationId,
@@ -73,8 +90,11 @@ class EscalateState extends Equatable {
       voicePath: clearVoice ? null : (voicePath ?? this.voicePath),
       evidence: evidence ?? this.evidence,
       evidenceLoaded: evidenceLoaded ?? this.evidenceLoaded,
+      evidenceLoading: evidenceLoading ?? this.evidenceLoading,
+      evidenceLoadFailed: evidenceLoadFailed ?? this.evidenceLoadFailed,
       caseId: caseId ?? this.caseId,
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
+      failure: (clearError || clearFailure) ? null : (failure ?? this.failure),
       uploads: uploads ?? this.uploads,
       operationId: operationId ?? this.operationId,
     );
@@ -92,8 +112,11 @@ class EscalateState extends Equatable {
     evidence.chatMessageCount,
     evidence.timeline.length,
     evidenceLoaded,
+    evidenceLoading,
+    evidenceLoadFailed,
     caseId,
     errorKind,
+    failure,
     uploads.entries
         .map(
           (entry) =>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -9,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
@@ -1266,4 +1268,168 @@ void main() {
       );
     });
   });
+
+  group('the screen-level rungs carry the identifier triple (WP-3)', () {
+    for (final locale in <Locale>[const Locale('en'), const Locale('ar')]) {
+      testWidgets('unreachable home has honest copy and Retry · ${locale.languageCode}', (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(_harness(repo: const _UnreachableClientHome(), locale: locale));
+          await tester.pumpAndSettle();
+          final l10n = AppLocalizations.of(tester.element(find.byType(ClientHomeScreen)));
+          expect(find.bySemanticsIdentifier('client_home_error'), findsOneWidget);
+          expect(find.bySemanticsIdentifier('client_home_retry_cta'), findsOneWidget);
+          expect(tester.getSemantics(find.bySemanticsIdentifier('client_home_error_body')).label, l10n.errorUnreachableBody);
+          expect(find.text(l10n.errorNetworkBody), findsNothing);
+          expect(find.bySemanticsIdentifier('offline_banner'), findsNothing);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+    testWidgets('loading → client_home_loading', (tester) async {
+      final _StalledClientHome repo = _StalledClientHome();
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('client_home_loading'),
+        findsOneWidget,
+      );
+
+      repo.fail();
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('client_home_error'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('client_home_retry_cta'),
+        findsOneWidget,
+        reason: 'the pinned retry id must survive the kit migration',
+      );
+    });
+
+    testWidgets('a warm refresh failure shows the dismissible band',
+        (tester) async {
+      final _ColdOkThenFailingHome repo = _ColdOkThenFailingHome();
+      final ClientHomeCubit cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => 'Sami',
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      await cubit.refresh();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            _syncDelegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: BlocProvider<ClientHomeCubit>.value(
+              value: cubit,
+              child: const ClientHomeScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('client_home_refresh_failed_note'),
+        findsOneWidget,
+      );
+    });
+
+    // ES-10: a dead `requests` read is empty-shaped. The E1 first-request
+    // composition must NOT light up on top of the bucket's error rung.
+    testWidgets('a dead requests bucket never renders the first-request hero', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(
+          repo: const _RequestsBucketDeadHome(),
+          greetingName: 'Layla',
+          onCreateRequest: (_) {},
+          initialTab: ClientHomeTab.all,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('pending_error_state'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_avatar'),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_root'),
+        findsNothing,
+      );
+      // Progressive disclosure never offers filters over a dead read.
+      expect(find.bySemanticsIdentifier('orders_filter_open'), findsNothing);
+      handle.dispose();
+    });
+  });
+}
+
+class _UnreachableClientHome implements ClientHomeRepository {
+  const _UnreachableClientHome();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw const NetworkFailure(reason: NetworkFailureReason.hostLookup);
+}
+
+/// The requests read is dead; in-progress loaded empty. Empty-shaped, but a
+/// failure — the exact case ES-10 names.
+class _RequestsBucketDeadHome implements ClientHomeRepository {
+  const _RequestsBucketDeadHome();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      const ClientHomeSnapshot(requestsFailure: NetworkFailure(offline: true));
+}
+
+/// Stalls the cold load until [fail] releases it with a failure.
+class _StalledClientHome implements ClientHomeRepository {
+  _StalledClientHome();
+
+  Completer<ClientHomeSnapshot> _pending = Completer<ClientHomeSnapshot>();
+
+  void fail() => _pending.complete(
+    const ClientHomeSnapshot(
+      requestsFailure: NetworkFailure(offline: true),
+      inProgressFailure: NetworkFailure(offline: true),
+    ),
+  );
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() {
+    if (_pending.isCompleted) _pending = Completer<ClientHomeSnapshot>();
+    return _pending.future;
+  }
+}
+
+/// First read succeeds; every read after it throws.
+class _ColdOkThenFailingHome implements ClientHomeRepository {
+  _ColdOkThenFailingHome();
+
+  int reads = 0;
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async {
+    if (reads++ == 0) return const ClientHomeSnapshot();
+    throw const NetworkFailure(offline: true);
+  }
 }

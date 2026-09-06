@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/case_evidence/domain/case_evidence.dart';
 import 'package:jeeb_mobile/features/escalate/data/dio_escalate_repository.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
@@ -314,7 +315,10 @@ class _FailOnceUploader implements CaseEvidenceUploader {
   }) async {
     calls++;
     if (calls == 1) {
-      throw const CaseEvidenceUploadException('CDN upload failed.');
+      throw const CaseEvidenceUploadException(
+        'CDN upload failed.',
+        failure: ServerFailure(status: 502),
+      );
     }
     return UploadedCaseAttachment(
       localId: attachment.localId,

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/voice_clip.dart';
 
 class TranscriptionResult extends Equatable {
@@ -24,7 +25,23 @@ class TranscriptionResult extends Equatable {
   List<Object?> get props => [id, transcript, status, language, reason];
 }
 
-enum VoiceUploadFailure { network, server, unknown }
+enum VoiceUploadFailure {
+  network,
+  server,
+  unknown,
+
+  /// The request outlived its own timeout budget — never a connectivity fault.
+  timeout,
+
+  /// 413: the clip is larger than the gateway accepts. Terminal.
+  tooLarge,
+
+  /// 415: the container/codec is not accepted. Terminal.
+  unsupportedFormat,
+
+  /// 502/503/504: transcription is down, retry later.
+  unavailable,
+}
 
 class VoiceUploadException implements Exception {
   const VoiceUploadException(this.failure);
@@ -136,20 +153,19 @@ class HttpVoiceRecordingRepository
   }
 
   VoiceUploadFailure _mapDio(DioException e) {
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.connectionError:
-        return VoiceUploadFailure.network;
-      case DioExceptionType.badResponse:
-        return VoiceUploadFailure.server;
-      case DioExceptionType.cancel:
-      case DioExceptionType.badCertificate:
-      case DioExceptionType.transformTimeout:
-      case DioExceptionType.unknown:
-        return VoiceUploadFailure.unknown;
-    }
+    // The HTTP status is authoritative for 413/415: an RFC 7807 body is not
+    // guaranteed, and `ValidationFailure` does not carry the status itself.
+    final int? status = e.response?.statusCode;
+    if (status == 413) return VoiceUploadFailure.tooLarge;
+    if (status == 415) return VoiceUploadFailure.unsupportedFormat;
+    return switch (AppFailure.of(e)) {
+      TimeoutFailure() => VoiceUploadFailure.timeout,
+      NetworkFailure() => VoiceUploadFailure.network,
+      ServerFailure(:final bool unavailable) when unavailable =>
+        VoiceUploadFailure.unavailable,
+      ServerFailure() || ValidationFailure() => VoiceUploadFailure.server,
+      _ => VoiceUploadFailure.unknown,
+    };
   }
 }
 

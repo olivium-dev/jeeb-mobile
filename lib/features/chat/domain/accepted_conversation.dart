@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
+
 /// Conversation whose offer was ACCEPTED (in-progress order).
 class AcceptedConversation extends Equatable {
   const AcceptedConversation({
@@ -42,7 +44,19 @@ class AcceptedConversation extends Equatable {
       ];
 }
 
-/// Read-side contract for accepted-conversation list.
+/// F12 — thrown when the accepted read failed, so an empty list can no longer
+/// mean both "none" and "the gateway is down". A throw keeps R3's signature.
+class AcceptedConversationsException implements Exception {
+  const AcceptedConversationsException(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  String toString() => 'AcceptedConversationsException($failure)';
+}
+
+/// Read contract. Implementations throw [AcceptedConversationsException] on a
+/// failure; an empty list means the gateway answered with no rows.
 abstract class AcceptedConversationsRepository {
   Future<List<AcceptedConversation>> fetchAccepted();
 }

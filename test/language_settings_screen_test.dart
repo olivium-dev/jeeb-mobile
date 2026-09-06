@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/locale/language_preference_repository.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -190,4 +191,71 @@ void main() {
     final Scaffold scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
     expect(scaffold.backgroundColor, Colors.transparent);
   });
+
+  // LANG-01: a local switch the server has not caught up with must say so —
+  // the alternative is a silent drift the user cannot see or act on.
+  group('the pending-push note', () {
+    testWidgets('is absent while the remote copy is in step', (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final LocaleCubit cubit = LocaleCubit(
+        prefs: await SharedPreferences.getInstance(),
+        deviceLocaleProvider: () => const Locale('en'),
+        remote: _PushFailingRemote(fail: false),
+      );
+      addTearDown(cubit.close);
+
+      await tester.pumpWidget(_harness(cubit));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('language_sync_pending_note'),
+        findsNothing,
+      );
+    });
+
+    for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
+      testWidgets('renders after a failed push (${locale.languageCode})',
+          (tester) async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final LocaleCubit cubit = LocaleCubit(
+          prefs: await SharedPreferences.getInstance(),
+          deviceLocaleProvider: () => locale,
+          remote: _PushFailingRemote(fail: true),
+        );
+        addTearDown(cubit.close);
+
+        await tester.pumpWidget(_harness(cubit));
+        await tester.pumpAndSettle();
+
+        await cubit.setLocale(
+          Locale(locale.languageCode == 'ar' ? 'en' : 'ar'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsIdentifier('language_sync_pending_note'),
+          findsOneWidget,
+        );
+      });
+    }
+  });
+}
+
+/// A remote whose `save` fails on demand, so the pending flag can be driven.
+class _PushFailingRemote implements LanguagePreferenceRepository {
+  _PushFailingRemote({required this.fail});
+
+  final bool fail;
+
+  @override
+  Future<String?> fetch() async => null;
+
+  @override
+  Future<void> save(String languageCode) async {
+    if (fail) {
+      throw const LanguagePreferenceException(
+        LanguagePreferenceFailure.network,
+      );
+    }
+  }
 }

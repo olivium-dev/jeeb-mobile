@@ -102,16 +102,33 @@ void main() {
       _expectRowHidden(tester);
     });
 
-    testWidgets('a failed fetch looks exactly like an empty account', (
+    // F31 (inverted): a failed fetch used to shrink to nothing, so it was
+    // indistinguishable from "this account has no saved locations".
+    testWidgets('a failed fetch says so, with a retry', (
       WidgetTester tester,
     ) async {
-      // `_load` swallows the throw and leaves `_locations` null, so there is no
       await pumpPreview(tester, savedLocationsChipRowFetchFailed);
 
+      expect(
+        find.bySemanticsIdentifier('saved_locations_chips_error'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('saved_locations_chips_retry_cta'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an EMPTY account still shrinks — nothing to say', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, savedLocationsChipRowEmpty);
+
       _expectRowHidden(tester);
-      expect(find.text('Could not load saved locations. Please try again.'),
-          findsNothing);
-      expect(find.text('Try again'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('saved_locations_chips_error'),
+        findsNothing,
+      );
     });
 
     testWidgets('tapping a chip commits that point to the picker cubit', (

@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../core/widgets/jeeb/jeeb_segmented_toggle.dart';
@@ -116,6 +117,27 @@ class LanguageSettingsScreen extends StatelessWidget {
                             label: l10n.settingsLanguageArabic,
                           ),
                         ],
+                      ),
+                      // LANG-01: the local change stands, but the account copy
+                      // has not caught up — say so instead of silently drifting.
+                      ValueListenableBuilder<bool>(
+                        valueListenable:
+                            context.read<LocaleCubit>().languagePushPending,
+                        builder: (context, pending, _) => pending
+                            ? Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  top: Spacing.medium,
+                                ),
+                                child: Semantics(
+                                  identifier: 'language_sync_pending_note',
+                                  container: true,
+                                  child: JeebInfoNote.muted(
+                                    icon: Icons.cloud_off,
+                                    text: l10n.languageSyncPendingBody,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ],
                   ),

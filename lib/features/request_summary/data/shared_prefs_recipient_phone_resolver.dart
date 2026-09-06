@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../settings/data/shared_prefs_profile_repository.dart';
 import '../../settings/domain/profile_repository.dart';
 import '../domain/recipient_phone_resolver.dart';
@@ -21,7 +23,11 @@ class SharedPrefsRecipientPhoneResolver implements RecipientPhoneResolver {
       final raw = profile?.phoneE164.trim();
       if (raw == null || raw.isEmpty) return null;
       return raw;
-    } catch (_) {
+    } catch (e) {
+      Diag.event('recipient_phone_lookup_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+        'source': 'prefs',
+      });
       return null;
     }
   }

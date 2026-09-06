@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/features/notifications/application/notifications_list_cubit.dart';
+import 'package:jeeb_mobile/features/notifications/application/notifications_list_state.dart';
 import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 
@@ -11,14 +14,14 @@ import 'package:jeeb_mobile/features/notifications/domain/notifications_reposito
 String _fixture(String name) =>
     File('test/features/notifications/fixtures/fm1/$name').readAsStringSync();
 
-Dio _dioRespondingWithWire(String wire) {
+Dio _dioRespondingWithWire(String wire, {String Function()? readWire}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://127.0.0.1'));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
         handler.resolve(
           Response<dynamic>(
-            data: jsonDecode(wire),
+            data: jsonDecode(readWire?.call() ?? wire),
             statusCode: 200,
             requestOptions: options,
           ),
@@ -39,6 +42,91 @@ Future<NotificationItem> _parseSingle(String wire) async {
 }
 
 void main() {
+  test(
+    'malformed notification read fails, retries, and retains warm rows',
+    () async {
+      var wire = '{"items":{}}';
+      final dio = _dioRespondingWithWire(wire, readWire: () => wire);
+      addTearDown(() => dio.close(force: true));
+      final cubit = NotificationsListCubit(
+        repository: DioNotificationsRepository(dio: dio),
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(cubit.state.status, NotificationsListStatus.failed);
+      expect(cubit.state.appFailure, isA<UnknownFailure>());
+      wire = '{"items":[{"id":"valid","title":"Actual notification"}]}';
+      await cubit.retry();
+      expect(cubit.state.status, NotificationsListStatus.loaded);
+      expect(cubit.state.items.single.id, 'valid');
+      wire = '{"items":[{"id":"valid"},42]}';
+      await cubit.refresh();
+      expect(cubit.state.status, NotificationsListStatus.loaded);
+      expect(cubit.state.items.single.title, 'Actual notification');
+      expect(cubit.state.refreshError, isA<UnknownFailure>());
+    },
+  );
+
+  for (final wire in <String>[
+    'null',
+    '{}',
+    '{"items":null}',
+    '{"items":{}}',
+    '{"items":null,"notifications":[]}',
+    '{"items":["junk"]}',
+    '{"items":[{"id":""}]}',
+    '{"items":[{"id":"valid"},42]}',
+  ]) {
+    test('malformed notification success is rejected: $wire', () async {
+      final dio = _dioRespondingWithWire(wire);
+      addTearDown(() => dio.close(force: true));
+      final repo = DioNotificationsRepository(dio: dio);
+      await expectLater(
+        repo.fetchNotifications(),
+        throwsA(isA<UnknownFailure>().having((e) => e.parse, 'parse', isTrue)),
+      );
+    });
+  }
+  test('an explicit empty notification list remains successful', () async {
+    final dio = _dioRespondingWithWire('{"items":[]}');
+    addTearDown(() => dio.close(force: true));
+    expect(
+      await DioNotificationsRepository(dio: dio).fetchNotifications(),
+      isEmpty,
+    );
+  });
+  test(
+    'P02 constructed target contract preserves ref and resolves supported wire kinds',
+    () async {
+      final repository = DioNotificationsRepository(
+        dio: _dioRespondingWithWire(
+          _fixture('constructed-p02-target-contract.json'),
+        ),
+      );
+      final items = await repository.fetchNotifications();
+      expect(items, hasLength(9));
+      const expected = <String, NotificationKind>{
+        'p02-new': NotificationKind.newRequest,
+        'p02-chat': NotificationKind.chat,
+        'p02-offer': NotificationKind.offer,
+        'p02-accepted': NotificationKind.offerAccepted,
+        'p02-delivery': NotificationKind.status,
+        'p02-cancel': NotificationKind.status,
+        'p02-expand': NotificationKind.requestExpired,
+        'p02-expired': NotificationKind.requestExpired,
+        'p02-availability': NotificationKind.availability,
+      };
+      for (final item in items) {
+        expect(item.kind, expected[item.id]);
+        expect(DateTime.tryParse(item.timestamp), isNotNull);
+        if (item.kind == NotificationKind.availability) {
+          expect(item.ref, isNull);
+        } else {
+          expect(item.ref, 'request-${item.id.substring(4)}');
+        }
+      }
+    },
+  );
   test(
     'FM1 R19 constructed gateway wire rejects degenerate ref and type shapes',
     () async {

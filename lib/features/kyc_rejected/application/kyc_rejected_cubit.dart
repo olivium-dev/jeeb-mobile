@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../kyc/domain/kyc_gateway.dart';
 import '../../kyc/domain/kyc_submission.dart';
 import 'kyc_rejected_state.dart';
@@ -15,6 +16,7 @@ class KycRejectedCubit extends Cubit<KycRejectedState> {
         status: KycRejectedStatus.loading,
         clearDecision: true,
         clearRejectionReason: true,
+        clearFailure: true,
       ),
     );
     try {
@@ -30,10 +32,11 @@ class KycRejectedCubit extends Cubit<KycRejectedState> {
           submittedAt: submission.submittedAt,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       emit(
         state.copyWith(
           status: KycRejectedStatus.error,
+          failure: e is KycGatewayException ? e.failure : AppFailure.of(e),
           clearDecision: true,
           clearRejectionReason: true,
         ),

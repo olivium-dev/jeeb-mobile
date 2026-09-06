@@ -41,6 +41,11 @@ void main() {
         JeeberDeliveryTabDestination.forStatus(JeeberKycStatus.rejected),
         JeeberDeliveryTabDestination.kycRejected,
       );
+      expect(
+        JeeberDeliveryTabDestination.forStatus(JeeberKycStatus.unknown),
+        JeeberDeliveryTabDestination.unavailable,
+      );
+      expect(const _Gate(JeeberKycStatus.unknown).isApproved, isFalse);
     });
 
     test('every status maps to exactly one destination (exhaustive)', () {
@@ -121,16 +126,27 @@ void _liveGateTests() {
       },
     );
 
+    // NET-16: a failed read used to be indistinguishable from "never
+    // onboarded", so an approved jeeber was routed to the register prompt and
+    // the gate never re-read.
     test(
-      'a failed live read holds the conservative default (server backstops)',
+      'a failed live read reports unknown, carries the failure and notifies',
       () async {
         final gate = LiveJeeberKycStatusGate(
           _ThrowingKycGateway(),
           useLiveSource: true,
         );
+        var notified = false;
+        gate.addListener(() => notified = true);
         await gate.refresh();
-        expect(gate.status, JeeberKycStatus.none);
+        expect(gate.status, JeeberKycStatus.unknown);
         expect(gate.isApproved, isFalse);
+        expect(gate.lastFailure, isNotNull);
+        expect(notified, isTrue);
+        expect(
+          JeeberDeliveryTabDestination.forStatus(gate.status),
+          JeeberDeliveryTabDestination.unavailable,
+        );
       },
     );
 

@@ -140,7 +140,11 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsOneWidget);
+    // The FROZEN retry id rides JeebFailureBlock's CTA now.
+    expect(
+      find.bySemanticsIdentifier('jeeber_home_load_error_retry_cta'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('inactivity ticker raises the warning banner and CTA clears it', (
@@ -198,7 +202,10 @@ void main() {
             'root identifier without an AvailabilityCubit provider.',
       );
       // Sanity: the registered-only retry view is absent.
-      expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('jeeber_home_load_error_retry_cta'),
+        findsNothing,
+      );
     },
   );
 

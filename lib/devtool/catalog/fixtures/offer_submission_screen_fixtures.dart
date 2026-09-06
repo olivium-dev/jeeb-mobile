@@ -56,6 +56,32 @@ class ScriptedOfferSubmissionRepository implements OfferSubmissionRepository {
   }
 }
 
+/// Observes the actual values submitted by the mounted catalog form. Tests
+/// assert these, not merely that a pre-seeded failure happened to render.
+class CatalogObservedOfferRepository implements OfferSubmissionRepository {
+  CatalogObservedOfferRepository(this.delegate);
+  final ScriptedOfferSubmissionRepository delegate;
+  int submissions = 0;
+  double? price;
+  int? eta;
+  String? note;
+
+  @override
+  Future<OfferSubmissionResult> submitOffer({
+    required String requestId,
+    required double priceUsd,
+    required int etaMinutes,
+    String? note,
+  }) {
+    submissions++;
+    price = priceUsd;
+    eta = etaMinutes;
+    this.note = note;
+    return delegate.submitOffer(requestId: requestId, priceUsd: priceUsd,
+      etaMinutes: etaMinutes, note: note);
+  }
+}
+
 /// A fake [WalletRepository] for the composer's money lines (W1m).
 /// `_loadWallet` swallows every failure and leaves `_wallet` null, so [failure]
 /// and [stalls] both degrade the screen to the same reading — the currency
@@ -85,6 +111,17 @@ class ScriptedWalletRepository implements WalletRepository {
     }
     return Future<WalletBalance>.value(balance);
   }
+}
+
+/// Funded when the draft opens; externally changed before its POST returns.
+/// The second real read agrees with the server's authoritative 402 figures.
+class OfferSubmissionFailureWalletRepository implements WalletRepository {
+  int reads = 0;
+
+  @override
+  Future<WalletBalance> fetchBalance() async => ++reads == 1
+      ? OfferSubmissionScreenPreviewFixtures.wallet
+      : OfferSubmissionScreenPreviewFixtures.drainedWallet;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -187,5 +224,76 @@ class OfferSubmissionScreenPreviewFixtures {
           requestId: requestId ?? validationRequestId,
           priceUsd: null,
           etaMinutes: null,
+        );
+
+  // ── Machine-reason repositories (AE-05/AE-13) ─────────────────────────────
+
+  /// 409 `offer-already-exists` — the "Withdraw and re-bid" rung.
+  static const ScriptedOfferSubmissionRepository duplicateRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.duplicateOffer,
+  );
+
+  /// 400 `offer-fee-too-low` — lands on the price field, not the note rung.
+  static const ScriptedOfferSubmissionRepository feeTooLowRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.feeTooLow,
+  );
+
+  /// 400 `offer-eta-invalid` — lands under the ETA row.
+  static const ScriptedOfferSubmissionRepository etaInvalidRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.etaInvalid,
+  );
+
+  /// 400 `offer-note-too-long` — lands under the note field.
+  static const ScriptedOfferSubmissionRepository noteTooLongRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.noteTooLong,
+  );
+
+  /// 409 `offer-out-of-range`.
+  static const ScriptedOfferSubmissionRepository outOfRangeRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.outOfRange,
+  );
+
+  /// 409 `same-delivery-role-violation`.
+  static const ScriptedOfferSubmissionRepository sameRoleRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.sameRoleViolation,
+  );
+
+  /// 409 `request-not-open-for-offers` — the terminal request-gone path.
+  static const ScriptedOfferSubmissionRepository requestNotOpenRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.requestNotOpen,
+  );
+
+  /// A 402 carrying the figures — both sheet rows render.
+  static const ScriptedOfferSubmissionRepository insufficientRepository =
+      ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.insufficientBalance,
+    balance: shortfall,
+  );
+
+  /// A 402 with an EMPTY body: the sheet must drop both amount rows rather
+  /// than fabricate a zero shortfall (UX-15).
+  static const ScriptedOfferSubmissionRepository
+      insufficientUnknownRepository = ScriptedOfferSubmissionRepository(
+    failure: OfferSubmissionFailure.insufficientBalance,
+  );
+
+  /// A cubit already driven into [repository]'s failure. The submit resolves
+  /// on the next microtask, so the state is settled before the first frame.
+  static OfferFormCubit failedCubit(
+    ScriptedOfferSubmissionRepository repository, {
+    String? requestId,
+  }) =>
+      OfferFormCubit(repository: repository)
+        ..submit(
+          requestId: requestId ?? validationRequestId,
+          priceUsd: 15.0,
+          etaMinutes: 20,
         );
 }

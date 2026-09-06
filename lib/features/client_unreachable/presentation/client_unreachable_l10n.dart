@@ -1,59 +1,32 @@
 import 'package:flutter/widgets.dart';
 
-/// Localized copy resolver for `client_unreachable` (the
-/// `live_tracking_l10n.dart` / `dispute_status_l10n.dart` precedent).
-///
-/// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
-/// integrator-owned, and this screen has **no** keys there today — every string
-/// it renders was inlined in English at the call site, so an Arabic user read
-/// English. This resolver keeps the EN wording byte-identical (no copy meaning
-/// changes in the redesign-2026-08 re-skin) and supplies the AR side from a
-/// feature-local map until the integrator lands the dedicated keys (REQUESTED
-/// in `docs/redesign-2026-08/wiring/w4-client-unreachable.md`).
-///
-/// Maestro/widget tests assert on `Semantics(identifier:)` only, so swapping
-/// these getters to the real ARB keys later needs no call-site change.
-///
-/// Delete this file once the integrator adds:
-///   clientUnreachableTitle · clientUnreachableNoticeTitle
-///   · clientUnreachableNoticeBody · clientUnreachableCallAgainCta
-///   · clientUnreachableChatCta · clientUnreachableFlagCta
+import '../../../l10n/app_localizations.dart';
+
+/// Screen 33 copy accessors. Every key exists in both ARBs, so this is a thin
+/// accessor layer rather than a feature-local EN/AR map.
 class ClientUnreachableL10n {
-  ClientUnreachableL10n(this._isArabic);
+  ClientUnreachableL10n(this._l10n);
 
   factory ClientUnreachableL10n.of(BuildContext context) =>
-      ClientUnreachableL10n(
-        Localizations.localeOf(context).languageCode == 'ar',
-      );
+      ClientUnreachableL10n(AppLocalizations.of(context));
 
-  final bool _isArabic;
+  final AppLocalizations _l10n;
 
   /// Top-bar title.
-  String get title =>
-      _pick('Client Unreachable', 'تعذّر الوصول إلى العميل');
+  String get title => _l10n.clientUnreachableTitle;
 
   /// Notice headline — the state the jeeber is in.
-  String get noticeTitle =>
-      _pick('Cannot reach the Client', 'لا يمكن الوصول إلى العميل');
+  String get noticeTitle => _l10n.clientUnreachableNoticeTitle;
 
   /// Notice body — what flagging does and the 15-minute grace window.
-  String get noticeBody => _pick(
-        'If the Client is not responding, you can flag them as unreachable. '
-            'They will have 15 minutes to respond before the delivery is '
-            'escalated.',
-        'إذا لم يستجب العميل، يمكنك الإبلاغ عن تعذّر الوصول إليه. سيكون أمامه '
-            '15 دقيقة للرد قبل تصعيد التوصيل.',
-      );
+  String get noticeBody => _l10n.clientUnreachableNoticeBody;
 
   /// Retry-the-call affordance.
-  String get callAgainCta => _pick('Try Calling Again', 'حاول الاتصال مجددًا');
+  String get callAgainCta => _l10n.clientUnreachableCallAgainCta;
 
   /// Reach-out-in-chat affordance.
-  String get chatCta => _pick('Send Chat Message', 'إرسال رسالة في المحادثة');
+  String get chatCta => _l10n.clientUnreachableChatCta;
 
   /// The escalating edge — docked, and the only primary action here.
-  String get flagCta =>
-      _pick('Flag as Unreachable', 'الإبلاغ عن تعذّر الوصول');
-
-  String _pick(String en, String ar) => _isArabic ? ar : en;
+  String get flagCta => _l10n.clientUnreachableFlagCta;
 }

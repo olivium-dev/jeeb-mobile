@@ -61,7 +61,12 @@ Future<void> persistNewRequestPush(RemoteMessage message) async {
       });
       return;
     }
-    final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
+    // F7: the isolate has no keystore, so the row is scoped by the owner the
+    // main isolate mirrored into prefs at registration.
+    final inbox = SharedPrefsLocalPushInbox(
+      prefs: prefs,
+      ownerId: prefs.getString(SharedPrefsLocalPushInbox.ownerPrefKey),
+    );
     await inbox.append(
       LocalPushRecord(
         id: message.messageId ?? 'fcm-${DateTime.now().microsecondsSinceEpoch}',

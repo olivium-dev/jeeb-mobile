@@ -146,6 +146,7 @@ void main() {
             data: any(named: 'data'),
           )).thenThrow(DioException(
         requestOptions: RequestOptions(path: '/api/User/profile'),
+        type: DioExceptionType.badResponse,
         response: Response<void>(
           requestOptions: RequestOptions(path: '/api/User/profile'),
           statusCode: 401,
@@ -174,6 +175,7 @@ void main() {
             data: any(named: 'data'),
           )).thenThrow(DioException(
         requestOptions: RequestOptions(path: '/api/User/profile'),
+        type: DioExceptionType.badResponse,
         response: Response<void>(
           requestOptions: RequestOptions(path: '/api/User/profile'),
           statusCode: 502,

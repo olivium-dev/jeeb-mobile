@@ -1,11 +1,17 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/reviews_repository.dart';
 
 class DioReviewsRepository implements ReviewsRepository {
-  const DioReviewsRepository(this._dio);
+  const DioReviewsRepository(
+    this._dio, {
+    OperationIdFactory? operationIdFactory,
+  }) : _operationId = operationIdFactory ?? newOperationId;
 
   final Dio _dio;
+  final OperationIdFactory _operationId;
 
   @override
   Future<ReviewsPage> fetchReviews({
@@ -24,16 +30,31 @@ class DioReviewsRepository implements ReviewsRepository {
       );
       return _parse(res.data ?? const <String, dynamic>{}, page);
     } on DioException catch (e) {
-      throw ReviewsRepositoryException(_map(e), e.message);
+      throw ReviewsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 
   @override
   Future<void> reportReview(String reviewId) async {
     try {
-      await _dio.post<void>('/v1/ratings/jeeb/reviews/$reviewId/report');
+      // One key per report attempt: a transport-level replay of THIS POST is
+      // deduped, while a user-tapped Retry is a fresh attempt.
+      await _dio.post<void>(
+        '/v1/ratings/jeeb/reviews/$reviewId/report',
+        options: Options(
+          headers: <String, Object?>{'Idempotency-Key': _operationId()},
+        ),
+      );
     } on DioException catch (e) {
-      throw ReviewsRepositoryException(_map(e), e.message);
+      throw ReviewsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 
@@ -42,9 +63,11 @@ class DioReviewsRepository implements ReviewsRepository {
     final list = raw is List ? raw : const <dynamic>[];
     final reviews = <ReviewItem>[];
     for (final item in list) {
-      if (item is Map) {
-        reviews.add(_review(item.cast<String, dynamic>()));
-      }
+      if (item is! Map) continue;
+      // A missing score is not a 0.0-star review: skip it rather than
+      // fabricate a rating (UX-47).
+      final review = _review(item.cast<String, dynamic>());
+      if (review != null) reviews.add(review);
     }
     final coldStart = json['coldStart'] == true || json['cold_start'] == true;
     return ReviewsPage(
@@ -60,12 +83,14 @@ class DioReviewsRepository implements ReviewsRepository {
     );
   }
 
-  ReviewItem _review(Map<String, dynamic> json) {
+  ReviewItem? _review(Map<String, dynamic> json) {
+    final score = _numOrNull(json['score'] ?? json['rating']);
+    if (score == null) return null;
     return ReviewItem(
       id: _str(json['id']) ?? '',
       reviewerFirstName:
           _str(json['reviewerFirstName'] ?? json['reviewer_first_name']) ?? '',
-      score: _num(json['score'] ?? json['rating']),
+      score: score,
       timestamp:
           _str(json['createdAt'] ?? json['ts'] ?? json['timestamp']) ?? '',
       body: _str(json['body'] ?? json['comment']),
@@ -73,7 +98,6 @@ class DioReviewsRepository implements ReviewsRepository {
     );
   }
 
-  double _num(Object? v) => (v is num) ? v.toDouble() : 0.0;
   double? _numOrNull(Object? v) => (v is num) ? v.toDouble() : null;
   int? _int(Object? v) => (v is num) ? v.toInt() : null;
 

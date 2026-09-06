@@ -9,7 +9,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/dev_flags.dart';
 import '../core/dev_seam/dev_seam.dart';
+import '../core/network/app_failure.dart';
 import '../core/theme/app_theme.dart';
+import '../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../l10n/app_localizations.dart';
 import 'app.dart';
 import 'app_restarter.dart';
@@ -248,19 +250,21 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
   }
 }
 
+/// Locale for the two pre-app hosts: prefs have not loaded, so the device
+/// locale is the only signal and English is the fallback.
+Locale bootstrapLocale() {
+  final forced = _forcedLocale;
+  final candidate = forced.isNotEmpty
+      ? forced
+      : PlatformDispatcher.instance.locale.languageCode;
+  final supported = AppLocalizations.supportedLocales.any(
+    (l) => l.languageCode == candidate,
+  );
+  return supported ? Locale(candidate) : const Locale('en');
+}
+
 class _SplashApp extends StatelessWidget {
   const _SplashApp({super.key});
-
-  static Locale _initialLocale() {
-    final forced = _forcedLocale;
-    final candidate = forced.isNotEmpty
-        ? forced
-        : PlatformDispatcher.instance.locale.languageCode;
-    final supported = AppLocalizations.supportedLocales.any(
-      (l) => l.languageCode == candidate,
-    );
-    return supported ? Locale(candidate) : const Locale('en');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -271,7 +275,7 @@ class _SplashApp extends StatelessWidget {
       theme: AppTheme.midnight(),
       darkTheme: AppTheme.midnight(),
       themeMode: ThemeMode.dark,
-      locale: _initialLocale(),
+      locale: bootstrapLocale(),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -282,6 +286,69 @@ class _SplashApp extends StatelessWidget {
       home: const BrandedSplash(),
     );
   }
+}
+
+const String bootstrapErrorIdentifier = 'bootstrap_error';
+const String bootstrapErrorRetryIdentifier = 'bootstrap_error_retry_cta';
+
+/// The five ARB keys the failure host can reach: `bootstrapFailed*` for the
+/// overrides, the `UnknownFailure` arm of [failureCopy] for the rest.
+const List<String> kBootstrapFailureKeys = <String>[
+  'bootstrapFailedTitle',
+  'bootstrapFailedBody',
+  'errorGenericTitle',
+  'errorGenericBody',
+  'actionRetry',
+];
+
+/// Inlined because the ARB is an asset, and a failed bootstrap is exactly when
+/// the bundle may be what broke. Pinned to `lib/l10n/*.arb` by its own test.
+const Map<String, Map<String, String>> kBootstrapFailureStrings =
+    <String, Map<String, String>>{
+      'en': <String, String>{
+        'bootstrapFailedTitle': "Jeeb couldn't start",
+        'bootstrapFailedBody': 'Close the app and open it again.',
+        'errorGenericTitle': 'Something went wrong',
+        'errorGenericBody': "We couldn't complete that. Try again.",
+        'actionRetry': 'Retry',
+      },
+      'ar': <String, String>{
+        'bootstrapFailedTitle': 'تعذّر تشغيل جيب',
+        'bootstrapFailedBody': 'أغلق التطبيق ثم افتحه من جديد.',
+        'errorGenericTitle': 'حدث خطأ ما',
+        'errorGenericBody': 'تعذّر إتمام ذلك. حاول مجددًا.',
+        'actionRetry': 'إعادة المحاولة',
+      },
+    };
+
+/// Resolves synchronously, unlike `AppLocalizations.delegate`, so the failure
+/// host paints on its first frame instead of waiting on the asset bundle.
+class BootstrapFailureLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const BootstrapFailureLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) =>
+      kBootstrapFailureStrings.containsKey(locale.languageCode);
+
+  @override
+  Future<AppLocalizations> load(Locale locale) => SynchronousFuture(
+    AppLocalizations(locale, kBootstrapFailureStrings[locale.languageCode]!),
+  );
+
+  @override
+  bool shouldReload(BootstrapFailureLocalizationsDelegate old) => false;
+}
+
+/// Longest payload the block can lay out on the shortest supported viewport.
+const int bootstrapErrorDetailLimit = 160;
+
+/// Debug-only diagnostic, capped: an uncapped native stack trace overflows the
+/// block, which is how the old host lost the end of every verbose payload.
+String bootstrapErrorDetail(Object error) {
+  final raw = error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (raw.length <= bootstrapErrorDetailLimit) return raw;
+  return '${raw.substring(0, bootstrapErrorDetailLimit - 1)}\u2026';
 }
 
 class _BootstrapErrorApp extends StatelessWidget {
@@ -297,16 +364,42 @@ class _BootstrapErrorApp extends StatelessWidget {
       theme: AppTheme.midnight(),
       darkTheme: AppTheme.midnight(),
       themeMode: ThemeMode.dark,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'App failed to start: $error',
-              textAlign: TextAlign.center,
+      locale: bootstrapLocale(),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const <LocalizationsDelegate<Object?>>[
+        BootstrapFailureLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          // Inert CTAs are worse than none: offer a restart only where the
+          // host that can perform one is actually above us.
+          final bool canRestart = AppRestarter.isAvailable(context);
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: JeebFailureBlock(
+                  failure: AppFailure.of(error),
+                  identifier: bootstrapErrorIdentifier,
+                  retryIdentifier: bootstrapErrorRetryIdentifier,
+                  headlineOverride: l10n.bootstrapFailedTitle,
+                  // EP-01: the raw error is a debug-only diagnostic; profile
+                  // builds ship to device validation and get product copy.
+                  bodyOverride: kDebugMode
+                      ? bootstrapErrorDetail(error)
+                      : l10n.bootstrapFailedBody,
+                  onRetry: canRestart
+                      ? () => AppRestarter.restart(context)
+                      : null,
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -370,7 +463,7 @@ final Object jeebBootstrapArabicError = Exception(
 Widget jeebBootstrapColdStart() => _jeebBootstrapBootstrapping();
 
 /// Shortest plausible failure: something threw a bare `Exception`.
-/// Renders "App failed to start: Exception" — a dead end with no cause, no
+/// Renders the bootstrap failure block over a bare `Exception` — no cause, no
 @JeebPreview(
   group: 'app',
   name: 'Boot failed · opaque',

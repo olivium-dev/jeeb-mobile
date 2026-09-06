@@ -105,34 +105,37 @@ void main() {
     );
   });
 
-  testWidgets('the cash mark is the glass disc rung, not a solid accent glyph',
-      (tester) async {
-    await pump(tester);
+  testWidgets(
+    'the cash mark is the glass disc rung, not a solid accent glyph',
+    (tester) async {
+      await pump(tester);
 
-    final ThemeData theme = Theme.of(
-      tester.element(find.byIcon(Icons.payments)),
-    );
-    final JeebSemanticColors glass = theme.extension<JeebSemanticColors>()!;
+      final ThemeData theme = Theme.of(
+        tester.element(find.byIcon(Icons.payments)),
+      );
+      final JeebSemanticColors glass = theme.extension<JeebSemanticColors>()!;
 
-    final BoxDecoration d = tester
-            .widget<Container>(
-              find
-                  .ancestor(
-                    of: find.byIcon(Icons.payments),
-                    matching: find.byType(Container),
+      final BoxDecoration d =
+          tester
+                  .widget<Container>(
+                    find
+                        .ancestor(
+                          of: find.byIcon(Icons.payments),
+                          matching: find.byType(Container),
+                        )
+                        .first,
                   )
-                  .first,
-            )
-            .decoration!
-        as BoxDecoration;
-    expect(d.color, glass.glassFillEmphasis);
-    expect(d.color, isNot(theme.colorScheme.surfaceContainerHigh));
-    expect(d.border, Border.all(color: glass.glassBorder));
+                  .decoration!
+              as BoxDecoration;
+      expect(d.color, glass.glassFillEmphasis);
+      expect(d.color, isNot(theme.colorScheme.surfaceContainerHigh));
+      expect(d.border, Border.all(color: glass.glassBorder));
 
-    final Icon glyph = tester.widget<Icon>(find.byIcon(Icons.payments));
-    expect(glyph.color, theme.colorScheme.onSurface);
-    expect(glyph.color, isNot(theme.colorScheme.primary));
-  });
+      final Icon glyph = tester.widget<Icon>(find.byIcon(Icons.payments));
+      expect(glyph.color, theme.colorScheme.onSurface);
+      expect(glyph.color, isNot(theme.colorScheme.primary));
+    },
+  );
 
   testWidgets('the single exit is the periwinkle CTA and keeps its frozen id', (
     tester,

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/address_form_repository.dart';
 import '../domain/saved_location.dart';
@@ -24,7 +25,7 @@ class DioAddressFormRepository implements AddressFormRepository {
       );
       return _parseItem(res.data, draft);
     } on DioException catch (e) {
-      throw AddressFormException(_map(e), e.message);
+      throw AppFailure.of(e);
     }
   }
 
@@ -41,7 +42,7 @@ class DioAddressFormRepository implements AddressFormRepository {
       );
       return _parseItem(res.data, draft, fallbackId: id);
     } on DioException catch (e) {
-      throw AddressFormException(_map(e), e.message);
+      throw AppFailure.of(e);
     }
   }
 
@@ -111,12 +112,4 @@ class DioAddressFormRepository implements AddressFormRepository {
     final t = raw?.trim();
     return (t == null || t.isEmpty) ? null : t;
   }
-
-  AddressFormFailure _map(DioException e) =>
-      (e.type == DioExceptionType.connectionError ||
-              e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.receiveTimeout ||
-              e.type == DioExceptionType.sendTimeout)
-          ? AddressFormFailure.network
-          : AddressFormFailure.unknown;
 }

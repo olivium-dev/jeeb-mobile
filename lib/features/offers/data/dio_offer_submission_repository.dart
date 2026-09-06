@@ -1,11 +1,20 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../domain/offer_submission_repository.dart';
 
-class DioOfferSubmissionRepository implements OfferSubmissionRepository {
-  const DioOfferSubmissionRepository(this._dio);
+class DioOfferSubmissionRepository
+    implements OfferSubmissionRepository, IdempotentOfferSubmission {
+  const DioOfferSubmissionRepository(this._dio, {OperationIdFactory? newKey})
+    : _newKey = newKey ?? newOperationId;
 
   final Dio _dio;
+
+  /// Seam so a test can pin the minted key; the composer normally supplies its
+  /// own draft-scoped key through [submitOfferIdempotent].
+  final OperationIdFactory _newKey;
 
   /// The live request-scoped submit path (BUG-2 corrected route):
   static String _pathFor(String requestId) => '/requests/$requestId/offers';
@@ -16,15 +25,42 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
     required double priceUsd,
     required int etaMinutes,
     String? note,
+  }) {
+    return submitOfferIdempotent(
+      requestId: requestId,
+      priceUsd: priceUsd,
+      etaMinutes: etaMinutes,
+      idempotencyKey: _newKey(),
+      note: note,
+    );
+  }
+
+  @override
+  Future<OfferSubmissionResult> submitOfferIdempotent({
+    required String requestId,
+    required double priceUsd,
+    required int etaMinutes,
+    required String idempotencyKey,
+    String? note,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         _pathFor(requestId),
         data: _buildBody(priceUsd, etaMinutes, note),
+        options: Options(
+          headers: <String, dynamic>{'Idempotency-Key': idempotencyKey},
+        ),
       );
       return _parseResult(response.data, requestId);
+    } on OfferSubmissionException {
+      rethrow;
     } on DioException catch (e) {
-      throw _mapDioError(e);
+      throw _map(AppFailure.of(e), e.response?.statusCode, e.response?.data);
+    } catch (e) {
+      throw OfferSubmissionException(
+        OfferSubmissionFailure.server,
+        cause: AppFailure.of(e),
+      );
     }
   }
 
@@ -44,11 +80,17 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
     Map<String, dynamic>? data,
     String requestId,
   ) {
-    final offerId =
-        (data?['id'] as String?) ?? (data?['offerId'] as String?) ?? '';
+    final offerId = (data?['id'] as String?) ?? (data?['offerId'] as String?);
+    // A 201 that names no offer is not a submitted offer; never report success.
+    if (offerId == null || offerId.trim().isEmpty) {
+      throw const OfferSubmissionException(
+        OfferSubmissionFailure.server,
+        cause: UnknownFailure(parse: true),
+      );
+    }
     final rawConversationId = (data?['conversationId'] as String?)?.trim();
-    final conversationId = (rawConversationId != null &&
-            rawConversationId.isNotEmpty)
+    final conversationId =
+        (rawConversationId != null && rawConversationId.isNotEmpty)
         ? rawConversationId
         : requestId;
     return OfferSubmissionResult(
@@ -57,72 +99,70 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
     );
   }
 
-  OfferSubmissionException _mapDioError(DioException e) {
-    final status = e.response?.statusCode;
-    // {needed, available, currency} for the JM-046 sheet (42_GUARDRAILS_MOCK
-    if (status == 402) {
+  /// Machine `typeSuffix` only — the retired substring heuristic matched `'20'`
+  /// inside a GUID and reported a cap that no longer exists (AE-05/UX-12).
+  OfferSubmissionException _map(AppFailure f, [int? status, Object? raw]) {
+    final GatewayProblem? p = f.problem;
+    final String? suffix = p?.typeSuffix;
+
+    // 402 has no AppFailure subtype: an empty body leaves nothing but the
+    // transport status to read it from.
+    if (status == 402 || p?.status == 402 || suffix == 'insufficient-balance') {
       return OfferSubmissionException(
         OfferSubmissionFailure.insufficientBalance,
-        balance: _parseBalance(e.response?.data),
+        balance: _parseBalance(p, raw),
+        cause: f,
       );
     }
-    if (status == 409 && _isOfferCap(e.response?.data)) {
-      return const OfferSubmissionException(
-        OfferSubmissionFailure.offerCapReached,
-      );
-    }
-    if (status == 404 || status == 409 || status == 410) {
-      return const OfferSubmissionException(OfferSubmissionFailure.requestGone);
-    }
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      return const OfferSubmissionException(OfferSubmissionFailure.network);
-    }
-    return OfferSubmissionException(
-      OfferSubmissionFailure.server,
-      message: 'HTTP $status',
-    );
+    return switch (f) {
+      ValidationFailure() => OfferSubmissionException(switch (suffix) {
+        'offer-fee-too-low' => OfferSubmissionFailure.feeTooLow,
+        'offer-eta-invalid' => OfferSubmissionFailure.etaInvalid,
+        'offer-note-too-long' => OfferSubmissionFailure.noteTooLong,
+        _ => OfferSubmissionFailure.invalidInput,
+      }, cause: f),
+      ConflictFailure() => OfferSubmissionException(switch (suffix) {
+        'offer-already-exists' => OfferSubmissionFailure.duplicateOffer,
+        'same-delivery-role-violation' =>
+          OfferSubmissionFailure.sameRoleViolation,
+        'offer-out-of-range' => OfferSubmissionFailure.outOfRange,
+        'request-not-open-for-offers' => OfferSubmissionFailure.requestNotOpen,
+        _ => OfferSubmissionFailure.requestGone,
+      }, cause: f),
+      GoneFailure() || NotFoundFailure() => OfferSubmissionException(
+        OfferSubmissionFailure.requestGone,
+        cause: f,
+      ),
+      NetworkFailure() || TimeoutFailure() => OfferSubmissionException(
+        OfferSubmissionFailure.network,
+        cause: f,
+      ),
+      _ => OfferSubmissionException(OfferSubmissionFailure.server, cause: f),
+    };
   }
 
-  /// (40_GUARDRAILS_ARCH §4). The cap reads like `offer-cap-reached` /
-  bool _isOfferCap(Object? data) {
-    if (data is! Map) return false;
-    final haystack = [
-      data['type'],
-      data['code'],
-      data['title'],
-      data['detail'],
-      data['error'],
-    ].whereType<String>().map((s) => s.toLowerCase()).join(' ');
-    if (haystack.contains('not-open') || haystack.contains('not_open')) {
-      return false;
-    }
-    return haystack.contains('cap') ||
-        haystack.contains('too-many') ||
-        haystack.contains('too_many') ||
-        haystack.contains('limit') ||
-        haystack.contains('maximum') ||
-        haystack.contains('20');
-  }
-
-  InsufficientBalanceInfo? _parseBalance(Object? data) {
-    if (data is! Map) return null;
-    final map = Map<String, dynamic>.from(data);
+  /// Each figure stays null when the body omits it (UX-15). A 402 that is not
+  /// a problem document still carries the figures, so the raw map is read too.
+  InsufficientBalanceInfo? _parseBalance(GatewayProblem? p, Object? raw) {
+    final map = raw is Map ? raw : const <Object?, Object?>{};
+    final needed = p?.needed ?? _double(map['needed']);
+    final available = p?.available ?? _double(map['available']);
+    final currency = p?.currency ?? _string(map['currency']);
+    if (needed == null && available == null && currency == null) return null;
     return InsufficientBalanceInfo(
-      needed: _num(map['needed'] ?? map['needed_amount']),
-      available: _num(map['available'] ?? map['available_balance']),
-      currency: _str(map['currency']) ?? 'USD',
+      needed: needed,
+      available: available,
+      currency: currency,
     );
   }
 
-  double _num(Object? v) {
+  static double? _double(Object? v) {
     if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v) ?? 0.0;
-    return 0.0;
+    if (v is String) return double.tryParse(v.trim());
+    return null;
   }
 
-  String? _str(Object? v) {
+  static String? _string(Object? v) {
     if (v is! String) return null;
     final t = v.trim();
     return t.isEmpty ? null : t;

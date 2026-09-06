@@ -31,6 +31,7 @@ class WaitingRequest extends Equatable {
     this.displayId,
     this.tier,
     this.title,
+    this.offerCountIsProbed = true,
   });
 
   final String requestId;
@@ -51,6 +52,10 @@ class WaitingRequest extends Equatable {
 
   final String? title;
 
+  /// True when [offerCount] came from a source that actually answered — the
+  /// live probe OR the row's own field. False means UNKNOWN, never zero.
+  final bool offerCountIsProbed;
+
   bool get hasOffers =>
       offerCount > 0 || phase == WaitingRequestPhase.offersArrived;
 
@@ -66,6 +71,7 @@ class WaitingRequest extends Equatable {
     String? displayId,
     String? tier,
     String? title,
+    bool? offerCountIsProbed,
   }) => WaitingRequest(
     requestId: requestId,
     phase: phase ?? this.phase,
@@ -76,6 +82,7 @@ class WaitingRequest extends Equatable {
     displayId: displayId ?? this.displayId,
     tier: tier ?? this.tier,
     title: title ?? this.title,
+    offerCountIsProbed: offerCountIsProbed ?? this.offerCountIsProbed,
   );
 
   @override
@@ -89,5 +96,6 @@ class WaitingRequest extends Equatable {
     displayId,
     tier,
     title,
+    offerCountIsProbed,
   ];
 }

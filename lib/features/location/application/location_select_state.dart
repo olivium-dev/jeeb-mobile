@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
 
@@ -56,6 +57,8 @@ class LocationSelectState extends Equatable {
     this.gpsLng,
     this.gpsAccuracyMeters,
     this.error,
+    this.appFailure,
+    this.refreshError,
   });
 
   final LocationSelectStatus status;
@@ -95,6 +98,13 @@ class LocationSelectState extends Equatable {
 
   /// Non-null only when [status] is [LocationSelectStatus.failed].
   final LocationSelectFailure? error;
+
+  /// The classified cold-load failure. [error] stays for the fixtures.
+  final AppFailure? appFailure;
+
+  /// A refresh failed while rows are on screen: the note goes ABOVE the list
+  /// and [status] stays `loaded`.
+  final AppFailure? refreshError;
 
   bool get hasSavedAddresses => savedAddresses.isNotEmpty;
 
@@ -167,6 +177,9 @@ class LocationSelectState extends Equatable {
     bool clearGps = false,
     LocationSelectFailure? error,
     bool clearError = false,
+    AppFailure? appFailure,
+    AppFailure? refreshError,
+    bool clearRefreshError = false,
   }) {
     return LocationSelectState(
       status: status ?? this.status,
@@ -185,6 +198,9 @@ class LocationSelectState extends Equatable {
       gpsAccuracyMeters:
           clearGps ? null : (gpsAccuracyMeters ?? this.gpsAccuracyMeters),
       error: clearError ? null : (error ?? this.error),
+      appFailure: clearError ? null : (appFailure ?? this.appFailure),
+      refreshError:
+          clearRefreshError ? null : (refreshError ?? this.refreshError),
     );
   }
 
@@ -200,6 +216,8 @@ class LocationSelectState extends Equatable {
         currentGpsStatus,
         gpsLat,
         gpsLng,
+        appFailure,
+        refreshError,
         gpsAccuracyMeters,
         error,
       ];

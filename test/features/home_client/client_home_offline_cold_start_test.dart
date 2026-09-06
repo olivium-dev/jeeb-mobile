@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
@@ -185,7 +186,10 @@ void main() {
       'a cold all-failed load lands on FAILED, not an empty READY',
       () async {
         final repo = _ScriptedRepo([
-          const ClientHomeSnapshot(loadFailed: true),
+          const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         ]);
         final cubit = ClientHomeCubit(
           repository: repo,
@@ -204,7 +208,10 @@ void main() {
       () async {
         final repo = _ScriptedRepo([
           const ClientHomeSnapshot(inProgress: [_order]),
-          const ClientHomeSnapshot(loadFailed: true),
+          const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         ]);
         final cubit = ClientHomeCubit(
           repository: repo,
@@ -226,7 +233,10 @@ void main() {
       tester,
     ) async {
       final repo = _ScriptedRepo([
-        const ClientHomeSnapshot(loadFailed: true),
+        const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         const ClientHomeSnapshot(pending: [_order]),
       ]);
       final cubit = ClientHomeCubit(

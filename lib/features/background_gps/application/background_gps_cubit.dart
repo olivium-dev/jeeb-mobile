@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../domain/background_gps_config.dart';
 import '../domain/geocapture_gateway.dart';
 import '../domain/gps_sample.dart';
@@ -16,11 +18,18 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     required LocationUploader uploader,
     BackgroundGpsConfig config = const BackgroundGpsConfig(),
     DateTime Function() clock = _systemClock,
+    NetworkReachabilitySignals? reachability,
   }) : _gateway = gateway,
        _uploader = uploader,
        _config = config,
        _clock = clock,
-       super(const BackgroundGpsState());
+       super(const BackgroundGpsState()) {
+    // A reconnect is the one honest reason to forget a back-off: the reason
+    // the uploads were failing has just gone away.
+    _reconnect = (reachability ?? NetworkReachabilitySignals.instance)
+        .stream
+        .listen((_) => _onReconnect());
+  }
 
   final GeocaptureGateway _gateway;
   final LocationUploader _uploader;
@@ -28,6 +37,11 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
   final DateTime Function() _clock;
 
   StreamSubscription<GpsSample>? _subscription;
+  StreamSubscription<void>? _reconnect;
+
+  /// Set after a transient failure; samples before it are parked, not dropped
+  /// silently, so `uploadRetryBackoff` finally means something.
+  DateTime? _backoffUntil;
   Future<void>? _inFlightUpload;
   Future<void>? _inFlightStart;
   String? _startingDeliveryId;
@@ -143,10 +157,44 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     await start(id);
   }
 
+  /// Re-arms the loop after [BackgroundGpsPhase.error] — same act as a
+  /// permission retry, different reason.
+  Future<void> resume() async {
+    _backoffUntil = null;
+    final id = state.deliveryId;
+    if (id == null) return;
+    await start(id);
+  }
+
+  void _onReconnect() {
+    if (isClosed) return;
+    _backoffUntil = null;
+    if (state.consecutiveFailures > 0) {
+      emit(state.copyWith(consecutiveFailures: 0));
+    }
+    if (state.phase == BackgroundGpsPhase.error) {
+      unawaited(resume());
+    }
+  }
+
   Future<bool> openSystemSettings() => _gateway.openAppSettings();
 
   Future<void> _onSample(GpsSample sample) async {
     if (state.phase != BackgroundGpsPhase.tracking) return;
+
+    final backoff = _backoffUntil;
+    if (backoff != null) {
+      if (_clock().isBefore(backoff)) {
+        emit(
+          state.copyWith(
+            lastSkipReason: GpsSampleSkipReason.throttled,
+            discardedCount: state.discardedCount + 1,
+          ),
+        );
+        return;
+      }
+      _backoffUntil = null;
+    }
 
     if (sample.accuracyMeters > _config.maxAccuracyMeters) {
       emit(
@@ -193,9 +241,22 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     final LocationUploadOutcome outcome;
     try {
       outcome = await pending;
-    } catch (_) {
+    } catch (e) {
+      // A thrown 403 is a verdict, not a blip: retrying it forever burns the
+      // battery on a loop that can never succeed.
       _inFlightUpload = null;
-      _onUploadFailure(stationary);
+      final AppFailure failure = AppFailure.of(e);
+      if (failure.isRetryable) {
+        _onUploadFailure(stationary);
+      } else {
+        await _teardown();
+        _emitPhase(
+          state.copyWith(
+            phase: BackgroundGpsPhase.error,
+            stationary: stationary,
+          ),
+        );
+      }
       return;
     }
     _inFlightUpload = null;
@@ -212,6 +273,7 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
             uploadedCount: state.uploadedCount + 1,
           ),
         );
+        _backoffUntil = null;
         // `bg_gps_phase` only fires when the PHASE changes, i.e. before the
         // first upload — which is why its `uploaded` always read 0.
         Diag.event('bg_gps_upload', <String, Object?>{
@@ -234,6 +296,7 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
   }
 
   void _onUploadFailure(bool stationary) {
+    _backoffUntil = _clock().add(_config.uploadRetryBackoff);
     final next = state.consecutiveFailures + 1;
     if (next >= _config.maxConsecutiveUploadFailures) {
       _teardown();
@@ -293,6 +356,8 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
   @override
   Future<void> close() async {
     _invalidatePendingStarts();
+    await _reconnect?.cancel();
+    _reconnect = null;
     await _teardown();
     return super.close();
   }

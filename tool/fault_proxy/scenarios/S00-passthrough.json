@@ -1,0 +1,21 @@
+{
+  "scenario": "S00",
+  "rules": [],
+  "expect": {
+    "kind": "passthrough"
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 0,
+    "requiredIds": [
+      "customer_profile_name"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

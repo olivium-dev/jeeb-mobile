@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/delivery_chat_message.dart';
 
 enum ChatError {
@@ -12,6 +13,12 @@ enum ChatError {
   attachmentUploadFailed,
 
   historyLoadFailed,
+
+  /// A warm re-read failed while a thread is on screen (F35).
+  refreshFailed,
+
+  /// An inbound frame could not be parsed and is missing from the thread (F34).
+  messageDropped,
 }
 
 class ChatState extends Equatable {
@@ -26,6 +33,10 @@ class ChatState extends Equatable {
     this.declinedOfferIds = const <String>{},
     this.error,
     this.historyLoadFailed = false,
+    this.historyFailure,
+    this.refreshFailure,
+    this.outboxPending = 0,
+    this.realtimeLive = false,
   });
 
   final List<DeliveryChatMessage> messages;
@@ -50,6 +61,18 @@ class ChatState extends Equatable {
   final ChatError? error;
 
   final bool historyLoadFailed;
+
+  /// The classified COLD failure behind [historyLoadFailed].
+  final AppFailure? historyFailure;
+
+  /// The classified WARM failure: rows stay, the note goes above them.
+  final AppFailure? refreshFailure;
+
+  /// Messages persisted in the outbox awaiting a flush.
+  final int outboxPending;
+
+  /// True while the gateway's inbound stream is a LIVE realtime channel.
+  final bool realtimeLive;
 
   bool get canSendText => composerText.trim().isNotEmpty;
 
@@ -95,6 +118,12 @@ class ChatState extends Equatable {
     ChatError? error,
     bool clearError = false,
     bool? historyLoadFailed,
+    AppFailure? historyFailure,
+    bool clearHistoryFailure = false,
+    AppFailure? refreshFailure,
+    bool clearRefreshFailure = false,
+    int? outboxPending,
+    bool? realtimeLive,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -109,6 +138,14 @@ class ChatState extends Equatable {
       declinedOfferIds: declinedOfferIds ?? this.declinedOfferIds,
       error: clearError ? null : (error ?? this.error),
       historyLoadFailed: historyLoadFailed ?? this.historyLoadFailed,
+      historyFailure: clearHistoryFailure
+          ? null
+          : (historyFailure ?? this.historyFailure),
+      refreshFailure: clearRefreshFailure
+          ? null
+          : (refreshFailure ?? this.refreshFailure),
+      outboxPending: outboxPending ?? this.outboxPending,
+      realtimeLive: realtimeLive ?? this.realtimeLive,
     );
   }
 
@@ -124,5 +161,9 @@ class ChatState extends Equatable {
     declinedOfferIds,
     error,
     historyLoadFailed,
+    historyFailure,
+    refreshFailure,
+    outboxPending,
+    realtimeLive,
   ];
 }

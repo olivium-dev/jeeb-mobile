@@ -476,9 +476,9 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                 // the periwinkle default — `accent`, the one CTA on the tile.
                 child: JeebCtaButton.accent(
                   key: KycIdentityStep.submitButtonKey,
-                  label: state.step == KycWizardStep.submitting
-                      ? l10n.kycWizardSubmitting
-                      : l10n.kycWizardSubmit,
+                  // LR-32: the label is stable; the spinner says "in flight".
+                  label: l10n.kycWizardSubmit,
+                  isLoading: state.step == KycWizardStep.submitting,
                   // JEBV4-295: the selfie IS now a hard client gate
                   // alongside the ID number — the previous "photo
                   // completeness stays back-office validated" convention

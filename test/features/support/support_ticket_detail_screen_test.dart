@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/case_evidence/domain/case_evidence.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
 import 'package:jeeb_mobile/features/support/presentation/support_ticket_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -131,9 +132,14 @@ void main() {
   testWidgets('offline load exposes an error state and retry action', (
     tester,
   ) async {
+    // R6: only a real transport gap claims "offline" — the id follows the
+    // classified failure, not the feature enum.
     await pump(
       tester,
-      const _ThreadRepository(failure: SupportFailure.network),
+      const _ThreadRepository(
+        failure: SupportFailure.network,
+        appFailure: NetworkFailure(offline: true),
+      ),
     );
 
     expect(
@@ -143,6 +149,28 @@ void main() {
     expect(
       find.bySemanticsIdentifier('support_thread_retry_cta'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('a not-found thread gets the way out, never an inert Retry', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const _ThreadRepository(
+        failure: SupportFailure.notFound,
+        appFailure: NotFoundFailure(),
+      ),
+    );
+
+    expect(find.bySemanticsIdentifier('support_thread_error'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('support_thread_exit_cta'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('support_thread_retry_cta'),
+      findsNothing,
     );
   });
 
@@ -169,15 +197,21 @@ void main() {
 }
 
 class _ThreadRepository implements SupportRepository, SupportThreadRepository {
-  const _ThreadRepository({this.ticket, this.failure});
+  const _ThreadRepository({this.ticket, this.failure, this.appFailure});
 
   final SupportTicket? ticket;
   final SupportFailure? failure;
+  final AppFailure? appFailure;
 
   @override
   Future<SupportTicket> fetchTicket(String ticketId) async {
     final value = failure;
-    if (value != null) throw SupportRepositoryException(value);
+    if (value != null) {
+      throw SupportRepositoryException.classified(
+        value,
+        appFailure: appFailure ?? const UnknownFailure(),
+      );
+    }
     return ticket!;
   }
 

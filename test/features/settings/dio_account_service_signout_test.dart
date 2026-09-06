@@ -36,6 +36,7 @@ class _FakeDio extends Fake implements Dio {
 }
 
 DioException _dioStatus(int status) => DioException(
+      type: DioExceptionType.badResponse,
       requestOptions: RequestOptions(path: '/v1/auth/logout'),
       response: Response<dynamic>(
         requestOptions: RequestOptions(path: '/v1/auth/logout'),

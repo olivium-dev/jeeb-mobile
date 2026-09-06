@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/offer.dart';
 import '../domain/offer_ranking.dart';
 import '../domain/offers_repository.dart';
@@ -97,6 +99,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
         state.status != OffersScreenStatus.failed) {
       return;
     }
+    // A manual Retry re-arms the CO-01 cap; otherwise the first 429 after the
+    // cap tripped fails instantly and the Retry-After wait is never honoured.
+    _resetColdRetry();
     emit(
       state.copyWith(
         status: OffersScreenStatus.loading,
@@ -115,6 +120,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
       if (isClosed) return;
+      _resetColdRetry();
       _emitSnapshot(
         snapshot,
         statusOverride: OffersScreenStatus.loaded,
@@ -132,15 +138,17 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
           status: OffersScreenStatus.failed,
           error: e.failure,
           errorSource: OffersErrorSource.load,
+          appFailure: e.appFailure,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (isClosed) return;
       emit(
         state.copyWith(
           status: OffersScreenStatus.failed,
           error: OffersFailure.unknown,
           errorSource: OffersErrorSource.load,
+          appFailure: AppFailure.of(e),
         ),
       );
     }
@@ -150,6 +158,22 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// while the screen stays in its loading state. Guarded so it no-ops once the
   /// cubit closes or the load has already resolved to another status.
   void _scheduleColdRetry(Duration? after) {
+    // CO-01: an unbounded re-arm kept a permanently throttled screen in
+    // `loading` forever.
+    _coldRetryStartedAt ??= DateTime.now();
+    if (_coldRetryAttempts >= _maxColdRetries ||
+        DateTime.now().difference(_coldRetryStartedAt!) > _coldRetryWindow) {
+      emit(
+        state.copyWith(
+          status: OffersScreenStatus.failed,
+          error: OffersFailure.rateLimited,
+          errorSource: OffersErrorSource.load,
+          appFailure: RateLimitedFailure(retryAfter: after),
+        ),
+      );
+      return;
+    }
+    _coldRetryAttempts++;
     final delay = after ?? const Duration(seconds: 5);
     _retryDelay(delay).then((_) {
       if (isClosed) return;
@@ -158,6 +182,16 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       if (state.status != OffersScreenStatus.loading) return;
       _attemptColdLoad();
     });
+  }
+
+  static const int _maxColdRetries = 3;
+  static const Duration _coldRetryWindow = Duration(seconds: 60);
+  int _coldRetryAttempts = 0;
+  DateTime? _coldRetryStartedAt;
+
+  void _resetColdRetry() {
+    _coldRetryAttempts = 0;
+    _coldRetryStartedAt = null;
   }
 
   /// Manual pull-to-refresh trigger. Doesn't change the status flag — the UI
@@ -174,13 +208,18 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       // resumes once Retry-After clears. Don't flash an error banner for it.
       if (e.failure == OffersFailure.rateLimited) return;
       emit(
-        state.copyWith(error: e.failure, errorSource: OffersErrorSource.load),
+        state.copyWith(
+          error: e.failure,
+          errorSource: OffersErrorSource.load,
+          appFailure: e.appFailure,
+        ),
       );
-    } catch (_) {
+    } catch (e) {
       emit(
         state.copyWith(
           error: OffersFailure.unknown,
           errorSource: OffersErrorSource.load,
+          appFailure: AppFailure.of(e),
         ),
       );
     }
@@ -295,15 +334,17 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
           clearAcceptingOfferId: true,
           error: e.failure,
           errorSource: OffersErrorSource.accept,
+          appFailure: e.appFailure,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       emit(
         state.copyWith(
           acceptStatus: AcceptStatus.idle,
           clearAcceptingOfferId: true,
           error: OffersFailure.unknown,
           errorSource: OffersErrorSource.accept,
+          appFailure: AppFailure.of(e),
         ),
       );
     }
@@ -349,10 +390,15 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       if (isClosed) return;
       _emitSnapshot(snapshot);
       if (!snapshot.requestIsOpen) await _stopStreams();
-    } on OffersRepositoryException catch (_) {
-      // Swallow — see doc above.
-    } catch (_) {
-      /* same — swallow */
+    } on OffersRepositoryException catch (e) {
+      // Still swallowed for the user (see doc above), but never silent.
+      Diag.event('offers_push_refresh_failed', <String, Object?>{
+        'kind': e.appFailure.kind.name,
+      });
+    } catch (e) {
+      Diag.event('offers_push_refresh_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     } finally {
       _pollInFlight = false;
     }

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
@@ -12,6 +13,12 @@ class DioLiveTrackingRepository
   final Dio _dio;
 
   final bool originGateway;
+
+  AppFailure? _lastPositionFailure;
+
+  /// Why the last live-position read came back null. Concrete-class only:
+  /// widening [LivePositionSource] would churn every test fake (R3).
+  AppFailure? get lastPositionFailure => _lastPositionFailure;
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
@@ -28,15 +35,8 @@ class DioLiveTrackingRepository
       }
       return DeliveryTrackingInfo.fromDeliveryJson(deliveryId, data);
     } on DioException catch (e) {
-      final LiveTrackingErrorKind kind;
-      if (e.response == null) {
-        kind = LiveTrackingErrorKind.network;
-      } else if (e.response!.statusCode == 404) {
-        kind = LiveTrackingErrorKind.notFound;
-      } else {
-        kind = LiveTrackingErrorKind.server;
-      }
-      throw LiveTrackingException(kind, e);
+      final AppFailure failure = AppFailure.of(e);
+      throw LiveTrackingException(_kindOf(failure), e, failure);
     } on FormatException catch (e) {
       throw LiveTrackingException(LiveTrackingErrorKind.parse, e);
     }
@@ -61,12 +61,26 @@ class DioLiveTrackingRepository
         secondsSinceUpdate: info.positionAgeSeconds,
         status: info.positionStatus,
       );
-    } on DioException {
+    } on DioException catch (e) {
+      _lastPositionFailure = AppFailure.of(e);
       return null;
-    } on FormatException {
-      return null;
-    } catch (_) {
+    } catch (e) {
+      _lastPositionFailure = AppFailure.of(e);
       return null;
     }
   }
+
+  static LiveTrackingErrorKind _kindOf(AppFailure failure) =>
+      switch (failure.kind) {
+        AppFailureKind.network ||
+        AppFailureKind.timeout =>
+          LiveTrackingErrorKind.network,
+        AppFailureKind.notFound ||
+        AppFailureKind.gone =>
+          LiveTrackingErrorKind.notFound,
+        AppFailureKind.unauthorized => LiveTrackingErrorKind.unauthorized,
+        AppFailureKind.forbidden => LiveTrackingErrorKind.forbidden,
+        AppFailureKind.rateLimited => LiveTrackingErrorKind.rateLimited,
+        _ => LiveTrackingErrorKind.server,
+      };
 }

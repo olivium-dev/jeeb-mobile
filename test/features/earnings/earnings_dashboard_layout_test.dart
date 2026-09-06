@@ -55,8 +55,7 @@ class _BoardRepo implements EarningsRepository {
   Future<String> exportEarningsPdf({
     String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      '/tmp/e.pdf';
+  }) async => '/tmp/e.pdf';
 }
 
 /// A 390×844 logical viewport — the narrowest phone the app targets.
@@ -90,21 +89,19 @@ Future<void> _pumpPhone(
 void main() {
   for (final locale in const [Locale('en'), Locale('ar')]) {
     for (final scale in const [1.0, 2.0]) {
-      testWidgets(
-        'funded body fits a 390pt phone — ${locale.languageCode} @ '
-        '${(scale * 100).round()}%',
-        (tester) async {
-          await _pumpPhone(tester, locale: locale, textScale: scale);
+      testWidgets('funded body fits a 390pt phone — ${locale.languageCode} @ '
+          '${(scale * 100).round()}%', (tester) async {
+        await _pumpPhone(tester, locale: locale, textScale: scale);
 
-          // Any RenderFlex overflow is reported as a framework exception.
-          expect(tester.takeException(), isNull);
-        },
-      );
+        // Any RenderFlex overflow is reported as a framework exception.
+        expect(tester.takeException(), isNull);
+      });
     }
   }
 
-  testWidgets('every period pill stays findable when the row scrolls',
-      (tester) async {
+  testWidgets('every period pill stays findable when the row scrolls', (
+    tester,
+  ) async {
     // At 200% the pills are wider than the viewport, so at least one is off
     // screen. The kit's scrollable row is non-lazy precisely so Maestro and
     // `find.bySemanticsIdentifier` still resolve it.

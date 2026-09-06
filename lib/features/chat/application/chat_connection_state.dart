@@ -3,6 +3,10 @@ import 'package:equatable/equatable.dart';
 import '../domain/chat_message.dart';
 import '../domain/connection_status.dart';
 
+/// What went wrong on the socket, as a CLASSIFIED fact. Replaces the
+/// `e.toString()` prose the view state used to hold (EP-24).
+enum ChatConnectionFailure { connectFailed, socketError, serverRejected, sendFailed }
+
 class ChatConnectionState extends Equatable {
   const ChatConnectionState({
     this.status = ConnectionStatus.disconnected,
@@ -10,7 +14,7 @@ class ChatConnectionState extends Equatable {
     this.pending = const [],
     this.inbox = const [],
     this.typingSenders = const {},
-    this.lastError,
+    this.lastFailure,
   });
 
   final ConnectionStatus status;
@@ -23,8 +27,8 @@ class ChatConnectionState extends Equatable {
 
   final Map<String, Set<String>> typingSenders;
 
-  /// String (not Object) for cheap equality.
-  final String? lastError;
+  /// The classified last failure. Never an exception's text.
+  final ChatConnectionFailure? lastFailure;
 
   int get pendingCount => pending.length;
 
@@ -39,7 +43,7 @@ class ChatConnectionState extends Equatable {
     List<ChatMessage>? pending,
     List<ChatMessage>? inbox,
     Map<String, Set<String>>? typingSenders,
-    Object? lastError = _sentinel,
+    Object? lastFailure = _sentinel,
   }) {
     return ChatConnectionState(
       status: status ?? this.status,
@@ -47,14 +51,15 @@ class ChatConnectionState extends Equatable {
       pending: pending ?? this.pending,
       inbox: inbox ?? this.inbox,
       typingSenders: typingSenders ?? this.typingSenders,
-      lastError:
-          identical(lastError, _sentinel) ? this.lastError : lastError as String?,
+      lastFailure: identical(lastFailure, _sentinel)
+          ? this.lastFailure
+          : lastFailure as ChatConnectionFailure?,
     );
   }
 
   @override
   List<Object?> get props =>
-      [status, reconnectAttempt, pending, inbox, typingSenders, lastError];
+      [status, reconnectAttempt, pending, inbox, typingSenders, lastFailure];
 }
 
 const Object _sentinel = Object();

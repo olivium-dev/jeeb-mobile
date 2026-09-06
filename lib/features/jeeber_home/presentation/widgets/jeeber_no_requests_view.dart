@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
 import '../../domain/entities/availability_status.dart';
@@ -94,23 +95,22 @@ class JeeberNoRequestsView extends StatelessWidget {
 /// space is shorter than the drawn scene — for hosts that mount it as the
 /// remaining sliver of their own scroll view.
 class JeeberFeedEmptyPanel extends StatelessWidget {
-  const JeeberFeedEmptyPanel({super.key, this.onRefresh});
+  const JeeberFeedEmptyPanel({
+    super.key,
+    required this.isOnline,
+    this.onRefresh,
+  });
 
   final VoidCallback? onRefresh;
 
+  /// ES-24: forwarded, or the panel always draws the ON-duty quiet street.
+  final bool isOnline;
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
-            child: Center(child: JeeberFeedEmptyBlock(onRefresh: onRefresh)),
-          ),
-        ),
-      ),
+    return JeebStateHost(
+      padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
+      child: JeeberFeedEmptyBlock(onRefresh: onRefresh, isOnline: isOnline),
     );
   }
 }
@@ -136,10 +136,10 @@ class JeeberFeedEmptyBlock extends StatelessWidget {
       // gateway returns no zone.
       headline: isOnline
           ? l10n.jeeberFeedQuietStreetTitle
-          : l10n.jeeberFeedOfflineBannerTitle,
+          : l10n.jeeberFeedDutyOffEmptyHeadline,
       body: isOnline
           ? l10n.jeeberFeedQuietStreetBody
-          : l10n.jeeberFeedOfflineBannerSubtitle,
+          : l10n.jeeberFeedDutyOffEmptyBody,
       // TODO(midnight): omitted — E3's second pill "Widen my zone": the app has
       // no service-zone surface and the gateway parses no zone back.
       action: !isOnline || onRefresh == null
@@ -159,7 +159,7 @@ class _RefreshPill extends StatelessWidget {
     return IntrinsicWidth(
       child: JeebCtaButton.outline(
         label: AppLocalizations.of(context).jeeberFeedPullToRefreshAction,
-        identifier: 'jeeber_feed_empty_refresh_cta',
+        identifier: 'jeeber_feed_empty_retry_cta',
         expand: false,
         onTap: onRefresh,
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/network/app_failure.dart';
 import '../../domain/saved_location.dart';
 import '../../domain/saved_location_repository.dart';
 import 'saved_locations_state.dart';
@@ -12,13 +13,25 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
 
   List<SavedLocation> _current = const [];
 
+  bool _loading = false;
+
+  /// A refresh keeps the rows on screen: only a cold load may show a spinner
+  /// or an error page.
   Future<void> load() async {
-    emit(const SavedLocationsLoading());
+    if (_loading) return;
+    _loading = true;
+    final bool warm = _current.isNotEmpty;
+    if (!warm) emit(const SavedLocationsLoading());
     try {
       _current = await _repository.fetchSavedLocations();
       emit(SavedLocationsLoaded(_current));
-    } catch (_) {
-      emit(const SavedLocationsError('fetch_failed'));
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
+      emit(warm
+          ? SavedLocationsLoaded(_current, refreshError: failure)
+          : SavedLocationsError(failure));
+    } finally {
+      _loading = false;
     }
   }
 
@@ -43,13 +56,14 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
     } on SavedLocationCapReachedException {
       emit(SavedLocationsMutationError(
         locations: _current,
-        message: 'cap_reached',
+        mutation: SavedLocationsMutation.create,
         isCapError: true,
       ));
-    } catch (_) {
+    } catch (e) {
       emit(SavedLocationsMutationError(
         locations: _current,
-        message: 'save_failed',
+        mutation: SavedLocationsMutation.create,
+        failure: AppFailure.of(e),
       ));
     }
   }
@@ -76,10 +90,11 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
           .map((l) => l.id == id ? updated : l)
           .toList(growable: false);
       emit(SavedLocationsLoaded(_current));
-    } catch (_) {
+    } catch (e) {
       emit(SavedLocationsMutationError(
         locations: _current,
-        message: 'save_failed',
+        mutation: SavedLocationsMutation.update,
+        failure: AppFailure.of(e),
       ));
     }
   }
@@ -92,15 +107,21 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
           .where((l) => l.id != id)
           .toList(growable: false);
       emit(SavedLocationsLoaded(_current));
-    } catch (_) {
+    } catch (e) {
       emit(SavedLocationsMutationError(
         locations: _current,
-        message: 'delete_failed',
+        mutation: SavedLocationsMutation.delete,
+        failure: AppFailure.of(e),
       ));
     }
   }
 
   void acknowledgeError() {
+    emit(SavedLocationsLoaded(_current));
+  }
+
+  /// Drops the warm-refresh notice once the user dismisses it; the rows stay.
+  void acknowledgeRefreshError() {
     emit(SavedLocationsLoaded(_current));
   }
 }

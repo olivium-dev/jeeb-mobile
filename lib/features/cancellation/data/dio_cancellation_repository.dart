@@ -1,5 +1,11 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../domain/cancellation_repository.dart';
 import '../domain/cancellation_result.dart';
 
@@ -21,6 +27,15 @@ class DioCancellationRepository implements CancellationRepository {
       final response = await _dio.post<Map<String, dynamic>>(
         '/v1/deliveries/$deliveryId/cancel',
         data: _buildBody(reason, otherDetails),
+        options: Options(
+          headers: <String, Object?>{
+            'Idempotency-Key': _cancelIdempotencyKey(
+              deliveryId,
+              reason,
+              otherDetails,
+            ),
+          },
+        ),
       );
       final result = _parse(response.data ?? {});
       _logConfirmed(deliveryId);
@@ -41,35 +56,65 @@ class DioCancellationRepository implements CancellationRepository {
     return CancellationResult(
       deliveryId: json['deliveryId'] as String? ?? '',
       weeklyCount: (json['weeklyCount'] as int?) ?? 0,
-      retryAfter: _parseDate(json['retryAfter'] as String?),
+      retryAfter: _parseRetryAfter(json['retryAfter']),
       strikeCount: json['strikeCount'] as int?,
       restriction: json['restriction'] as String?,
       pendingApproval: (json['pendingApproval'] as bool?) ?? false,
     );
   }
 
-  DateTime? _parseDate(String? raw) {
-    if (raw == null) return null;
-    return DateTime.tryParse(raw);
+  /// The gateway sends either an ISO instant or a number of seconds; the
+  /// unconditional `as String?` threw a TypeError on the second shape.
+  DateTime? _parseRetryAfter(Object? raw) {
+    if (raw is num) return DateTime.now().add(Duration(seconds: raw.round()));
+    if (raw is String) return DateTime.tryParse(raw);
+    return null;
   }
 
   Never _handleDioError(DioException e) {
-    final status = e.response?.statusCode;
+    final int? status = e.response?.statusCode;
     if (status == 409 || status == 422) {
       throw const CancellationTooLateException();
     }
-    throw CancellationException(
-      e.message ?? 'Unknown cancellation error',
-    );
+    final GatewayProblem? problem = GatewayProblem.tryParse(e.response?.data);
+    final String? suffix = problem?.typeSuffix;
+    if (status == 400 && suffix == 'cancellation-reason-required') {
+      throw const CancellationException(
+        null,
+        CancellationFailure.reasonRequired,
+      );
+    }
+    if (status == 403 && suffix == 'not-a-party') {
+      throw const CancellationException(null, CancellationFailure.notAParty);
+    }
+    final AppFailure failure = AppFailure.of(e);
+    throw CancellationException(null, switch (failure.kind) {
+      AppFailureKind.network => CancellationFailure.network,
+      AppFailureKind.timeout => CancellationFailure.timeout,
+      AppFailureKind.rateLimited => CancellationFailure.rateLimited,
+      AppFailureKind.server => CancellationFailure.server,
+      AppFailureKind.forbidden => CancellationFailure.forbidden,
+      _ => CancellationFailure.unknown,
+    });
   }
 
   void _logRequested(String id, String reason) {
-    // ignore: avoid_print — structured observability per AC5
-    print('[jeeb] delivery.cancel_requested id=$id reason=$reason');
+    Diag.event('delivery.cancel_requested', <String, Object?>{
+      'deliveryId': id,
+      'reason': reason,
+    });
   }
 
   void _logConfirmed(String id) {
-    // ignore: avoid_print — structured observability per AC5
-    print('[jeeb] delivery.cancel_confirmed id=$id');
+    Diag.event('delivery.cancel_confirmed', <String, Object?>{
+      'deliveryId': id,
+    });
   }
 }
+
+/// Derived from the payload, so the transport replay and the user's Retry of
+/// the SAME cancel travel under one key and cannot open two cancellations.
+String _cancelIdempotencyKey(String deliveryId, String reason, String? other) =>
+    sha256
+        .convert(utf8.encode('cancel:$deliveryId:$reason:${other ?? ''}'))
+        .toString();

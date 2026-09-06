@@ -2,6 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/chat/data/dev_chat_fixture_gateway.dart';
 import '../../../features/chat/domain/chat_gateway.dart';
 import '../../../features/chat/domain/delivery_chat_message.dart'
@@ -20,6 +21,7 @@ class ChatDetailScreenPreviewState {
     this.hasWinner = false,
     this.counterpartName = '',
     this.summary,
+    this.summaryFailure,
   });
 
   /// The `/chat/:id` route param. Reaches the header through
@@ -43,6 +45,9 @@ class ChatDetailScreenPreviewState {
 
   /// The locked pinned summary, or null when the strip must not render.
   final OrderChatSummary? summary;
+
+  /// F44: why [summary] is missing. Non-null mounts the unavailable strip.
+  final AppFailure? summaryFailure;
 }
 
 /// The designed states of `ChatDetailScreen`.
@@ -182,6 +187,18 @@ class ChatDetailScreenPreviewFixtures {
     hasWinner: true,
     counterpartName: counterpartName,
     summary: acceptedSummary,
+  );
+
+  /// F44: the summary read failed, so the slot carries the unavailable strip
+  /// with its reload — never a strip that silently vanished.
+  static const ChatDetailScreenPreviewState summaryUnavailable =
+      ChatDetailScreenPreviewState(
+    chatId: acceptedChatId,
+    gateway: ChatScreenPreviewFixtures.emptyAccepted,
+    phase: ConversationPhase.accepted,
+    hasWinner: true,
+    counterpartName: counterpartName,
+    summaryFailure: ServerFailure(status: 503),
   );
 
   /// Layout ceiling: the longest message a customer types, under the tallest

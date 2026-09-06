@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/accepted_conversation.dart';
 
 class DioAcceptedConversationsRepository
@@ -31,8 +32,8 @@ class DioAcceptedConversationsRepository
         if (seen.add(conversation.routeId)) accepted.add(conversation);
       }
       return accepted;
-    } catch (_) {
-      return const <AcceptedConversation>[];
+    } catch (error) {
+      throw AcceptedConversationsException(AppFailure.of(error));
     }
   }
 

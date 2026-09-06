@@ -221,8 +221,13 @@ void main() {
         find.byType(JeebEmptyState),
       );
       expect(error.variant, JeebEmptyStateVariant.parcel);
-      expect(error.status, JeebEmptyStateStatus.error);
+      expect(error.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(error.reason, JeebEmptyStateReason.failed);
       expect(error.action, isNotNull);
+      expect(
+        find.bySemanticsIdentifier('notifications_retry_cta'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('loading is the same illustration, skeleton, CTA withheld', (

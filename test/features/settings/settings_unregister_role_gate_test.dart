@@ -151,6 +151,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // F11 grew the notifications band, so the MORE row can start below the
+    // fold on the compact canvas.
+    await tester.ensureVisible(find.byKey(_kUnregisterRowKey));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(_kUnregisterRowKey));
     await tester.pumpAndSettle();
     expect(

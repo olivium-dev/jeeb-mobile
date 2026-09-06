@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/app_failure.dart';
+import '../../../../core/network/app_failure_mapper.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -11,7 +13,9 @@ import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -23,6 +27,7 @@ import '../../../photo_attachment/domain/photo_picker_service.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
 import '../../data/profile_photo_store.dart';
+import '../../domain/avatar_repository.dart';
 import '../widgets/profile_avatar.dart';
 
 /// Profile edit screen (T-mobile-031).
@@ -162,7 +167,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       // Hard client-side ceiling; the gateway's 15 MB cap is the real gate.
       if (compressed.length > PhotoCompressor.maxSizeBytes) {
         if (mounted) {
-          showOmdsErrorSnackbar(context, message: l10n.profilePhotoChangeFailed);
+          showJeebErrorSnack(
+            context,
+            message: l10n.profilePhotoTooLarge,
+            identifier: 'profile_edit_photo_error_snack',
+          );
         }
         return;
       }
@@ -171,21 +180,49 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       await cubit.changeAvatar(bytes: compressed, localPreviewPath: path);
     } on PhotoPickException catch (e) {
       if (e.failure != PhotoPickFailure.cancelled && mounted) {
-        showOmdsErrorSnackbar(
+        showJeebErrorSnack(
           context,
           message: e.failure == PhotoPickFailure.permissionDenied
               ? l10n.profilePhotoPermissionDenied
               : l10n.profilePhotoChangeFailed,
+          identifier: 'profile_edit_photo_error_snack',
         );
       }
-    } catch (_) {
+    } on AvatarRepositoryException catch (e) {
+      // A too-large photo, an expired session and a 5xx are three different
+      // things and used to read as one sentence.
       if (mounted) {
-        showOmdsErrorSnackbar(context, message: l10n.profilePhotoChangeFailed);
+        showJeebErrorSnack(
+          context,
+          message: _avatarErrorCopy(l10n, e.failure),
+          identifier: 'profile_edit_photo_error_snack',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showJeebErrorSnack(
+          context,
+          message: failureCopy(l10n, AppFailure.of(e)).body,
+          identifier: 'profile_edit_photo_error_snack',
+        );
       }
     } finally {
       if (mounted) setState(() => _isChangingPhoto = false);
     }
   }
+
+  static String _avatarErrorCopy(
+    AppLocalizations l10n,
+    AvatarUploadFailure failure,
+  ) => switch (failure) {
+    AvatarUploadFailure.tooLarge => l10n.profilePhotoTooLarge,
+    AvatarUploadFailure.unauthorized => l10n.profilePhotoUnauthorized,
+    AvatarUploadFailure.serverError =>
+      failureCopy(l10n, const ServerFailure(status: 500)).body,
+    AvatarUploadFailure.network =>
+      failureCopy(l10n, networkFailureFromReachability()).body,
+    AvatarUploadFailure.unknown => l10n.profilePhotoChangeFailed,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -198,11 +235,30 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           _nameSeeded = true;
           _nameController.text = state.profile.name ?? '';
         }
-        if (state.banner == SettingsBanner.profileSaved) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.profileSaved)),
-          );
-          context.read<SettingsCubit>().dismissBanner();
+        switch (state.banner) {
+          case SettingsBanner.profileSaved:
+            showJeebSuccessSnack(
+              context,
+              message: l10n.profileSaved,
+              identifier: 'profile_edit_saved_snack',
+            );
+            context.read<SettingsCubit>().dismissBanner();
+          case SettingsBanner.profileSaveFailed:
+            showJeebErrorSnack(
+              context,
+              message: l10n.settingsProfileSaveFailed,
+              identifier: 'profile_edit_save_error_snack',
+            );
+            context.read<SettingsCubit>().dismissBanner();
+          case SettingsBanner.avatarRemoveFailed:
+            showJeebErrorSnack(
+              context,
+              message: l10n.settingsAvatarRemoveFailed,
+              identifier: 'profile_edit_avatar_remove_error_snack',
+            );
+            context.read<SettingsCubit>().dismissBanner();
+          default:
+            break;
         }
       },
       builder: (context, state) {

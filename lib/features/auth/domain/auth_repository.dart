@@ -35,6 +35,13 @@ enum AuthFailure {
   invalidRecoveryCode,
   invalidToken,
   badRequest,
+
+  /// The gateway answered with a 5xx: retrying may work, the credentials are
+  /// not the problem, and the copy must not blame the connection.
+  serverError,
+
+  /// A 429: the credentials were never judged, so the copy names the wait.
+  rateLimited,
   unknown,
 }
 

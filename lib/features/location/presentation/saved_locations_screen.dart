@@ -5,15 +5,20 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/router/root_aware_back_scope.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -132,6 +137,21 @@ class _SavedLocationsView extends StatelessWidget {
                       title: l10n.savedAddressesTitle,
                       identifier: 'saved_addresses_back',
                     ),
+                    if (state is SavedLocationsLoaded &&
+                        state.refreshError != null)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          24, 0, 24, 12),
+                        child: JeebRefreshFailedNote(
+                          failure: state.refreshError!,
+                          identifier: 'saved_locations_refresh_note',
+                          onDismiss: () => context
+                              .read<SavedLocationsCubit>()
+                              .acknowledgeRefreshError(),
+                          onRetry: () =>
+                              context.read<SavedLocationsCubit>().load(),
+                        ),
+                      ),
                     Expanded(child: _buildBody(context, state)),
                   ],
                 ),
@@ -165,13 +185,15 @@ class _SavedLocationsView extends StatelessWidget {
   void _onStateChange(BuildContext context, SavedLocationsState state) {
     if (state is! SavedLocationsMutationError) return;
     final l10n = AppLocalizations.of(context);
-    if (state.isCapError) {
-      showOmdsSnackbar(context, message: l10n.savedLocationsCapReached);
-    } else if (state.message == 'delete_failed') {
-      showOmdsSnackbar(context, message: l10n.savedLocationsDeleteError);
-    } else {
-      showOmdsSnackbar(context, message: l10n.savedLocationsSaveError);
-    }
+    showJeebErrorSnack(
+      context,
+      identifier: 'saved_locations_mutation_error',
+      message: state.isCapError
+          ? l10n.savedLocationsCapReached
+          : state.mutation == SavedLocationsMutation.delete
+              ? l10n.savedLocationsDeleteError
+              : l10n.savedLocationsSaveError,
+    );
     context.read<SavedLocationsCubit>().acknowledgeError();
   }
 
@@ -182,11 +204,14 @@ class _SavedLocationsView extends StatelessWidget {
     }
     if (state is SavedLocationsError) {
       return _ErrorView(
+        failure: state.failure,
         onRetry: () => context.read<SavedLocationsCubit>().load(),
       );
     }
     if (locations.isEmpty) {
-      return const _EmptyView();
+      return _EmptyView(
+        onRefresh: () => context.read<SavedLocationsCubit>().load(),
+      );
     }
     return _LocationList(locations: locations, isMutating: _isMutating(state));
   }
@@ -834,57 +859,61 @@ class _LoadingView extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  const _EmptyView({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // §2.7 zero-state (was `OmdsEmptyState`). The Add CTA stays docked in the
     // footer, so this surface is guidance-only — nothing is saved yet.
-    return Center(
+    return JeebStateHost(
       key: const Key('saved-locations-empty'),
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          variant: _kStateArt,
-          medallions: _kStateMedallions,
-          center: const _SavedAddressStateMark(),
-          headline: l10n.savedAddressesEmptyTitle,
-          body: l10n.savedAddressesEmptyBody,
-        ),
+      onRefresh: onRefresh,
+      child: JeebEmptyState(
+        variant: _kStateArt,
+        medallions: _kStateMedallions,
+        center: const _SavedAddressStateMark(),
+        reason: JeebEmptyStateReason.nothingYet,
+        headline: l10n.savedAddressesEmptyTitle,
+        body: l10n.savedAddressesEmptyBody,
+        identifier: 'saved_locations_empty',
       ),
     );
   }
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.onRetry});
+  const _ErrorView({required this.failure, required this.onRetry});
 
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
+    // The copy family answers the kind: a 403 must not read as an outage.
     final l10n = AppLocalizations.of(context);
-    // §2.7 error state (was `OmdsErrorState`). [onRetry] re-runs the real
-    // saved-locations load — no fabricated data.
     return Center(
       key: const Key('saved-locations-error'),
       child: SingleChildScrollView(
-        child: JeebEmptyState(
+        child: JeebFailureBlock(
+          failure: failure,
+          identifier: 'saved_locations_error',
           variant: _kStateArt,
-          medallions: _kStateMedallions,
-          center: const _SavedAddressStateMark(),
-          status: JeebEmptyStateStatus.error,
-          headline: l10n.savedAddressesErrorHeadline,
-          body: l10n.savedAddressesErrorBody,
-          action: Semantics(
-            identifier: 'saved_address_error_retry_cta',
-            button: true,
-            child: JeebCtaButton.outline(
-              label: l10n.savedLocationsRetry,
-              expand: false,
-              onTap: onRetry,
-            ),
-          ),
+          retryIdentifier: 'saved_address_error_retry_cta',
+          exitIdentifier: 'saved_address_error_exit_cta',
+          onRetry: onRetry,
+          // Without an exit the declared exit id can never render and a
+          // non-retryable kind (401/403) draws no CTA at all.
+          onExit: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/settings');
+            }
+          },
+          exitLabel: l10n.actionBack,
         ),
       ),
     );

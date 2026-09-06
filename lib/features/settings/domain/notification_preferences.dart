@@ -30,3 +30,11 @@ class NotificationPreferences extends Equatable {
   @override
   List<Object?> get props => [offers, chat, status, ratingReminders];
 }
+
+/// F11: the device-local home for the four settings-vocabulary toggles. The
+/// account-wide preferences live behind `NotificationPrefsRepository`.
+abstract class SettingsNotificationPrefsStore {
+  Future<NotificationPreferences?> read();
+
+  Future<void> write(NotificationPreferences preferences);
+}

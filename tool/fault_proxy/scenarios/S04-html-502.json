@@ -1,0 +1,43 @@
+{
+  "scenario": "S04",
+  "rules": [
+    {
+      "id": "html-502",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 502,
+        "headers": {
+          "Content-Type": "text/html"
+        },
+        "body": "<html><body><h1>Bad Gateway</h1></body></html>"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "server",
+    "copyTitle": "errorServerTitle",
+    "copyBody": "errorServiceUnavailableBody",
+    "retryable": true,
+    "unavailable": true,
+    "problemAbsent": true
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 3,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

@@ -5,6 +5,8 @@ enum OrderSummaryFailure {
 
   notFound,
 
+  forbidden,
+
   unknown,
 }
 

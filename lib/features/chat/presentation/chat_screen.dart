@@ -12,19 +12,27 @@ import '../../../core/role/user_role.dart';
 import '../../../core/motion/jeeb_motion_tokens.dart';
 import '../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
-import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
+import '../application/chat_connection_state.dart';
 import '../application/chat_cubit.dart';
 import '../application/chat_state.dart';
 import '../data/in_memory_chat_gateway.dart';
 import '../domain/chat_gateway.dart';
+import '../domain/chat_message.dart';
+import '../domain/chat_outbox.dart';
+import '../domain/connection_status.dart';
 import '../domain/delivery_chat_message.dart';
 import '../domain/order_chat_summary.dart';
+import 'chat_connection_banner.dart';
 import 'widgets/broadcast_ttl_indicator.dart';
 import 'widgets/chat_app_bar.dart';
 import 'widgets/chat_composer.dart';
@@ -163,6 +171,7 @@ class ChatScreen extends StatelessWidget {
     this.gateway,
     this.pickerService,
     this.pinnedSummary,
+    this.pinnedSummaryFallback,
     this.onViewSummary,
     this.onSummaryAttentionRefresh,
     this.onOpenDispute,
@@ -170,6 +179,8 @@ class ChatScreen extends StatelessWidget {
     this.viewerIsJeeber = false,
     this.onFirstMessageBroadcast,
     this.initialTrackingDeliveryId,
+    this.outbox,
+    this.currentUserId = '',
   }) : assert(
          cubit == null || (gateway == null && pickerService == null),
          'Provide either a cubit or the (gateway, pickerService) pair, not both.',
@@ -227,6 +238,10 @@ class ChatScreen extends StatelessWidget {
   /// on the Jeeber variant (no client-side pinned summary there).
   final OrderChatSummary? pinnedSummary;
 
+  /// F44: what the header slot renders INSTEAD when [pinnedSummary] is null
+  /// because its read failed — never a silently vanished strip.
+  final Widget? pinnedSummaryFallback;
+
   /// JM-025 AC2: tap handler for the pinned strip's view-summary link →
   /// `order-summary-pinned` (JM-031). Required for the link to render.
   final VoidCallback? onViewSummary;
@@ -276,6 +291,13 @@ class ChatScreen extends StatelessWidget {
   /// the lifecycle).
   final String? initialTrackingDeliveryId;
 
+  /// OFF-04 seam. Null falls back to the DI-registered [ChatOutbox]; when
+  /// neither resolves the cubit keeps the pre-outbox in-memory behaviour.
+  final ChatOutbox? outbox;
+
+  /// Sender id stamped on outbox rows, resolved by the host from the session.
+  final String currentUserId;
+
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
@@ -301,6 +323,7 @@ class ChatScreen extends StatelessWidget {
           onStartActiveDelivery: onStartActiveDelivery,
           onTrackOrder: onTrackOrder,
           pinnedSummary: pinnedSummary,
+          pinnedSummaryFallback: pinnedSummaryFallback,
           onViewSummary: onViewSummary,
           onSummaryAttentionRefresh: onSummaryAttentionRefresh,
           onOpenDispute: onOpenDispute,
@@ -311,11 +334,15 @@ class ChatScreen extends StatelessWidget {
       );
     }
     return BlocProvider<ChatCubit>(
+      key: ValueKey((deliveryId, currentUserId)),
       create: (_) => ChatCubit(
         deliveryId: deliveryId,
         gateway: gateway ?? InMemoryChatGateway(),
         pickerService: pickerService ?? _resolvePicker(),
         initialDeliveryId: initialTrackingDeliveryId,
+        // OFF-04: the durable send queue. Null keeps the pre-outbox behaviour.
+        outbox: outbox ?? _resolveOutbox(),
+        currentUserId: currentUserId,
         // b02 polling→push: a chat push re-pulls THIS conversation. Resolved
         // through the ONE existing helper (`resolvePushRefreshStream`), which
         // returns null under a bare widget test so the cubit simply never
@@ -348,6 +375,7 @@ class ChatScreen extends StatelessWidget {
         onStartActiveDelivery: onStartActiveDelivery,
         onTrackOrder: onTrackOrder,
         pinnedSummary: pinnedSummary,
+        pinnedSummaryFallback: pinnedSummaryFallback,
         onViewSummary: onViewSummary,
         onSummaryAttentionRefresh: onSummaryAttentionRefresh,
         onOpenDispute: onOpenDispute,
@@ -368,6 +396,11 @@ class ChatScreen extends StatelessWidget {
     if (sl.isRegistered<PhotoPickerService>()) return sl<PhotoPickerService>();
     return StubPhotoPickerService();
   }
+
+  /// R2 DI seam for the OFF-04 outbox: registered by `registerChatDependencies`
+  /// in Stage 2, absent under widget tests and the dev catalog.
+  ChatOutbox? _resolveOutbox() =>
+      sl.isRegistered<ChatOutbox>() ? sl<ChatOutbox>() : null;
 }
 
 class _ChatScaffold extends StatefulWidget {
@@ -381,6 +414,7 @@ class _ChatScaffold extends StatefulWidget {
     this.onStartActiveDelivery,
     this.onTrackOrder,
     this.pinnedSummary,
+    this.pinnedSummaryFallback,
     this.onViewSummary,
     this.onSummaryAttentionRefresh,
     this.onOpenDispute,
@@ -398,6 +432,7 @@ class _ChatScaffold extends StatefulWidget {
   final VoidCallback? onStartActiveDelivery;
   final void Function(String deliveryId)? onTrackOrder;
   final OrderChatSummary? pinnedSummary;
+  final Widget? pinnedSummaryFallback;
   final VoidCallback? onViewSummary;
 
   /// Fired when the customer EXPANDS the pinned summary — an explicit,
@@ -530,6 +565,9 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
               listenWhen: (prev, curr) =>
                   prev.messages.length != curr.messages.length ||
                   prev.error != curr.error ||
+                  // A repeat refresh failure carries the SAME ChatError, so
+                  // without this the second one never re-notifies.
+                  prev.refreshFailure != curr.refreshFailure ||
                   prev.phase != curr.phase,
               listener: (context, state) =>
                   _onStateChanged(context, state, l10n),
@@ -572,6 +610,7 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
           state.messages.any((m) => m.kind == MessageKind.offerRejected),
       broadcastExpiresAt: state.broadcastExpiresAt,
       pinnedSummary: showPinnedSummary ? widget.pinnedSummary : null,
+      pinnedSummaryFallback: widget.pinnedSummaryFallback,
       counterpartName: widget.counterpartName,
       // P3: the link gate is now INDEPENDENT of the strip gate — the host
       // decides who gets the (owner-scoped) link.
@@ -640,7 +679,14 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
     if (error == null) return;
     final message = _messageFor(l10n, error);
     if (message != null) {
-      showOmdsSnackbar(context, message: message);
+      final ChatCubit cubit = context.read<ChatCubit>();
+      showJeebErrorSnack(
+        context,
+        message: message,
+        identifier: 'chat_screen_error_snack',
+        // F34: a dropped frame is only recoverable by re-reading the thread.
+        onRetry: error == ChatError.messageDropped ? cubit.retryLoad : null,
+      );
     }
     context.read<ChatCubit>().acknowledgeError();
   }
@@ -685,6 +731,11 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
         return l10n.chatVoiceUploadFailed;
       case ChatError.attachmentUploadFailed:
         return l10n.chatErrorAttachmentUploadFailed;
+      case ChatError.refreshFailed:
+      case ChatError.messageDropped:
+        // F35/F34: the thread on screen is stale or short a message; a one-shot
+        // notice is the honest surface, the rows stay put.
+        return l10n.chatRefreshFailedBody;
       case ChatError.historyLoadFailed:
         // Rendered as a BODY state (error + retry), not a one-shot toast: the
         // thread is empty BECAUSE of this failure, so the user has to be able
@@ -695,6 +746,16 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
     }
   }
 }
+
+/// Counted, never read: [ChatConnectionState.pendingCount] is a list length,
+/// and the banner renders only the count.
+final ChatMessage _chatPendingPlaceholder = ChatMessage(
+  clientId: '',
+  conversationId: '',
+  senderId: '',
+  body: '',
+  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+);
 
 /// Routes the cubit state to the shimmer / empty-state / message-list body.
 class _ChatBody extends StatelessWidget {
@@ -712,6 +773,7 @@ class _ChatBody extends StatelessWidget {
     this.showRemovedBanner = false,
     this.broadcastExpiresAt,
     this.pinnedSummary,
+    this.pinnedSummaryFallback,
     this.counterpartName = '',
     this.onViewSummary,
     this.onSummaryAttentionRefresh,
@@ -734,6 +796,9 @@ class _ChatBody extends StatelessWidget {
   final bool showRemovedBanner;
   final DateTime? broadcastExpiresAt;
   final OrderChatSummary? pinnedSummary;
+
+  /// F44 stand-in shown in the header slot when the summary read failed.
+  final Widget? pinnedSummaryFallback;
   final String counterpartName;
   final VoidCallback? onViewSummary;
 
@@ -752,9 +817,42 @@ class _ChatBody extends StatelessWidget {
   /// request's description — see the note at the `_ChatBody` construction.
   final bool quickRepliesEnabled;
 
+  /// R6 — only Network/Timeout may blame connectivity. A 500/401/403 is a
+  /// server or session fault; the failure block and the snack already say so.
+  static bool _blamesConnectivity(AppFailure? failure) =>
+      failure != null &&
+      (failure.kind == AppFailureKind.network ||
+          failure.kind == AppFailureKind.timeout);
+
+  /// B4 — driven by the EXISTING transport, not a second socket: instantiating
+  /// `ChatConnectionCubit` here would open a duplicate WS to this conversation.
+  bool get _showsConnectionBanner =>
+      _blamesConnectivity(state.historyFailure) ||
+      _blamesConnectivity(state.refreshFailure) ||
+      state.outboxPending > 0;
+
+  ChatConnectionState _connectionStateFrom(ChatState state) =>
+      ChatConnectionState(
+        status: _blamesConnectivity(state.historyFailure)
+            ? ConnectionStatus.disconnected
+            : _blamesConnectivity(state.refreshFailure)
+            ? ConnectionStatus.reconnecting
+            : ConnectionStatus.connected,
+        pending: List<ChatMessage>.filled(
+          state.outboxPending,
+          _chatPendingPlaceholder,
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    if (state.isLoadingHistory) return const ChatThreadSkeleton();
+    if (state.isLoadingHistory) {
+      return Semantics(
+        identifier: 'chat_screen_loading',
+        container: true,
+        child: const ChatThreadSkeleton(),
+      );
+    }
     // b02: the FAILURE branch has to be tested BEFORE the emptiness branch.
     // Ordering them the other way round is the whole defect: a 500 leaves
     // `messages` empty, so an emptiness-first body renders "No conversation
@@ -762,7 +860,7 @@ class _ChatBody extends StatelessWidget {
     // Only a read that came back may be interpreted as "there is nothing here".
     final Widget body;
     if (state.historyLoadFailed) {
-      body = _ChatHistoryErrorState(l10n: l10n);
+      body = _ChatHistoryErrorState(failure: state.historyFailure);
     } else if (state.messages.isEmpty) {
       body = _ChatEmptyState(phase: state.phase, l10n: l10n);
     } else {
@@ -771,7 +869,21 @@ class _ChatBody extends StatelessWidget {
     final notice = feeNotice;
     final summary = pinnedSummary;
     final header = <Widget>[
+      // EP-11 / OFF-30: the thread had no connection indicator at all. Inside
+      // the bounded header slot, so it cannot re-open the overflow defect.
+      if (_showsConnectionBanner)
+        ChatConnectionBanner(
+          state: _connectionStateFrom(state),
+          // Over RENDERED rows the recovery must not blank them: `retryLoad`
+          // flips the skeleton in and empties the thread on a second failure.
+          onReconnect: () => state.historyLoadFailed
+              ? context.read<ChatCubit>().retryLoad()
+              : context.read<ChatCubit>().refresh(),
+        ),
       if (notice != null) _FeeBannerSlot(notice: notice),
+      // F44: the summary read failed, so the slot says so instead of vanishing.
+      if (summary == null && pinnedSummaryFallback != null)
+        pinnedSummaryFallback!,
       // JM-025 AC2: pinned locked-price summary on the accepted order, above
       // the thread (D71/D11). Carries `order_chat_pinned_summary` +
       // `order_chat_view_summary_link` → order-summary-pinned (JM-031).
@@ -1033,50 +1145,24 @@ class _FeeBannerSlot extends StatelessWidget {
 /// identical whichever of the two layers caught it. Replaces `OmdsErrorState`,
 /// the last pre-redesign surface this body could show.
 class _ChatHistoryErrorState extends StatelessWidget {
-  const _ChatHistoryErrorState({required this.l10n});
+  const _ChatHistoryErrorState({this.failure});
 
-  final AppLocalizations l10n;
+  /// The classified cold-load failure. Null falls back to the generic copy.
+  final AppFailure? failure;
 
   @override
   Widget build(BuildContext context) {
-    // Same constrain-to-viewport + scroll shell as the empty state (run-22
-    // "BOTTOM OVERFLOWED BY 6.6 PIXELS"): this column is TALLER than that one
-    // (it carries a retry button as well), so it needs the treatment at least
-    // as much once banners / the pinned summary / the keyboard stack up.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Semantics(
-              identifier: 'chat_history_error',
-              child: Padding(
-                key: ChatScreen.historyErrorKey,
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Spacing.xLarge,
-                  vertical: Spacing.xLarge,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    JeebInfoNote.error(
-                      icon: Icons.wifi_off_rounded,
-                      title: l10n.chatHistoryErrorTitle,
-                      text: l10n.chatHistoryErrorMessage,
-                    ),
-                    const SizedBox(height: Spacing.large),
-                    JeebCtaButton.primary(
-                      label: l10n.chatHistoryErrorRetry,
-                      onTap: () => context.read<ChatCubit>().retryLoad(),
-                      identifier: 'chat_history_error_retry',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+    // Same constrain-to-viewport + scroll shell the empty state uses, now the
+    // kit's [JeebStateHost] rather than a second hand-rolled copy of it.
+    return JeebStateHost(
+      child: JeebFailureBlock.compact(
+        key: ChatScreen.historyErrorKey,
+        failure: failure ?? const UnknownFailure(),
+        identifier: 'chat_history_error',
+        variant: JeebEmptyStateVariant.e1,
+        // The frozen id: the block's own rule would mint `_retry_cta`.
+        retryIdentifier: 'chat_history_error_retry',
+        onRetry: () => context.read<ChatCubit>().retryLoad(),
       ),
     );
   }
@@ -1122,24 +1208,17 @@ class _ChatEmptyState extends StatelessWidget {
     // overflows. Constrain-to-viewport + scroll instead: full-height centering
     // when there is room, graceful scrolling (never a RenderFlex overflow)
     // when there is not.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            // R20 is a board-still tile, so its in-thread empty block draws at
-            // rest — the call-site equivalent of the field's `animateDecor`,
-            // which JeebEmptyState has no knob for (kit question §open).
-            child: MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: true),
-              child: JeebEmptyState.compact(
-                key: ChatScreen.emptyStateKey,
-                variant: variant,
-                headline: title,
-                body: subtitle,
-              ),
-            ),
-          ),
+    return JeebStateHost(
+      // R20 is a board-still tile, so its in-thread empty block draws at rest —
+      // the call-site equivalent of the field's `animateDecor`.
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: JeebEmptyState.compact(
+          key: ChatScreen.emptyStateKey,
+          variant: variant,
+          headline: title,
+          body: subtitle,
+          identifier: 'chat_screen_empty',
         ),
       ),
     );
@@ -1269,7 +1348,22 @@ class _MessageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!message.isOfferCard) {
-      return ChatMessageBubble(message: message, clustered: clustered);
+      return ChatMessageBubble(
+        message: message,
+        clustered: clustered,
+        // OFF-05: the failed-send copy promises "Tap the bubble to retry".
+        onRetry: message.status == MessageStatus.failed && message.isMine
+            ? () => context.read<ChatCubit>().retryMessage(message.id)
+            : null,
+        // F36: an unresolved image tile gets a way back.
+        onImageRetry: (message.imageUrl ?? '').isNotEmpty
+            ? () => context.read<ChatCubit>().retryImage(message.id)
+            : null,
+        onImageFailure: () => context.read<ChatCubit>().imageDecodeFailed(
+          message.id,
+          message.photoBytes,
+        ),
+      );
     }
     final offerId = message.offerPayload?.offerId ?? '';
     final isAccepting = state.acceptingOfferId == offerId;

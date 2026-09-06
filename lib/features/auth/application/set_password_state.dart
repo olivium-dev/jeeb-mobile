@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/auth_repository.dart';
 import '../domain/set_password_policy.dart';
 
@@ -13,6 +14,7 @@ class SetPasswordState extends Equatable {
     this.confirmObscured = true,
     this.validation,
     this.failure,
+    this.appFailure,
     this.session,
   });
 
@@ -26,7 +28,18 @@ class SetPasswordState extends Equatable {
 
   final AuthFailure? failure;
 
+  /// The transport classification, for kinds [AuthFailure] cannot express.
+  final AppFailure? appFailure;
+
   final AuthSession? session;
+
+  /// Editing a password cannot repair a rejected authorization token.
+  bool get requiresExit => switch (failure) {
+    AuthFailure.invalidToken ||
+    AuthFailure.invalidRecoveryCode ||
+    AuthFailure.invalidCredentials => true,
+    _ => false,
+  };
 
   bool get hasError =>
       status == SetPasswordStatus.failed &&
@@ -39,6 +52,7 @@ class SetPasswordState extends Equatable {
     bool? confirmObscured,
     SetPasswordValidation? validation,
     AuthFailure? failure,
+    AppFailure? appFailure,
     AuthSession? session,
     bool clearValidation = false,
     bool clearFailure = false,
@@ -50,17 +64,19 @@ class SetPasswordState extends Equatable {
       confirmObscured: confirmObscured ?? this.confirmObscured,
       validation: clearValidation ? null : (validation ?? this.validation),
       failure: clearFailure ? null : (failure ?? this.failure),
+      appFailure: clearFailure ? null : (appFailure ?? this.appFailure),
       session: clearSession ? null : (session ?? this.session),
     );
   }
 
   @override
   List<Object?> get props => [
-        status,
-        newObscured,
-        confirmObscured,
-        validation,
-        failure,
-        session,
-      ];
+    status,
+    newObscured,
+    confirmObscured,
+    validation,
+    failure,
+    appFailure,
+    session,
+  ];
 }

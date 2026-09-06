@@ -1,0 +1,43 @@
+{
+  "scenario": "S11",
+  "rules": [
+    {
+      "id": "conflict",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://problems.jeeb.lb/requests/offer-already-exists\",\"title\":\"Conflict\",\"status\":409,\"detail\":\"…\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "conflict",
+    "copyTitle": "errorGenericTitle",
+    "copyBody": "errorConflictBody",
+    "retryable": true,
+    "typeSuffix": null,
+    "planDiscrepancy": "The planned /requests/ type does not contain /errors/, so current GatewayProblem.typeSuffix is null. Conflict kind/copy/retry still apply; no mapper change is made by this tooling."
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

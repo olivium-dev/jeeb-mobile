@@ -173,8 +173,8 @@ void main() {
 
     final JeebEmptyState block =
         tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-    expect(block.status, JeebEmptyStateStatus.loading);
-    expect(block.status, isNot(JeebEmptyStateStatus.empty));
+    expect(block.effectiveStatus, JeebEmptyStateStatus.loading);
+    expect(block.effectiveStatus, isNot(JeebEmptyStateStatus.empty));
     expect(block.variant, kycStateVariant);
     expect(block.variant, JeebEmptyStateVariant.radar);
     expect(block.medallions, kycStateMedallions);

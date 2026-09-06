@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -29,9 +30,12 @@ class TranscriptionStatusBanner extends StatelessWidget {
       isFailed: isFailed,
       title: isFailed ? l10n.transcriptionFailedTitle : l10n.transcriptionQueuedTitle,
       body: _bannerBody(l10n, isFailed),
+      // The CTA is wired to `onReRecord`: labelling it "Retry" would promise a
+      // re-transcribe and silently discard the recording instead.
       retry: isFailed && onRetry != null
-          ? _RetryButton(label: l10n.transcriptionRetry, onTap: onRetry!)
+          ? _RetryButton(label: l10n.transcriptionReRecord, onTap: onRetry!)
           : null,
+      progress: isFailed ? null : state.queuedProgress,
     );
   }
 
@@ -59,6 +63,7 @@ class _BannerSurface extends StatelessWidget {
     required this.title,
     required this.body,
     this.retry,
+    this.progress,
   });
 
   final bool isFailed;
@@ -66,29 +71,52 @@ class _BannerSurface extends StatelessWidget {
   final String body;
   final Widget? retry;
 
+  /// 0..1 of the bounded queued window; null draws no bar.
+  final double? progress;
+
   @override
   Widget build(BuildContext context) {
     final IconData icon = isFailed ? Icons.error_outline : Icons.schedule;
     final Widget note = isFailed
         ? JeebInfoNote.error(icon: icon, title: title, text: body)
         : JeebInfoNote.muted(icon: icon, title: title, text: body);
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
+    final double? bar = progress;
     return Semantics(
       container: true,
       // `explicitChildNodes` is what stops the copy being announced twice AND
       // what keeps the Retry button its own addressable node.
       explicitChildNodes: true,
       label: '$title. $body',
-      child: retry == null
+      child: retry == null && bar == null
           ? note
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 note,
-                const SizedBox(height: Spacing.small),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: retry,
-                ),
+                if (bar != null) ...[
+                  const SizedBox(height: Spacing.small),
+                  Semantics(
+                    identifier: 'voice_transcript_queued_progress',
+                    container: true,
+                    child: LinearProgressIndicator(
+                      value: bar,
+                      minHeight: 2,
+                      // Never `primary`: a wait is not an accent moment.
+                      color: semantics.mutedText,
+                      backgroundColor: semantics.glassFillPressed,
+                    ),
+                  ),
+                ],
+                if (retry != null) ...[
+                  const SizedBox(height: Spacing.small),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: retry,
+                  ),
+                ],
               ],
             ),
     );

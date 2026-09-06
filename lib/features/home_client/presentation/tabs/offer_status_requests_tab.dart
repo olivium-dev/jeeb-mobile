@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
@@ -15,6 +16,7 @@ class OfferStatusRequestsTab extends StatelessWidget {
     required this.status,
     required this.requests,
     this.onOpenRequest,
+    this.onClearFilter,
   });
 
   final ClientOfferStatus status;
@@ -23,6 +25,9 @@ class OfferStatusRequestsTab extends StatelessWidget {
   /// REPLACES the default navigation when provided (tests / dev seams).
   final void Function(ClientHomeRequest request)? onOpenRequest;
 
+  /// Drops the offer-status facet — a filtered empty must offer a way out.
+  final VoidCallback? onClearFilter;
+
   @override
   Widget build(BuildContext context) {
     final matching = requests
@@ -30,11 +35,21 @@ class OfferStatusRequestsTab extends StatelessWidget {
         .toList(growable: false);
     final l10n = AppLocalizations.of(context);
     if (matching.isEmpty) {
+      final VoidCallback? clear = onClearFilter;
       return JeebEmptyState.compact(
         key: Key('offer-status-${status.name}-empty'),
         identifier: 'offer_status_filter_empty',
+        reason: clear == null ? null : JeebEmptyStateReason.filtered,
         headline: l10n.offerStatusFilterEmptyTitle,
         body: l10n.offerStatusFilterEmptyBody,
+        secondaryAction: clear == null
+            ? null
+            : JeebCtaButton.text(
+                label: l10n.actionClearFilters,
+                identifier: 'offer_status_clear_filter_cta',
+                expand: false,
+                onTap: clear,
+              ),
       );
     }
 

@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'kyc_contract_template.dart';
 import 'kyc_form_schema.dart';
 import 'kyc_submission.dart';
@@ -13,6 +14,17 @@ class KycSubmitFieldException implements Exception {
   @override
   String toString() =>
       'KycSubmitFieldException(field: $field, detail: $detail)';
+}
+
+/// NET-21: the ONE thing a KYC gateway throws for a transport failure, so the
+/// cubit classifies a kind instead of unwrapping a raw `DioException`.
+class KycGatewayException implements Exception {
+  const KycGatewayException(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  String toString() => 'KycGatewayException(${failure.kind.name})';
 }
 
 abstract class KycGateway {

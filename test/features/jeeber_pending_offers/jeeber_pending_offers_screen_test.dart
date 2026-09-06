@@ -20,8 +20,11 @@ class _ScriptedRepository implements SubmittedOffersRepository {
   final bool listThrows;
   final bool withdrawSucceeds;
 
+  int listCalls = 0;
+
   @override
   Future<List<SubmittedOffer>> listSubmitted() async {
+    listCalls++;
     if (listThrows) throw Exception('boom');
     return _offers;
   }
@@ -203,5 +206,29 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsIdentifier('pending_offer_1_status'), findsNothing);
+  });
+
+  // LR-24: the empty block used to sit OUTSIDE the pull-to-refresh, so the
+  // only way out of an empty list was leaving the screen.
+  testWidgets('an EMPTY list is still pullable', (tester) async {
+    final repo = _ScriptedRepository();
+    await pump(tester, repo);
+
+    expect(
+      find.bySemanticsIdentifier('jeeber_pending_offers_empty_state'),
+      findsOneWidget,
+    );
+    final before = repo.listCalls;
+
+    await tester.fling(
+      find.bySemanticsIdentifier('jeeber_pending_offers_empty_state'),
+      const Offset(0, 300),
+      1000,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(repo.listCalls, greaterThan(before));
   });
 }

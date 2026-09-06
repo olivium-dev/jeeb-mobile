@@ -36,6 +36,7 @@ class SubmittedOffer extends Equatable {
     required this.requestId,
     required this.price,
     required this.currency,
+    this.currencyKnown = true,
     this.etaMinutes,
     this.note,
     this.status = OfferStatus.submitted,
@@ -49,6 +50,10 @@ class SubmittedOffer extends Equatable {
 
   final String currency;
 
+  /// False when the envelope named no currency: [currency] is then a
+  /// formatting placeholder the UI must not present as a real unit.
+  final bool currencyKnown;
+
   final int? etaMinutes;
 
   final String? note;
@@ -61,6 +66,7 @@ class SubmittedOffer extends Equatable {
       requestId: requestId,
       price: price,
       currency: currency,
+      currencyKnown: currencyKnown,
       etaMinutes: etaMinutes,
       note: note,
       status: status ?? this.status,
@@ -69,5 +75,5 @@ class SubmittedOffer extends Equatable {
 
   @override
   List<Object?> get props =>
-      [id, requestId, price, currency, etaMinutes, note, status];
+      [id, requestId, price, currency, currencyKnown, etaMinutes, note, status];
 }

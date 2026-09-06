@@ -2,8 +2,30 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/features/wallet/application/wallet_hub_cubit.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
+
+WalletHubCubit walletHubRefreshFailedCubit() {
+  final cubit = WalletHubCatalogCubit();
+  unawaited(
+    cubit.load().then((_) async {
+      if (!cubit.isClosed) await cubit.refresh();
+    }),
+  );
+  return cubit;
+}
+
+/// Exposes real repository reads for causal UI retry assertions. State changes
+/// are not a read counter: two identical failures may emit no new state.
+class WalletHubCatalogCubit extends WalletHubCubit {
+  WalletHubCatalogCubit()
+    : this._(WalletHubScreenRefreshFailingRepository(walletHubScreenHealthy));
+  WalletHubCatalogCubit._(this.observedRepository)
+    : super(repository: observedRepository);
+  final WalletHubScreenRefreshFailingRepository observedRepository;
+}
 
 /// Canned [WalletRepository] — `fetchBalance()` resolves to [balance]
 /// immediately. No Dio, no GetIt, no network.
@@ -43,6 +65,45 @@ class WalletHubScreenFailingRepository implements WalletRepository {
   }
 }
 
+/// A read whose body carries no `availableBalance` — the live repository now
+/// throws rather than fabricate a broke wallet (UX-16), so this is the shape
+/// the hub's error rung must show for a degenerate body.
+class WalletHubScreenDegenerateRepository implements WalletRepository {
+  const WalletHubScreenDegenerateRepository();
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    throw const WalletRepositoryException(
+      WalletFailure.unknown,
+      cause: UnknownFailure(parse: true),
+    );
+  }
+}
+
+/// A cold load that succeeds and every refresh after it that fails — the
+/// warm-failure note over a balance still on screen (LR-09/UX-18).
+class WalletHubScreenRefreshFailingRepository implements WalletRepository {
+  WalletHubScreenRefreshFailingRepository(this.balance);
+
+  final WalletBalance balance;
+
+  bool _served = false;
+  int fetchCalls = 0;
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    fetchCalls++;
+    if (_served) {
+      throw const WalletRepositoryException(
+        WalletFailure.network,
+        cause: NetworkFailure(),
+      );
+    }
+    _served = true;
+    return balance;
+  }
+}
+
 /// Scripted [JeeberKycStatusGate] — the AC7 pending-banner source, injected
 /// instead of the DI gate so no state depends on a `jeeb.seam.kyc_status`
 /// value or on a live `GET .../kyc`.
@@ -50,8 +111,7 @@ class WalletHubScreenKycGate implements JeeberKycStatusGate {
   const WalletHubScreenKycGate(this.status);
 
   /// The approved jeeber: no pending banner, offering allowed.
-  const WalletHubScreenKycGate.approved()
-      : status = JeeberKycStatus.approved;
+  const WalletHubScreenKycGate.approved() : status = JeeberKycStatus.approved;
 
   /// Registered, KYC submitted, not yet reviewed (D38/D39) — may top up, may
   /// not yet bid. Drives `wallet_kyc_pending_banner`.

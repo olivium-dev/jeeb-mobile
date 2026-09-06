@@ -191,6 +191,31 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               drive: driveOrderHistoryToNextPage,
             ),
           ),
+          CatalogState(
+            'Empty — date range filtered',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenFixtures.filteredEmptyRepository(
+                OrderHistoryScreenOrders.activePopulated,
+              ),
+              drive: (cubit) =>
+                  cubit.applyDateRange(orderHistoryScreenFilterRange),
+            ),
+          ),
+          CatalogState(
+            'Error — parse (malformed row)',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenFixtures.parseFailingRepository(),
+            ),
+          ),
+          CatalogState(
+            'Load-more failed — footer retry',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenFixtures.loadMoreFailingRepository(
+                OrderHistoryScreenOrders.activePopulated,
+              ),
+              drive: driveOrderHistoryToNextPage,
+            ),
+          ),
         ],
       ),
       CatalogEntry(
@@ -215,6 +240,22 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
           CatalogState(
             'Loading',
             (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.coldRead),
+          ),
+          CatalogState(
+            'Degraded — price unavailable',
+            (_) =>
+                _orderSummaryScreen(OrderSummaryScreenFixtures.priceUnavailable),
+          ),
+          CatalogState(
+            'Degraded — partial secondary reads',
+            (_) => _orderSummaryScreen(
+              OrderSummaryScreenFixtures.partialSecondaryReads,
+            ),
+          ),
+          CatalogState(
+            'Degraded — no chat thread',
+            (_) =>
+                _orderSummaryScreen(OrderSummaryScreenFixtures.noConversationId),
           ),
         ],
       ),
@@ -285,6 +326,38 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               deliveryInfo: OtpHandoverScreenPreviewFixtures.arrivalAtDoor(),
             ),
           ),
+          CatalogState(
+            'Jeeber — Locked (escalation already open)',
+            (_) => _otpHandoverScreen(
+              isClient: false,
+              repository: OtpHandoverScreenPreviewFixtures.lockedWithEscalation(),
+              drive: OtpHandoverScreenPreviewFixtures.driveWrongCode,
+            ),
+          ),
+          CatalogState(
+            'Jeeber — Not at the door',
+            (_) => _otpHandoverScreen(
+              isClient: false,
+              repository: OtpHandoverScreenPreviewFixtures.notAtDoor(),
+              drive: OtpHandoverScreenPreviewFixtures.driveWrongCode,
+            ),
+          ),
+          CatalogState(
+            'Jeeber — Wrong party',
+            (_) => _otpHandoverScreen(
+              isClient: false,
+              repository: OtpHandoverScreenPreviewFixtures.wrongParty(),
+              drive: OtpHandoverScreenPreviewFixtures.driveWrongCode,
+            ),
+          ),
+          CatalogState(
+            'Jeeber — 2 attempts remaining',
+            (_) => _otpHandoverScreen(
+              isClient: false,
+              repository: OtpHandoverScreenPreviewFixtures.attemptsRemaining2(),
+              drive: OtpHandoverScreenPreviewFixtures.driveWrongCode,
+            ),
+          ),
         ],
       ),
       CatalogEntry(
@@ -311,11 +384,11 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               cubitFactory: passwordSecurityScreenMismatchCubit,
             ),
           ),
-          // The loading state had no capture before M3-26.
+          // Valid submission cannot save: there is no change-password API.
           CatalogState(
-            'Submitting',
+            'Unavailable — valid submission (nothing saved)',
             (_) => const PasswordSecurityScreen(
-              cubitFactory: passwordSecurityScreenSubmittingCubit,
+              cubitFactory: passwordSecurityScreenUnavailableCubit,
             ),
           ),
         ],

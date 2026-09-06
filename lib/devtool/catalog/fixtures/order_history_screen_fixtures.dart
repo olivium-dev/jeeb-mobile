@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/order_history/application/order_history_cubit.dart';
 import '../../../features/order_history/application/order_history_state.dart';
 import '../../../features/order_history/domain/order_repository.dart';
@@ -83,6 +84,81 @@ class OrderHistoryScreenPaginatingOrders implements OrderRepository {
     OrderDateRange range = const OrderDateRange(),
   }) async {
     if (page > 1) return Completer<OrderPage>().future;
+    return OrderPage(
+      items: orders
+          .where((OrderSummary order) => order.status.tab == tab)
+          .toList(growable: false),
+      page: page,
+      hasMore: true,
+    );
+  }
+}
+
+/// Rows only when NO date range is applied — the ES-06 filtered empty.
+class OrderHistoryScreenFilteredEmptyOrders implements OrderRepository {
+  const OrderHistoryScreenFilteredEmptyOrders(this.orders);
+
+  final List<OrderSummary> orders;
+
+  @override
+  Future<OrderPage> fetchPage({
+    required OrderHistoryTab tab,
+    required int page,
+    required int pageSize,
+    OrderDateRange range = const OrderDateRange(),
+  }) async {
+    final bool filtered = range.from != null || range.to != null;
+    return OrderPage(
+      items: filtered
+          ? const <OrderSummary>[]
+          : orders
+              .where((OrderSummary order) => order.status.tab == tab)
+              .toList(growable: false),
+      page: page,
+      hasMore: false,
+    );
+  }
+}
+
+/// A numeric `id` on the wire — ORDH-03's TypeError, classified as a parse
+/// failure instead of stranding the tab in `loadingFirstPage`.
+class OrderHistoryScreenParseFailingOrders implements OrderRepository {
+  const OrderHistoryScreenParseFailingOrders();
+
+  @override
+  Future<OrderPage> fetchPage({
+    required OrderHistoryTab tab,
+    required int page,
+    required int pageSize,
+    OrderDateRange range = const OrderDateRange(),
+  }) async =>
+      throw OrderRepositoryException(
+        OrderRepositoryErrorKind.parse,
+        TypeError(),
+        const UnknownFailure(parse: true),
+      );
+}
+
+/// Page 1 lands, page 2 THROWS — the EP-15 footer retry.
+class OrderHistoryScreenLoadMoreFailingOrders implements OrderRepository {
+  const OrderHistoryScreenLoadMoreFailingOrders(this.orders);
+
+  final List<OrderSummary> orders;
+
+  @override
+  Future<OrderPage> fetchPage({
+    required OrderHistoryTab tab,
+    required int page,
+    required int pageSize,
+    OrderDateRange range = const OrderDateRange(),
+  }) async {
+    if (page > 1) {
+      throw const OrderRepositoryException(
+        OrderRepositoryErrorKind.network,
+        null,
+        NetworkFailure(offline: true),
+      );
+    }
     return OrderPage(
       items: orders
           .where((OrderSummary order) => order.status.tab == tab)
@@ -235,6 +311,25 @@ class OrderHistoryScreenOrders {
       currency: 'USD',
     ),
   ];
+}
+
+/// The A5 fixtures, named for the catalog entries Stage 2 appends.
+abstract final class OrderHistoryScreenFixtures {
+  /// A date range hides every row — "No orders match this range", with a clear.
+  static OrderRepository filteredEmptyRepository(List<OrderSummary> orders) =>
+      OrderHistoryScreenFilteredEmptyOrders(orders);
+
+  /// Empty under the JEEBER role — ES-07's role-aware copy.
+  static OrderRepository jeeberEmptyRepository() =>
+      const OrderHistoryScreenStaticOrders(<OrderSummary>[]);
+
+  /// A malformed row — ORDH-03's parse classification.
+  static OrderRepository parseFailingRepository() =>
+      const OrderHistoryScreenParseFailingOrders();
+
+  /// Page 2 throws — EP-15's footer retry, never a toast.
+  static OrderRepository loadMoreFailingRepository(List<OrderSummary> orders) =>
+      OrderHistoryScreenLoadMoreFailingOrders(orders);
 }
 
 /// The designed date range for the filtered state: a single calendar day.

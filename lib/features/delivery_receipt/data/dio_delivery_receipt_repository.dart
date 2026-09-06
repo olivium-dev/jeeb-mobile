@@ -1,5 +1,9 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
@@ -45,10 +49,21 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
           'to': _confirmedStatus,
           'trigger': 'customer_confirmed_receipt',
         },
+        options: Options(
+          headers: <String, Object?>{
+            'Idempotency-Key': receiptConfirmIdempotencyKey(
+              receipt.deliveryId,
+            ),
+          },
+        ),
       );
     } on DioException catch (e) {
+      // A refused transition is NOT a confirmation: returning here fires the
+      // confirmed overlay and the rating on a delivery the gateway declined.
       if (e.response?.statusCode == 422) {
-        return;
+        throw const DeliveryReceiptRepositoryException(
+          DeliveryReceiptFailure.transitionNotAllowed,
+        );
       }
       _rethrowDio(e);
     }
@@ -83,13 +98,13 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
     return _moneyValue(json['amount']) ?? _moneyValue(json['price']);
   }
 
-  String _parseCurrency(Map<String, dynamic> json) {
+  String? _parseCurrency(Map<String, dynamic> json) {
     final fromObject =
         _moneyCurrency(json['amount']) ?? _moneyCurrency(json['price']);
     if (fromObject != null) return fromObject;
     final flat = json['currency'];
     if (flat is String && flat.isNotEmpty) return flat;
-    return 'USD';
+    return null;
   }
 
   double? _moneyValue(dynamic money) {
@@ -111,21 +126,26 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
   }
 
   Never _rethrowDio(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      throw const DeliveryReceiptRepositoryException(
-        DeliveryReceiptFailure.network,
-      );
-    }
-    if (e.response?.statusCode == 404) {
-      throw const DeliveryReceiptRepositoryException(
-        DeliveryReceiptFailure.notFound,
-      );
-    }
-    throw const DeliveryReceiptRepositoryException(
-      DeliveryReceiptFailure.unknown,
+    final AppFailure failure = AppFailure.of(e);
+    throw DeliveryReceiptRepositoryException(
+      switch (failure.kind) {
+        AppFailureKind.network ||
+        AppFailureKind.timeout =>
+          DeliveryReceiptFailure.network,
+        AppFailureKind.notFound || AppFailureKind.gone =>
+          DeliveryReceiptFailure.notFound,
+        AppFailureKind.unauthorized ||
+        AppFailureKind.forbidden =>
+          DeliveryReceiptFailure.forbidden,
+        _ => DeliveryReceiptFailure.unknown,
+      },
     );
   }
 
 }
+
+/// One key per delivery: a replayed or re-tapped confirm settles the same row
+/// once, never twice.
+String receiptConfirmIdempotencyKey(String deliveryId) => sha256
+    .convert(utf8.encode('receipt-confirm:$deliveryId'))
+    .toString();

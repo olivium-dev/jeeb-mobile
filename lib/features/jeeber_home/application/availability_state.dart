@@ -1,9 +1,10 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/services/availability_gateway.dart';
 
-enum AvailabilityLoadPhase { initial, loading, ready, loadError }
+enum AvailabilityLoadPhase { initial, loading, ready, loadError, notRegistered }
 
 class AvailabilityViewState extends Equatable {
   const AvailabilityViewState({
@@ -13,6 +14,8 @@ class AvailabilityViewState extends Equatable {
     this.toggleError = false,
     this.warningVisible = false,
     this.locationOutcome = GoOnlineLocationOutcome.notApplicable,
+    this.loadError,
+    this.toggleFailure,
   });
 
   final AvailabilityLoadPhase loadPhase;
@@ -27,6 +30,12 @@ class AvailabilityViewState extends Equatable {
 
   final GoOnlineLocationOutcome locationOutcome;
 
+  /// The classified cold-read failure behind [AvailabilityLoadPhase.loadError].
+  final AppFailure? loadError;
+
+  /// The classified toggle failure; [toggleError] stays its boolean twin.
+  final AppFailure? toggleFailure;
+
   AvailabilityViewState copyWith({
     AvailabilityLoadPhase? loadPhase,
     AvailabilityStatus? status,
@@ -34,6 +43,8 @@ class AvailabilityViewState extends Equatable {
     bool? toggleError,
     bool? warningVisible,
     GoOnlineLocationOutcome? locationOutcome,
+    Object? loadError = _sentinel,
+    Object? toggleFailure = _sentinel,
   }) {
     return AvailabilityViewState(
       loadPhase: loadPhase ?? this.loadPhase,
@@ -42,6 +53,12 @@ class AvailabilityViewState extends Equatable {
       toggleError: toggleError ?? this.toggleError,
       warningVisible: warningVisible ?? this.warningVisible,
       locationOutcome: locationOutcome ?? this.locationOutcome,
+      loadError: identical(loadError, _sentinel)
+          ? this.loadError
+          : loadError as AppFailure?,
+      toggleFailure: identical(toggleFailure, _sentinel)
+          ? this.toggleFailure
+          : toggleFailure as AppFailure?,
     );
   }
 
@@ -53,5 +70,9 @@ class AvailabilityViewState extends Equatable {
         toggleError,
         warningVisible,
         locationOutcome,
+        loadError,
+        toggleFailure,
       ];
 }
+
+const Object _sentinel = Object();

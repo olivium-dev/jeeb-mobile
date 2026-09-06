@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../data/location_repository.dart';
 
@@ -21,6 +23,8 @@ class LocationSearchBar extends StatelessWidget {
     required this.onResultSelected,
     this.controller,
     this.emptyResultsLabel,
+    this.failure,
+    this.onRetry,
   });
 
   final String hintText;
@@ -32,6 +36,13 @@ class LocationSearchBar extends StatelessWidget {
   final TextEditingController? controller;
 
   final String? emptyResultsLabel;
+
+  /// A failed search. Without this the cubit's `searchFailed` is rendered
+  /// nowhere and the bar looks like it simply found nothing.
+  final AppFailure? failure;
+
+  /// Re-runs the last query.
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +81,26 @@ class LocationSearchBar extends StatelessWidget {
               backgroundColor: semantic.glassFillPressed,
             ),
           ),
+        if (failure != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+            child: JeebInfoNote.error(
+              text: AppLocalizations.of(context).locationSearchFailed,
+              identifier: 'location_search_error',
+              trailing: onRetry == null
+                  ? null
+                  : Semantics(
+                      identifier: 'location_search_retry_cta',
+                      button: true,
+                      container: true,
+                      child: IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: AppLocalizations.of(context).actionRetry,
+                        onPressed: onRetry,
+                      ),
+                    ),
+            ),
+          ),
         if (showResults)
           Padding(
             padding: const EdgeInsetsDirectional.only(top: Spacing.small),
@@ -105,11 +136,15 @@ class _ResultsList extends StatelessWidget {
     if (results.isEmpty) {
       // One row inside a dropdown, so no §2.7 block fits; the Material type
       // scale is what the M4 sweep replaces here.
-      return Padding(
-        padding: const EdgeInsetsDirectional.all(Spacing.medium),
-        child: Text(
-          emptyLabel ?? AppLocalizations.of(context).locationSearchEmpty,
-          style: context.jeebText.body.copyWith(color: semantic.mutedText),
+      return Semantics(
+        identifier: 'location_search_empty',
+        container: true,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.all(Spacing.medium),
+          child: Text(
+            emptyLabel ?? AppLocalizations.of(context).locationSearchEmpty,
+            style: context.jeebText.body.copyWith(color: semantic.mutedText),
+          ),
         ),
       );
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/local_auth_biometric_gateway.dart';
+import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_platform_interface/local_auth_platform_interface.dart'
     show AuthMessages, LocalAuthPlatform;
@@ -17,6 +18,7 @@ class _FakeLocalAuthPlatform extends LocalAuthPlatform
   bool authResult = true;
   bool throwOnSupported = false;
   bool throwOnAuthenticate = false;
+  String authenticateErrorCode = 'LockedOut';
 
   // Recorded from the last authenticate() call.
   AuthenticationOptions? lastOptions;
@@ -45,7 +47,7 @@ class _FakeLocalAuthPlatform extends LocalAuthPlatform
     lastReason = localizedReason;
     lastOptions = options;
     if (throwOnAuthenticate) {
-      throw PlatformException(code: 'LockedOut');
+      throw PlatformException(code: authenticateErrorCode);
     }
     return authResult;
   }
@@ -126,9 +128,59 @@ void main() {
       expect(await gateway.authenticate(reason: 'Unlock Jeeb'), isFalse);
     });
 
-    test('false (never throws) when the platform raises', () async {
+    // UX-24: swallowing the PlatformException made lockout/not-enrolled
+    // indistinguishable from a wrong finger, so the screen kept offering a
+    // Retry the OS would refuse. The typed throw is the fix (R3: no signature
+    // widened — a declined attempt still returns `false`).
+    test('throws BiometricAuthException(lockedOut) on LockedOut', () async {
+      fake
+        ..throwOnAuthenticate = true
+        ..authenticateErrorCode = 'LockedOut';
+      await expectLater(
+        gateway.authenticate(reason: 'Unlock Jeeb'),
+        throwsA(isA<BiometricAuthException>().having(
+          (e) => e.failure,
+          'failure',
+          BiometricFailure.lockedOut,
+        )),
+      );
+    });
+
+    test('maps PermanentlyLockedOut to lockedOut too', () async {
+      fake
+        ..throwOnAuthenticate = true
+        ..authenticateErrorCode = 'PermanentlyLockedOut';
+      await expectLater(
+        gateway.authenticate(reason: 'Unlock Jeeb'),
+        throwsA(isA<BiometricAuthException>().having(
+          (e) => e.failure,
+          'failure',
+          BiometricFailure.lockedOut,
+        )),
+      );
+    });
+
+    test('maps NotEnrolled / NotAvailable / PasscodeNotSet by code', () async {
       fake.throwOnAuthenticate = true;
-      expect(await gateway.authenticate(reason: 'Unlock Jeeb'), isFalse);
+      const Map<String, BiometricFailure> cases = <String, BiometricFailure>{
+        'NotEnrolled': BiometricFailure.notEnrolled,
+        'NotAvailable': BiometricFailure.unavailable,
+        'OtherOperatingSystem': BiometricFailure.unavailable,
+        'PasscodeNotSet': BiometricFailure.noDeviceCredential,
+        'something_else': BiometricFailure.unknown,
+      };
+      for (final MapEntry<String, BiometricFailure> row in cases.entries) {
+        fake.authenticateErrorCode = row.key;
+        await expectLater(
+          gateway.authenticate(reason: 'Unlock Jeeb'),
+          throwsA(isA<BiometricAuthException>().having(
+            (e) => e.failure,
+            'failure',
+            row.value,
+          )),
+          reason: row.key,
+        );
+      }
     });
   });
 }

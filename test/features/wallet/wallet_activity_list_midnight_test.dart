@@ -30,7 +30,10 @@ class _Repo implements WalletLedgerRepository {
   final WalletLedgerFailure? throws;
 
   @override
-  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+  Future<WalletLedgerPage> fetchLedger({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     final WalletLedgerFailure? f = throws;
     if (f != null) throw WalletLedgerRepositoryException(f);
     return WalletLedgerPage(entries: _entries, page: page, totalPages: 1);
@@ -115,8 +118,7 @@ void main() {
       final JeebOutlinedCard card = tester.widget<JeebOutlinedCard>(
         find.byWidgetPredicate(
           (Widget w) =>
-              w is JeebOutlinedCard &&
-              w.identifier == 'wallet_activity_row_a',
+              w is JeebOutlinedCard && w.identifier == 'wallet_activity_row_a',
         ),
       );
       expect(card.radius, JeebRadii.lg);
@@ -163,7 +165,9 @@ void main() {
       expect(_styleOf(tester, '-0.90 USD').color, isNot(scheme.primary));
     });
 
-    testWidgets('money emphasis is `price` — 22/w800/-0.5 (§6)', (tester) async {
+    testWidgets('money emphasis is `price` — 22/w800/-0.5 (§6)', (
+      tester,
+    ) async {
       await pump(tester, _Repo(<WalletLedgerEntry>[_row('a', sign: -1)]));
 
       final TextStyle style = _styleOf(tester, '-0.90 USD');
@@ -191,7 +195,9 @@ void main() {
       expect(find.byType(WalletStateMark), findsOneWidget);
       expect(
         tester.widget<Icon>(find.byIcon(Icons.receipt_long)).color,
-        Theme.of(tester.element(find.byType(WalletStateMark))).colorScheme.onSurface,
+        Theme.of(
+          tester.element(find.byType(WalletStateMark)),
+        ).colorScheme.onSurface,
       );
     });
 
@@ -206,10 +212,17 @@ void main() {
       final JeebEmptyState block = tester.widget<JeebEmptyState>(
         find.byType(JeebEmptyState),
       );
-      expect(block.status, JeebEmptyStateStatus.error);
-      expect(block.center, isA<WalletStateMark>());
-      expect(block.medallions, isEmpty);
-      expect(find.bySemanticsIdentifier('wallet_activity_error'), findsOneWidget);
+      // The rung is now composed by JeebFailureBlock, which states its reason
+      // rather than its status; `parcel` draws no medallion ring at all, so a
+      // money ledger still spends no client-facing shopping art.
+      expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(block.reason, JeebEmptyStateReason.failed);
+      expect(block.variant, JeebEmptyStateVariant.parcel);
+      expect(find.byType(WalletStateMark), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('wallet_activity_error'),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsIdentifier('wallet_activity_retry_cta'),
         findsOneWidget,

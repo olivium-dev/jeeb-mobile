@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/app_failure_mapper.dart';
 import 'package:jeeb_mobile/core/network/rate_limit_interceptor.dart';
 import 'package:jeeb_mobile/core/network/single_flight_get.dart';
 import 'package:jeeb_mobile/features/client_offers/application/client_offers_cubit.dart';
@@ -150,6 +152,40 @@ void main() {
         throwsA(isA<OffersRepositoryException>()
             .having((e) => e.failure, 'failure', OffersFailure.rateLimited)),
       );
+      expect(adapter.callCount, 1);
+    });
+
+    // NET-04/28: the suppression is a typed sentinel now, not English prose,
+    // and the shared mapper reaches the same verdict the repo enum does.
+    test('the suppression rejection carries the typed sentinel', () async {
+      var wireHits = 0;
+      final adapter = _ScriptedAdapter((_) {
+        wireHits++;
+        return wireHits == 1
+            ? _body(429, headers: {'retry-after': ['30']})
+            : _body(200);
+      });
+      final dio = Dio(BaseOptions(baseUrl: 'https://gw.test'))
+        ..interceptors.add(RateLimitInterceptor(maxJitter: Duration.zero))
+        ..httpClientAdapter = adapter;
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers', queryParameters: {'requestId': 'r1'}),
+        throwsA(isA<DioException>()),
+      );
+
+      DioException? suppressed;
+      try {
+        await dio.get<dynamic>('/v1/offers', queryParameters: {'requestId': 'r1'});
+      } on DioException catch (e) {
+        suppressed = e;
+      }
+      expect(suppressed!.error, isA<RateLimitSuppression>());
+      expect((suppressed.error! as RateLimitSuppression).scope, '/offers');
+
+      final mapped = mapDioException(suppressed);
+      expect(mapped, isA<RateLimitedFailure>());
+      expect((mapped as RateLimitedFailure).localSuppression, isTrue);
       expect(adapter.callCount, 1);
     });
   });

@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import 'social_auth_error.dart';
 import 'social_auth_service.dart';
 import 'social_auth_state.dart';
@@ -24,11 +26,23 @@ class SocialAuthCubit extends Cubit<SocialAuthState> {
       activeProvider: provider,
     ));
 
-    final result = await _service.signIn(provider);
+    final SocialAuthResult result;
+    try {
+      result = await _service.signIn(provider);
+    } catch (e) {
+      // AUTH-01: an unguarded throw here left BOTH buttons stuck in progress.
+      _failed(provider, e, 'social_signin_threw');
+      return;
+    }
 
     switch (result) {
       case SocialAuthSuccess(session: final session):
-        await _tokenStore.save(session);
+        try {
+          await _tokenStore.save(session);
+        } catch (e) {
+          _failed(provider, e, 'social_signin_token_save_failed');
+          return;
+        }
         // Cubit does not navigate; screen inspects requiresPhoneVerification (JM-018, JM-009).
         emit(SocialAuthState(
           status: SocialAuthStatus.authenticated,
@@ -51,6 +65,17 @@ class SocialAuthCubit extends Cubit<SocialAuthState> {
           error: error,
         ));
     }
+  }
+
+  void _failed(SocialProvider provider, Object error, String event) {
+    Diag.event(event, {'kind': AppFailure.of(error).kind.name});
+    emit(
+      SocialAuthState(
+        status: SocialAuthStatus.failed,
+        activeProvider: provider,
+        error: SocialAuthError.unknown,
+      ),
+    );
   }
 
   void clearError() {

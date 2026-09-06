@@ -271,13 +271,22 @@ void main() {
       await expectRejectedFrame(tester);
     });
 
-    testWidgets('a failed authority read leaves the terminal route', (
+    // KYCR-01: a failed read is NOT an authoritative decision, so it must not
+    // bounce the user off the appeal route — it owns the screen with a retry.
+    testWidgets('a failed authority read STAYS on the route with a retry', (
       tester,
     ) async {
       await _pump(tester, KycRejectedScreenFixtures.failing());
       await tester.pumpAndSettle();
-      expect(find.text('KYC_STATUS'), findsOneWidget);
-      expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsNothing);
+      expect(find.text('KYC_STATUS'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_error'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_retry_cta'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an in-flight read paints no rejection decision', (
@@ -289,7 +298,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsNothing);
-      expect(find.byType(JeebEmptyState), findsNothing);
+      // The loading rung IS the empty family now, but it carries no decision.
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_loading'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('kyc_rejected_reason_block'),
+          findsNothing);
     });
 
     testWidgets('a resubmit decision redirects to the canonical KYC surface', (

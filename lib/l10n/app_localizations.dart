@@ -187,8 +187,8 @@ class AppLocalizations {
   String get scenarioUsersMakeOnlineReady =>
       _get('scenarioUsersMakeOnlineReady');
   String get scenarioUsersRoster => _get('scenarioUsersRoster');
-  String get scenarioUsersRetry => _get('scenarioUsersRetry');
   String get scenarioUsersEmpty => _get('scenarioUsersEmpty');
+  String get scenarioUsersRosterLoadingHeadline => _get('scenarioUsersRosterLoadingHeadline');
 
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
@@ -877,6 +877,10 @@ class AppLocalizations {
   String get composeDescriptionHint => _get('composeDescriptionHint');
   String get composeDescriptionHelper => _get('composeDescriptionHelper');
   String get composeDescriptionRequired => _get('composeDescriptionRequired');
+  String get composeDescriptionTooShort => _get('composeDescriptionTooShort');
+  String get composeDescriptionTooLong => _get('composeDescriptionTooLong');
+  String composeDescriptionProhibited(String items) =>
+      _get('composeDescriptionProhibited').replaceAll('{items}', items);
   String get composeDescriptionMicSemantic =>
       _get('composeDescriptionMicSemantic');
 
@@ -1538,14 +1542,22 @@ class _AppLocalizationsDelegate
   @override
   Future<AppLocalizations> load(Locale locale) async {
     final tag = locale.languageCode;
-    final raw = await _loadArb(tag);
-    final json = jsonDecode(raw) as Map<String, dynamic>;
+    // EN underneath the target locale: in release the asserts in `_get` are
+    // gone, so a key missing from AR would render as the key itself (UX-46).
     final strings = <String, String>{
+      if (tag != 'en') ..._parse(await _loadArb('en')),
+      ..._parse(await _loadArb(tag)),
+    };
+    return AppLocalizations(locale, strings);
+  }
+
+  static Map<String, String> _parse(String raw) {
+    final json = jsonDecode(raw) as Map<String, dynamic>;
+    return <String, String>{
       for (final entry in json.entries)
         if (!entry.key.startsWith('@') && entry.value is String)
           entry.key: entry.value as String,
     };
-    return AppLocalizations(locale, strings);
   }
 
   @override
@@ -1565,15 +1577,20 @@ class _AppLocalizationsDelegate
 }
 
 @visibleForTesting
-AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
-  final json = jsonDecode(arbJson) as Map<String, dynamic>;
-  final strings = <String, String>{
-    for (final entry in json.entries)
-      if (!entry.key.startsWith('@') && entry.value is String)
-        entry.key: entry.value as String,
-  };
-  return AppLocalizations(locale, strings);
-}
+AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) =>
+    AppLocalizations(locale, _AppLocalizationsDelegate._parse(arbJson));
+
+/// The delegate's EN-underlay merge without the asset bundle, so UX-46 can be
+/// asserted in a plain unit test.
+@visibleForTesting
+AppLocalizations debugLoadMergedAppLocalizations(
+  Locale locale, {
+  required String arbJson,
+  required String fallbackArbJson,
+}) => AppLocalizations(locale, <String, String>{
+  ..._AppLocalizationsDelegate._parse(fallbackArbJson),
+  ..._AppLocalizationsDelegate._parse(arbJson),
+});
 
 extension AppLocalizationsRestored on AppLocalizations {
   String get appBarSignOut => _get('appBarSignOut');
@@ -3340,4 +3357,485 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get jeeberUnregisterPositiveBalance =>
       _get('jeeberUnregisterPositiveBalance');
   String get jeeberUnregisterUnavailable => _get('jeeberUnregisterUnavailable');
+  // WP-0B shared failure copy + actions
+  String get errorNetworkTitle => _get('errorNetworkTitle');
+  String get errorNetworkBody => _get('errorNetworkBody');
+  String get errorTimeoutTitle => _get('errorTimeoutTitle');
+  String get errorTimeoutBody => _get('errorTimeoutBody');
+  String get errorUnreachableTitle => _get('errorUnreachableTitle');
+  String get errorUnreachableBody => _get('errorUnreachableBody');
+  String get errorServerTitle => _get('errorServerTitle');
+  String get errorServerBody => _get('errorServerBody');
+  String get errorServiceUnavailableBody => _get('errorServiceUnavailableBody');
+  String get errorSessionExpiredTitle => _get('errorSessionExpiredTitle');
+  String get errorSessionExpiredBody => _get('errorSessionExpiredBody');
+  String get errorReconnectingBody => _get('errorReconnectingBody');
+  String get errorForbiddenTitle => _get('errorForbiddenTitle');
+  String get errorForbiddenBody => _get('errorForbiddenBody');
+  String get errorNotFoundTitle => _get('errorNotFoundTitle');
+  String get errorNotFoundBody => _get('errorNotFoundBody');
+  String get errorConflictBody => _get('errorConflictBody');
+  String get errorGoneBody => _get('errorGoneBody');
+  String get errorValidationBody => _get('errorValidationBody');
+  String get errorRateLimitedTitle => _get('errorRateLimitedTitle');
+  String get errorRateLimitedBody => _get('errorRateLimitedBody');
+  String get errorGenericTitle => _get('errorGenericTitle');
+  String get errorGenericBody => _get('errorGenericBody');
+  String get errorRefreshFailedBody => _get('errorRefreshFailedBody');
+  String get errorPartialLoadBody => _get('errorPartialLoadBody');
+  String get errorInvalidCode => _get('errorInvalidCode');
+  String get actionRetry => _get('actionRetry');
+  String get actionSignIn => _get('actionSignIn');
+  String get actionBack => _get('actionBack');
+  String get actionDismiss => _get('actionDismiss');
+  String get actionOpenSettings => _get('actionOpenSettings');
+  String get actionClearFilters => _get('actionClearFilters');
+  String get actionClose => _get('actionClose');
+  String get loadingGenericHeadline => _get('loadingGenericHeadline');
+  String get bootstrapFailedTitle => _get('bootstrapFailedTitle');
+  String get bootstrapFailedBody => _get('bootstrapFailedBody');
+
+  // WP-0B shared plural sets (six CLDR siblings each)
+  String errorRateLimitedRetryIn(int count) => _cldrPlural('errorRateLimitedRetryIn', count);
+  String registrationOtpRateLimitedSeconds(int count) => _cldrPlural('registrationOtpRateLimitedSeconds', count);
+  String otpHandoverAttemptsRemaining(int count) => _cldrPlural('otpHandoverAttemptsRemaining', count);
+
+  // WP-1 chat
+  String get chatTabEmptyTitle => _get('chatTabEmptyTitle');
+  String get chatTabEmptyBody => _get('chatTabEmptyBody');
+  String get chatConversationFallbackTitle => _get('chatConversationFallbackTitle');
+  String get chatMessageRetryA11y => _get('chatMessageRetryA11y');
+  String get chatRefreshFailedBody => _get('chatRefreshFailedBody');
+  String get chatImageRetry => _get('chatImageRetry');
+  String get chatPartialLoadBody => _get('chatPartialLoadBody');
+
+  // WP-2 jeeber home, feed, pending offers, active deliveries, request detail
+  String get requestFeedLoadingHeadline => _get('requestFeedLoadingHeadline');
+  String get pendingOffersLoadingHeadline => _get('pendingOffersLoadingHeadline');
+  String get jeeberFeedFilterEmptyTitle => _get('jeeberFeedFilterEmptyTitle');
+  String get jeeberFeedFilterEmptyBody => _get('jeeberFeedFilterEmptyBody');
+  String get pendingOffersWithdrawFailed => _get('pendingOffersWithdrawFailed');
+  String get activeDeliveriesLoadError => _get('activeDeliveriesLoadError');
+  String get availabilityDutyOffTitle => _get('availabilityDutyOffTitle');
+  String get availabilityDutyOffSubtitle => _get('availabilityDutyOffSubtitle');
+  String get jeeberFeedDutyOffEmptyHeadline => _get('jeeberFeedDutyOffEmptyHeadline');
+  String get jeeberFeedDutyOffEmptyBody => _get('jeeberFeedDutyOffEmptyBody');
+  String get availabilityNotRegisteredTitle => _get('availabilityNotRegisteredTitle');
+  String get availabilityNotRegisteredBody => _get('availabilityNotRegisteredBody');
+  String get availabilityErrorForbidden => _get('availabilityErrorForbidden');
+  String get jeeberRequestDetailLoadingHeadline => _get('jeeberRequestDetailLoadingHeadline');
+  String get jeeberRequestDetailLoadFailedTitle => _get('jeeberRequestDetailLoadFailedTitle');
+  String get jeeberRequestDetailRetry => _get('jeeberRequestDetailRetry');
+  String get jeeberRequestDetailDeclineFailed => _get('jeeberRequestDetailDeclineFailed');
+
+  // WP-3 client home, client offers, order history, courier profile, waiting
+  String get orderHistoryFilterEmptyTitle => _get('orderHistoryFilterEmptyTitle');
+  String get orderHistoryFilterEmptyBody => _get('orderHistoryFilterEmptyBody');
+  String get orderHistoryEmptyTitleJeeber => _get('orderHistoryEmptyTitleJeeber');
+  String get orderHistoryEmptyBodyJeeber => _get('orderHistoryEmptyBodyJeeber');
+  String get orderHistoryLoadingMore => _get('orderHistoryLoadingMore');
+  String get homePendingLoadFailedTitle => _get('homePendingLoadFailedTitle');
+  String get homeInProgressLoadFailedTitle => _get('homeInProgressLoadFailedTitle');
+  String get homeRepliesLoadFailedTitle => _get('homeRepliesLoadFailedTitle');
+  String get homeSectionUnavailableBody => _get('homeSectionUnavailableBody');
+  String get offersErrorRequestExpired => _get('offersErrorRequestExpired');
+  String get offersErrorJeeberWalletShort => _get('offersErrorJeeberWalletShort');
+  String get deliveryManProfileReviewsUnavailable => _get('deliveryManProfileReviewsUnavailable');
+  String get deliveryManProfileReviewsLoading => _get('deliveryManProfileReviewsLoading');
+  String get waitingOfferCountUnavailable => _get('waitingOfferCountUnavailable');
+
+  // WP-4 request creation funnel
+  String get requestSubmitErrorProhibitedBlocked => _get('requestSubmitErrorProhibitedBlocked');
+  String get requestSubmitErrorProhibitedNeedsAck => _get('requestSubmitErrorProhibitedNeedsAck');
+  String get requestSubmitAcknowledgeCta => _get('requestSubmitAcknowledgeCta');
+  String get requestSummaryLoadingHeadline => _get('requestSummaryLoadingHeadline');
+  String get tierSelectionLoadingHeadline => _get('tierSelectionLoadingHeadline');
+  String get voiceErrorTooLong => _get('voiceErrorTooLong');
+  String get voiceErrorUnsupportedFormat => _get('voiceErrorUnsupportedFormat');
+  String get voiceErrorTranscriptionUnavailable => _get('voiceErrorTranscriptionUnavailable');
+  String get voiceErrorTranscriptionTimeout => _get('voiceErrorTranscriptionTimeout');
+  String get transcriptionPlaybackUnavailable => _get('transcriptionPlaybackUnavailable');
+  String get prohibitedAckFailedBody => _get('prohibitedAckFailedBody');
+  String get savedLocationsChipsLoadFailed => _get('savedLocationsChipsLoadFailed');
+  String get locationSearchFailed => _get('locationSearchFailed');
+  String get requestDefaultDescription => _get('requestDefaultDescription');
+  String get requestCurrentLocationLabel => _get('requestCurrentLocationLabel');
+
+  // WP-5 jeeber offers, wallet, earnings, settlement, goods cost
+  String get offerErrorDuplicate => _get('offerErrorDuplicate');
+  String get offerErrorDuplicateCta => _get('offerErrorDuplicateCta');
+  String get offerErrorFeeTooLow => _get('offerErrorFeeTooLow');
+  String get offerErrorEtaInvalid => _get('offerErrorEtaInvalid');
+  String get offerErrorNoteTooLong => _get('offerErrorNoteTooLong');
+  String get offerErrorOutOfRange => _get('offerErrorOutOfRange');
+  String get earningsAccountUnavailableBody => _get('earningsAccountUnavailableBody');
+  String get earningsExportFailed => _get('earningsExportFailed');
+  String get goodsCostCurrencyUnavailable => _get('goodsCostCurrencyUnavailable');
+  String get walletEntryUnrenderable => _get('walletEntryUnrenderable');
+  String get walletBalanceUnavailable => _get('walletBalanceUnavailable');
+
+  // WP-6 delivery execution
+  String get activeDeliveryGpsStoppedTitle => _get('activeDeliveryGpsStoppedTitle');
+  String get activeDeliveryGpsStoppedBody => _get('activeDeliveryGpsStoppedBody');
+  String get activeDeliveryGpsStoppedRetry => _get('activeDeliveryGpsStoppedRetry');
+  String get activeDeliveryUnavailableHeadline => _get('activeDeliveryUnavailableHeadline');
+  String get activeDeliveryProofPhotoPermission => _get('activeDeliveryProofPhotoPermission');
+  String get otpHandoverLockedTitle => _get('otpHandoverLockedTitle');
+  String get otpHandoverLockedBody => _get('otpHandoverLockedBody');
+  String get otpHandoverLockedContactSupport => _get('otpHandoverLockedContactSupport');
+  String get otpHandoverNotAtDoor => _get('otpHandoverNotAtDoor');
+  String get otpHandoverWrongParty => _get('otpHandoverWrongParty');
+  String get trackingLoadingHeadline => _get('trackingLoadingHeadline');
+  String get trackingStaleBody => _get('trackingStaleBody');
+  String get trackingPositionUnavailable => _get('trackingPositionUnavailable');
+  String get deliveryDetailLoadingHeadline => _get('deliveryDetailLoadingHeadline');
+  String get deliveryDetailStatusUnavailable => _get('deliveryDetailStatusUnavailable');
+  String get cancellationErrorNetwork => _get('cancellationErrorNetwork');
+  String get cancellationErrorReasonRequired => _get('cancellationErrorReasonRequired');
+  String get cancellationErrorNotAParty => _get('cancellationErrorNotAParty');
+  String get cancellationTooLateTrackCta => _get('cancellationTooLateTrackCta');
+  String get orderSummaryPriceUnavailable => _get('orderSummaryPriceUnavailable');
+  String get ratingSubmitFailedSnack => _get('ratingSubmitFailedSnack');
+
+  // WP-7 trust and support
+  String get supportRetryCta => _get('supportRetryCta');
+  String get supportAttachmentFailed => _get('supportAttachmentFailed');
+  String get supportPhotoPermissionDenied => _get('supportPhotoPermissionDenied');
+  String get supportErrorUnauthorized => _get('supportErrorUnauthorized');
+  String get escalatePhotoUnavailable => _get('escalatePhotoUnavailable');
+  String get escalateErrorNotFound => _get('escalateErrorNotFound');
+  String get escalateErrorEvidenceUpload => _get('escalateErrorEvidenceUpload');
+  String get escalateUploadFailedBody => _get('escalateUploadFailedBody');
+  String get escalateUploadVoiceLabel => _get('escalateUploadVoiceLabel');
+  String get escalateUploadPhotoLabel => _get('escalateUploadPhotoLabel');
+  String get escalateUploadFailed => _get('escalateUploadFailed');
+  String get escalateUploaded => _get('escalateUploaded');
+  String get disputeStatusHistoryEmpty => _get('disputeStatusHistoryEmpty');
+  String get disputeStatusBackToOrders => _get('disputeStatusBackToOrders');
+  String get notificationsCannotOpen => _get('notificationsCannotOpen');
+  String get notificationsShowingCached => _get('notificationsShowingCached');
+  String get reviewsErrorAlreadyRated => _get('reviewsErrorAlreadyRated');
+  String get reviewsErrorWindowClosed => _get('reviewsErrorWindowClosed');
+  String get customerProfileRatingUnavailable => _get('customerProfileRatingUnavailable');
+  String get rateAppUnavailable => _get('rateAppUnavailable');
+
+  // WP-8 identity, account, settings, KYC, onboarding
+  String get kycErrorStatusLoadFailed => _get('kycErrorStatusLoadFailed');
+  String get kycStatusRefreshFailed => _get('kycStatusRefreshFailed');
+  String get registrationOtpServerError => _get('registrationOtpServerError');
+  String get registrationPhoneServerError => _get('registrationPhoneServerError');
+  String get registrationOtpTooManyAttempts => _get('registrationOtpTooManyAttempts');
+  String get settingsProfileSaveFailed => _get('settingsProfileSaveFailed');
+  String get settingsAvatarRemoveFailed => _get('settingsAvatarRemoveFailed');
+  String get settingsLoadFailed => _get('settingsLoadFailed');
+  String get settingsRetry => _get('settingsRetry');
+  String get accountDeleteFailed => _get('accountDeleteFailed');
+  String get accountDeleteNotSignedIn => _get('accountDeleteNotSignedIn');
+  String get dmOnboardingOutOfCoverage => _get('dmOnboardingOutOfCoverage');
+  String get biometricLockedOut => _get('biometricLockedOut');
+  String get biometricNotEnrolled => _get('biometricNotEnrolled');
+  String get setpwErrorNetwork => _get('setpwErrorNetwork');
+  String get setpwErrorInvalidToken => _get('setpwErrorInvalidToken');
+  String get setpwErrorBadRequest => _get('setpwErrorBadRequest');
+  String get displayNameErrorUnauthorized => _get('displayNameErrorUnauthorized');
+  String get offerKycGateRetry => _get('offerKycGateRetry');
+  String get kycRejectedLoadFailed => _get('kycRejectedLoadFailed');
+  String get notificationPrefsErrorNetwork => _get('notificationPrefsErrorNetwork');
+  String get notificationPromptTitle => _get('notificationPromptTitle');
+  String get notificationPromptBody => _get('notificationPromptBody');
+  String get notificationPromptEnableCta => _get('notificationPromptEnableCta');
+  String get notificationPromptDismissCta => _get('notificationPromptDismissCta');
+  String get languageSyncPendingBody => _get('languageSyncPendingBody');
+  String get jeeberDeliveryTabStatusUnknownTitle => _get('jeeberDeliveryTabStatusUnknownTitle');
+  String get jeeberDeliveryTabStatusUnknownBody => _get('jeeberDeliveryTabStatusUnknownBody');
+  String get jeeberTabsUnavailableTitle => _get('jeeberTabsUnavailableTitle');
+  String get jeeberTabsLoadingHeadline => _get('jeeberTabsLoadingHeadline');
+  String get profileUnavailableCta => _get('profileUnavailableCta');
+
+  // WP-7 support thread copy, lifted out of the inline _copy() ternaries
+  String get supportThreadTitle => _get('supportThreadTitle');
+  String get supportThreadLoadingHeadline => _get('supportThreadLoadingHeadline');
+  String get supportThreadNotFoundBody => _get('supportThreadNotFoundBody');
+  String get supportThreadLoadFailedBody => _get('supportThreadLoadFailedBody');
+  String get supportThreadAttachmentsDegraded => _get('supportThreadAttachmentsDegraded');
+  String get supportThreadStaleConflict => _get('supportThreadStaleConflict');
+  String get supportThreadRefreshFailed => _get('supportThreadRefreshFailed');
+  String get supportThreadReplyNotSent => _get('supportThreadReplyNotSent');
+  String get supportThreadConversationLabel => _get('supportThreadConversationLabel');
+  String get supportThreadLoadMoreFailed => _get('supportThreadLoadMoreFailed');
+  String get supportThreadLoadingMessages => _get('supportThreadLoadingMessages');
+  String get supportThreadLoadEarlierCta => _get('supportThreadLoadEarlierCta');
+  String get supportThreadEmptyTitle => _get('supportThreadEmptyTitle');
+  String get supportThreadEmptyBody => _get('supportThreadEmptyBody');
+  String get supportThreadClosedNote => _get('supportThreadClosedNote');
+  String get supportThreadStatusPending => _get('supportThreadStatusPending');
+  String get supportThreadStatusFixed => _get('supportThreadStatusFixed');
+  String get supportThreadStatusClosed => _get('supportThreadStatusClosed');
+  String get supportThreadStatusUnknown => _get('supportThreadStatusUnknown');
+  String get supportThreadFallbackNumber => _get('supportThreadFallbackNumber');
+  String get supportThreadNoDescription => _get('supportThreadNoDescription');
+  String get supportThreadAuthorYou => _get('supportThreadAuthorYou');
+  String get supportThreadAttachmentUnavailable => _get('supportThreadAttachmentUnavailable');
+  String get supportThreadAttachmentLabel => _get('supportThreadAttachmentLabel');
+  String get supportThreadReplyFieldLabel => _get('supportThreadReplyFieldLabel');
+  String get supportThreadUploadFailed => _get('supportThreadUploadFailed');
+  String get supportThreadUploading => _get('supportThreadUploading');
+  String get supportThreadAttachPhotoCta => _get('supportThreadAttachPhotoCta');
+  String get supportThreadSending => _get('supportThreadSending');
+  String get supportThreadRetryReplyCta => _get('supportThreadRetryReplyCta');
+  String get supportThreadSendReplyCta => _get('supportThreadSendReplyCta');
+  String get supportThreadPhotoAttachFailed => _get('supportThreadPhotoAttachFailed');
+
+  // WP-5/6/7 ARB homes for the *_l10n.dart _pick pairs
+  String get walletHubAvailableBalanceLabel => _get('walletHubAvailableBalanceLabel');
+  String get walletHubTopUpCta => _get('walletHubTopUpCta');
+  String get walletHubBack => _get('walletHubBack');
+  String get walletHubCashDisclaimer => _get('walletHubCashDisclaimer');
+  String get walletHubReservedNowLabel => _get('walletHubReservedNowLabel');
+  String get walletHubReservedNowHint => _get('walletHubReservedNowHint');
+  String get walletHubLiveOffersLabel => _get('walletHubLiveOffersLabel');
+  String get walletHubFeesExplainerTitle => _get('walletHubFeesExplainerTitle');
+  String get walletHubFeesExplainerLine3 => _get('walletHubFeesExplainerLine3');
+  String get walletHubFeesExplainerGotIt => _get('walletHubFeesExplainerGotIt');
+  String get walletHubEarningsRow => _get('walletHubEarningsRow');
+  String get walletHubEarningsRowSubtitle => _get('walletHubEarningsRowSubtitle');
+  String get walletHubSeeAllActivity => _get('walletHubSeeAllActivity');
+  String get walletHubSeeAllActivitySubtitle => _get('walletHubSeeAllActivitySubtitle');
+  String get walletHubKycPendingTitle => _get('walletHubKycPendingTitle');
+  String get walletHubOfflineMoneyBlocked => _get('walletHubOfflineMoneyBlocked');
+  String get walletHubAffordabilityTitleEnough => _get('walletHubAffordabilityTitleEnough');
+  String get walletHubAffordabilityTitleLow => _get('walletHubAffordabilityTitleLow');
+  String get walletHubAffordabilityTitleEmpty => _get('walletHubAffordabilityTitleEmpty');
+  String get walletHubAffordabilityTitleAllReserved => _get('walletHubAffordabilityTitleAllReserved');
+  String get walletHubAffordabilityBodyLow => _get('walletHubAffordabilityBodyLow');
+  String get walletHubAffordabilityBodyEmpty => _get('walletHubAffordabilityBodyEmpty');
+  String get walletHubAffordabilityBodyAllReserved => _get('walletHubAffordabilityBodyAllReserved');
+  String get walletActivityNetworkError => _get('walletActivityNetworkError');
+  String get walletActivityRetry => _get('walletActivityRetry');
+  String get walletActivityLoadMoreError => _get('walletActivityLoadMoreError');
+  String get walletActivityTypeLabelReserve => _get('walletActivityTypeLabelReserve');
+  String get walletActivityTypeLabelFeeWon => _get('walletActivityTypeLabelFeeWon');
+  String get walletActivityTypeLabelReleased => _get('walletActivityTypeLabelReleased');
+  String get walletActivityTypeLabelRefund => _get('walletActivityTypeLabelRefund');
+  String get walletActivityTypeLabelPenalty => _get('walletActivityTypeLabelPenalty');
+  String get walletActivityTypeLabelTopup => _get('walletActivityTypeLabelTopup');
+  String get walletActivityTypeLabelGift => _get('walletActivityTypeLabelGift');
+  String get walletActivityTypeLabelUnknown => _get('walletActivityTypeLabelUnknown');
+  String get transactionDetailTypeHeadingReserve => _get('transactionDetailTypeHeadingReserve');
+  String get transactionDetailTypeHeadingFeeWon => _get('transactionDetailTypeHeadingFeeWon');
+  String get transactionDetailTypeHeadingReleased => _get('transactionDetailTypeHeadingReleased');
+  String get transactionDetailTypeHeadingRefund => _get('transactionDetailTypeHeadingRefund');
+  String get transactionDetailTypeHeadingPenalty => _get('transactionDetailTypeHeadingPenalty');
+  String get transactionDetailTypeHeadingTopup => _get('transactionDetailTypeHeadingTopup');
+  String get transactionDetailTypeHeadingGift => _get('transactionDetailTypeHeadingGift');
+  String get transactionDetailTypeHeadingUnknown => _get('transactionDetailTypeHeadingUnknown');
+  String get transactionDetailTypeBodyPenalty => _get('transactionDetailTypeBodyPenalty');
+  String get transactionDetailTypeBodyTopup => _get('transactionDetailTypeBodyTopup');
+  String get transactionDetailAmountLabel => _get('transactionDetailAmountLabel');
+  String get transactionDetailDateLabel => _get('transactionDetailDateLabel');
+  String get transactionDetailReferenceLabel => _get('transactionDetailReferenceLabel');
+  String get transactionDetailFeeRateLabel => _get('transactionDetailFeeRateLabel');
+  String get transactionDetailPinnedPriceLabel => _get('transactionDetailPinnedPriceLabel');
+  String get transactionDetailDisputeRefLabel => _get('transactionDetailDisputeRefLabel');
+  String get transactionDetailLoadErrorNotFound => _get('transactionDetailLoadErrorNotFound');
+  String get transactionDetailLoadErrorGeneric => _get('transactionDetailLoadErrorGeneric');
+  String get transactionDetailRetry => _get('transactionDetailRetry');
+  String get earningsDashboardTotalCashLabel => _get('earningsDashboardTotalCashLabel');
+  String get earningsDashboardTotalCashHint => _get('earningsDashboardTotalCashHint');
+  String get earningsDashboardFeesPaidLabel => _get('earningsDashboardFeesPaidLabel');
+  String get earningsDashboardNetPerOfferLabel => _get('earningsDashboardNetPerOfferLabel');
+  String get earningsDashboardNetPerOfferHint => _get('earningsDashboardNetPerOfferHint');
+  String get earningsDashboardDeliveriesLabel => _get('earningsDashboardDeliveriesLabel');
+  String get earningsDashboardMemberSinceLabel => _get('earningsDashboardMemberSinceLabel');
+  String get earningsDashboardEmptyTitle => _get('earningsDashboardEmptyTitle');
+  String get earningsDashboardEmptyRefresh => _get('earningsDashboardEmptyRefresh');
+  String get earningsDashboardBreakdownTitle => _get('earningsDashboardBreakdownTitle');
+  String get earningsDashboardWalletLink => _get('earningsDashboardWalletLink');
+  String get earningsDashboardActivityLink => _get('earningsDashboardActivityLink');
+  String get offerComposerPriceDecrementLabel => _get('offerComposerPriceDecrementLabel');
+  String get offerComposerPriceIncrementLabel => _get('offerComposerPriceIncrementLabel');
+  String get offerComposerNoteLabel => _get('offerComposerNoteLabel');
+  String get offerComposerNetLinePending => _get('offerComposerNetLinePending');
+  String get offerComposerErrorGeneric => _get('offerComposerErrorGeneric');
+  String get offerComposerErrorNetwork => _get('offerComposerErrorNetwork');
+  String get offerComposerInsufficientTitle => _get('offerComposerInsufficientTitle');
+  String get offerComposerInsufficientKeepEditingCta => _get('offerComposerInsufficientKeepEditingCta');
+  String get offerComposerCtaDisabledInsufficientReason => _get('offerComposerCtaDisabledInsufficientReason');
+  String get disputeStatusPendingLabel => _get('disputeStatusPendingLabel');
+  String get disputeStatusFixedLabel => _get('disputeStatusFixedLabel');
+  String get disputeStatusClosedLabel => _get('disputeStatusClosedLabel');
+  String get disputeStatusResolutionHeading => _get('disputeStatusResolutionHeading');
+  String get disputeStatusFixedBody => _get('disputeStatusFixedBody');
+  String get disputeStatusClosedBody => _get('disputeStatusClosedBody');
+  String get disputeStatusHistoryHeading => _get('disputeStatusHistoryHeading');
+  String get disputeStatusEvidenceHeading => _get('disputeStatusEvidenceHeading');
+  String get disputeStatusEvidenceEmptyHeadline => _get('disputeStatusEvidenceEmptyHeadline');
+  String get disputeStatusEvidencePartial => _get('disputeStatusEvidencePartial');
+  String get disputeStatusEvidenceUploadFailed => _get('disputeStatusEvidenceUploadFailed');
+  String get disputeStatusEvidenceReasonLabel => _get('disputeStatusEvidenceReasonLabel');
+  String get disputeStatusEvidenceCommentLabel => _get('disputeStatusEvidenceCommentLabel');
+  String get disputeStatusVoiceLabel => _get('disputeStatusVoiceLabel');
+  String get disputeStatusLoadingHeadline => _get('disputeStatusLoadingHeadline');
+  String get disputeStatusLoadError => _get('disputeStatusLoadError');
+  String get disputeStatusNotFoundError => _get('disputeStatusNotFoundError');
+  String get disputeStatusNetworkError => _get('disputeStatusNetworkError');
+  String get disputeStatusRetry => _get('disputeStatusRetry');
+  String get reviewsLoadError => _get('reviewsLoadError');
+  String get reviewsNetworkError => _get('reviewsNetworkError');
+  String get reviewsRetry => _get('reviewsRetry');
+  String get reviewsLoadMoreError => _get('reviewsLoadMoreError');
+  String get reviewsNewBadge => _get('reviewsNewBadge');
+  String get reviewsHiddenScoreNote => _get('reviewsHiddenScoreNote');
+  String get reviewsReportAction => _get('reviewsReportAction');
+  String get reviewsReportConfirmTitle => _get('reviewsReportConfirmTitle');
+  String get reviewsReportConfirmBody => _get('reviewsReportConfirmBody');
+  String get reviewsReportConfirmCta => _get('reviewsReportConfirmCta');
+  String get reviewsReportCancelCta => _get('reviewsReportCancelCta');
+  String get reviewsReportSuccess => _get('reviewsReportSuccess');
+  String get reviewsReportFailure => _get('reviewsReportFailure');
+  String get notificationsNetworkError => _get('notificationsNetworkError');
+  String get notificationsRetry => _get('notificationsRetry');
+  String get notificationsCategoryLabelOffer => _get('notificationsCategoryLabelOffer');
+  String get notificationsCategoryLabelOfferAccepted => _get('notificationsCategoryLabelOfferAccepted');
+  String get notificationsCategoryLabelStatus => _get('notificationsCategoryLabelStatus');
+  String get notificationsCategoryLabelLowBalance => _get('notificationsCategoryLabelLowBalance');
+  String get notificationsCategoryLabelFeeWon => _get('notificationsCategoryLabelFeeWon');
+  String get notificationsCategoryLabelRefundPenalty => _get('notificationsCategoryLabelRefundPenalty');
+  String get notificationsCategoryLabelTopup => _get('notificationsCategoryLabelTopup');
+  String get notificationsCategoryLabelKycApproved => _get('notificationsCategoryLabelKycApproved');
+  String get notificationsCategoryLabelKycRejected => _get('notificationsCategoryLabelKycRejected');
+  String get notificationsCategoryLabelRequestExpired => _get('notificationsCategoryLabelRequestExpired');
+  String get notificationsCategoryLabelNewRequest => _get('notificationsCategoryLabelNewRequest');
+  String get notificationsCategoryLabelConfirmReceipt => _get('notificationsCategoryLabelConfirmReceipt');
+  String get notificationsCategoryLabelMarketing => _get('notificationsCategoryLabelMarketing');
+  String get notificationsCategoryLabelDispute => _get('notificationsCategoryLabelDispute');
+  String get notificationsCategoryLabelSupport => _get('notificationsCategoryLabelSupport');
+  String get notificationsCategoryLabelUnknown => _get('notificationsCategoryLabelUnknown');
+  String get notificationsCategoryLabelChat => _get('notificationsCategoryLabelChat');
+  String get notificationsCategoryLabelAvailability => _get('notificationsCategoryLabelAvailability');
+  String get notificationsUnreadLabel => _get('notificationsUnreadLabel');
+  String get notificationsNewRequestFallbackTitle => _get('notificationsNewRequestFallbackTitle');
+  String get notificationsNewRequestFallbackBody => _get('notificationsNewRequestFallbackBody');
+
+  String get chatTabLoadingHeadline => _get('chatTabLoadingHeadline');
+  String get chatAuthorSelf => _get('chatAuthorSelf');
+  String get orderChatSummaryUnavailableBody =>
+      _get('orderChatSummaryUnavailableBody');
+  String get orderChatSummaryRetry => _get('orderChatSummaryRetry');
+  String get chatConnectionReconnectCta => _get('chatConnectionReconnectCta');
+  String get availabilityLoadingHeadline => _get('availabilityLoadingHeadline');
+  String get jeeberFeedPriceUnavailable => _get('jeeberFeedPriceUnavailable');
+  String get homeLoadingHeadline => _get('homeLoadingHeadline');
+  String get offerReviewLoadingHeadline => _get('offerReviewLoadingHeadline');
+  String get waitingLoadingHeadline => _get('waitingLoadingHeadline');
+  String get requestSummaryUnavailableHeadline =>
+      _get('requestSummaryUnavailableHeadline');
+  String get prohibitedAckMatchedItemsTitle =>
+      _get('prohibitedAckMatchedItemsTitle');
+  String get walletHubLoadingHeadline => _get('walletHubLoadingHeadline');
+  String get fundingWalletLoadingHeadline =>
+      _get('fundingWalletLoadingHeadline');
+  String get offerErrorSameRole => _get('offerErrorSameRole');
+  String get offerErrorRequestNotOpen => _get('offerErrorRequestNotOpen');
+  String get actionSignOut => _get('actionSignOut');
+  String get walletActivityLoadMoreFailed =>
+      _get('walletActivityLoadMoreFailed');
+  String get settlementPdfSaveFailed => _get('settlementPdfSaveFailed');
+  String get settlementParseFailed => _get('settlementParseFailed');
+  String get goodsCostErrorAmountUnconfirmed =>
+      _get('goodsCostErrorAmountUnconfirmed');
+  String get orderSummaryLoadingHeadline => _get('orderSummaryLoadingHeadline');
+  String get receiptLoadingHeadline => _get('receiptLoadingHeadline');
+  String get activeDeliveryProofPhotoUnavailable =>
+      _get('activeDeliveryProofPhotoUnavailable');
+  String get activeDeliveryOtpCodeTooShort =>
+      _get('activeDeliveryOtpCodeTooShort');
+  String get supportThreadRequestLabel => _get('supportThreadRequestLabel');
+  String get supportThreadAuthorSupport => _get('supportThreadAuthorSupport');
+  String get supportThreadReplyLabel => _get('supportThreadReplyLabel');
+  String get supportThreadAttachPhoto => _get('supportThreadAttachPhoto');
+  String get supportThreadUploadingAttachments =>
+      _get('supportThreadUploadingAttachments');
+  String get supportThreadRetryReply => _get('supportThreadRetryReply');
+  String get supportThreadSendReply => _get('supportThreadSendReply');
+  String supportThreadAttachmentIndexLabel(int index) =>
+      _get('supportThreadAttachmentIndexLabel').replaceFirst('{index}', '$index');
+  String get supportCategoryLabel => _get('supportCategoryLabel');
+  String get supportCategoryAccount => _get('supportCategoryAccount');
+  String get supportCategoryPayment => _get('supportCategoryPayment');
+  String get supportCategoryDelivery => _get('supportCategoryDelivery');
+  String get supportCategoryKycAppeal => _get('supportCategoryKycAppeal');
+  String get supportCategoryDispute => _get('supportCategoryDispute');
+  String get supportCategoryOther => _get('supportCategoryOther');
+  String get supportBodyLabel => _get('supportBodyLabel');
+  String get supportOrderLinkLabel => _get('supportOrderLinkLabel');
+  String get supportAttachLabel => _get('supportAttachLabel');
+  String get supportAttachCta => _get('supportAttachCta');
+  String get supportSubmitting => _get('supportSubmitting');
+  String get supportConfirmationTitle => _get('supportConfirmationTitle');
+  String get supportConfirmationBody => _get('supportConfirmationBody');
+  String get supportConfirmationViewThreadCta =>
+      _get('supportConfirmationViewThreadCta');
+  String get supportUploadFailedBody => _get('supportUploadFailedBody');
+  String get supportErrorUpload => _get('supportErrorUpload');
+  String get supportErrorConflict => _get('supportErrorConflict');
+  String get supportUploadFailed => _get('supportUploadFailed');
+  String get supportAttachmentRetry => _get('supportAttachmentRetry');
+  String get timeJustNow => _get('timeJustNow');
+  String timeMinutesAgo(int count) =>
+      _get('timeMinutesAgo').replaceFirst('{count}', '$count');
+  String timeHoursAgo(int count) =>
+      _get('timeHoursAgo').replaceFirst('{count}', '$count');
+  String timeDaysAgo(int count) =>
+      _get('timeDaysAgo').replaceFirst('{count}', '$count');
+  String get reviewsErrorNotRateable => _get('reviewsErrorNotRateable');
+  String get notificationsMarkReadFailed => _get('notificationsMarkReadFailed');
+  String get disputeStatusStatusUnavailableBody =>
+      _get('disputeStatusStatusUnavailableBody');
+  String get prohibitedItemReportPhotoAttached =>
+      _get('prohibitedItemReportPhotoAttached');
+  String get kycWizardLoadingHeadline => _get('kycWizardLoadingHeadline');
+  String get kycStatusLoadingHeadline => _get('kycStatusLoadingHeadline');
+  String get kycStatusOpenWizardCta => _get('kycStatusOpenWizardCta');
+  String get registrationOtpServiceUnavailable =>
+      _get('registrationOtpServiceUnavailable');
+  String get settingsNotificationsSaveFailed =>
+      _get('settingsNotificationsSaveFailed');
+  String get settingsNotificationsManageRow =>
+      _get('settingsNotificationsManageRow');
+  String get settingsNotificationsDeviceOnlyNote =>
+      _get('settingsNotificationsDeviceOnlyNote');
+  String get profilePhotoTooLarge => _get('profilePhotoTooLarge');
+  String get profilePhotoUnauthorized => _get('profilePhotoUnauthorized');
+  String get savedAddressesComingSoonTitle =>
+      _get('savedAddressesComingSoonTitle');
+  String get savedAddressesComingSoonBody =>
+      _get('savedAddressesComingSoonBody');
+  String get dmOnboardingPhotoUploadFailed =>
+      _get('dmOnboardingPhotoUploadFailed');
+
+  // Stage 2 · WP-7 stand-in swaps + dispute_status facade accessors
+  String get reviewsLoadingHeadline => _get('reviewsLoadingHeadline');
+  String get disputeStatusStatusUnavailable =>
+      _get('disputeStatusStatusUnavailable');
+  String get disputeStatusReasonDamaged => _get('disputeStatusReasonDamaged');
+  String get disputeStatusReasonWrongItem =>
+      _get('disputeStatusReasonWrongItem');
+  String get disputeStatusReasonNoShow => _get('disputeStatusReasonNoShow');
+  String get disputeStatusReasonFraud => _get('disputeStatusReasonFraud');
+  String get disputeStatusReasonAbuse => _get('disputeStatusReasonAbuse');
+  String get disputeStatusReasonOther => _get('disputeStatusReasonOther');
+  String get disputeStatusReasonUnspecified =>
+      _get('disputeStatusReasonUnspecified');
+  String get disputeStatusChatAttached => _get('disputeStatusChatAttached');
+  String disputeStatusPhotosAttached(int count) =>
+      _cldrPlural('disputeStatusPhotosAttached', count);
+  String disputeStatusChatAttachedCount(int count) =>
+      _get('disputeStatusChatAttachedCount').replaceFirst('{count}', '$count');
+  String disputeStatusTimelineAttached(int count) =>
+      _get('disputeStatusTimelineAttached').replaceFirst('{count}', '$count');
+  String reviewsAggregate(String score, int count) =>
+      _get('reviewsAggregate')
+          .replaceFirst('{score}', score)
+          .replaceFirst('{count}', '$count');
 }

@@ -26,7 +26,11 @@ Widget _harness() {
         name: 'wallet-charge-info',
         builder: (_, _) => const WalletChargeInfoScreen(),
       ),
-      GoRoute(path: '/wallet', name: 'wallet', builder: (_, _) => const Scaffold()),
+      GoRoute(
+        path: '/wallet',
+        name: 'wallet',
+        builder: (_, _) => const Scaffold(),
+      ),
     ],
   );
   return MaterialApp.router(

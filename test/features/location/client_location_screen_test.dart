@@ -39,30 +39,30 @@ class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
 late _SyncDelegate _delegate;
 
 Widget _harness(Widget child) => MaterialApp(
-      theme: AppTheme.light(),
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: [
-        _delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: child,
-    );
+  theme: AppTheme.light(),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: [
+    _delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  home: child,
+);
 
 /// Same harness pinned to an explicit [locale] (G1 ar/RTL coverage).
 Widget _harnessLocalized(Widget child, Locale locale) => MaterialApp(
-      theme: AppTheme.light(),
-      locale: locale,
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: [
-        _delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: child,
-    );
+  theme: AppTheme.light(),
+  locale: locale,
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: [
+    _delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  home: child,
+);
 
 void main() {
   setUpAll(() {
@@ -89,14 +89,17 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('exposes the three JM-024 location-select identifiers',
-      (tester) async {
+  testWidgets('exposes the three JM-024 location-select identifiers', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      _harness(const ClientLocationScreen(
-        // DEFECT A: inject the user id so the screen uses the test seam instead
-        userId: 'user-client-001',
-        repository: FakeLocationSelectRepository(),
-      )),
+      _harness(
+        const ClientLocationScreen(
+          // DEFECT A: inject the user id so the screen uses the test seam instead
+          userId: 'user-client-001',
+          repository: FakeLocationSelectRepository(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -115,24 +118,28 @@ void main() {
     // The seeded saved addresses render as selectable cards.
     expect(
       find.bySemanticsIdentifier(
-          'location_select_saved_address_addr-client-001-home'),
+        'location_select_saved_address_addr-client-001-home',
+      ),
       findsOneWidget,
     );
   });
 
-  testWidgets('confirm / saved-row / new callbacks fire (nav seams)',
-      (tester) async {
+  testWidgets('confirm / saved-row / new callbacks fire (nav seams)', (
+    tester,
+  ) async {
     var confirmed = false;
     var openedSaved = false;
     var addedNew = false;
     await tester.pumpWidget(
-      _harness(ClientLocationScreen(
-        userId: 'user-client-001',
-        repository: const FakeLocationSelectRepository(),
-        onConfirm: () => confirmed = true,
-        onOpenSavedAddresses: () => openedSaved = true,
-        onAddLocation: () => addedNew = true,
-      )),
+      _harness(
+        ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: const FakeLocationSelectRepository(),
+          onConfirm: () => confirmed = true,
+          onOpenSavedAddresses: () => openedSaved = true,
+          onAddLocation: () => addedNew = true,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -153,21 +160,22 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(
-      find.bySemanticsIdentifier('location_select_confirm_cta'),
-    );
+    await tester.tap(find.bySemanticsIdentifier('location_select_confirm_cta'));
     expect(confirmed, isTrue);
   });
 
-  testWidgets('renders the affordances even when the saved-address load fails',
-      (tester) async {
+  testWidgets('renders the affordances even when the saved-address load fails', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      _harness(const ClientLocationScreen(
-        userId: 'user-client-001',
-        repository: FakeLocationSelectRepository(
-          failWith: LocationSelectFailure.network,
+      _harness(
+        const ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: FakeLocationSelectRepository(
+            failWith: LocationSelectFailure.network,
+          ),
         ),
-      )),
+      ),
     );
     // MIDNIGHT M0-4: the error band is a `JeebEmptyState` whose illustration
     // loops forever, so this surface advances with pump(), never pumpAndSettle.
@@ -197,20 +205,23 @@ void main() {
   // ── D1 (redesign screen 09) — the GPS accuracy subtitle ──────────────────
 
   group('current-location accuracy subtitle', () {
-    testWidgets('renders the accuracy radius when the fix carries one',
-        (tester) async {
+    testWidgets('renders the accuracy radius when the fix carries one', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        _harness(ClientLocationScreen(
-          userId: 'user-client-001',
-          repository: const FakeLocationSelectRepository(),
-          currentLocationResolver: FakeCurrentLocationResolver(
-            result: const CurrentLocationResult.resolved(
-              33.8959,
-              35.4797,
-              accuracyMeters: 8,
+        _harness(
+          ClientLocationScreen(
+            userId: 'user-client-001',
+            repository: const FakeLocationSelectRepository(),
+            currentLocationResolver: FakeCurrentLocationResolver(
+              result: const CurrentLocationResult.resolved(
+                33.8959,
+                35.4797,
+                accuracyMeters: 8,
+              ),
             ),
           ),
-        )),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -223,16 +234,19 @@ void main() {
       expect(find.text('Using your current location'), findsNothing);
     });
 
-    testWidgets('falls back to the flat resolved copy when accuracy is null',
-        (tester) async {
+    testWidgets('falls back to the flat resolved copy when accuracy is null', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        _harness(ClientLocationScreen(
-          userId: 'user-client-001',
-          repository: const FakeLocationSelectRepository(),
-          currentLocationResolver: FakeCurrentLocationResolver(
-            result: const CurrentLocationResult.resolved(33.8959, 35.4797),
+        _harness(
+          ClientLocationScreen(
+            userId: 'user-client-001',
+            repository: const FakeLocationSelectRepository(),
+            currentLocationResolver: FakeCurrentLocationResolver(
+              result: const CurrentLocationResult.resolved(33.8959, 35.4797),
+            ),
           ),
-        )),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -264,100 +278,126 @@ void main() {
     });
 
     testWidgets(
-        'renders the description block and gates Confirm on a non-empty '
-        'trimmed entry (typed path)', (tester) async {
-      final submission = FakeRequestSubmissionService(requestId: 'req-g1');
-      sl.registerLazySingleton<ComposeRequestController>(
-        () => ComposeRequestController(submission),
-      );
-      await tester.pumpWidget(
-        _harness(const ClientLocationScreen(
-          userId: 'user-client-001',
-          repository: FakeLocationSelectRepository(),
-        )),
-      );
-      await tester.pumpAndSettle();
+      'renders the description block and gates Confirm on a non-empty '
+      'trimmed entry (typed path)',
+      (tester) async {
+        final submission = FakeRequestSubmissionService(requestId: 'req-g1');
+        sl.registerLazySingleton<ComposeRequestController>(
+          () => ComposeRequestController(submission),
+        );
+        await tester.pumpWidget(
+          _harness(
+            const ClientLocationScreen(
+              userId: 'user-client-001',
+              repository: FakeLocationSelectRepository(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // The block renders: field + mic affordance.
-      expect(find.bySemanticsIdentifier('compose_description_input'),
-          findsOneWidget);
-      expect(find.byKey(micKey), findsOneWidget);
+        // The block renders: field + mic affordance.
+        expect(
+          find.bySemanticsIdentifier('compose_description_input'),
+          findsOneWidget,
+        );
+        expect(find.byKey(micKey), findsOneWidget);
 
-      // Empty → Confirm disabled (required-by-default).
-      expect(confirmButton(tester).isEnabled, isFalse);
+        // Empty → Confirm disabled (required-by-default).
+        expect(confirmButton(tester).isEnabled, isFalse);
 
-      // Whitespace-only stays disabled (non-empty TRIMMED required).
-      await tester.enterText(find.byKey(fieldKey), '   ');
-      await tester.pump();
-      expect(confirmButton(tester).isEnabled, isFalse);
+        // Whitespace-only stays disabled (non-empty TRIMMED required).
+        await tester.enterText(find.byKey(fieldKey), '   ');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isFalse);
 
-      // Real content enables Confirm and lands in the compose controller.
-      await tester.enterText(
-          find.byKey(fieldKey), '2 shawarma + cola from Barbar');
-      await tester.pump();
-      expect(confirmButton(tester).isEnabled, isTrue);
-      expect(
-        sl<ComposeRequestController>().description,
-        '2 shawarma + cola from Barbar',
-      );
+        // Real content enables Confirm and lands in the compose controller.
+        await tester.enterText(find.byKey(fieldKey), 'a');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isFalse);
+        expect(find.bySemanticsIdentifier('compose_description_error'), findsOneWidget);
+        final l10n = AppLocalizations.of(tester.element(find.byKey(fieldKey)));
+        expect(find.text(l10n.composeDescriptionTooShort), findsOneWidget);
+        await tester.enterText(find.byKey(fieldKey), 'abcde');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isTrue);
 
-      // Clearing re-disables and surfaces the required error.
-      await tester.enterText(find.byKey(fieldKey), '');
-      await tester.pump();
-      expect(confirmButton(tester).isEnabled, isFalse);
-      expect(find.text('Please describe what you need.'), findsOneWidget);
-    });
+        await tester.enterText(
+          find.byKey(fieldKey),
+          '2 shawarma + cola from Barbar',
+        );
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isTrue);
+        expect(
+          sl<ComposeRequestController>().description,
+          '2 shawarma + cola from Barbar',
+        );
+
+        // Clearing re-disables and surfaces the required error.
+        await tester.enterText(find.byKey(fieldKey), '');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isFalse);
+        expect(find.text('Please describe what you need.'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'mic affordance (voice path): the dictated transcript flows into the '
-        'field and the POST draft carries description + transcription + audio',
-        (tester) async {
-      final submission = FakeRequestSubmissionService(requestId: 'req-g1');
-      sl.registerLazySingleton<ComposeRequestController>(
-        () => ComposeRequestController(submission),
-      );
-      var dictations = 0;
-      await tester.pumpWidget(
-        _harness(ClientLocationScreen(
-          userId: 'user-client-001',
-          repository: const FakeLocationSelectRepository(),
-          onDictate: () async {
-            dictations += 1;
-            return const VoiceClip(
-              audioPath: 'clip-42',
-              durationMs: 2100,
-              transcript: 'A birthday cake from Sea Sweet',
-            );
-          },
-        )),
-      );
-      await tester.pumpAndSettle();
+      'mic affordance (voice path): the dictated transcript flows into the '
+      'field and the POST draft carries description + transcription + audio',
+      (tester) async {
+        final submission = FakeRequestSubmissionService(requestId: 'req-g1');
+        sl.registerLazySingleton<ComposeRequestController>(
+          () => ComposeRequestController(submission),
+        );
+        var dictations = 0;
+        await tester.pumpWidget(
+          _harness(
+            ClientLocationScreen(
+              userId: 'user-client-001',
+              repository: const FakeLocationSelectRepository(),
+              onDictate: () async {
+                dictations += 1;
+                return const VoiceClip(
+                  audioPath: 'clip-42',
+                  durationMs: 2100,
+                  transcript: 'A birthday cake from Sea Sweet',
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.byKey(micKey));
-      await tester.tap(find.byKey(micKey));
-      await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(micKey));
+        await tester.tap(find.byKey(micKey));
+        await tester.pumpAndSettle();
 
-      expect(dictations, 1);
-      // Transcript flows INTO the editable field (not a separate surface).
-      expect(find.text('A birthday cake from Sea Sweet'), findsOneWidget);
-      expect(confirmButton(tester).isEnabled, isTrue);
+        expect(dictations, 1);
+        // Transcript flows INTO the editable field (not a separate surface).
+        expect(find.text('A birthday cake from Sea Sweet'), findsOneWidget);
+        expect(confirmButton(tester).isEnabled, isTrue);
 
-      // The compose controller now builds the draft from the dictation.
-      final draft = await sl<ComposeRequestController>()
-          .submitFromLocation(const LocationSelectState(
-        status: LocationSelectStatus.loaded,
-        currentGpsStatus: CurrentGpsStatus.resolved,
-        gpsLat: 33.8959,
-        gpsLng: 35.4797,
-      ))
-          .then((_) => submission.lastDraft!);
-      expect(draft.description, 'A birthday cake from Sea Sweet');
-      expect(draft.transcription, 'A birthday cake from Sea Sweet');
-      expect(draft.audioUrl, 'clip-42');
-    });
+        // The compose controller now builds the draft from the dictation.
+        final draft = await sl<ComposeRequestController>()
+            .submitFromLocation(
+              const LocationSelectState(
+                status: LocationSelectStatus.loaded,
+                currentGpsStatus: CurrentGpsStatus.resolved,
+                gpsLat: 33.8959,
+                gpsLng: 35.4797,
+              ),
+              defaultDescription: 'Delivery request',
+              currentLocationLabel: 'Current location',
+            )
+            .then((_) => submission.lastDraft!);
+        expect(draft.description, 'A birthday cake from Sea Sweet');
+        expect(draft.transcription, 'A birthday cake from Sea Sweet');
+        expect(draft.audioUrl, 'clip-42');
+      },
+    );
 
-    testWidgets('ar/RTL: the compose block renders localized and mirrored',
-        (tester) async {
+    testWidgets('ar/RTL: the compose block renders localized and mirrored', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harnessLocalized(
           const ClientLocationScreen(
@@ -374,6 +414,12 @@ void main() {
       // The field itself lays out right-to-left under the ar locale.
       final fieldContext = tester.element(find.byKey(fieldKey));
       expect(Directionality.of(fieldContext), TextDirection.rtl);
+      await tester.enterText(find.byKey(fieldKey), 'a');
+      await tester.pump();
+      final l10n = AppLocalizations.of(fieldContext);
+      expect(find.text(l10n.composeDescriptionTooShort), findsOneWidget);
+      expect(find.bySemanticsIdentifier('compose_description_error'), findsOneWidget);
+      expect(confirmButton(tester).isEnabled, isFalse);
     });
   });
 }

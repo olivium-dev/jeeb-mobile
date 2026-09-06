@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'settlement_statement.dart';
 
 abstract class SettlementRepository {
@@ -6,16 +7,16 @@ abstract class SettlementRepository {
   Future<String> downloadPdf(String statementId);
 }
 
-enum SettlementFailure { network, server, notFound, fileWrite }
+enum SettlementFailure { network, server, notFound, fileWrite, parse }
 
 class SettlementException implements Exception {
-  const SettlementException(this.failure, [this.message]);
+  const SettlementException(this.failure, {this.cause});
 
   final SettlementFailure failure;
-  final String? message;
+
+  /// The classified transport failure; never rendered verbatim (SET-02).
+  final AppFailure? cause;
 
   @override
-  String toString() =>
-      'SettlementException(${failure.name}'
-      '${message == null ? '' : ': $message'})';
+  String toString() => 'SettlementException(${failure.name})';
 }

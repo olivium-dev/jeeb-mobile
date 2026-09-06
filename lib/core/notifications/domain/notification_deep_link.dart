@@ -64,12 +64,17 @@ String? _explicitDeepLink(NotificationMessage message) {
   return null;
 }
 
+/// True when [deepLinkForMessage] has no destination for [role] and only falls
+/// back to home — F8: an inbox tap must say so instead of silently going there.
+bool deepLinkRefusedForRole(NotificationMessage message, {UserRole? role}) =>
+    role == UserRole.client &&
+    (message.category == NotificationCategory.newRequest ||
+        message.category == NotificationCategory.offerAccepted ||
+        message.category == NotificationCategory.offerLost);
+
 /// than throwing, so a malformed payload from jeeb-gateway can't crash
 String? deepLinkForMessage(NotificationMessage message, {UserRole? role}) {
-  if (role == UserRole.client &&
-      (message.category == NotificationCategory.newRequest ||
-          message.category == NotificationCategory.offerAccepted ||
-          message.category == NotificationCategory.offerLost)) {
+  if (deepLinkRefusedForRole(message, role: role)) {
     return '/';
   }
   // A server-authored destination wins over the category rules, except a

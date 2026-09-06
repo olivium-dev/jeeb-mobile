@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/recipient_phone_resolver.dart';
 
 class DioRecipientPhoneResolver implements RecipientPhoneResolver {
@@ -18,7 +20,10 @@ class DioRecipientPhoneResolver implements RecipientPhoneResolver {
       if (raw is! String) return null;
       final trimmed = raw.trim();
       return trimmed.isEmpty ? null : trimmed;
-    } catch (_) {
+    } catch (e) {
+      Diag.event('recipient_phone_lookup_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
       return null;
     }
   }

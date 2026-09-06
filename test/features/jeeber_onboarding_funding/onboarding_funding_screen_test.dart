@@ -310,10 +310,13 @@ void main() {
     );
 
     final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-    expect(block.status, JeebEmptyStateStatus.error);
+    expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+    expect(block.reason, JeebEmptyStateReason.failed);
     expect(block.variant, JeebEmptyStateVariant.pocket);
     expect(find.bySemanticsIdentifier('funding_wallet_error'), findsOneWidget);
     expect(find.bySemanticsIdentifier('funding_wallet_retry'), findsOneWidget);
+    // ES-17: the headline is no longer ANOTHER screen's app-bar title.
+    expect(block.headline, isNot('Fee balance'));
   });
 
   testWidgets('loaded rung: the lower third stays empty', (tester) async {

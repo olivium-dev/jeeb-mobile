@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'delivery_tracking_info.dart';
 
 abstract class LiveTrackingRepository {
@@ -36,14 +37,17 @@ class DeliveryLivePosition {
 }
 
 class LiveTrackingException implements Exception {
-  const LiveTrackingException(this.kind, [this.cause]);
+  const LiveTrackingException(this.kind, [this.cause, this.appFailure]);
 
   final LiveTrackingErrorKind kind;
   final Object? cause;
 
+  /// The classified failure, so the cubit renders shared copy without
+  /// re-deriving it from [kind].
+  final AppFailure? appFailure;
+
   @override
-  String toString() =>
-      'LiveTrackingException(${kind.name}${cause == null ? '' : ', $cause'})';
+  String toString() => 'LiveTrackingException(${kind.name})';
 }
 
 enum LiveTrackingErrorKind {
@@ -52,4 +56,8 @@ enum LiveTrackingErrorKind {
 
   notFound,
   parse,
+
+  unauthorized,
+  forbidden,
+  rateLimited,
 }

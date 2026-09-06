@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
-import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
+import 'jeeber_no_requests_view.dart';
 
 /// Deliveryman home empty state (Figma "Delivery Screen - Empty State
 /// [Delivery Man]", file ZOi3kKtw7sd42ssSVX3Kn4, node 56559:930, screen 23),
@@ -143,15 +143,10 @@ class _EmptyText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.xLarge),
-      child: JeebEmptyState(
-        identifier: 'jeeber_feed_empty_view_empty_state',
-        variant: JeebEmptyStateVariant.street,
-        headline: l10n.jeeberFeedEmptyTitle,
-        body: l10n.jeeberFeedEmptySubtitle,
-      ),
+    // ES-25: one condition, ONE rendering — the shared block, not a third copy.
+    return const Padding(
+      padding: EdgeInsetsDirectional.only(top: Spacing.xLarge),
+      child: JeeberFeedEmptyBlock(),
     );
   }
 }

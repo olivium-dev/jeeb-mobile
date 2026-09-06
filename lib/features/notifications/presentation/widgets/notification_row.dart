@@ -213,5 +213,9 @@ IconData _iconFor(NotificationKind kind) {
       return Icons.support_agent;
     case NotificationKind.unknown:
       return Icons.notifications_none_outlined;
+    case NotificationKind.chat:
+      return Icons.chat_bubble_outline;
+    case NotificationKind.availability:
+      return Icons.power_settings_new_outlined;
   }
 }

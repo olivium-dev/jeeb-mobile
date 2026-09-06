@@ -322,7 +322,8 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(JeeberFeedTabView)),
       );
-      expect(find.text(l10n.jeeberFeedOfflineBannerTitle), findsWidgets);
+      // OFF-16: duty-off copy, not connectivity copy.
+      expect(find.text(l10n.availabilityDutyOffTitle), findsWidgets);
       expect(find.byKey(JeeberFeedTabView.listKey), findsNothing);
     });
 

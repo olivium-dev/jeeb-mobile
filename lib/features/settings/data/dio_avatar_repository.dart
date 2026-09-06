@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../domain/avatar_repository.dart';
 
@@ -26,9 +28,22 @@ class DioAvatarRepository implements AvatarRepository {
     }
     final String objectRef;
     try {
-      objectRef = await _cdn.uploadAsset(slot: CdnUploadSlot.avatar, bytes: bytes);
+      final CdnAssetGateway cdn = _cdn;
+      objectRef = cdn is IdempotentCdnAssetGateway
+          ? await cdn.uploadAssetIdempotent(
+              slot: CdnUploadSlot.avatar,
+              bytes: bytes,
+              operationId: newOperationId(),
+            )
+          : await cdn.uploadAsset(slot: CdnUploadSlot.avatar, bytes: bytes);
     } on CdnUploadException catch (e) {
-      throw AvatarRepositoryException(AvatarUploadFailure.network, e.message);
+      final AppFailure? failure = e.failure;
+      throw AvatarRepositoryException(
+        failure == null
+            ? AvatarUploadFailure.network
+            : _mapFailure(failure, e.status),
+        e.message,
+      );
     }
     final me = await _fetchMe();
     await _putProfile(me: me, profilePic: objectRef);
@@ -44,18 +59,25 @@ class DioAvatarRepository implements AvatarRepository {
   }
 
   Future<_Me> _fetchMe() async {
+    final Map<String, dynamic> json;
     try {
       final res = await _dio.get<Map<String, dynamic>>(_mePath);
-      final json = res.data ?? const <String, dynamic>{};
-      return _Me(
-        userId: _str(json['userId'] ?? json['user_id'] ?? json['id']) ?? '',
-        email: _str(json['email']) ?? '',
-        // Preserve the display name so this PUT never blanks `username`.
-        username: _str(json['name'] ?? json['username']) ?? '',
-      );
+      json = res.data ?? const <String, dynamic>{};
     } on DioException catch (e) {
-      throw AvatarRepositoryException(_mapDioFailure(e), e.message);
+      throw AvatarRepositoryException(_mapDioFailure(e), 'users_me');
     }
+    // A `/v1/users/me` with no id cannot be PUT back without blanking the
+    // stored identity (UX-23) — abort rather than write empty strings.
+    final String? userId = _str(json['userId'] ?? json['user_id'] ?? json['id']);
+    if (userId == null) {
+      throw const AvatarRepositoryException(AvatarUploadFailure.unauthorized);
+    }
+    return _Me(
+      userId: userId,
+      email: _str(json['email']),
+      // Preserve the display name so this PUT never blanks `username`.
+      username: _str(json['name'] ?? json['username']),
+    );
   }
 
   Future<void> _putProfile({required _Me me, required String profilePic}) async {
@@ -64,13 +86,13 @@ class DioAvatarRepository implements AvatarRepository {
         _profilePath,
         data: <String, dynamic>{
           'userId': me.userId,
-          'email': me.email,
-          'username': me.username,
+          if (me.email != null) 'email': me.email,
+          if (me.username != null) 'username': me.username,
           'profilePic': profilePic,
         },
       );
     } on DioException catch (e) {
-      throw AvatarRepositoryException(_mapDioFailure(e), e.message);
+      throw AvatarRepositoryException(_mapDioFailure(e), 'users_profile_put');
     }
   }
 
@@ -87,26 +109,37 @@ class DioAvatarRepository implements AvatarRepository {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  AvatarUploadFailure _mapDioFailure(DioException e) {
-    final status = e.response?.statusCode;
-    if (status == 401 || status == 403) return AvatarUploadFailure.unauthorized;
-    if (status != null && status >= 500) return AvatarUploadFailure.serverError;
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return AvatarUploadFailure.network;
-      default:
-        return AvatarUploadFailure.unknown;
+  static AvatarUploadFailure _mapDioFailure(DioException e) =>
+      _mapFailure(AppFailure.of(e), e.response?.statusCode);
+
+  static AvatarUploadFailure _mapFailure(AppFailure failure, int? status) {
+    if (failure is ValidationFailure) {
+      final int? code = status ?? failure.problem?.status;
+      return (code == 413 || code == 415)
+          ? AvatarUploadFailure.tooLarge
+          : AvatarUploadFailure.unknown;
     }
+    return switch (failure.kind) {
+      AppFailureKind.unauthorized ||
+      AppFailureKind.forbidden =>
+        AvatarUploadFailure.unauthorized,
+      AppFailureKind.server => AvatarUploadFailure.serverError,
+      AppFailureKind.network ||
+      AppFailureKind.timeout =>
+        AvatarUploadFailure.network,
+      _ => AvatarUploadFailure.unknown,
+    };
   }
 }
 
 class _Me {
-  const _Me({required this.userId, required this.email, required this.username});
+  const _Me({required this.userId, this.email, this.username});
 
   final String userId;
-  final String email;
-  final String username;
+
+  /// Null when `/v1/users/me` did not carry it — the PUT then OMITS the field
+  /// rather than sending `''`, which would blank the stored value.
+  final String? email;
+
+  final String? username;
 }

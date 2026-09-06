@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
@@ -69,10 +70,10 @@ class SettingsScreenFakeAccountService implements AccountService {
 /// row, `isDeletingAccount`, `isSigningOut` — are produced by cubit methods
 class SettingsScreenSeededCubit extends SettingsCubit {
   SettingsScreenSeededCubit(SettingsState seed)
-      : super(
-          profileRepository: SettingsScreenFakeProfileRepository(),
-          accountService: const SettingsScreenFakeAccountService(),
-        ) {
+    : super(
+        profileRepository: SettingsScreenFakeProfileRepository(),
+        accountService: const SettingsScreenFakeAccountService(),
+      ) {
     emit(seed);
   }
 }
@@ -82,7 +83,7 @@ class SettingsScreenSeededCubit extends SettingsCubit {
 /// (`getInstance()`) and platform-channel backed — neither of which a
 class SettingsScreenInMemoryPrefs implements SharedPreferences {
   SettingsScreenInMemoryPrefs([Map<String, Object>? seed])
-      : _store = <String, Object>{...?seed};
+    : _store = <String, Object>{...?seed};
 
   final Map<String, Object> _store;
 
@@ -207,10 +208,8 @@ class _SettingsScreenPreviewHostState extends State<SettingsScreenPreviewHost> {
     final Widget seated = BlocProvider<LocaleCubit>(
       // Keyed on the ambient locale: `create` runs once per element, so
       key: ValueKey<Locale>(ambient),
-      create: (_) => LocaleCubit(
-        prefs: _prefs,
-        deviceLocaleProvider: () => ambient,
-      ),
+      create: (_) =>
+          LocaleCubit(prefs: _prefs, deviceLocaleProvider: () => ambient),
       child: widget.builder(_cubit),
     );
     final double? width = widget.width;
@@ -249,10 +248,8 @@ abstract final class SettingsScreenPreviewFixtures {
   static const String longestPhone = '+96181004477';
 
   /// The reference profile: a name and a phone on file.
-  static UserProfile sampleProfile() => const UserProfile(
-        phoneE164: samplePhone,
-        name: sampleName,
-      );
+  static UserProfile sampleProfile() =>
+      const UserProfile(phoneE164: samplePhone, name: sampleName);
 
   /// Hydrated through the REAL `load()` path over an in-memory repository —
   /// the same two emissions production makes, just without the gateway.
@@ -275,36 +272,43 @@ abstract final class SettingsScreenPreviewFixtures {
 
   /// E20 (JEBV4-215): the delete request has been accepted and the row has
   /// latched to the scheduled-purge copy.
-  static SettingsCubit deletionPending() => SettingsScreenSeededCubit(
-        const SettingsState(
-          profile: UserProfile(phoneE164: pendingPhone, name: pendingName),
-          deletionPending: true,
-        ),
-      );
+  static SettingsCubit deletionPending() {
+    final cubit = SettingsCubit(
+      profileRepository: SettingsScreenFakeProfileRepository(
+        const UserProfile(phoneE164: pendingPhone, name: pendingName),
+      ),
+      accountService: const SettingsScreenFakeAccountService(),
+    );
+    unawaited(() async {
+      await cubit.load();
+      if (!cubit.isClosed) await cubit.requestAccountDeletion();
+    }());
+    return cubit;
+  }
 
   /// Both destructive requests in flight at once — the only rendering in which
   /// the Account rows are disabled without being latched.
   static SettingsCubit destructiveInFlight() => SettingsScreenSeededCubit(
-        const SettingsState(
-          profile: UserProfile(phoneE164: inFlightPhone, name: inFlightName),
-          isDeletingAccount: true,
-          isSigningOut: true,
-        ),
-      );
+    const SettingsState(
+      profile: UserProfile(phoneE164: inFlightPhone, name: inFlightName),
+      isDeletingAccount: true,
+      isSigningOut: true,
+    ),
+  );
 
   /// The ceiling reading: the longest name on file with every optional
   /// notification opted OUT, so the switch rows are reviewable in their off
   static SettingsCubit longestContent() => SettingsScreenSeededCubit(
-        const SettingsState(
-          profile: UserProfile(phoneE164: longestPhone, name: longestName),
-          notifications: NotificationPreferences(
-            offers: false,
-            chat: false,
-            status: false,
-            ratingReminders: false,
-          ),
-        ),
-      );
+    const SettingsState(
+      profile: UserProfile(phoneE164: longestPhone, name: longestName),
+      notifications: NotificationPreferences(
+        offers: false,
+        chat: false,
+        status: false,
+        ratingReminders: false,
+      ),
+    ),
+  );
 
   static SettingsCubit _hydrated(UserProfile profile) {
     final cubit = SettingsCubit(
@@ -313,5 +317,79 @@ abstract final class SettingsScreenPreviewFixtures {
     );
     unawaited(cubit.load());
     return cubit;
+  }
+}
+
+/// LR-05: the local profile read THROWS, so the screen has to draw
+/// `settings_error` instead of an empty body that looks loaded.
+class SettingsScreenThrowingProfileRepository implements ProfileRepository {
+  const SettingsScreenThrowingProfileRepository([
+    this.failure = const ServerFailure(status: 500),
+  ]);
+
+  final AppFailure failure;
+
+  @override
+  Future<UserProfile?> load() async => throw failure;
+
+  @override
+  Future<void> save(UserProfile profile) async => throw failure;
+
+  @override
+  Future<void> clear() async {}
+}
+
+/// LR-15: the read lands, the SAVE does not — the optimistic name rolls back
+/// and the banner says so instead of "Profile saved".
+class SettingsScreenSaveFailingProfileRepository implements ProfileRepository {
+  SettingsScreenSaveFailingProfileRepository([this._profile]);
+
+  UserProfile? _profile;
+
+  @override
+  Future<UserProfile?> load() async => _profile;
+
+  @override
+  Future<void> save(UserProfile profile) async =>
+      throw const NetworkFailure(offline: true);
+
+  @override
+  Future<void> clear() async => _profile = null;
+}
+
+/// A read that never lands: the `settings_loading` rung.
+class SettingsScreenSlowProfileRepository implements ProfileRepository {
+  const SettingsScreenSlowProfileRepository();
+
+  @override
+  Future<UserProfile?> load() => Completer<UserProfile?>().future;
+
+  @override
+  Future<void> save(UserProfile profile) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+/// F11: the device-local notification store, in memory. [writeFails] proves
+/// the revert-and-say-so path.
+class SettingsScreenFakeNotificationStore
+    implements SettingsNotificationPrefsStore {
+  SettingsScreenFakeNotificationStore({
+    NotificationPreferences? seed,
+    this.writeFails = false,
+  }) : _stored = seed;
+
+  NotificationPreferences? _stored;
+
+  final bool writeFails;
+
+  @override
+  Future<NotificationPreferences?> read() async => _stored;
+
+  @override
+  Future<void> write(NotificationPreferences preferences) async {
+    if (writeFails) throw const ServerFailure(status: 500);
+    _stored = preferences;
   }
 }

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -43,8 +42,8 @@ class OrdersTab extends StatelessWidget {
     if (!actingAsJeeber && sl.isRegistered<OrderRepository>()) {
       return sl<OrderRepository>();
     }
-    final dio = sl.isRegistered<Dio>() ? sl<Dio>() : Dio();
-    return DioOrderRepository(dio, asJeeber: actingAsJeeber);
+    // NET-25: never a bare Dio() — no baseUrl, no auth, no interceptors.
+    return DioOrderRepository(resolveGatewayDio(), asJeeber: actingAsJeeber);
   }
 }
 

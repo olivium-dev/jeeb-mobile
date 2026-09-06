@@ -1430,6 +1430,11 @@ class AppRouter {
                 pathParameters: {'id': deliveryId},
               ),
               reportService: sl<ProhibitedItemReportService>(),
+              // X2: the real decline round trip. Null when no repository is
+              // registered, which keeps the fire-and-forget pop.
+              onDeclineRequest: sl.isRegistered<RequestFeedRepository>()
+                  ? (requestId) => sl<RequestFeedRepository>().decline(requestId)
+                  : null,
               onDeclined: (_) => back(),
               onBack: back,
             );
@@ -1609,10 +1614,12 @@ class AppRouter {
           builder: (context, state) {
             final deliveryId = state.pathParameters['id'] ?? '';
             return BlocProvider<EscalateCubit>(
+              // ES-15: no-op unless the repository implements the preview
+              // interface; lights the evidence rungs the moment one does.
               create: (_) => EscalateCubit(
                 repository: sl<EscalateRepository>(),
                 deliveryId: deliveryId,
-              ),
+              )..loadEvidence(),
               child: const EscalateScreen(),
             );
           },

@@ -116,7 +116,9 @@ void main() {
     });
 
     // The copy is three string literals (`title`, `subtitle`, and the
-    testWidgets('an Arabic build still renders the English copy', (
+    // ES-23: the two English consts became ARB keys, so the Arabic build now
+    // renders Arabic instead of the literals it used to ship.
+    testWidgets('an Arabic build renders the ARABIC copy', (
       WidgetTester tester,
     ) async {
       await pumpPreview(
@@ -132,17 +134,13 @@ void main() {
       );
       expect(
         find.text(SavedAddressesScreenFixtures.title),
-        findsOneWidget,
-        reason: '…but the words do not: the screen ships string literals',
+        findsNothing,
+        reason: '…and so do the words now',
       );
+      expect(find.text('العناوين المحفوظة قريبًا'), findsOneWidget);
 
-      // And the Arabic the screen is ignoring is right there in the ARB.
       final String arb = File('lib/l10n/app_ar.arb').readAsStringSync();
-      expect(
-        arb.contains('"savedAddressesTitle"'),
-        isTrue,
-        reason: 'a localized title already exists for this feature',
-      );
+      expect(arb.contains('"savedAddressesComingSoonTitle"'), isTrue);
     });
 
     // 272pt of usable width after `EdgeInsets.all(24)`. `OmdsEmptyState` passes

@@ -6,6 +6,7 @@ import '../../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../../core/lifecycle/polling_source.dart';
 import '../../../core/lifecycle/polling_visibility.dart';
+import '../../../core/network/app_failure.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 import 'request_feed_state.dart';
@@ -118,7 +119,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     if (isInitial) {
       emit(state.copyWith(
         status: RequestFeedStatus.loading,
-        errorMessageKey: null,
+        error: null,
       ));
     }
     try {
@@ -159,15 +160,22 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
         status: RequestFeedStatus.ready,
         requests: _sorted(reconciled.values),
         expiredIds: expiredIds,
-        errorMessageKey: null,
+        error: null,
+        refreshError: null,
       ));
-    } catch (_) {
-      emit(state.copyWith(
-        status: state.requests.isEmpty
-            ? RequestFeedStatus.error
-            : RequestFeedStatus.ready,
-        errorMessageKey: 'requestFeedErrorLoad',
-      ));
+    } catch (e) {
+      final failure = AppFailure.of(e);
+      // A warm failure keeps the rows; only a cold one owns the screen.
+      emit(state.requests.isEmpty
+          ? state.copyWith(
+              status: RequestFeedStatus.error,
+              error: failure,
+              refreshError: null,
+            )
+          : state.copyWith(
+              status: RequestFeedStatus.ready,
+              refreshError: failure,
+            ));
     }
   }
 
@@ -196,9 +204,11 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       actionStatuses: {...state.actionStatuses, id: busy},
     ));
     RequestActionOutcome outcome;
+    AppFailure? failure;
     try {
       outcome = await call(id);
-    } catch (_) {
+    } catch (e) {
+      failure = AppFailure.of(e);
       outcome = RequestActionOutcome.networkError;
     }
     final pendingRemoved = Map<String, RequestActionStatus>.from(
@@ -208,7 +218,12 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
       emit(state.copyWith(
         actionStatuses: pendingRemoved,
-        lastEffect: RequestActionEffect(requestId: id, outcome: outcome),
+        lastEffect: RequestActionEffect(
+          requestId: id,
+          action: busy,
+          outcome: outcome,
+          failure: failure,
+        ),
       ));
       return;
     }
@@ -217,13 +232,23 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     emit(state.copyWith(
       requests: state.requests.where((r) => r.id != id).toList(growable: false),
       actionStatuses: pendingRemoved,
-      lastEffect: RequestActionEffect(requestId: id, outcome: outcome),
+      lastEffect: RequestActionEffect(
+        requestId: id,
+        action: busy,
+        outcome: outcome,
+        failure: failure,
+      ),
     ));
   }
 
   void clearEffect() {
     if (state.lastEffect == null) return;
     emit(state.copyWith(lastEffect: null));
+  }
+
+  void clearRefreshError() {
+    if (state.refreshError == null) return;
+    emit(state.copyWith(refreshError: null));
   }
 
   void _onIncoming(DeliveryRequest request) {

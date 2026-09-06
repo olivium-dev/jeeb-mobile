@@ -10,12 +10,16 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/image_picker_photo_picker_service.dart';
@@ -73,14 +77,15 @@ class _EscalateScreenState extends State<EscalateScreen> {
   VoiceClip? _capturedVoiceClip;
   int _photoSeq = 0;
   String? _photoError;
+  String? _voiceError;
 
   Future<void> _pickPhoto() async {
     final cubit = context.read<EscalateCubit>();
     if (!cubit.state.canAddPhoto) return;
     // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
-    final permissionCopy = AppLocalizations.of(
-      context,
-    ).voiceRecordingErrorPermission;
+    final l10n = AppLocalizations.of(context);
+    final permissionCopy = l10n.photoAttachmentPermissionDenied;
+    final unavailableCopy = l10n.photoAttachmentUnavailable;
     try {
       // Real picker contract: a RawPhoto with bytes. We persist a stable
       // per-pick path token the dispute body carries (the real binding writes
@@ -93,9 +98,11 @@ class _EscalateScreenState extends State<EscalateScreen> {
     } on PhotoPickException catch (e) {
       if (!mounted) return;
       setState(() {
-        _photoError = e.failure == PhotoPickFailure.permissionDenied
-            ? permissionCopy
-            : null;
+        _photoError = switch (e.failure) {
+          PhotoPickFailure.cancelled => null,
+          PhotoPickFailure.permissionDenied => permissionCopy,
+          PhotoPickFailure.unavailable => unavailableCopy,
+        };
       });
     }
   }
@@ -110,11 +117,15 @@ class _EscalateScreenState extends State<EscalateScreen> {
       return;
     }
     // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
-    final permissionCopy = AppLocalizations.of(
-      context,
-    ).voiceRecordingErrorPermission;
+    final l10n = AppLocalizations.of(context);
+    final voiceCopy = <VoiceRecorderFailure, String>{
+      VoiceRecorderFailure.permissionDenied: l10n.voiceRecordingErrorPermission,
+      VoiceRecorderFailure.unavailable: l10n.voiceRecordingErrorUnavailable,
+      VoiceRecorderFailure.unknown: l10n.voiceRecordingErrorRecorderFailed,
+    };
     if (_recording) {
       // Stop and capture.
+      String? stopError;
       try {
         final VoiceClip clip = await _voiceRecorder.stop(
           recordedDuration: Duration.zero,
@@ -125,10 +136,18 @@ class _EscalateScreenState extends State<EscalateScreen> {
         }
         _capturedVoiceClip = clip;
         cubit.setVoice(clip.sourcePath ?? 'dispute_voice.m4a');
-      } on VoiceRecorderException {
+      } on VoiceRecorderException catch (e) {
+        // The clip is gone either way; saying so beats a silent discard.
+        stopError =
+            voiceCopy[e.failure] ?? voiceCopy[VoiceRecorderFailure.unknown];
         await _voiceRecorder.cancel();
       } finally {
-        if (mounted) setState(() => _recording = false);
+        if (mounted) {
+          setState(() {
+            _recording = false;
+            _voiceError = stopError;
+          });
+        }
       }
       return;
     }
@@ -139,14 +158,16 @@ class _EscalateScreenState extends State<EscalateScreen> {
         await _voiceRecorder.cancel();
         return;
       }
-      setState(() => _recording = true);
+      setState(() {
+        _recording = true;
+        _voiceError = null;
+      });
     } on VoiceRecorderException catch (e) {
       if (!mounted) return;
       setState(() {
         _recording = false;
-        _photoError = e.failure == VoiceRecorderFailure.permissionDenied
-            ? permissionCopy
-            : null;
+        _voiceError =
+            voiceCopy[e.failure] ?? voiceCopy[VoiceRecorderFailure.unknown];
       });
     }
   }
@@ -215,6 +236,7 @@ class _EscalateScreenState extends State<EscalateScreen> {
                             state: state,
                             recording: _recording,
                             photoError: _photoError,
+                            voiceError: _voiceError,
                             onPickPhoto: _pickPhoto,
                             onToggleVoice: _toggleVoice,
                           );
@@ -259,6 +281,7 @@ class _InputForm extends StatelessWidget {
     required this.state,
     required this.recording,
     required this.photoError,
+    required this.voiceError,
     required this.onPickPhoto,
     required this.onToggleVoice,
   });
@@ -266,6 +289,7 @@ class _InputForm extends StatelessWidget {
   final EscalateState state;
   final bool recording;
   final String? photoError;
+  final String? voiceError;
   final VoidCallback onPickPhoto;
   final VoidCallback onToggleVoice;
 
@@ -283,14 +307,16 @@ class _InputForm extends StatelessWidget {
                 // JM-060 AC1: auto-attach note (D53) — the chat snapshot +
                 // GPS/timeline are attached automatically. Coined id
                 // `dispute_auto_attach_note` (67_W34_TEST_PLAN).
-                JeebInfoNote.muted(
-                  identifier: 'dispute_auto_attach_note',
-                  icon: Icons.attachment,
-                  text: l10n.escalateAutoAttachNote,
-                  padding: JeebInfoNote.stackedPadding,
-                  gap: JeebInfoNote.stackedGap,
-                  iconSize: JeebInfoNote.stackedIconSize,
-                ),
+                if (state.evidenceLoaded && !state.evidence.isEmpty)
+                  JeebInfoNote.muted(
+                    identifier: 'dispute_auto_attach_note',
+                    icon: Icons.attachment,
+                    text: l10n.escalateAutoAttachNote,
+                    padding: JeebInfoNote.stackedPadding,
+                    gap: JeebInfoNote.stackedGap,
+                    iconSize: JeebInfoNote.stackedIconSize,
+                  ),
+                _EvidencePreview(state: state),
                 const SizedBox(height: _kBlockGap),
                 _ReasonPicker(selectedReason: state.reason),
                 const SizedBox(height: _kBlockGap),
@@ -303,6 +329,7 @@ class _InputForm extends StatelessWidget {
                 _VoiceSection(
                   hasVoice: state.hasVoice,
                   recording: recording,
+                  error: voiceError,
                   onToggle: onToggleVoice,
                 ),
                 const SizedBox(height: _kBlockGap),
@@ -454,7 +481,11 @@ class _PhotoSection extends StatelessWidget {
             ),
           if (error != null) ...[
             const SizedBox(height: Spacing.xSmall),
-            JeebInfoNote.error(icon: Icons.error, text: error!),
+            JeebInfoNote.error(
+              identifier: 'dispute_photos_error',
+              icon: Icons.error,
+              text: error!,
+            ),
           ],
         ],
       ),
@@ -512,10 +543,12 @@ class _VoiceSection extends StatelessWidget {
   const _VoiceSection({
     required this.hasVoice,
     required this.recording,
+    required this.error,
     required this.onToggle,
   });
   final bool hasVoice;
   final bool recording;
+  final String? error;
   final VoidCallback onToggle;
 
   @override
@@ -550,6 +583,14 @@ class _VoiceSection extends StatelessWidget {
                   onTap: onToggle,
                 ),
         ),
+        if (error != null) ...[
+          const SizedBox(height: Spacing.xSmall),
+          JeebInfoNote.error(
+            identifier: 'dispute_voice_error',
+            icon: Icons.error,
+            text: error!,
+          ),
+        ],
       ],
     );
   }
@@ -760,59 +801,104 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final alreadyOpen = state.errorKind == EscalateErrorKind.alreadyOpen;
-    return Semantics(
-      identifier: 'dispute_error',
-      liveRegion: true,
-      child: Center(
-        child: SingleChildScrollView(
-          child: JeebEmptyState(
-            status: JeebEmptyStateStatus.error,
-            variant: _kEmptyVariant,
-            headline: _errorMessage(context, l10n, state.errorKind),
-            body: state.hasUploadFailures
-                ? _localCopy(
-                    context,
-                    'One or more attachments did not upload. Retry keeps the same report operation and will not create a duplicate.',
-                    'تعذر رفع مرفق واحد أو أكثر. تحافظ إعادة المحاولة على نفس عملية البلاغ ولن تنشئ نسخة مكررة.',
-                  )
-                : null,
-            // An already-open dispute cannot be retried, and a dead end is
-            // worse than the wrong verb: it gets the way out instead.
-            action: alreadyOpen
-                ? JeebCtaButton.outline(
-                    label: l10n.disputeStatusBackCta,
-                    onTap: () => _leave(context),
-                  )
-                : JeebCtaButton.primary(
-                    label: l10n.escalateRetryCta,
-                    onTap: () => context.read<EscalateCubit>().retryFromError(),
-                  ),
-          ),
-        ),
+    final AppFailure failure = state.failure ?? const UnknownFailure();
+    final kind = state.errorKind;
+    // A dispute that is already open, or a delivery that is not there, cannot
+    // be won by retrying: those get the way out instead.
+    final terminal =
+        kind == EscalateErrorKind.alreadyOpen ||
+        kind == EscalateErrorKind.notFound;
+    final canRetry = failure.isRetryable && !terminal;
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: failure,
+        identifier: 'dispute_error',
+        retryIdentifier: 'dispute_error_retry_cta',
+        exitIdentifier: 'dispute_error_exit_cta',
+        variant: _kEmptyVariant,
+        headlineOverride: _errorHeadline(l10n, failure, kind),
+        // The open dispute already has a body of its own; the Conflict copy
+        // ("try again") would contradict a block that carries no Retry.
+        bodyOverride: kind == EscalateErrorKind.notFound
+            ? failureCopy(l10n, const NotFoundFailure()).body
+            : kind == EscalateErrorKind.alreadyOpen
+            ? l10n.disputeStatusBody
+            : state.hasUploadFailures
+            ? l10n.escalateUploadFailedBody
+            : null,
+        onRetry: canRetry
+            ? () => unawaited(context.read<EscalateCubit>().retryFromError())
+            : null,
+        onExit: () => _leave(context),
+        exitLabel: l10n.disputeStatusBackCta,
       ),
     );
   }
 
-  String _errorMessage(
-    BuildContext context,
+  /// Only the three jeeb-specific arms override the copy family; everything
+  /// else reads through [failureCopy].
+  String? _errorHeadline(
     AppLocalizations l10n,
+    AppFailure failure,
     EscalateErrorKind? kind,
   ) {
     switch (kind) {
-      case EscalateErrorKind.network:
-        return l10n.escalateErrorNetwork;
       case EscalateErrorKind.evidenceUpload:
-        return _localCopy(
-          context,
-          'Some evidence could not be uploaded.',
-          'تعذر رفع بعض الأدلة.',
-        );
+        return l10n.escalateErrorEvidenceUpload;
       case EscalateErrorKind.alreadyOpen:
         return l10n.escalateErrorAlreadyOpen;
-      default:
-        return l10n.escalateErrorServer;
+      case EscalateErrorKind.notFound:
+        return l10n.escalateErrorNotFound;
+      case EscalateErrorKind.network:
+      case EscalateErrorKind.server:
+      case null:
+        return null;
     }
+  }
+}
+
+/// The evidence-preview rungs (ES-15). None render unless the repository
+/// actually implements [EscalateEvidencePreviewRepository].
+class _EvidencePreview extends StatelessWidget {
+  const _EvidencePreview({required this.state});
+  final EscalateState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (state.evidenceLoading) {
+      return Padding(
+        padding: const EdgeInsets.only(top: Spacing.small),
+        child: JeebEmptyState.compact(
+          reason: JeebEmptyStateReason.loading,
+          variant: _kEmptyVariant,
+          identifier: 'dispute_evidence_loading',
+          headline: l10n.escalateEvidenceLoading,
+        ),
+      );
+    }
+    if (state.evidenceLoadFailed) {
+      return Padding(
+        padding: const EdgeInsets.only(top: Spacing.small),
+        child: JeebInfoNote.error(
+          identifier: 'dispute_evidence_error',
+          icon: Icons.error,
+          text: failureCopy(l10n, state.failure ?? const UnknownFailure()).body,
+        ),
+      );
+    }
+    if (state.evidenceLoaded && state.evidence.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: Spacing.small),
+        child: JeebEmptyState.compact(
+          reason: JeebEmptyStateReason.nothingYet,
+          variant: _kEmptyVariant,
+          identifier: 'dispute_evidence_empty',
+          headline: l10n.escalateEvidenceEmpty,
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -829,9 +915,10 @@ class _UploadProgressList extends StatelessWidget {
       final progress = uploads[order[index]];
       if (progress == null) continue;
       final isVoice = order[index] == 'voice';
+      final l10n = AppLocalizations.of(context);
       final label = isVoice
-          ? _localCopy(context, 'Voice note', 'ملاحظة صوتية')
-          : _localCopy(context, 'Photo ${index + 1}', 'الصورة ${index + 1}');
+          ? l10n.escalateUploadVoiceLabel
+          : l10n.escalatePhotoChipLabel(index + 1);
       rows.add(_UploadProgressRow(label: label, progress: progress));
     }
     return Semantics(
@@ -851,13 +938,14 @@ class _UploadProgressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final percent = (progress.fraction * 100).round();
     final failed = progress.state == CaseAttachmentUploadState.failed;
     final uploaded = progress.state == CaseAttachmentUploadState.uploaded;
     final status = failed
-        ? _localCopy(context, 'Upload failed', 'فشل الرفع')
+        ? l10n.escalateUploadFailed
         : uploaded
-        ? _localCopy(context, 'Uploaded', 'تم الرفع')
+        ? l10n.escalateUploaded
         : '$percent%';
     return Semantics(
       identifier: 'dispute_upload_${progress.localId}',
@@ -892,12 +980,19 @@ class _UploadProgressRow extends StatelessWidget {
                 value: progress.totalBytes > 0 ? progress.fraction : null,
               ),
             ],
+            if (failed) ...[
+              const SizedBox(height: Spacing.xSmall),
+              JeebCtaButton.text(
+                label: l10n.actionRetry,
+                expand: false,
+                identifier: 'dispute_upload_${progress.localId}_retry',
+                onTap: () =>
+                    unawaited(context.read<EscalateCubit>().retryFromError()),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 }
-
-String _localCopy(BuildContext context, String en, String ar) =>
-    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;

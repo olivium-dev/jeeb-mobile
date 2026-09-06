@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/tier.dart';
 
 enum TierLoadFailure { network, server }
@@ -27,8 +28,8 @@ class DioTierRepository implements TierRepository {
     try {
       final response = await _dio.get<dynamic>(_path);
       return _parseResponse(response.data);
-    } on DioException {
-      throw const TierLoadException(TierLoadFailure.network);
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
     }
   }
 
@@ -39,21 +40,21 @@ class DioTierRepository implements TierRepository {
     } else if (data is List) {
       items = data;
     } else {
-      throw const TierLoadException(TierLoadFailure.server);
+      throw const UnknownFailure(parse: true);
     }
     final tiers = items
         .whereType<Map<String, dynamic>>()
         .map(_parseTier)
         .whereType<Tier>()
         .toList(growable: false);
-    // Keep the existing localized unavailable copy for both empty and
-    // unparseable catalogs because retry is the same customer action. These
-    // counts distinguish the causes internally without inventing new copy that
-    // cannot offer a different recovery path.
     Diag.event('tier_catalog_parsed', <String, Object?>{
       'items': items.length,
       'parsed': tiers.length,
     });
+    // A catalogue we cannot read is not an empty catalogue.
+    if (tiers.isEmpty && items.isNotEmpty) {
+      throw const UnknownFailure(parse: true);
+    }
     return tiers;
   }
 

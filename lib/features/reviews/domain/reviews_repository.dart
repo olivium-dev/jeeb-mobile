@@ -1,3 +1,5 @@
+import '../../../core/network/app_failure.dart';
+
 class ReviewItem {
   const ReviewItem({
     required this.id,
@@ -45,10 +47,22 @@ class ReviewsPage {
 enum ReviewsFailure { network, notFound, unauthorized, unknown }
 
 class ReviewsRepositoryException implements Exception {
-  const ReviewsRepositoryException(this.failure, [this.message]);
+  const ReviewsRepositoryException(this.failure, [this.message])
+    : appFailure = null;
+
+  const ReviewsRepositoryException.classified(
+    this.failure, {
+    this.message,
+    required this.appFailure,
+  });
 
   final ReviewsFailure failure;
+
+  /// DIAGNOSTIC ONLY — never rendered.
   final String? message;
+
+  /// The classified transport failure, when the thrower could produce one.
+  final AppFailure? appFailure;
 
   @override
   String toString() => 'ReviewsRepositoryException($failure, $message)';

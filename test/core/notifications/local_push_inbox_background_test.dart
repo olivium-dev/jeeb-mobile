@@ -172,4 +172,43 @@ void main() {
     expect(records, hasLength(1));
     expect(records.single.ref, 'req-99');
   });
+
+  // F7: the isolate has no keystore; the owner stamp in prefs is the only thing
+  // that keeps a background row out of the next account's inbox.
+  group('F7 background owner stamping', () {
+    const ownedMessage = RemoteMessage(
+      messageId: 'bg-own-1',
+      data: <String, dynamic>{'type': 'new_request', 'requestId': 'req-own'},
+      notification: RemoteNotification(title: 't', body: 'b'),
+    );
+
+    test('the isolate stamps the row with the owner mirrored in prefs',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        SharedPrefsLocalPushInbox.ownerPrefKey: 'user-a',
+      });
+      await firebaseMessagingBackgroundHandler(ownedMessage);
+
+      final prefs = await SharedPreferences.getInstance();
+      final asOwner =
+          SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-a');
+      expect((await asOwner.readAll()).single.ref, 'req-own');
+    });
+
+    test('a row written for user-a never reaches user-b', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        SharedPrefsLocalPushInbox.ownerPrefKey: 'user-a',
+      });
+      await firebaseMessagingBackgroundHandler(ownedMessage);
+
+      final prefs = await SharedPreferences.getInstance();
+      final other = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b');
+      expect(await other.readAll(), isEmpty);
+
+      final badge = BadgeCountCubit(inbox: other);
+      addTearDown(badge.close);
+      await badge.hydrate();
+      expect(badge.state.newRequests, 0, reason: 'no leak into the badge');
+    });
+  });
 }

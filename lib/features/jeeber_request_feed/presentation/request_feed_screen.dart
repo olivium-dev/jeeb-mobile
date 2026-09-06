@@ -5,15 +5,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/request_feed_cubit.dart';
 import '../cubit/request_feed_state.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
+import 'jeeber_failure_exit.dart';
 import 'request_card.dart';
 
 /// Jeeber-mode realtime delivery request feed (JEEB-66 / T-mobile-013).
@@ -104,7 +111,7 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
               Expanded(
                 child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
                   listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
-                  listener: _onEffect,
+                  listener: _onStateChange,
                   builder: (context, state) =>
                       _FeedColumn(state: state, now: _now),
                 ),
@@ -116,23 +123,50 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
     );
   }
 
-  void _onEffect(BuildContext context, RequestFeedState state) {
+  void _onStateChange(BuildContext context, RequestFeedState state) {
+    final cubit = context.read<RequestFeedCubit>();
+    final l10n = AppLocalizations.of(context);
     final effect = state.lastEffect;
     if (effect == null) return;
-    final l10n = AppLocalizations.of(context);
-    showOmdsSnackbar(context, message: _effectMessage(effect, l10n));
-    context.read<RequestFeedCubit>().clearEffect();
-  }
-
-  String _effectMessage(RequestActionEffect effect, AppLocalizations l10n) {
-    return switch (effect.outcome) {
-      RequestActionOutcome.accepted => l10n.requestFeedActionAcceptedSnack,
-      RequestActionOutcome.declined => l10n.requestFeedActionDeclinedSnack,
-      RequestActionOutcome.alreadyTaken => l10n.requestFeedActionTakenSnack,
-      RequestActionOutcome.expired => l10n.requestFeedActionExpiredSnack,
-      RequestActionOutcome.networkError =>
-        l10n.requestFeedActionNetworkSnack,
-    };
+    switch (effect.outcome) {
+      case RequestActionOutcome.accepted:
+      case RequestActionOutcome.declined:
+        showJeebSnack(
+          context,
+          message: effect.outcome == RequestActionOutcome.accepted
+              ? l10n.requestFeedActionAcceptedSnack
+              : l10n.requestFeedActionDeclinedSnack,
+          identifier: 'request_feed_action_snack',
+        );
+      case RequestActionOutcome.alreadyTaken:
+      case RequestActionOutcome.expired:
+        showJeebErrorSnack(
+          context,
+          message: effect.outcome == RequestActionOutcome.alreadyTaken
+              ? l10n.requestFeedActionTakenSnack
+              : l10n.requestFeedActionExpiredSnack,
+          identifier: 'request_feed_action_snack',
+        );
+      case RequestActionOutcome.networkError:
+        final failure = effect.failure;
+        // Retry the act the jeeber actually took: a declined job must never
+        // come back as an accept.
+        final bool retryable = failure?.isRetryable ?? true;
+        showJeebErrorSnack(
+          context,
+          message: failure == null
+              ? l10n.requestFeedActionNetworkSnack
+              : failureCopy(l10n, failure).body,
+          identifier: 'request_feed_action_snack',
+          retryLabel: retryable ? l10n.actionRetry : null,
+          onRetry: !retryable
+              ? null
+              : effect.action == RequestActionStatus.declining
+              ? () => unawaited(cubit.decline(effect.requestId))
+              : () => unawaited(cubit.accept(effect.requestId)),
+        );
+    }
+    cubit.clearEffect();
   }
 }
 
@@ -145,10 +179,29 @@ class _FeedColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final refreshError = state.refreshError;
+    final cubit = context.read<RequestFeedCubit>();
     return Column(
       children: [
         if (state.transport == FeedTransport.polling)
           _ReconnectingBanner(message: l10n.requestFeedReconnecting),
+        // LR-12: the rows stay and the warm failure sits still, so a polling
+        // outage cannot fire one snack per tick.
+        if (refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.small,
+              Spacing.xLarge,
+              0,
+            ),
+            child: JeebRefreshFailedNote(
+              failure: refreshError,
+              identifier: 'request_feed_refresh_failed_note',
+              onDismiss: cubit.clearRefreshError,
+              onRetry: () => unawaited(cubit.refresh()),
+            ),
+          ),
         Expanded(child: _FeedBody(state: state, now: now, l10n: l10n)),
       ],
     );
@@ -171,59 +224,38 @@ class _FeedBody extends StatelessWidget {
     // Illustration skeleton only on the first cold read; a refresh over rows
     // keeps the board and reports through the snackbar instead.
     if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
-      return _CenteredBlock(
+      return JeebStateHost(
         child: JeebEmptyState(
           identifier: 'request_feed_loading_state',
           status: JeebEmptyStateStatus.loading,
           variant: JeebEmptyStateVariant.street,
-          // Byte-identical to the LIVE twin of this feed
-          // (`jeeber_home_screen.dart::_FeedLoadingView`) — one cold-read
-          // rendering whichever host reaches it.
-          headline: l10n.requestFeedEmptyTitle,
+          headline: l10n.requestFeedLoadingHeadline,
         ),
       );
     }
     if (state.status == RequestFeedStatus.error && state.requests.isEmpty) {
-      return _CenteredBlock(
-        child: JeebEmptyState(
+      final cubit = context.read<RequestFeedCubit>();
+      final failure = state.error ?? const UnknownFailure();
+      final exit = jeeberFailureExit(
+        context,
+        failure,
+        l10n,
+        onReload: cubit.refresh,
+      );
+      return JeebStateHost(
+        child: JeebFailureBlock(
+          failure: failure,
           identifier: 'request_feed_error_state',
-          status: JeebEmptyStateStatus.error,
+          retryIdentifier: 'request_feed_retry_cta',
+          exitIdentifier: 'request_feed_exit_cta',
           variant: JeebEmptyStateVariant.street,
-          headline: l10n.requestFeedErrorTitle,
-          body: l10n.requestFeedErrorLoad,
-          action: IntrinsicWidth(
-            child: JeebCtaButton.primary(
-              label: l10n.requestFeedErrorRetry,
-              identifier: 'request_feed_retry_cta',
-              expand: false,
-              onTap: () => context.read<RequestFeedCubit>().refresh(),
-            ),
-          ),
+          onRetry: () => unawaited(cubit.refresh()),
+          onExit: exit.onExit,
+          exitLabel: exit.label,
         ),
       );
     }
     return _FeedListOrEmpty(state: state, now: now, l10n: l10n);
-  }
-}
-
-/// Vertically centres a state block and keeps it scrollable, so it survives a
-/// large text scale AND satisfies `OmdsPullToRefresh`'s scrollable-child rule.
-class _CenteredBlock extends StatelessWidget {
-  const _CenteredBlock({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(child: child),
-        ),
-      ),
-    );
   }
 }
 
@@ -240,10 +272,7 @@ class _FeedListOrEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPullToRefresh(
-      // Unset, the indicator inks from `colorScheme.primary` — orange under
-      // Midnight. A refresh spinner is chrome, not a do-it-now moment.
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return JeebPullToRefresh(
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: state.requests.isEmpty
           ? _EmptyFeed(l10n: l10n)
@@ -348,7 +377,7 @@ class _EmptyFeed extends StatelessWidget {
   Widget build(BuildContext context) {
     // FROZEN key re-homed onto the kit block; the Padding/Column that hosted it
     // existed only to carry the two hand-styled lines.
-    return _CenteredBlock(
+    return JeebStateHost(
       key: const Key('requestFeed.empty'),
       child: JeebEmptyState(
         identifier: 'request_feed_empty_state',

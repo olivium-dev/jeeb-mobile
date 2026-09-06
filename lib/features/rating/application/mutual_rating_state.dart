@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../domain/entities/rating_status.dart';
+import '../domain/rating_repository.dart';
 
 enum MutualRatingPhase {
   inputting,
@@ -28,7 +29,7 @@ class MutualRatingState extends Equatable {
     this.counterpartRating,
     this.counterpartName = '',
     this.counterpartAvatarUrl = '',
-    this.errorMessage,
+    this.failure,
   });
 
   final MutualRatingPhase phase;
@@ -41,7 +42,9 @@ class MutualRatingState extends Equatable {
   /// never gates submit, and empty simply keeps the role-aware fallback.
   final String counterpartName;
   final String counterpartAvatarUrl;
-  final String? errorMessage;
+
+  /// Why the submit failed. Replaces the `'ratingError'` sentinel string.
+  final RatingFailure? failure;
 
   MutualRatingState copyWith({
     MutualRatingPhase? phase,
@@ -51,7 +54,7 @@ class MutualRatingState extends Equatable {
     CounterpartRating? counterpartRating,
     String? counterpartName,
     String? counterpartAvatarUrl,
-    String? errorMessage,
+    RatingFailure? failure,
     bool clearError = false,
   }) {
     return MutualRatingState(
@@ -62,7 +65,7 @@ class MutualRatingState extends Equatable {
       counterpartRating: counterpartRating ?? this.counterpartRating,
       counterpartName: counterpartName ?? this.counterpartName,
       counterpartAvatarUrl: counterpartAvatarUrl ?? this.counterpartAvatarUrl,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      failure: clearError ? null : (failure ?? this.failure),
     );
   }
 
@@ -75,6 +78,6 @@ class MutualRatingState extends Equatable {
         counterpartRating,
         counterpartName,
         counterpartAvatarUrl,
-        errorMessage,
+        failure,
       ];
 }

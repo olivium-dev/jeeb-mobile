@@ -197,13 +197,13 @@ void main() {
           .load(const Locale('en'));
       expect(
         _footerState(tester).headline,
-        l10n.orderHistoryLoadingHeadline,
-        reason: 'the old footer had no string at all, so nothing was read out',
+        l10n.orderHistoryLoadingMore,
+        reason: 'ORDH-04: the footer is a pagination wait, not a COLD load',
       );
       expect(
         find.descendant(
           of: _footer,
-          matching: find.text(l10n.orderHistoryLoadingHeadline),
+          matching: find.text(l10n.orderHistoryLoadingMore),
           skipOffstage: false,
         ),
         findsOneWidget,

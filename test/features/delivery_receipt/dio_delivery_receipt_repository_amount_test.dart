@@ -34,7 +34,9 @@ void main() {
 
       expect(receipt.cashAmount, 12.0);
       expect(receipt.hasKnownAmount, isTrue);
-      expect(receipt.currency, 'USD');
+      // UX-19 sibling: a body that names no currency leaves it NULL — the
+      // screen says "unavailable" instead of inventing USD.
+      expect(receipt.currency, isNull);
     });
 
     test('nested { value, currency } money object parses', () async {

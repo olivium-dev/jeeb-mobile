@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_statement.dart';
 
@@ -12,120 +15,156 @@ class SettlementState extends Equatable {
   const SettlementState({
     this.mode = SettlementListMode.loading,
     this.statements = const [],
-    this.errorMessage,
+    this.failure,
     this.exportMode = SettlementExportMode.idle,
     this.exportedFilePath,
-    this.exportError,
+    this.exportFailure,
+    this.cause,
   });
 
   final SettlementListMode mode;
   final List<SettlementStatement> statements;
-  final String? errorMessage;
+
+  /// The machine reason for the cold-load failure — never a sentence (SET-02).
+  final SettlementFailure? failure;
+
   final SettlementExportMode exportMode;
   final String? exportedFilePath;
-  final String? exportError;
+
+  /// The machine reason for a failed PDF export.
+  final SettlementFailure? exportFailure;
+
+  /// The classified transport failure behind either, for the copy family.
+  final AppFailure? cause;
 
   bool get isExporting => exportMode == SettlementExportMode.exporting;
 
   SettlementState copyWith({
     SettlementListMode? mode,
     List<SettlementStatement>? statements,
-    String? errorMessage,
+    SettlementFailure? failure,
     bool clearError = false,
     SettlementExportMode? exportMode,
     String? exportedFilePath,
-    String? exportError,
+    SettlementFailure? exportFailure,
     bool clearExportError = false,
+    AppFailure? cause,
   }) {
     return SettlementState(
       mode: mode ?? this.mode,
       statements: statements ?? this.statements,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      failure: clearError ? null : (failure ?? this.failure),
       exportMode: exportMode ?? this.exportMode,
       exportedFilePath: exportedFilePath ?? this.exportedFilePath,
-      exportError:
-          clearExportError ? null : (exportError ?? this.exportError),
+      exportFailure: clearExportError
+          ? null
+          : (exportFailure ?? this.exportFailure),
+      cause: (clearError || clearExportError) ? cause : (cause ?? this.cause),
     );
   }
 
   @override
   List<Object?> get props => [
-        mode,
-        statements,
-        errorMessage,
-        exportMode,
-        exportedFilePath,
-        exportError,
-      ];
+    mode,
+    statements,
+    failure,
+    exportMode,
+    exportedFilePath,
+    exportFailure,
+    cause,
+  ];
 }
 
 class SettlementCubit extends Cubit<SettlementState> {
   SettlementCubit({required SettlementRepository repository})
-      : _repository = repository,
-        super(const SettlementState());
+    : _repository = repository,
+      super(const SettlementState());
 
   final SettlementRepository _repository;
 
+  bool _loading = false;
+
   Future<void> loadStatements() async {
+    if (_loading) return;
+    _loading = true;
     emit(state.copyWith(mode: SettlementListMode.loading, clearError: true));
     try {
       final statements = await _repository.fetchStatements();
-      emit(state.copyWith(
-        mode: SettlementListMode.ready,
-        statements: statements,
-      ));
-    } on SettlementException catch (e) {
-      emit(state.copyWith(
-        mode: SettlementListMode.error,
-        errorMessage: _mapError(e),
-      ));
+      emit(
+        state.copyWith(
+          mode: SettlementListMode.ready,
+          statements: statements,
+          clearError: true,
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          mode: SettlementListMode.error,
+          failure: _reason(e),
+          cause: _cause(e),
+        ),
+      );
+    } finally {
+      _loading = false;
     }
   }
 
   Future<void> downloadPdf(String statementId) async {
     if (state.isExporting) return;
-    emit(state.copyWith(
-      exportMode: SettlementExportMode.exporting,
-      clearExportError: true,
-    ));
+    emit(
+      state.copyWith(
+        exportMode: SettlementExportMode.exporting,
+        clearExportError: true,
+      ),
+    );
     try {
       final path = await _repository.downloadPdf(statementId);
       _logPdfExported(statementId);
-      emit(state.copyWith(
-        exportMode: SettlementExportMode.done,
-        exportedFilePath: path,
-      ));
-    } on SettlementException catch (e) {
-      emit(state.copyWith(
-        exportMode: SettlementExportMode.error,
-        exportError: _mapError(e),
-      ));
+      emit(
+        state.copyWith(
+          exportMode: SettlementExportMode.done,
+          exportedFilePath: path,
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          exportMode: SettlementExportMode.error,
+          exportFailure: _reason(e),
+          cause: _cause(e),
+        ),
+      );
     }
   }
 
   void acknowledgeExport() {
-    emit(state.copyWith(
-      exportMode: SettlementExportMode.idle,
-      clearExportError: true,
-    ));
+    emit(
+      state.copyWith(
+        exportMode: SettlementExportMode.idle,
+        clearExportError: true,
+      ),
+    );
   }
 
-  String _mapError(SettlementException e) {
-    switch (e.failure) {
-      case SettlementFailure.network:
-        return 'No internet connection';
-      case SettlementFailure.notFound:
-        return 'Statement not found';
-      case SettlementFailure.fileWrite:
-        return 'Unable to save PDF file';
-      case SettlementFailure.server:
-        return 'Server error. Please try again.';
-    }
+  SettlementFailure _reason(Object e) =>
+      e is SettlementException ? e.failure : SettlementFailure.server;
+
+  AppFailure _cause(Object e) {
+    if (e is! SettlementException) return AppFailure.of(e);
+    return e.cause ??
+        switch (e.failure) {
+          SettlementFailure.network => networkFailureFromReachability(),
+          SettlementFailure.notFound => const NotFoundFailure(),
+          SettlementFailure.server => const ServerFailure(status: 500),
+          SettlementFailure.fileWrite ||
+          SettlementFailure.parse => const UnknownFailure(parse: true),
+        };
   }
 
-  // ignore: avoid_print
   void _logPdfExported(String statementId) {
-    // ignore: avoid_print
-    print('[settlement.pdf_exported] statementId=$statementId');
+    Diag.event('settlement.pdf_exported', <String, Object?>{
+      'statementId': statementId,
+    });
   }
 }

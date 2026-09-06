@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -17,11 +18,37 @@ class _TolerantGoldenComparator extends LocalFileComparator {
 
   @override
   Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    // Review artifacts are actual renders, never replacement baselines. Save
+    // before reading the golden so missing references remain inspectable.
+    final reviewPath = Platform.environment['JEEB_CAPTURE_REVIEW_DIR'];
+    var failureOutputDirectory = basedir;
+    if (reviewPath != null && reviewPath.isNotEmpty) {
+      final reviewDirectory = Directory(reviewPath).absolute;
+      await reviewDirectory.create(recursive: true);
+      final baselineDirectory = Directory.fromUri(
+        basedir.resolveUri(golden).resolve('.'),
+      );
+      if (await reviewDirectory.resolveSymbolicLinks() ==
+          await baselineDirectory.resolveSymbolicLinks()) {
+        throw FlutterError(
+          'Capture review output must not be the baseline directory',
+        );
+      }
+      final filename = golden.pathSegments.last;
+      if (!filename.endsWith('.png') ||
+          filename.contains('/') ||
+          filename.contains('\\')) {
+        throw FlutterError('Capture review requires a PNG basename');
+      }
+      await File('${reviewDirectory.path}/$filename').writeAsBytes(imageBytes);
+      failureOutputDirectory = reviewDirectory.uri;
+    }
     final result = await GoldenFileComparator.compareLists(
       imageBytes,
       await getGoldenBytes(golden),
     );
     if (result.passed) {
+      result.dispose();
       return true;
     }
     final diffPercent = result.diffPercent * 100;
@@ -30,12 +57,22 @@ class _TolerantGoldenComparator extends LocalFileComparator {
         'Golden "$golden": diff ${diffPercent.toStringAsFixed(2)}% '
         'within tolerance $_maxDiffPercent% — accepted',
       );
+      result.dispose();
       return true;
     }
-    throw FlutterError(
-      'Golden "$golden": pixel diff ${diffPercent.toStringAsFixed(2)}% '
-      'exceeds tolerance $_maxDiffPercent%',
-    );
+    try {
+      final feedback = await generateFailureOutput(
+        result,
+        golden,
+        failureOutputDirectory,
+      );
+      throw FlutterError(
+        'Golden "$golden": pixel diff ${diffPercent.toStringAsFixed(2)}% '
+        'exceeds tolerance $_maxDiffPercent%\n$feedback',
+      );
+    } finally {
+      result.dispose();
+    }
   }
 }
 
@@ -53,22 +90,23 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   }
 
   TestWidgetsFlutterBinding.ensureInitialized();
-  const secureStorageChannel =
-      MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+  const secureStorageChannel = MethodChannel(
+    'plugins.it_nomads.com/flutter_secure_storage',
+  );
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(secureStorageChannel, (call) async {
-    switch (call.method) {
-      case 'read':
-        return null;
-      case 'readAll':
-        return <String, String>{};
-      case 'containsKey':
-        return false;
-      default:
-        // write / delete / deleteAll / etc. — no-op in tests.
-        return null;
-    }
-  });
+        switch (call.method) {
+          case 'read':
+            return null;
+          case 'readAll':
+            return <String, String>{};
+          case 'containsKey':
+            return false;
+          default:
+            // write / delete / deleteAll / etc. — no-op in tests.
+            return null;
+        }
+      });
 
   await testMain();
 }

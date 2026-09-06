@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
@@ -15,6 +16,8 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
@@ -101,22 +104,12 @@ class AddressDetailFormScreen extends StatelessWidget {
         child: _AddressFormView(existing: existing, mapPickerLauncher: mapPickerLauncher),
       );
     }
-    return FutureBuilder<String?>(
-      future: _authTokenStore().userId,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const _SessionResolveGate();
-        }
-        final resolvedId = snapshot.data ?? '';
-        return BlocProvider<AddressFormCubit>(
-          create: (_) => AddressFormCubit(
-            repository: repository ?? _resolveRepository(),
-            userId: resolvedId,
-            editId: editId,
-          ),
-          child: _AddressFormView(existing: existing, mapPickerLauncher: mapPickerLauncher),
-        );
-      },
+    return _AddressFormSessionHost(
+      readUserId: () => _authTokenStore().userId,
+      repositoryBuilder: () => repository ?? _resolveRepository(),
+      editId: editId,
+      existing: existing,
+      mapPickerLauncher: mapPickerLauncher,
     );
   }
 
@@ -137,6 +130,74 @@ class AddressDetailFormScreen extends StatelessWidget {
       return DioAddressFormRepository(sl<Dio>());
     }
     return const FakeAddressFormRepository();
+  }
+}
+
+/// Memoises the session read: an inline `FutureBuilder` re-issues the future
+/// on every rebuild, and a token-store throw rendered an empty user id.
+class _AddressFormSessionHost extends StatefulWidget {
+  const _AddressFormSessionHost({
+    required this.readUserId,
+    required this.repositoryBuilder,
+    required this.editId,
+    required this.existing,
+    required this.mapPickerLauncher,
+  });
+
+  final Future<String?> Function() readUserId;
+  final AddressFormRepository Function() repositoryBuilder;
+  final String? editId;
+  final SavedLocation? existing;
+  final MapPickerLauncher? mapPickerLauncher;
+
+  @override
+  State<_AddressFormSessionHost> createState() =>
+      _AddressFormSessionHostState();
+}
+
+class _AddressFormSessionHostState extends State<_AddressFormSessionHost> {
+  late final Future<String?> _userId = widget.readUserId();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return FutureBuilder<String?>(
+      future: _userId,
+      builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _SessionResolveGate();
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: JeebMidnightField(
+              variant: JeebFieldVariant.content,
+              child: SafeArea(
+                child: Center(
+                  child: JeebFailureBlock(
+                    failure: AppFailure.of(snapshot.error!),
+                    identifier: 'address_form_session_error',
+                    exitLabel: l10n.actionBack,
+                    onExit: () => context.pop(),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        return BlocProvider<AddressFormCubit>(
+          create: (_) => AddressFormCubit(
+            repository: widget.repositoryBuilder(),
+            userId: snapshot.data ?? '',
+            editId: widget.editId,
+          ),
+          child: _AddressFormView(
+            existing: widget.existing,
+            mapPickerLauncher: widget.mapPickerLauncher,
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -317,6 +378,7 @@ class _AddressFormViewState extends State<_AddressFormView> {
                         longitude: _longitude,
                         hasPin: _hasPin,
                         onEditPin: _onEditPin,
+                        fieldErrors: state.fieldErrors,
                         onChanged: () => setState(() {}),
                       ),
                     ),
@@ -336,12 +398,17 @@ class _AddressFormViewState extends State<_AddressFormView> {
   }
 
   void _onStateChange(BuildContext context, AddressFormState state) {
-    final l10n = AppLocalizations.of(context);
     if (state.status == AddressFormStatus.saved) {
       // EDGE — JM-050 → JM-049: save returns to the saved-addresses manager.
       context.goNamed('settings-addresses');
     } else if (state.status == AddressFormStatus.failed) {
-      showOmdsSnackbar(context, message: l10n.savedLocationsSaveError);
+      // A 422 belongs on the offending inputs, not in a snack that hides it.
+      if (state.fieldErrors.isNotEmpty) return;
+      showJeebErrorSnack(
+        context,
+        failure: state.appFailure ?? const UnknownFailure(),
+        identifier: 'address_form_save_error',
+      );
       context.read<AddressFormCubit>().acknowledgeError();
     }
   }
@@ -354,6 +421,7 @@ class _FormBody extends StatelessWidget {
     required this.floorApt,
     required this.notes,
     required this.codPhone,
+    required this.fieldErrors,
     required this.latitude,
     required this.longitude,
     required this.hasPin,
@@ -366,11 +434,23 @@ class _FormBody extends StatelessWidget {
   final TextEditingController floorApt;
   final TextEditingController notes;
   final TextEditingController codPhone;
+
+  /// Per-field messages from a 422, keyed by the gateway's field names.
+  final Map<String, List<String>> fieldErrors;
   final double? latitude;
   final double? longitude;
   final bool hasPin;
   final VoidCallback onEditPin;
   final VoidCallback onChanged;
+
+  /// The first server message for any of [names], or null.
+  String? _fieldError(List<String> names) {
+    for (final String name in names) {
+      final List<String>? messages = fieldErrors[name];
+      if (messages != null && messages.isNotEmpty) return messages.first;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +478,7 @@ class _FormBody extends StatelessWidget {
           label: l10n.savedAddressLabelLabel,
           child: OmdsTextField(
             controller: label,
+            errorText: _fieldError(const <String>['label', 'name']),
             hintText: l10n.savedAddressLabelHint,
             borderRadius: JeebRadii.lg,
             textInputAction: TextInputAction.next,
@@ -444,6 +525,9 @@ class _FormBody extends StatelessWidget {
           label: f.codPhoneLabel,
           child: OmdsTextField(
             controller: codPhone,
+            errorText: _fieldError(
+              const <String>['codPhone', 'cod_phone', 'phone'],
+            ),
             hintText: f.codPhoneHint,
             borderRadius: JeebRadii.lg,
             keyboardType: TextInputType.phone,

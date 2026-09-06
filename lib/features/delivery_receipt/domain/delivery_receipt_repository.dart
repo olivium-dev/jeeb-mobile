@@ -7,6 +7,8 @@ enum DeliveryReceiptFailure {
 
   transitionNotAllowed,
 
+  forbidden,
+
   unknown,
 }
 

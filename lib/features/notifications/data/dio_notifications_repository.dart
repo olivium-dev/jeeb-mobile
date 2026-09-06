@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
 import '../domain/notification_kind_mapping.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/notifications_repository.dart';
 
 class DioNotificationsRepository implements NotificationsRepository {
@@ -24,18 +25,26 @@ class DioNotificationsRepository implements NotificationsRepository {
             ? null
             : <String, Object>{'userId': userId},
       );
-      final data = res.data ?? const <String, dynamic>{};
-      final raw = data['items'] ?? data['notifications'];
-      final list = raw is List ? raw : const <dynamic>[];
+      final data = res.data;
+      if (data == null) throw const UnknownFailure(parse: true);
+      final raw = data.containsKey('items')
+          ? data['items']
+          : data['notifications'];
+      if (raw is! List) throw const UnknownFailure(parse: true);
       final out = <NotificationItem>[];
-      for (final item in list) {
-        if (item is Map) {
-          out.add(_item(item.cast<String, dynamic>()));
+      for (final item in raw) {
+        if (item is! Map<String, dynamic> || _str(item['id']) == null) {
+          throw const UnknownFailure(parse: true);
         }
+        out.add(_item(item));
       }
       return out;
     } on DioException catch (e) {
-      throw NotificationsRepositoryException(_map(e), e.message);
+      throw NotificationsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 
@@ -44,7 +53,11 @@ class DioNotificationsRepository implements NotificationsRepository {
     try {
       await _dio.patch<void>('/v1/notifications/$id/read');
     } on DioException catch (e) {
-      throw NotificationsRepositoryException(_map(e), e.message);
+      throw NotificationsRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 

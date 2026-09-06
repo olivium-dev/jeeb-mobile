@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/kyc_contract_template.dart';
 import '../domain/kyc_form_schema.dart';
 import '../domain/kyc_submission.dart';
@@ -39,6 +40,10 @@ enum KycWizardError {
   fileTooLarge,
   fileTypeNotAllowed,
 
+  /// F1: the status read itself failed. Without it the wizard sat on
+  /// `isLoadingStatus: true` forever.
+  statusLoadFailed,
+
   /// JEBV4-295: a field-scoped BFF 400 whose `field` extension names a field
   /// the client has no inline surface for (unlike `id_number`/`id_type`).
   /// This IS a validation rejection, not a connectivity failure — kept
@@ -55,6 +60,8 @@ enum KycSubmitFieldError { idNumber, idType }
 
 class KycWizardState extends Equatable {
   const KycWizardState({
+    this.failure,
+    this.refreshFailure,
     this.step = KycWizardStep.schema,
     this.submission = const KycSubmission(status: KycStatus.notSubmitted),
     this.formSchema,
@@ -71,6 +78,14 @@ class KycWizardState extends Equatable {
   /// Total capture steps (ID + selfie) for the progress indicator. The Vehicle
   /// step was removed under D20 (JM-040), dropping this from 3 → 2.
   static const int totalCaptureSteps = 2;
+
+  /// The classified failure behind [error], when there was a transport one —
+  /// lets the screen render `failureCopy` instead of one fixed sentence.
+  final AppFailure? failure;
+
+  /// A background status refresh that failed while a loaded submission is on
+  /// screen. Never flips the wizard to loading.
+  final AppFailure? refreshFailure;
 
   final KycWizardStep step;
   final KycSubmission submission;
@@ -151,6 +166,10 @@ class KycWizardState extends Equatable {
       !isCapturing;
 
   KycWizardState copyWith({
+    AppFailure? failure,
+    bool clearFailure = false,
+    AppFailure? refreshFailure,
+    bool clearRefreshFailure = false,
     KycWizardStep? step,
     KycSubmission? submission,
     KycFormSchema? formSchema,
@@ -168,6 +187,9 @@ class KycWizardState extends Equatable {
     bool? justSubmitted,
   }) {
     return KycWizardState(
+      failure: clearFailure ? null : (failure ?? this.failure),
+      refreshFailure:
+          clearRefreshFailure ? null : (refreshFailure ?? this.refreshFailure),
       step: step ?? this.step,
       submission: submission ?? this.submission,
       formSchema: formSchema ?? this.formSchema,
@@ -188,6 +210,8 @@ class KycWizardState extends Equatable {
 
   @override
   List<Object?> get props => [
+        failure,
+        refreshFailure,
         step,
         submission,
         formSchema,

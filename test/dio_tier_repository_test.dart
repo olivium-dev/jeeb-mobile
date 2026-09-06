@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/diagnostics/diag.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
@@ -242,33 +243,74 @@ void main() {
       expect(tiers[0].id, TierId.flash);
     });
 
-    test('throws TierLoadException.network on connection error', () async {
+    test('throws a NetworkFailure on connection error', () async {
       final dio = _dioError(DioExceptionType.connectionError);
+      final repo = DioTierRepository(dio);
+
+      await expectLater(repo.fetchTiers(), throwsA(isA<NetworkFailure>()));
+    });
+
+    // RTYPE-02/F19: every DioException used to be reported as a connectivity
+    // problem. A 403 and a 500 must NOT classify as network.
+    test('throws a ForbiddenFailure on 403, never a network failure', () async {
+      final dio = _dioError(DioExceptionType.badResponse, status: 403);
+      final repo = DioTierRepository(dio);
+
+      await expectLater(repo.fetchTiers(), throwsA(isA<ForbiddenFailure>()));
+    });
+
+    test('throws a ServerFailure on 500', () async {
+      final dio = _dioError(DioExceptionType.badResponse, status: 500);
       final repo = DioTierRepository(dio);
 
       await expectLater(
         repo.fetchTiers(),
         throwsA(
-          predicate<TierLoadException>(
-            (e) => e.failure == TierLoadFailure.network,
-          ),
+          predicate<ServerFailure>((ServerFailure f) => f.status == 500),
         ),
       );
     });
 
-    test('throws TierLoadException.server for unexpected response shape',
+    test('throws a RateLimitedFailure on 429', () async {
+      final dio = _dioError(DioExceptionType.badResponse, status: 429);
+      final repo = DioTierRepository(dio);
+
+      await expectLater(repo.fetchTiers(), throwsA(isA<RateLimitedFailure>()));
+    });
+
+    test('throws UnknownFailure(parse) for unexpected response shape',
         () async {
       final dio = _dioWith('unexpected_string');
       final repo = DioTierRepository(dio);
 
       await expectLater(
         repo.fetchTiers(),
-        throwsA(
-          predicate<TierLoadException>(
-            (e) => e.failure == TierLoadFailure.server,
-          ),
-        ),
+        throwsA(predicate<UnknownFailure>((UnknownFailure f) => f.parse)),
       );
+    });
+
+    // RTYPE-03/F13: a catalogue we cannot read is NOT an empty catalogue.
+    test('throws UnknownFailure(parse) when every row fails to parse',
+        () async {
+      final dio = _dioWith({
+        'items': [
+          {'name': 'Broken entry, no id'},
+          {'name': 'Also broken'},
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      await expectLater(
+        repo.fetchTiers(),
+        throwsA(predicate<UnknownFailure>((UnknownFailure f) => f.parse)),
+      );
+    });
+
+    test('a 200 with an empty items array stays an EMPTY catalogue', () async {
+      final dio = _dioWith({'items': <dynamic>[]});
+      final repo = DioTierRepository(dio);
+
+      expect(await repo.fetchTiers(), isEmpty);
     });
 
     test('skips entries missing id field', () async {
@@ -300,9 +342,12 @@ void main() {
       });
       final repo = DioTierRepository(dio);
 
-      final tiers = await repo.fetchTiers();
-
-      expect(tiers, isEmpty);
+      // RTYPE-03: every row dropped is an UNREADABLE catalogue, not an empty
+      // one — the Diag still records both counts before the throw.
+      await expectLater(
+        repo.fetchTiers(),
+        throwsA(predicate<UnknownFailure>((UnknownFailure f) => f.parse)),
+      );
       expect(
         lines.any(
           (line) =>

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 import 'order_history_state.dart';
@@ -31,10 +32,26 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
   Future<void> refresh() => _loadFirstPage(state.activeTab, isRefresh: true);
 
   /// SILENT re-pull for an automatic trigger (shell-tab refocus, app resume,
-  /// an `order` push). Distinct from [refresh] in exactly two ways, and both
+  /// an `order` push). Its failures never raise a snack.
   Future<void> refreshSilently() async {
     if (state.currentTab.status == OrderTabStatus.initial) return;
-    await _loadFirstPage(state.activeTab, isRefresh: true);
+    await _loadFirstPage(state.activeTab, isRefresh: true, silent: true);
+  }
+
+  /// One-shot clear after the warm refresh snack has been shown.
+  void acknowledgeTabError([OrderHistoryTab? tab]) {
+    final OrderHistoryTab target = tab ?? state.activeTab;
+    final OrderTabState current = state.tabs[target]!;
+    if (current.failure == null && current.errorKind == null) return;
+    emit(state.withTabState(target, current.copyWith(clearError: true)));
+  }
+
+  /// Clears the warm refresh band after the user dismisses it.
+  void acknowledgeRefreshError([OrderHistoryTab? tab]) {
+    final OrderHistoryTab target = tab ?? state.activeTab;
+    final OrderTabState current = state.tabs[target]!;
+    if (current.refreshError == null) return;
+    emit(state.withTabState(target, current.copyWith(clearRefreshError: true)));
   }
 
   Future<void> loadMore() async {
@@ -53,6 +70,7 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
       tabState.copyWith(
         status: OrderTabStatus.loadingNextPage,
         clearError: true,
+        clearLoadMoreError: true,
       ),
     ));
     try {
@@ -69,14 +87,17 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
           page: next.page,
           hasMore: next.hasMore,
           status: OrderTabStatus.ready,
+          clearLoadMoreError: true,
         ),
       ));
-    } on OrderRepositoryException catch (e) {
+    } catch (e) {
+      // EP-15: a dead NEXT page is a footer retry, never the screen's error
+      // rung and never a toast.
       emit(state.withTabState(
         tab,
         tabState.copyWith(
           status: OrderTabStatus.ready,
-          errorKind: _mapError(e.kind),
+          loadMoreError: _classify(e),
         ),
       ));
     }
@@ -95,32 +116,38 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
 
   Future<void> clearDateRange() => applyDateRange(const OrderDateRange());
 
-  bool _firstPageInFlight = false;
+  /// Per-tab, so `selectTab`'s load is never dropped while another tab loads.
+  final Set<OrderHistoryTab> _firstPageInFlight = <OrderHistoryTab>{};
 
   Future<void> _loadFirstPage(
     OrderHistoryTab tab, {
     bool isRefresh = false,
+    bool silent = false,
   }) async {
-    if (_firstPageInFlight) return;
-    _firstPageInFlight = true;
+    if (!_firstPageInFlight.add(tab)) return;
     try {
-      await _loadFirstPageInner(tab, isRefresh: isRefresh);
+      await _loadFirstPageInner(tab, isRefresh: isRefresh, silent: silent);
     } finally {
-      _firstPageInFlight = false;
+      _firstPageInFlight.remove(tab);
     }
   }
 
   Future<void> _loadFirstPageInner(
     OrderHistoryTab tab, {
     required bool isRefresh,
+    bool silent = false,
   }) async {
     final current = state.tabs[tab]!;
+    // F1: a "refresh" with nothing to keep (error rung, never settled, no rows)
+    // is a FIRST load — painting `refreshing` there shows the empty rung.
+    final bool warm = isRefresh &&
+        current.status != OrderTabStatus.error &&
+        (current.settled || current.orders.isNotEmpty);
     emit(state.withTabState(
       tab,
       current.copyWith(
-        status: isRefresh
-            ? OrderTabStatus.refreshing
-            : OrderTabStatus.loadingFirstPage,
+        status:
+            warm ? OrderTabStatus.refreshing : OrderTabStatus.loadingFirstPage,
         clearError: true,
       ),
     ));
@@ -138,23 +165,58 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
           page: page.page,
           hasMore: page.hasMore,
           status: OrderTabStatus.ready,
+          settled: true,
         ),
       ));
-    } on OrderRepositoryException catch (e) {
-      emit(state.withTabState(
-        tab,
-        isRefresh
-            ? current.copyWith(
-                status: OrderTabStatus.ready,
-                errorKind: _mapError(e.kind),
-              )
-            : current.copyWith(
-                status: OrderTabStatus.error,
-                errorKind: _mapError(e.kind),
-              ),
-      ));
+    } catch (e) {
+      emit(state.withTabState(tab, _failedTabState(
+        current,
+        e,
+        isRefresh: isRefresh,
+        silent: silent,
+      )));
     }
   }
+
+  /// ORDH-01: a refresh that fails over an EMPTY list is an error rung, not a
+  /// "No orders yet". A silent re-pull never raises the snack listener.
+  OrderTabState _failedTabState(
+    OrderTabState current,
+    Object error, {
+    required bool isRefresh,
+    required bool silent,
+  }) {
+    final AppFailure failure = _classify(error);
+    final OrderTabErrorKind kind = error is OrderRepositoryException
+        ? _mapError(error.kind)
+        : _kindOf(failure);
+    if (isRefresh && current.orders.isNotEmpty) {
+      return silent
+          ? current.copyWith(
+              status: OrderTabStatus.ready,
+              refreshError: failure,
+            )
+          : current.copyWith(
+              status: OrderTabStatus.ready,
+              errorKind: kind,
+              failure: failure,
+            );
+    }
+    return current.copyWith(
+      status: OrderTabStatus.error,
+      errorKind: kind,
+      failure: failure,
+    );
+  }
+
+  static AppFailure _classify(Object error) => error is OrderRepositoryException
+      ? (error.failure ?? AppFailure.of(error.cause ?? error))
+      : AppFailure.of(error);
+
+  static OrderTabErrorKind _kindOf(AppFailure failure) =>
+      failure is NetworkFailure || failure is TimeoutFailure
+          ? OrderTabErrorKind.network
+          : OrderTabErrorKind.server;
 
   static OrderTabErrorKind _mapError(OrderRepositoryErrorKind kind) {
     switch (kind) {

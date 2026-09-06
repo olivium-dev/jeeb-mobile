@@ -100,7 +100,9 @@ void main() {
           find.byType(JeebEmptyState),
         );
         expect(state.variant, JeebEmptyStateVariant.parcel);
-        expect(state.status, JeebEmptyStateStatus.error);
+        // `reason:` and `status:` are both valid spellings of the rung; the
+        // painted one is what the three surfaces must agree on.
+        expect(state.effectiveStatus, JeebEmptyStateStatus.error);
 
         final JeebMidnightField field = tester.widget<JeebMidnightField>(
           find.byType(JeebMidnightField),
@@ -196,7 +198,7 @@ void main() {
       shapes.add(
         Object.hash(
           state.variant,
-          state.status,
+          state.effectiveStatus,
           field.variant,
           field.washPlacement,
           field.animateDecor,

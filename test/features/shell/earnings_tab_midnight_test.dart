@@ -140,8 +140,8 @@ void main() {
 
       final JeebEmptyState block = _block(tester);
       expect(block.variant, JeebEmptyStateVariant.radar);
-      expect(block.status, JeebEmptyStateStatus.error);
-      expect(block.medallions, isEmpty);
+      expect(block.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(block.reason, JeebEmptyStateReason.failed);
       expect(block.identifier, EarningsTab.unavailableIdentifier);
     });
 
@@ -158,16 +158,25 @@ void main() {
       expect(_block(tester).headline, 'Unable to load earnings account.');
     });
 
-    // No retry seam exists on this arm — the FutureBuilder has nothing to
-    // re-run. TODO(midnight): omitted, not faked.
-    testWidgets('offers no action it cannot honour', (
+    // ES-11/EP-18 reversal: a headline alone stranded the Jeeber on a dead
+    // screen, so both acts are mounted — and neither is an inert Retry-only.
+    testWidgets('offers a way out AND a way to re-check', (
       WidgetTester tester,
     ) async {
       useReduceMotion(tester);
       await tester.pumpWidget(_harness(_unavailableTab()));
       await tester.pumpAndSettle();
 
-      expect(_block(tester).action, isNull);
+      expect(_block(tester).action, isNotNull);
+      expect(
+        find.bySemanticsIdentifier('earnings_tab_signout_cta'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('earnings_tab_retry_cta'),
+        findsOneWidget,
+      );
+      expect(_block(tester).body, isNotNull);
     });
   });
 

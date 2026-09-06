@@ -61,6 +61,8 @@ void main() {
                   );
                   submittedId = await compose.submitFromLocation(
                     locationCubit.state,
+                    defaultDescription: 'Delivery request',
+                    currentLocationLabel: 'Current location',
                   );
                 },
                 child: const Text('OPEN MAP'),
@@ -112,14 +114,10 @@ void main() {
       expect(submission.lastDraft?.pickupLng, pinned.longitude);
       expect(submission.lastDraft?.dropoffLat, pinned.latitude);
       expect(submission.lastDraft?.dropoffLng, pinned.longitude);
-      expect(
-        submission.lastDraft?.pickupAddress,
-        'Current location (33.9123, 35.5234)',
-      );
-      expect(
-        submission.lastDraft?.dropoffAddress,
-        'Current location (33.9123, 35.5234)',
-      );
+      // RSUM-04: the fallback label is the localized string, not a
+      // coordinate pair; the real pin is the lat/lng asserted above.
+      expect(submission.lastDraft?.pickupAddress, 'Current location');
+      expect(submission.lastDraft?.dropoffAddress, 'Current location');
     },
   );
 }

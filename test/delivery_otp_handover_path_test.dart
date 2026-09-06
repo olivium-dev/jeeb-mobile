@@ -75,12 +75,13 @@ class _RecordingDio extends Fake implements Dio {
 }
 
 /// Builds a `DioException` carrying [status] as the badResponse
-DioException _httpError(int status) => DioException(
+DioException _httpError(int status, {Object? body}) => DioException(
       requestOptions: RequestOptions(path: '/v1/deliveries/d/otp/verify'),
       type: DioExceptionType.badResponse,
       response: Response<dynamic>(
         requestOptions: RequestOptions(path: ''),
         statusCode: status,
+        data: body,
       ),
     );
 
@@ -236,6 +237,108 @@ void main() {
             (e) => e.failure,
             'failure',
             ActiveDeliveryFailure.otpLocked,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('the payload the mapping now carries', () {
+    test('401 carries the server attemptsRemaining', () async {
+      final dio = _RecordingDio()
+        ..nextPostError = _httpError(401, body: <String, Object?>{
+          'type': 'https://jeeb.app/errors/invalid-code',
+          'attemptsRemaining': 2,
+        });
+
+      await expectLater(
+        DioOtpHandoverRepository(dio)
+            .submitOtp(deliveryId: 'delivery-005', otp: '0000'),
+        throwsA(
+          isA<OtpHandoverException>()
+              .having((e) => e.kind, 'kind', OtpHandoverErrorKind.invalidOtp)
+              .having((e) => e.attemptsRemaining, 'attemptsRemaining', 2),
+        ),
+      );
+    });
+
+    test('423 is the OtpHandoverLocked subtype carrying the open case',
+        () async {
+      final dio = _RecordingDio()
+        ..nextPostError = _httpError(423, body: <String, Object?>{
+          'type': 'https://jeeb.app/errors/handover-locked',
+          'escalationId': 'ESC-42',
+        });
+
+      await expectLater(
+        DioOtpHandoverRepository(dio)
+            .submitOtp(deliveryId: 'delivery-005', otp: '0000'),
+        throwsA(
+          isA<OtpHandoverLocked>()
+              .having((e) => e.escalationId, 'escalationId', 'ESC-42'),
+        ),
+      );
+    });
+
+    test('AE-11: verifyDoorOtp splits otp-code-required from invalidOtp',
+        () async {
+      final required = _RecordingDio()
+        ..nextGetData = {'code': '1234'}
+        ..nextPostError = _httpError(422, body: <String, Object?>{
+          'type': 'https://jeeb.app/errors/otp-code-required',
+        });
+
+      await expectLater(
+        DioActiveDeliveryRepository(
+          required,
+          cdnAssetGateway: const _UnusedCdnAssetGateway(),
+        ).verifyDoorOtp(deliveryId: 'delivery-005', code: ''),
+        throwsA(
+          isA<ActiveDeliveryException>().having(
+            (e) => e.failure,
+            'failure',
+            ActiveDeliveryFailure.otpCodeRequired,
+          ),
+        ),
+      );
+    });
+
+    test('AE-11: the 404 branch is reachable now, not dead code', () async {
+      final dio = _RecordingDio()
+        ..nextGetData = {'code': '1234'}
+        ..nextPostError = _httpError(404);
+
+      await expectLater(
+        DioActiveDeliveryRepository(
+          dio,
+          cdnAssetGateway: const _UnusedCdnAssetGateway(),
+        ).verifyDoorOtp(deliveryId: 'delivery-005', code: '0000'),
+        throwsA(
+          isA<ActiveDeliveryException>().having(
+            (e) => e.failure,
+            'failure',
+            ActiveDeliveryFailure.notFound,
+          ),
+        ),
+      );
+    });
+
+    test('a body with neither status nor verified is NOT a verified handover',
+        () async {
+      final dio = _RecordingDio()
+        ..nextGetData = {'code': '1234'}
+        ..nextPostData = <String, dynamic>{};
+
+      await expectLater(
+        DioActiveDeliveryRepository(
+          dio,
+          cdnAssetGateway: const _UnusedCdnAssetGateway(),
+        ).verifyDoorOtp(deliveryId: 'delivery-005', code: '1234'),
+        throwsA(
+          isA<ActiveDeliveryException>().having(
+            (e) => e.failure,
+            'failure',
+            ActiveDeliveryFailure.invalidOtp,
           ),
         ),
       );

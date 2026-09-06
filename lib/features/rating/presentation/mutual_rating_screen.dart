@@ -15,10 +15,13 @@ import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/mutual_rating_cubit.dart';
 import '../application/mutual_rating_state.dart';
+import '../domain/rating_repository.dart';
 
 /// Mandatory post-delivery rating screen (JM-034) — the canonical rating
 /// terminal (`/orders/:id/mutual-rate`, `mode=jeeber` flips audience).
@@ -127,7 +130,7 @@ class MutualRatingScreen extends StatelessWidget {
       case MutualRatingPhase.submitted:
         return const _SubmittingView();
       case MutualRatingPhase.error:
-        return const _ErrorView();
+        return _ErrorView(failure: state.failure);
       // The blind-reveal phases are server-owned (T-BE-025 cron) and are not
       // reached on the mandatory JM-034 path; fall back to the input view so a
       // stale state never strands the user without a submit affordance.
@@ -690,23 +693,23 @@ class _SubmittingView extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView();
+  const _ErrorView({this.failure});
+
+  final RatingFailure? failure;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          child: JeebEmptyState.compact(
-            status: JeebEmptyStateStatus.error,
-            headline: l10n.mutualRatingError,
-            identifier: 'mutual_rating_error',
-            action: JeebCtaButton.outline(
-              label: l10n.ratingLoadRetry,
-              onTap: () => context.read<MutualRatingCubit>().submit(),
-            ),
-          ),
+      child: JeebStateHost(
+        child: JeebFailureBlock.compact(
+          failure: ratingAppFailure(failure ?? RatingFailure.unknown),
+          identifier: 'mutual_rating_error',
+          headlineOverride: l10n.mutualRatingError,
+          onRetry: () => context.read<MutualRatingCubit>().submit(),
+          // `canPop: false` above means a non-retryable kind (403/404) would
+          // otherwise render no CTA at all and trap the rater here.
+          onExit: () => context.go('/'),
         ),
       ),
     );

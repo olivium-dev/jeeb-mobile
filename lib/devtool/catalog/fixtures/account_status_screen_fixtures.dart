@@ -76,3 +76,43 @@ const AccountStatusInfo accountStatusScreenLockedLongReason = AccountStatusInfo(
   value: AccountStatusValue.locked,
   reason: accountStatusScreenLongReasonText,
 );
+
+/// Critic A4: the three failure rungs the screen could not draw before —
+/// a 403, a 5xx, and a loaded banner whose refresh then failed.
+class AccountStatusScreenThrowingRepository
+    implements AccountStatusRepository {
+  const AccountStatusScreenThrowingRepository(this.failure);
+
+  /// 403 → the exit CTA (terminal); 5xx → Retry.
+  static const AccountStatusScreenThrowingRepository forbidden =
+      AccountStatusScreenThrowingRepository(AccountStatusFailure.forbidden);
+
+  static const AccountStatusScreenThrowingRepository serverError =
+      AccountStatusScreenThrowingRepository(AccountStatusFailure.serverError);
+
+  final AccountStatusFailure failure;
+
+  @override
+  Future<AccountStatusInfo> fetchStatus() async =>
+      throw AccountStatusRepositoryException(failure);
+}
+
+/// A first read that lands, then a refresh that fails: the banner stays and
+/// `account_status_refresh_failed_note` appears over it.
+class AccountStatusScreenRefreshFailingRepository
+    implements AccountStatusRepository {
+  AccountStatusScreenRefreshFailingRepository(this.info);
+
+  final AccountStatusInfo info;
+
+  bool _first = true;
+
+  @override
+  Future<AccountStatusInfo> fetchStatus() async {
+    if (_first) {
+      _first = false;
+      return info;
+    }
+    throw const AccountStatusRepositoryException(AccountStatusFailure.network);
+  }
+}

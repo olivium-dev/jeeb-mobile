@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../diagnostics/chat_diagnostics.dart';
 import '../../network/auth_token_store.dart';
 import 'push_transport.dart';
+import 'shared_prefs_local_push_inbox.dart';
 
 /// registration must be attributed to a logged-in user, [start] polls
 /// registration must never crash or block the app. The status (never the token)
@@ -204,7 +205,11 @@ class DeviceTokenRegistrar {
 
   Future<String?> _safeUserId() async {
     try {
-      return await _tokenStore.userId;
+      final id = await _tokenStore.userId;
+      // F7: mirror the owner for the FCM background isolate, which keys inbox
+      // rows by it and cannot reach the keystore.
+      await SharedPrefsLocalPushInbox.stampOwner(_prefs, id);
+      return id;
     } catch (_) {
       return null;
     }

@@ -19,8 +19,11 @@ class MixedDirectionText extends StatelessWidget {
   final TextOverflow? overflow;
 
   static TextDirection detectDirection(String text) {
-    if (text.isEmpty) return TextDirection.ltr;
-    final firstChar = text.trim().codeUnits.first;
+    // `text.isEmpty` was not the guard: a whitespace-only string survived it
+    // and `.trim().codeUnits.first` threw a RangeError.
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return TextDirection.ltr;
+    final firstChar = trimmed.codeUnits.first;
     if (firstChar >= 0x0600 && firstChar <= 0x06FF) return TextDirection.rtl;
     if (firstChar >= 0xFE70 && firstChar <= 0xFEFF) return TextDirection.rtl;
     if (firstChar >= 0x0590 && firstChar <= 0x05FF) return TextDirection.rtl;

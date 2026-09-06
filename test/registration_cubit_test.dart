@@ -151,7 +151,7 @@ void main() {
     );
 
     blocTest<RegistrationCubit, RegistrationState>(
-      'surfaces a gateway fault as a network phone error',
+      'surfaces a gateway fault as a SERVER phone error, never the network one',
       build: build,
       seed: () => const RegistrationState(phoneInput: '71123456'),
       setUp: () => when(
@@ -163,7 +163,7 @@ void main() {
         predicate<RegistrationState>(
           (s) =>
               !s.isSendingCode &&
-              s.phoneError == RegistrationPhoneError.networkError &&
+              s.phoneError == RegistrationPhoneError.serverError &&
               s.step == RegistrationStep.phone,
         ),
       ],

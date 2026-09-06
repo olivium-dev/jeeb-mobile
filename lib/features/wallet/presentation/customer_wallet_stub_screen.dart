@@ -72,7 +72,7 @@ class CustomerWalletStubScreen extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'customer_wallet_stub',
       container: true,
@@ -93,8 +93,9 @@ class CustomerWalletStubScreen extends StatelessWidget {
                   // `customer_wallet_stub_done` id is untouched.
                   identifier: 'customer_wallet_stub_back',
                   title: l10n.customerWalletStubTitle,
-                  leadingTooltip:
-                      MaterialLocalizations.of(context).backButtonTooltip,
+                  leadingTooltip: MaterialLocalizations.of(
+                    context,
+                  ).backButtonTooltip,
                   onLeadingPressed: () => _back(context),
                 ),
                 // Scrolls only so 200% text scale cannot overflow the fixed
@@ -168,7 +169,7 @@ class _CashMark extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return Align(
       // Directional: the board's bands are start-aligned, never centred.
       alignment: AlignmentDirectional.centerStart,

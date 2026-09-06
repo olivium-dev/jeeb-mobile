@@ -6,12 +6,19 @@ import 'package:omds/omds.dart';
 import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_filter_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_filter_pills.dart';
 import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_cubit.dart';
 import '../../application/availability_state.dart';
@@ -21,6 +28,7 @@ import '../../../jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../../jeeber_request_feed/cubit/submitted_offers_state.dart';
 import '../../../jeeber_request_feed/data/request_feed_models.dart';
+import '../../../jeeber_request_feed/presentation/jeeber_failure_exit.dart';
 import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'availability_card.dart';
@@ -251,6 +259,8 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           SliverToBoxAdapter(child: widget.leadingBanner!),
         if (!isOffline)
           ..._feedControls(context).map((w) => SliverToBoxAdapter(child: w)),
+        if (!isOffline)
+          const SliverToBoxAdapter(child: _FeedRefreshFailedNote()),
         ..._feedSlivers(isOffline),
       ],
     );
@@ -261,10 +271,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       key: JeeberFeedTabView.rootKey,
       child: isOffline
           ? scrollView
-          : OmdsPullToRefresh(
-              // Periwinkle, never the `colorScheme.primary` default: on
-              // Midnight that is the orange, and this is transient chrome.
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          : JeebPullToRefresh(
               onRefresh: () => context.read<RequestFeedCubit>().refresh(),
               child: scrollView,
             ),
@@ -396,6 +403,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     }
     return [
       _FeedRequestSliver(
+        onClearFilters: _clearFilters,
         activeTab: _activeTab,
         tierFilter: _tierFilter,
         query: _query,
@@ -403,6 +411,13 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
         onMakeOffer: (req) => _onMakeOffer(context, req),
       ),
     ];
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _tierFilter = JeeberTierFilter.all;
+      _query = '';
+    });
   }
 
   void _onTabChanged(JeeberFeedTab? next) {
@@ -436,9 +451,11 @@ class _OfflineBanner extends StatelessWidget {
       ),
       child: JeebInfoNote.warning(
         key: JeeberFeedTabView.offlineBannerKey,
-        icon: Icons.wifi_off,
-        title: l10n.jeeberFeedOfflineBannerTitle,
-        text: l10n.jeeberFeedOfflineBannerSubtitle,
+        // OFF-16: duty-off, not connectivity — "offline" is reserved for the
+        // real transport banner.
+        icon: Icons.pause_circle_outline,
+        title: l10n.availabilityDutyOffTitle,
+        text: l10n.availabilityDutyOffSubtitle,
       ),
     );
   }
@@ -454,25 +471,14 @@ class _OfflineEmptyBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Scrollable, not a bare `Center`: the drawn illustration is taller than a
-    // short viewport, and `SliverFillRemaining` would ask it for intrinsics.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
-            child: Center(
-              child: JeebEmptyState(
-                identifier: 'jeeber_feed_offline_empty_state',
-                variant: JeebEmptyStateVariant.street,
-                headline: l10n.jeeberFeedOfflineBannerTitle,
-                body: l10n.jeeberFeedOfflineBannerSubtitle,
-              ),
-            ),
-          ),
-        ),
+    // Duty-off has no feed contract to pull, so the host takes no onRefresh.
+    return JeebStateHost(
+      padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
+      child: JeebEmptyState(
+        identifier: 'jeeber_feed_offline_empty_state',
+        variant: JeebEmptyStateVariant.street,
+        headline: l10n.jeeberFeedDutyOffEmptyHeadline,
+        body: l10n.jeeberFeedDutyOffEmptyBody,
       ),
     );
   }
@@ -631,6 +637,7 @@ class _FeedRequestSliver extends StatelessWidget {
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
+    required this.onClearFilters,
   });
 
   final JeeberFeedTab activeTab;
@@ -638,6 +645,7 @@ class _FeedRequestSliver extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
+  final VoidCallback onClearFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -649,6 +657,7 @@ class _FeedRequestSliver extends StatelessWidget {
         query: query,
         onOpenRequest: onOpenRequest,
         onMakeOffer: onMakeOffer,
+        onClearFilters: onClearFilters,
       ),
     );
   }
@@ -662,6 +671,7 @@ class _FeedRequestSliverBody extends StatelessWidget {
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
+    required this.onClearFilters,
   });
 
   final RequestFeedState state;
@@ -670,6 +680,7 @@ class _FeedRequestSliverBody extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
+  final VoidCallback onClearFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -680,6 +691,19 @@ class _FeedRequestSliverBody extends StatelessWidget {
       query: query,
     );
     final cubit = context.read<RequestFeedCubit>();
+    // ES-05: error, then filtered-empty, then the plain empty board.
+    if (state.status == RequestFeedStatus.error && state.requests.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: true,
+        child: _FeedFailureBody(failure: state.error, onRetry: cubit.refresh),
+      );
+    }
+    if (state.requests.isNotEmpty && visible.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: true,
+        child: _FilteredEmptyState(onClearFilters: onClearFilters),
+      );
+    }
     if (visible.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: true,
@@ -744,9 +768,101 @@ class _EmptyTabState extends StatelessWidget {
   final VoidCallback onRefresh;
 
   @override
+  // Only reached when the jeeber is on duty; the duty-off body is separate.
   Widget build(BuildContext context) => JeeberFeedEmptyPanel(
+    isOnline: true,
     onRefresh: onRefresh,
   );
+}
+
+/// A filter emptied the list — the way out is clearing it, not a refresh.
+class _FilteredEmptyState extends StatelessWidget {
+  const _FilteredEmptyState({required this.onClearFilters});
+
+  final VoidCallback onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebStateHost(
+      child: JeebEmptyState(
+        reason: JeebEmptyStateReason.filtered,
+        variant: JeebEmptyStateVariant.street,
+        identifier: 'jeeber_feed_filtered_empty_state',
+        headline: l10n.jeeberFeedFilterEmptyTitle,
+        body: l10n.jeeberFeedFilterEmptyBody,
+        secondaryAction: JeebCtaButton.text(
+          label: l10n.actionClearFilters,
+          expand: false,
+          identifier: 'jeeber_feed_clear_filters_cta',
+          onTap: onClearFilters,
+        ),
+      ),
+    );
+  }
+}
+
+/// The feed's cold failure inside the sliver body.
+class _FeedFailureBody extends StatelessWidget {
+  const _FeedFailureBody({required this.failure, required this.onRetry});
+
+  final AppFailure? failure;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = failure ?? const UnknownFailure();
+    final exit = jeeberFailureExit(
+      context,
+      resolved,
+      AppLocalizations.of(context),
+      onReload: onRetry,
+    );
+    return JeebStateHost(
+      child: JeebFailureBlock(
+        failure: resolved,
+        identifier: 'jeeber_feed_error',
+        retryIdentifier: 'jeeber_feed_retry_cta',
+        exitIdentifier: 'jeeber_feed_exit_cta',
+        variant: JeebEmptyStateVariant.street,
+        onRetry: () => onRetry(),
+        onExit: exit.onExit,
+        exitLabel: exit.label,
+      ),
+    );
+  }
+}
+
+/// LR-12: a refresh failed while rows are on screen — the strip says so and
+/// the rows stay.
+class _FeedRefreshFailedNote extends StatelessWidget {
+  const _FeedRefreshFailedNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RequestFeedCubit, RequestFeedState>(
+      buildWhen: (prev, curr) => prev.refreshError != curr.refreshError,
+      builder: (context, state) {
+        final failure = state.refreshError;
+        if (failure == null) return const SizedBox.shrink();
+        final cubit = context.read<RequestFeedCubit>();
+        return Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.small,
+            Spacing.xLarge,
+            0,
+          ),
+          child: JeebRefreshFailedNote(
+            failure: failure,
+            identifier: 'jeeber_feed_refresh_failed_note',
+            onDismiss: cubit.clearRefreshError,
+            onRetry: () => cubit.refresh(),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// JM-048 AC3 + JM-047: the Pending-Response sub-tab body, backed by the
@@ -767,50 +883,112 @@ class _PendingOffersList extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<SubmittedOffersCubit>.value(
       value: cubit,
-      child: Column(
-        children: [
-          _PendingOffersBackBar(onBack: onBack),
-          Expanded(
-            child: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
-              bloc: cubit,
-              builder: (context, state) => OmdsPullToRefresh(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                onRefresh: cubit.load,
-                child: _pendingBody(context, state),
+      child: BlocListener<SubmittedOffersCubit, SubmittedOffersState>(
+        bloc: cubit,
+        listenWhen: (prev, curr) =>
+            prev.lastEffect != curr.lastEffect && curr.lastEffect != null,
+        listener: (context, state) => _onWithdrawFailed(context, state),
+        child: Column(
+          children: [
+            _PendingOffersBackBar(onBack: onBack),
+            Expanded(
+              child: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
+                bloc: cubit,
+                builder: (context, state) => JeebPullToRefresh(
+                  onRefresh: cubit.load,
+                  child: _pendingBody(context, state),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  void _onWithdrawFailed(BuildContext context, SubmittedOffersState state) {
+    final effect = state.lastEffect!;
+    final l10n = AppLocalizations.of(context);
+    showJeebErrorSnack(
+      context,
+      failure: effect.failure,
+      message: effect.failure == null ? l10n.pendingOffersWithdrawFailed : null,
+      identifier: 'pending_offers_withdraw_failed_snack',
+      retryLabel: l10n.actionRetry,
+      onRetry: () => cubit.withdraw(effect.offerId),
+    );
+    cubit.clearEffect();
   }
 
   Widget _pendingBody(BuildContext context, SubmittedOffersState state) {
     final l10n = AppLocalizations.of(context);
     if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
-      return Center(
+      return JeebStateHost(
         child: JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
-          headline: l10n.pendingOffersEmptyTitle,
+          variant: JeebEmptyStateVariant.pocket,
+          identifier: 'jeeber_pending_offers_loading',
+          headline: l10n.pendingOffersLoadingHeadline,
+        ),
+      );
+    }
+    // UX-03: the error rung comes strictly before the empty one.
+    if (state.status == SubmittedOffersStatus.error && state.offers.isEmpty) {
+      final resolved = state.error ?? const UnknownFailure();
+      final exit = jeeberFailureExit(context, resolved, l10n, onReload: cubit.load);
+      return JeebStateHost(
+        child: JeebFailureBlock(
+          failure: resolved,
+          identifier: 'jeeber_pending_offers_error',
+          retryIdentifier: 'jeeber_pending_offers_retry_cta',
+          exitIdentifier: 'jeeber_pending_offers_exit_cta',
+          variant: JeebEmptyStateVariant.pocket,
+          onRetry: () => cubit.load(),
+          onExit: exit.onExit,
+          exitLabel: exit.label,
         ),
       );
     }
     if (state.offers.isEmpty) {
       return _PendingEmptyState(l10n: l10n);
     }
-    return ListView.builder(
-      key: JeeberFeedTabView.pendingListKey,
-      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
-      itemCount: state.offers.length,
-      itemBuilder: (_, index) {
-        final offer = state.offers[index];
-        return PendingOfferRow(
-          index: index,
-          offer: offer,
-          isWithdrawing: state.isWithdrawing(offer.id),
-          onWithdraw: () => cubit.withdraw(offer.id),
-        );
-      },
+    final refreshError = state.refreshError;
+    return Column(
+      children: [
+        if (refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.small,
+              Spacing.xLarge,
+              0,
+            ),
+            child: JeebRefreshFailedNote(
+              failure: refreshError,
+              identifier: 'jeeber_pending_offers_refresh_failed_note',
+              onDismiss: cubit.clearRefreshError,
+              onRetry: () => cubit.load(),
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            key: JeeberFeedTabView.pendingListKey,
+            padding: const EdgeInsetsDirectional.symmetric(
+              vertical: Spacing.small,
+            ),
+            itemCount: state.offers.length,
+            itemBuilder: (_, index) {
+              final offer = state.offers[index];
+              return PendingOfferRow(
+                index: index,
+                offer: offer,
+                isWithdrawing: state.isWithdrawing(offer.id),
+                onWithdraw: () => cubit.withdraw(offer.id),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -848,20 +1026,12 @@ class _PendingEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: JeebEmptyState(
-              identifier: 'jeeber_pending_offers_empty_state',
-              variant: JeebEmptyStateVariant.pocket,
-              headline: l10n.pendingOffersEmptyTitle,
-              body: l10n.pendingOffersEmptyBody,
-            ),
-          ),
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState(
+        identifier: 'jeeber_pending_offers_empty_state',
+        variant: JeebEmptyStateVariant.pocket,
+        headline: l10n.pendingOffersEmptyTitle,
+        body: l10n.pendingOffersEmptyBody,
       ),
     );
   }

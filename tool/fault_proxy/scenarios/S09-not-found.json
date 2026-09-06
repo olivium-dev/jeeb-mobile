@@ -1,0 +1,41 @@
+{
+  "scenario": "S09",
+  "rules": [
+    {
+      "id": "not-found",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.5\",\"title\":\"Not Found\",\"status\":404,\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "notFound",
+    "copyTitle": "errorNotFoundTitle",
+    "copyBody": "errorNotFoundBody",
+    "retryable": false
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": "1-2; unversioned fallback",
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_load_exit_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

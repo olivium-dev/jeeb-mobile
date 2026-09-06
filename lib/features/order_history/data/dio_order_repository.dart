@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/formatting/server_time.dart';
+import '../../../core/network/app_failure.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 
@@ -40,14 +41,30 @@ class DioOrderRepository implements OrderRepository {
       );
       return _parsePage(response.data, tab, page, pageSize);
     } on DioException catch (e) {
+      final AppFailure failure = AppFailure.of(e);
       throw OrderRepositoryException(
-        e.response == null
+        failure is NetworkFailure || failure is TimeoutFailure
             ? OrderRepositoryErrorKind.network
             : OrderRepositoryErrorKind.server,
         e,
+        failure,
       );
     } on FormatException catch (e) {
-      throw OrderRepositoryException(OrderRepositoryErrorKind.parse, e);
+      throw OrderRepositoryException(
+        OrderRepositoryErrorKind.parse,
+        e,
+        UnknownFailure(cause: e, parse: true),
+      );
+    } on OrderRepositoryException {
+      rethrow;
+    } catch (e) {
+      // A numeric `id` used to throw TypeError past both catches and strand the
+      // tab in loadingFirstPage.
+      throw OrderRepositoryException(
+        OrderRepositoryErrorKind.parse,
+        e,
+        UnknownFailure(cause: e, parse: true),
+      );
     }
   }
 
@@ -96,20 +113,18 @@ class DioOrderRepository implements OrderRepository {
     final pickup = json['pickup'];
     final dropoff = json['dropoff'];
     return OrderSummary(
-      id: json['id'] as String? ?? '',
+      id: _str(json['id']) ?? '',
       createdAt:
-          ServerTime.parse(json['createdAt'] as String?) ??
+          ServerTime.parse(_str(json['createdAt'])) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       pickupAddress: pickup is Map<String, dynamic>
-          ? (pickup['address'] as String? ?? '')
-          : (json['pickupAddress'] as String? ?? ''),
+          ? (_str(pickup['address']) ?? '')
+          : (_str(json['pickupAddress']) ?? ''),
       dropoffAddress: dropoff is Map<String, dynamic>
-          ? (dropoff['address'] as String? ?? '')
-          : (json['dropoffAddress'] as String? ?? ''),
-      status: OrderRequestStatus.parse(json['status'] as String?),
-      tier: OrderTier.parse(
-        json['tier'] as String? ?? json['tierId'] as String?,
-      ),
+          ? (_str(dropoff['address']) ?? '')
+          : (_str(json['dropoffAddress']) ?? ''),
+      status: OrderRequestStatus.parse(_str(json['status'])),
+      tier: OrderTier.parse(_str(json['tier']) ?? _str(json['tierId'])),
       // Wire drift (run-22 P1-A): live gateway sends multiple amount formats.
       amountMinor: switch (amount) {
         final num flat => (flat * 100).round(),
@@ -117,11 +132,17 @@ class DioOrderRepository implements OrderRepository {
         {'value': final num value} => (value * 100).round(),
         _ => null,
       },
+      // `currency` is non-nullable on OrderSummary, so 'USD' stays the model
+      // fallback here; nullability is filed for WP-9.
       currency: amount is Map<String, dynamic>
-          ? (amount['currency'] as String? ?? 'USD')
-          : (json['currency'] as String? ?? 'USD'),
+          ? (_str(amount['currency']) ?? 'USD')
+          : (_str(json['currency']) ?? 'USD'),
     );
   }
+
+  /// Null-safe read: the gateway has shipped numeric ids, and an `as String?`
+  /// on one throws TypeError rather than yielding null.
+  static String? _str(Object? value) => value is String ? value : null;
 
   static List<dynamic> _items(Object? data) {
     if (data is List) return data;

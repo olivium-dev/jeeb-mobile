@@ -22,14 +22,46 @@ abstract class OtpHandoverRepository {
 }
 
 class OtpHandoverException implements Exception {
-  const OtpHandoverException(this.kind, [this.cause]);
+  const OtpHandoverException(this.kind, [this.cause, this.attemptsRemaining]);
 
   final OtpHandoverErrorKind kind;
   final Object? cause;
 
+  /// Server-reported attempts left before lockout; null when the gateway
+  /// said nothing and the screen must fall back to its own count.
+  final int? attemptsRemaining;
+
   @override
-  String toString() =>
-      'OtpHandoverException(${kind.name}${cause == null ? '' : ', $cause'})';
+  String toString() => 'OtpHandoverException(${kind.name})';
 }
 
-enum OtpHandoverErrorKind { network, server, invalidOtp, locked, parse }
+/// A 423 carries the case the gateway already opened, so the screen routes to
+/// it instead of offering to open a second one.
+final class OtpHandoverLocked extends OtpHandoverException {
+  const OtpHandoverLocked({
+    this.escalationId,
+    this.lockedAt,
+    int? attemptsRemaining,
+    Object? cause,
+  }) : super(OtpHandoverErrorKind.locked, cause, attemptsRemaining);
+
+  final String? escalationId;
+  final DateTime? lockedAt;
+
+  @override
+  String toString() => 'OtpHandoverLocked(escalationId: $escalationId)';
+}
+
+enum OtpHandoverErrorKind {
+  network,
+  server,
+  invalidOtp,
+  locked,
+  parse,
+  notAtDoor,
+  wrongParty,
+  notFound,
+
+  /// The session expired on the READ leg — a sign-in exit, not a wrong code.
+  unauthorized,
+}

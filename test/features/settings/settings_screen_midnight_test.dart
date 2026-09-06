@@ -216,8 +216,9 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
-    // Nothing to scroll at rest: the board's `flex:1` band is real and no row
-    // is sliced at the fold.
-    expect(scrollable.position.maxScrollExtent, 0);
+    // F11 added the device-only note + the manage row, so the band no longer
+    // measures exactly zero — but it must stay a band, not a scrolled page:
+    // less than one row's worth of overflow.
+    expect(scrollable.position.maxScrollExtent, lessThan(120));
   });
 }

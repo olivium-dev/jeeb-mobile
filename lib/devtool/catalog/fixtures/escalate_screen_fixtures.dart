@@ -66,6 +66,32 @@ class ScriptedEscalateRepository implements EscalateRepository {
   }
 }
 
+/// A repository that DOES serve an evidence preview (ES-15). Production's
+/// `DioEscalateRepository` deliberately does not, so the rung never lies.
+class ScriptedEscalatePreviewRepository extends ScriptedEscalateRepository
+    implements EscalateEvidencePreviewRepository {
+  const ScriptedEscalatePreviewRepository({
+    super.evidence,
+    this.previewStalls = false,
+    this.previewFails = false,
+    super.submitFailure,
+  });
+
+  final bool previewStalls;
+  final bool previewFails;
+
+  @override
+  Future<EscalateEvidence> previewEvidence({required String deliveryId}) {
+    if (previewStalls) return Completer<EscalateEvidence>().future;
+    if (previewFails) {
+      return Future<EscalateEvidence>.error(
+        const EscalateException(EscalateErrorKind.server),
+      );
+    }
+    return Future<EscalateEvidence>.value(evidence);
+  }
+}
+
 /// EscalateScreen designed states.
 class EscalateScreenPreviewFixtures {
   const EscalateScreenPreviewFixtures._();
@@ -137,6 +163,32 @@ class EscalateScreenPreviewFixtures {
   /// Completed delivery's evidence.
   static EscalateRepository completedEvidenceLoaded() =>
       const ScriptedEscalateRepository(evidence: completedEvidence);
+
+  /// ES-15: an empty preview, behind a repository that actually has one.
+  static EscalateRepository emptyPreview() =>
+      const ScriptedEscalatePreviewRepository(evidence: EscalateEvidence.empty);
+
+  /// ES-15: the preview read failed — NOT the same as "no evidence".
+  static EscalateRepository failingPreview() =>
+      const ScriptedEscalatePreviewRepository(previewFails: true);
+
+  /// ES-15: the preview is still in flight.
+  static EscalateRepository stalledPreview() =>
+      const ScriptedEscalatePreviewRepository(previewStalls: true);
+
+  /// ES-15: a rich preview, behind a real preview endpoint.
+  static EscalateRepository richPreview() =>
+      const ScriptedEscalatePreviewRepository(evidence: fullEvidence);
+
+  /// ESC-06: a dispute that no longer exists — exit CTA, never Retry.
+  static EscalateRepository notFoundSubmit() =>
+      const ScriptedEscalateRepository(
+        submitFailure: EscalateErrorKind.notFound,
+      );
+
+  /// ESC-07: the v1 path, which now uploads before it POSTs.
+  static EscalateRepository v1UploadFirst() =>
+      const ScriptedEscalateRepository();
 
   /// Pre-configured cubit (no loadEvidence on purpose).
   static EscalateCubit cubit(

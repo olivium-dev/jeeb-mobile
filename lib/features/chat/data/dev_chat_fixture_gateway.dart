@@ -146,3 +146,33 @@ class DevChatFixtureGateway extends ChatGateway {
         ),
       ];
 }
+
+/// A gateway whose history read throws — the dev-seam and catalog failure
+/// rung. Lives in the product tree so no product file imports lib/devtool/.
+class FailingChatGateway extends ChatGateway {
+  FailingChatGateway({this.error});
+
+  /// What the read throws. Null is a server-side 500; pass a [NetworkFailure]
+  /// to reach the connectivity rung, which a 500 must never claim.
+  final Object? error;
+
+  @override
+  Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
+    throw error ??
+        StateError(
+          'fixture: HTTP 500 from GET '
+          '/v1/conversations/$conversationId/messages',
+        );
+  }
+
+  @override
+  Future<DeliveryChatMessage> send(
+    String conversationId,
+    DeliveryChatMessage message,
+  ) async =>
+      message.copyWith(status: MessageStatus.failed);
+
+  @override
+  Stream<ChatEvent> subscribe(String conversationId) =>
+      const Stream<ChatEvent>.empty();
+}

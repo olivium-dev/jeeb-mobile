@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/app_failure_mapper.dart';
 import 'package:jeeb_mobile/core/network/rate_limit_interceptor.dart';
 
 /// Lowest-level Dio adapter that returns a scripted [ResponseBody] per request
@@ -73,7 +75,7 @@ void main() {
       throwsA(isA<DioException>()),
     );
     await expectLater(
-      dio.get<dynamic>('/v1/offers', queryParameters: {'requestId': 'r-1'}),
+      dio.get<dynamic>('/deliveries/d-1'),
       throwsA(isA<DioException>()),
     );
     expect(adapter.callCount, 1, reason: 'suppressed reads must not hit the wire');
@@ -88,27 +90,29 @@ void main() {
       'a concurrent 2xx does NOT wipe an open Retry-After window '
       '(BUG-C fan-out storm regression)', () async {
     final adapter = _ScriptedAdapter((opts) {
-      if (opts.path == '/req429') return _body(429, headers: {'retry-after': ['30']});
-      return _body(200); // /req200 (the concurrent success) and /poll
+      if (opts.path == '/v1/feed/429') {
+        return _body(429, headers: {'retry-after': ['30']});
+      }
+      return _body(200); // the concurrent success and the later poll
     });
     final dio = buildDio(adapter);
 
-    final f429 = dio.get<dynamic>('/req429');
-    final f200 = dio.get<dynamic>('/req200');
+    final f429 = dio.get<dynamic>('/v1/feed/429');
+    final f200 = dio.get<dynamic>('/v1/feed/ok');
     await expectLater(f429, throwsA(isA<DioException>()));
     final ok = await f200;
     expect(ok.statusCode, 200);
     expect(adapter.callCount, 2, reason: 'both concurrent reads hit the wire');
 
     await expectLater(
-      dio.get<dynamic>('/poll'),
+      dio.get<dynamic>('/v1/feed/poll'),
       throwsA(isA<DioException>()),
     );
     expect(adapter.callCount, 2,
         reason: 'window still open after a concurrent success — poll suppressed');
 
     now = now.add(const Duration(seconds: 31));
-    final resumed = await dio.get<dynamic>('/poll');
+    final resumed = await dio.get<dynamic>('/v1/feed/poll');
     expect(resumed.statusCode, 200);
     expect(adapter.callCount, 3);
   });
@@ -176,6 +180,175 @@ void main() {
     final ok = await dio.get<dynamic>('/deliveries');
     expect(ok.statusCode, 200);
     expect(adapter.callCount, 2);
+  });
+
+  group('NET-04: the window is scoped and the rejection is typed', () {
+    test('a throttled prefix cannot blank an unrelated one', () async {
+      final adapter = _ScriptedAdapter(
+        (opts) => opts.path.startsWith('/v1/offers')
+            ? _body(429, headers: {'retry-after': ['30']})
+            : _body(200),
+      );
+      final dio = buildDio(adapter);
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+      // Same prefix: suppressed.
+      await expectLater(
+        dio.get<dynamic>('/v1/offers', queryParameters: {'requestId': 'r-1'}),
+        throwsA(isA<DioException>()),
+      );
+      expect(adapter.callCount, 1);
+
+      // Different prefix: the wallet must still load during an offers storm.
+      final wallet = await dio.get<dynamic>('/v1/wallet/balance');
+      expect(wallet.statusCode, 200);
+      expect(adapter.callCount, 2);
+    });
+
+    test('a suppressed read carries RateLimitSuppression, never prose',
+        () async {
+      final adapter = _ScriptedAdapter(
+        (_) => _body(429, headers: {'retry-after': ['30']}),
+      );
+      final dio = buildDio(adapter);
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+
+      Object? captured;
+      try {
+        await dio.get<dynamic>('/v1/offers');
+      } on DioException catch (e) {
+        captured = e.error;
+      }
+      expect(captured, isA<RateLimitSuppression>());
+      final sentinel = captured! as RateLimitSuppression;
+      expect(sentinel.scope, '/offers');
+      expect(sentinel.retryAfter, isNotNull);
+      // No English sentence anywhere in the transport payload.
+      expect(sentinel.toString(), isNot(contains('Retry-After honored')));
+    });
+
+    test('the sentinel maps to a locally-suppressed rate limit', () async {
+      final adapter = _ScriptedAdapter(
+        (_) => _body(429, headers: {'retry-after': ['30']}),
+      );
+      final dio = buildDio(adapter);
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+      DioException? suppressed;
+      try {
+        await dio.get<dynamic>('/v1/offers');
+      } on DioException catch (e) {
+        suppressed = e;
+      }
+      final failure = mapDioException(suppressed!);
+      expect(failure, isA<RateLimitedFailure>());
+      expect((failure as RateLimitedFailure).localSuppression, isTrue);
+      expect(failure.retryAfter, isNotNull);
+    });
+
+    test('scopeOf keeps the resource, dropping version, host and query', () {
+      expect(RateLimitInterceptor.scopeOf('/v1/offers/o-1?x=1'), '/offers');
+      expect(RateLimitInterceptor.scopeOf('/api/users/me'), '/users');
+      expect(RateLimitInterceptor.scopeOf('/deliveries/d-1'), '/deliveries');
+      expect(RateLimitInterceptor.scopeOf('/deliveries'), '/deliveries');
+      expect(RateLimitInterceptor.scopeOf('/'), '/');
+      // A versioned route and its unversioned twin are one resource.
+      expect(RateLimitInterceptor.scopeOf('/offers'), '/offers');
+      expect(
+        RateLimitInterceptor.scopeOf('https://gw.example/v1/offers/o-1'),
+        '/offers',
+      );
+    });
+
+    test('a path rewritten after this interceptor still matches its window',
+        () async {
+      final adapter = _ScriptedAdapter(
+        (_) => _body(429, headers: {'retry-after': ['30']}),
+      );
+      final dio = buildDio(adapter)
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              options.path = '/offer-service${options.path}';
+              handler.next(options);
+            },
+          ),
+        );
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+      // The window was keyed by the send-time scope, not the rewritten path.
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(
+          isA<DioException>().having(
+            (DioException e) => e.error,
+            'error',
+            isA<RateLimitSuppression>(),
+          ),
+        ),
+      );
+      expect(adapter.callCount, 1);
+    });
+
+    test('a local rejection still reaches the AppFailure interceptor',
+        () async {
+      final adapter = _ScriptedAdapter(
+        (_) => _body(429, headers: {'retry-after': ['30']}),
+      );
+      final dio = buildDio(adapter)
+        ..interceptors.add(const AppFailureInterceptor());
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+      Object? classified;
+      try {
+        await dio.get<dynamic>('/v1/offers');
+      } on DioException catch (e) {
+        classified = e.error;
+      }
+      expect(classified, isA<RateLimitedFailure>());
+      expect((classified! as RateLimitedFailure).localSuppression, isTrue);
+    });
+
+    test('NET-20: an elapsed window clears its scope on the next read',
+        () async {
+      var hits = 0;
+      final adapter = _ScriptedAdapter((_) {
+        hits++;
+        return hits == 1
+            ? _body(429, headers: {'retry-after': ['30']})
+            : _body(200);
+      });
+      final dio = buildDio(adapter);
+
+      await expectLater(
+        dio.get<dynamic>('/v1/offers'),
+        throwsA(isA<DioException>()),
+      );
+      expect(dio.interceptors.whereType<RateLimitInterceptor>().single
+          .isPathSuppressed('/v1/offers'), isTrue);
+
+      now = now.add(const Duration(seconds: 31));
+      final ok = await dio.get<dynamic>('/v1/offers');
+      expect(ok.statusCode, 200);
+      expect(dio.interceptors.whereType<RateLimitInterceptor>().single
+          .isPathSuppressed('/v1/offers'), isFalse);
+    });
   });
 }
 

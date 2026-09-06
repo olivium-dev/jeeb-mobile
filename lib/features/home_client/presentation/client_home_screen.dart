@@ -13,14 +13,18 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/motion/jeeb_motion.dart';
 import '../../../core/accessibility/accessibility.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_filter_button.dart';
 import '../../../core/widgets/jeeb/jeeb_filter_pills.dart';
 import '../../../core/widgets/jeeb/jeeb_mic_hero.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -364,13 +368,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
   void _showHoldHint() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).homeVoiceHoldToRecord),
-        ),
-      );
+    showJeebSnack(
+      context,
+      message: AppLocalizations.of(context).homeVoiceHoldToRecord,
+      identifier: 'client_home_hold_hint_snack',
+    );
   }
 
   /// Re-checks the mic pre-conditions without leaving a runaway recording: a
@@ -464,8 +466,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     final l10n = AppLocalizations.of(context);
     final error = state.error;
     if (error != null && isTransientVoiceError(error)) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      showOmdsErrorSnackbar(context, message: voiceErrorCopy(l10n, error));
+      showJeebErrorSnack(
+        context,
+        message: voiceErrorCopy(l10n, error),
+        identifier: 'client_home_voice_error_snack',
+      );
       _voice.acknowledgeError();
     }
     _announceVoice(context, l10n, state);
@@ -560,15 +565,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
       queryParameters: const {'resume': '1'},
     );
     if (transcript == null || transcript.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).homeVoiceTranscriptEmpty,
-            ),
-          ),
-        );
+      showJeebSnack(
+        context,
+        message: AppLocalizations.of(context).homeVoiceTranscriptEmpty,
+        identifier: 'client_home_transcript_empty_snack',
+      );
     }
     unawaited(_voice.reset());
   }
@@ -669,7 +670,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             _filter.offerStatus == null &&
             _filter.bucket != ClientHomeTab.inProgress &&
             state.pending.isEmpty &&
-            state.replies.isEmpty;
+            state.replies.isEmpty &&
+            state.pendingError == null &&
+            state.repliesError == null;
         return Semantics(
           identifier: 'client_home_root',
           container: true,
@@ -686,7 +689,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  OmdsPullToRefresh(
+                  JeebPullToRefresh(
                     onRefresh: () => context.read<ClientHomeCubit>().refresh(),
                     child: _ClientHomeBody(
                       state: state,
@@ -769,7 +772,10 @@ class _ClientHomeBody extends StatelessWidget {
       case ClientHomeStatus.loading:
         return _LoadingLayout(name: state.greetingName);
       case ClientHomeStatus.failed:
-        return _FailedLayout(name: state.greetingName);
+        return _FailedLayout(
+          name: state.greetingName,
+          failure: state.error ?? const UnknownFailure(),
+        );
       case ClientHomeStatus.ready:
         return _ReadyLayout(
           state: state,
@@ -1631,7 +1637,8 @@ class _LoadingLayout extends StatelessWidget {
         const SizedBox(height: Spacing.medium),
         JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
-          headline: l10n.homeEmptyTitle,
+          identifier: 'client_home_loading',
+          headline: l10n.homeLoadingHeadline,
           illustrationSize: ClientHomeEmptyView.illustrationSize,
         ),
       ],
@@ -1640,13 +1647,13 @@ class _LoadingLayout extends StatelessWidget {
 }
 
 class _FailedLayout extends StatelessWidget {
-  const _FailedLayout({required this.name});
+  const _FailedLayout({required this.name, required this.failure});
 
   final String? name;
+  final AppFailure failure;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       // Reserve the nav-bar inset AND both pinned surfaces so the retry CTA
@@ -1657,19 +1664,13 @@ class _FailedLayout extends StatelessWidget {
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
-        JeebEmptyState(
-          status: JeebEmptyStateStatus.error,
-          headline: l10n.homeLoadFailedTitle,
-          body: l10n.homeLoadFailedBody,
-          illustrationSize: ClientHomeEmptyView.illustrationSize,
-          action: IntrinsicWidth(
-            child: JeebCtaButton.primary(
-              label: l10n.homeLoadFailedRetry,
-              identifier: 'client_home_retry_cta',
-              expand: false,
-              onTap: () => context.read<ClientHomeCubit>().load(),
-            ),
-          ),
+        JeebFailureBlock(
+          failure: failure,
+          identifier: 'client_home_error',
+          variant: JeebEmptyStateVariant.e1,
+          headlineOverride: AppLocalizations.of(context).homeLoadFailedTitle,
+          onRetry: () => context.read<ClientHomeCubit>().load(),
+          retryIdentifier: 'client_home_retry_cta',
         ),
       ],
     );
@@ -1697,6 +1698,8 @@ class _ReadyLayout extends StatelessWidget {
   /// filter, or a filter is on — so there is always a way back out of one.
   bool get _showFilterChrome {
     if (filter.bucket == ClientHomeTab.inProgress) return false;
+    if (state.status == ClientHomeStatus.failed) return false;
+    if (state.pendingError != null || state.repliesError != null) return false;
     return filter.isActive ||
         state.pending.isNotEmpty ||
         state.replies.isNotEmpty;
@@ -1725,6 +1728,11 @@ class _ReadyLayout extends StatelessWidget {
             : null,
       ),
       const SizedBox(height: Spacing.medium),
+      if (state.refreshError != null)
+        Padding(
+          padding: _kGutter,
+          child: _ClientHomeRefreshBand(failure: state.refreshError!),
+        ),
       // Either the create prompt or the list chrome owns this slot, never both:
       // the 312px prompt above a populated list pushed content a third of the
       // way down the screen and re-said the greeting's own time-of-day line.
@@ -1748,9 +1756,33 @@ class _ReadyLayout extends StatelessWidget {
         ),
         const SizedBox(height: Spacing.large),
       ],
-      _ReadyContent(state: state, filter: filter, onTrack: onTrack),
+      _ReadyContent(
+        state: state,
+        filter: filter,
+        onTrack: onTrack,
+        onFilterChanged: onFilterChanged,
+      ),
     ];
   }
+}
+
+/// LR-11/OFF-14: a failed refresh over rows keeps the rows and says so.
+class _ClientHomeRefreshBand extends StatelessWidget {
+  const _ClientHomeRefreshBand({required this.failure});
+
+  final AppFailure failure;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: Spacing.medium),
+    child: JeebRefreshFailedNote(
+      failure: failure,
+      identifier: 'client_home_refresh_failed_note',
+      onDismiss: () =>
+          context.read<ClientHomeCubit>().acknowledgeRefreshError(),
+      onRetry: () => context.read<ClientHomeCubit>().refresh(),
+    ),
+  );
 }
 
 class _ReadyContent extends StatelessWidget {
@@ -1758,11 +1790,13 @@ class _ReadyContent extends StatelessWidget {
     required this.state,
     required this.filter,
     required this.onTrack,
+    required this.onFilterChanged,
   });
 
   final ClientHomeState state;
   final ClientRequestFilter filter;
   final void Function(ClientHomeRequest)? onTrack;
+  final ValueChanged<ClientRequestFilter> onFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1771,6 +1805,8 @@ class _ReadyContent extends StatelessWidget {
       return OfferStatusRequestsTab(
         status: offerStatus,
         requests: state.offerStatusRequests,
+        onClearFilter: () =>
+            onFilterChanged(filter.copyWith(clearOfferStatus: true)),
       );
     }
     switch (filter.bucket) {

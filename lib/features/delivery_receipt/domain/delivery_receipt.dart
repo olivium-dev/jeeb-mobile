@@ -19,7 +19,9 @@ class DeliveryReceipt {
 
   bool get hasKnownAmount => (cashAmount ?? 0) > 0;
 
-  final String currency;
+  /// Null when the wire named none: the cash line says "unavailable" rather
+  /// than inventing USD.
+  final String? currency;
 
   final String status;
 

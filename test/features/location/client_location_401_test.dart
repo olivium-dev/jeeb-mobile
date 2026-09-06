@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
@@ -135,6 +136,10 @@ void main() {
 
     expect(submission.submitCount, 1);
     expect(
+      find.bySemanticsIdentifier('client_location_session_expired'),
+      findsOneWidget,
+    );
+    expect(
       find.text('Your session has expired. '
           'Please log in again to send your request.'),
       findsOneWidget,
@@ -148,9 +153,9 @@ void main() {
       'stays on the create step (connectivity is never blamed)',
       (tester) async {
     final submission = FakeRequestSubmissionService(
-      error: const RequestSubmissionException(
+      error: const RequestSubmissionException.classified(
         RequestSubmissionFailure.invalidInput,
-        'HTTP 400',
+        appFailure: ValidationFailure(),
       ),
     );
     sl.registerLazySingleton<ComposeRequestController>(
@@ -166,9 +171,11 @@ void main() {
 
     expect(submission.submitCount, 1);
     expect(
-      find.text('We could not create your request. Please try again.'),
+      find.bySemanticsIdentifier('client_location_submit_error'),
       findsOneWidget,
     );
+    // COPY-09: the kind decides the copy — a 400 gets the validation body.
+    expect(find.text('Check the details and try again.'), findsOneWidget);
     expect(
       find.textContaining('connection', findRichText: true),
       findsNothing,

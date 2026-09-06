@@ -1,3 +1,6 @@
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
+import '../../../core/network/gateway_problem.dart';
 import 'offer.dart';
 
 enum OffersFailure {
@@ -9,6 +12,12 @@ enum OffersFailure {
 
   rateLimited,
   unknown,
+
+  /// `request-expired`: the window closed before the accept landed.
+  requestExpired,
+
+  /// `offer-jeeber-insufficient-balance`: the jeeber cannot cover the fee.
+  jeeberWalletShort,
 }
 
 class OfferAcceptResult {
@@ -74,11 +83,42 @@ class OffersRepositoryException implements Exception {
     this.failure, [
     this.message,
     this.retryAfter,
+    this.problem,
+    this.upstreamCode,
+    this.classifiedFailure,
   ]);
   final OffersFailure failure;
   final String? message;
 
   final Duration? retryAfter;
+
+  /// The RFC 7807 body, when the response carried one.
+  final GatewayProblem? problem;
+
+  /// The raw `type` suffix, kept for diagnostics when it is not one we map.
+  final String? upstreamCode;
+
+  /// The transport's own classification, when it had one. The 7-value
+  /// [OffersFailure] enum cannot round-trip 401/403/404/5xx, so keep it here.
+  final AppFailure? classifiedFailure;
+
+  /// The classified failure: the transport's when present, else derived from
+  /// [failure]. Single source for every consumer.
+  AppFailure get appFailure =>
+      classifiedFailure ??
+      switch (failure) {
+        OffersFailure.network => networkFailureFromReachability(),
+        OffersFailure.rateLimited =>
+          RateLimitedFailure(retryAfter: retryAfter, problem: problem),
+        OffersFailure.requestNotOpen ||
+        OffersFailure.requestExpired =>
+          GoneFailure(cause: this, problem: problem),
+        OffersFailure.offerNotPending ||
+        OffersFailure.jeeberAtCapacity ||
+        OffersFailure.jeeberWalletShort =>
+          ConflictFailure(cause: this, problem: problem),
+        OffersFailure.unknown => UnknownFailure(cause: this, problem: problem),
+      };
 
   @override
   String toString() =>

@@ -156,8 +156,7 @@ class _ActiveOrderBody extends StatelessWidget {
   }
 
   static bool _canTrack(ClientRequestStatus s) =>
-      s != ClientRequestStatus.delivered &&
-      s != ClientRequestStatus.cancelled;
+      s != ClientRequestStatus.delivered && s != ClientRequestStatus.cancelled;
 
   static bool _hasJeeber(ClientRequestStatus s) =>
       s == ClientRequestStatus.accepted ||
@@ -204,18 +203,15 @@ class ClientHomeTierBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final tokens = theme.extension<JeebTierColors>();
-    final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     // An UNKNOWN tier is not the accent — it falls back to muted ink, the same
     // "no fact on file" convention as `JeebAvatarFill.dormant`.
     final color = _colorFor(tokens) ?? semantics.mutedText;
     final label = _labelFor(l10n);
     return Text(
       label,
-      style: context.jeebText.label.copyWith(
-        color: color,
-        letterSpacing: 0.5,
-      ),
+      style: context.jeebText.label.copyWith(color: color, letterSpacing: 0.5),
     );
   }
 
@@ -308,24 +304,39 @@ class _ActiveOrderProgressLabels extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _ProgressStepLabel(text: l10n.homeStageOrdered),
-        _ProgressStepLabel(text: l10n.homeStagePicked),
-        _ProgressStepLabel(text: l10n.homeStageInTransit),
+        Flexible(child: _ProgressStepLabel(text: l10n.homeStageOrdered)),
+        Flexible(
+          child: _ProgressStepLabel(
+            text: l10n.homeStagePicked,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        Flexible(
+          child: _ProgressStepLabel(
+            text: l10n.homeStageInTransit,
+            textAlign: TextAlign.end,
+          ),
+        ),
       ],
     );
   }
 }
 
 class _ProgressStepLabel extends StatelessWidget {
-  const _ProgressStepLabel({required this.text});
+  const _ProgressStepLabel({
+    required this.text,
+    this.textAlign = TextAlign.start,
+  });
 
   final String text;
+  final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Text(
       text,
+      textAlign: textAlign,
       style: context.jeebText.caption.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
@@ -351,23 +362,28 @@ class _ActiveOrderActions extends StatelessWidget {
     final onTrack = this.onTrack;
     return Padding(
       padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // Keep the compact row when it fits, but let larger labels move to
+      // separate lines instead of overflowing the card's available width.
+      child: OverflowBar(
+        alignment: MainAxisAlignment.end,
+        overflowAlignment: OverflowBarAlignment.end,
+        spacing: Spacing.small,
+        overflowSpacing: Spacing.small,
         children: [
-          if (onOpenChat != null) ...[
-            Semantics(
-              identifier: 'orders_open_chat_button_$requestId',
-              button: true,
-              child: JeebCtaButton(
-                key: Key('active-open-chat-$requestId'),
-                label: AppLocalizations.of(context).orderSummaryOpenChat,
-                variant: JeebCtaVariant.outline,
-                expand: false,
-                onTap: onOpenChat,
+          if (onOpenChat != null)
+            IntrinsicWidth(
+              child: Semantics(
+                identifier: 'orders_open_chat_button_$requestId',
+                button: true,
+                child: JeebCtaButton(
+                  key: Key('active-open-chat-$requestId'),
+                  label: AppLocalizations.of(context).orderSummaryOpenChat,
+                  variant: JeebCtaVariant.outline,
+                  expand: false,
+                  onTap: onOpenChat,
+                ),
               ),
             ),
-            const SizedBox(width: Spacing.small),
-          ],
           if (onTrack != null)
             _TrackOrderButton(requestId: requestId, onTap: onTrack),
         ],
@@ -423,20 +439,19 @@ Widget _activeOrderCardHosted({
   ClientRequestTier tier = ClientRequestTier.flash,
   String destinationLabel = 'Ashrafieh, Beirut',
   String? itemsSummary,
-}) =>
-    ActiveOrderCard(
-      request: ClientHomeRequest(
-        id: id,
-        title: title,
-        status: status,
-        destinationLabel: destinationLabel,
-        itemsSummary: itemsSummary,
-        progressStep: progressStep,
-        tier: tier,
-      ),
-      onTap: () {},
-      onOpenChat: () {},
-    );
+}) => ActiveOrderCard(
+  request: ClientHomeRequest(
+    id: id,
+    title: title,
+    status: status,
+    destinationLabel: destinationLabel,
+    itemsSummary: itemsSummary,
+    progressStep: progressStep,
+    tier: tier,
+  ),
+  onTap: () {},
+  onOpenChat: () {},
+);
 
 /// The fullest card: a Jeeber is on the road, so BOTH gates are open and the
 /// action row carries "Open chat" + "Track my order".
@@ -446,11 +461,11 @@ Widget _activeOrderCardHosted({
   size: _activeOrderCardCardBox,
 )
 Widget activeOrderCardEnRoute() => _activeOrderCardHosted(
-      id: 'preview-en-route',
-      title: 'Pharmacy run',
-      status: ClientRequestStatus.enRoute,
-      progressStep: 2,
-    );
+  id: 'preview-en-route',
+  title: 'Pharmacy run',
+  status: ClientRequestStatus.enRoute,
+  progressStep: 2,
+);
 
 /// Still searching: the auction is open and NO Jeeber is engaged yet.
 /// The regression guard, made visible. `onOpenChat` is non-null here exactly as
@@ -460,12 +475,12 @@ Widget activeOrderCardEnRoute() => _activeOrderCardHosted(
   size: _activeOrderCardCardBox,
 )
 Widget activeOrderCardSearching() => _activeOrderCardHosted(
-      id: 'preview-searching',
-      title: 'Grocery run',
-      status: ClientRequestStatus.searching,
-      progressStep: 0,
-      tier: ClientRequestTier.standard,
-    );
+  id: 'preview-searching',
+  title: 'Grocery run',
+  status: ClientRequestStatus.searching,
+  progressStep: 0,
+  tier: ClientRequestTier.standard,
+);
 
 /// Terminal state: delivered. Both gates close, so the card renders with NO
 /// action row at all.
@@ -475,12 +490,12 @@ Widget activeOrderCardSearching() => _activeOrderCardHosted(
   size: _activeOrderCardShortCardBox,
 )
 Widget activeOrderCardDelivered() => _activeOrderCardHosted(
-      id: 'preview-delivered',
-      title: 'Bakery order',
-      status: ClientRequestStatus.delivered,
-      progressStep: 3,
-      tier: ClientRequestTier.express,
-    );
+  id: 'preview-delivered',
+  title: 'Bakery order',
+  status: ClientRequestStatus.delivered,
+  progressStep: 3,
+  tier: ClientRequestTier.express,
+);
 
 /// Content ceiling: the longest plausible title next to the longest plausible
 /// items summary (the multi-item `description` G1 now routes into
@@ -490,13 +505,14 @@ Widget activeOrderCardDelivered() => _activeOrderCardHosted(
   size: _activeOrderCardCardBox,
 )
 Widget activeOrderCardLongContent() => _activeOrderCardHosted(
-      id: 'preview-long',
-      title: 'Pharmacy pickup for Mrs. Haddad on Rue Sursock',
-      status: ClientRequestStatus.accepted,
-      progressStep: 0,
-      itemsSummary: '1 kilo potato, water gallon, coffee blend, two loaves of '
-          'brown bread, a bag of ice and paracetamol',
-    );
+  id: 'preview-long',
+  title: 'Pharmacy pickup for Mrs. Haddad on Rue Sursock',
+  status: ClientRequestStatus.accepted,
+  progressStep: 0,
+  itemsSummary:
+      '1 kilo potato, water gallon, coffee blend, two loaves of '
+      'brown bread, a bag of ice and paracetamol',
+);
 
 /// Degraded payload: no title and a tier the app does not know.
 /// Two fallbacks fire at once. `_initial('')` gives the avatar a literal "?"
@@ -506,13 +522,13 @@ Widget activeOrderCardLongContent() => _activeOrderCardHosted(
   size: _activeOrderCardCardBox,
 )
 Widget activeOrderCardUntitledUnknownTier() => _activeOrderCardHosted(
-      id: 'preview-untitled',
-      title: '',
-      status: ClientRequestStatus.atPickup,
-      progressStep: 1,
-      tier: ClientRequestTier.unknown,
-      destinationLabel: 'Mar Mikhael, Beirut',
-    );
+  id: 'preview-untitled',
+  title: '',
+  status: ClientRequestStatus.atPickup,
+  progressStep: 1,
+  tier: ClientRequestTier.unknown,
+  destinationLabel: 'Mar Mikhael, Beirut',
+);
 
 // --- ClientHomeTierBadge ---------------------------------------------------
 
@@ -536,10 +552,9 @@ const Size _clientHomeTierBadgeStripBox = Size(390, 260);
 Widget _clientHomeTierBadgeHosted(
   Widget child, {
   double width = _clientHomeTierBadgeActiveHeaderWidth,
-}) =>
-    Center(
-      child: SizedBox(width: width, child: child),
-    );
+}) => Center(
+  child: SizedBox(width: width, child: child),
+);
 
 /// Reproduces `_ActiveOrderHeader` from `active_request_card.dart`: a
 /// [Flexible] ellipsizing title, `Spacing.xSmall`, the badge, spread apart and
@@ -621,19 +636,21 @@ class _ClientHomeTierBadgeTierSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          SizedBox(
-            height: Sizes.large,
-            child: Center(child: ClientHomeTierBadge(tier: tier)),
-          ),
-          const SizedBox(height: Spacing.twoXSmall),
-          Text(
-            tier.name,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          ),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      SizedBox(
+        height: Sizes.large,
+        child: Center(child: ClientHomeTierBadge(tier: tier)),
+      ),
+      const SizedBox(height: Spacing.twoXSmall),
+      Text(
+        tier.name,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w500),
+      ),
+    ],
+  );
 }
 
 /// The state that ships on an in-progress card: Flash, in the header row the
@@ -644,11 +661,11 @@ class _ClientHomeTierBadgeTierSwatch extends StatelessWidget {
   size: _clientHomeTierBadgeHeaderBox,
 )
 Widget clientHomeTierBadgeFlash() => _clientHomeTierBadgeHosted(
-      const _ClientHomeTierBadgeActiveHeader(
-        title: 'Kamal Hajj',
-        tier: ClientRequestTier.flash,
-      ),
-    );
+  const _ClientHomeTierBadgeActiveHeader(
+    title: 'Kamal Hajj',
+    tier: ClientRequestTier.flash,
+  ),
+);
 
 /// The state that ships on a pending card: Express, in the OTHER production
 /// header — `Expanded` title, `CrossAxisAlignment.start`.
@@ -658,12 +675,12 @@ Widget clientHomeTierBadgeFlash() => _clientHomeTierBadgeHosted(
   size: _clientHomeTierBadgeHeaderBox,
 )
 Widget clientHomeTierBadgeExpressPending() => _clientHomeTierBadgeHosted(
-      const _ClientHomeTierBadgePendingHeader(
-        title: 'ORD-23470',
-        tier: ClientRequestTier.express,
-      ),
-      width: _clientHomeTierBadgePendingHeaderWidth,
-    );
+  const _ClientHomeTierBadgePendingHeader(
+    title: 'ORD-23470',
+    tier: ClientRequestTier.express,
+  ),
+  width: _clientHomeTierBadgePendingHeaderWidth,
+);
 
 /// Standard, the default tier and the quietest of the three.
 /// `#1E88E5` on white is 3.68:1 — above the 3:1 asked of a graphical object,
@@ -673,11 +690,11 @@ Widget clientHomeTierBadgeExpressPending() => _clientHomeTierBadgeHosted(
   size: _clientHomeTierBadgeHeaderBox,
 )
 Widget clientHomeTierBadgeStandard() => _clientHomeTierBadgeHosted(
-      const _ClientHomeTierBadgeActiveHeader(
-        title: 'Pharmacy run',
-        tier: ClientRequestTier.standard,
-      ),
-    );
+  const _ClientHomeTierBadgeActiveHeader(
+    title: 'Pharmacy run',
+    tier: ClientRequestTier.standard,
+  ),
+);
 
 /// The state that breaks, and the reason this widget has a fallback branch at
 /// all: a tier the backend introduced mid-deploy.
@@ -687,11 +704,11 @@ Widget clientHomeTierBadgeStandard() => _clientHomeTierBadgeHosted(
   size: _clientHomeTierBadgeHeaderBox,
 )
 Widget clientHomeTierBadgeUnknown() => _clientHomeTierBadgeHosted(
-      const _ClientHomeTierBadgeActiveHeader(
-        title: 'ORD-88213',
-        tier: ClientRequestTier.unknown,
-      ),
-    );
+  const _ClientHomeTierBadgeActiveHeader(
+    title: 'ORD-88213',
+    tier: ClientRequestTier.unknown,
+  ),
+);
 
 /// Longest plausible content: a title that cannot fit, pressing on the badge.
 /// The good news, and the failure this preview was written to look for: the
@@ -701,11 +718,11 @@ Widget clientHomeTierBadgeUnknown() => _clientHomeTierBadgeHosted(
   size: _clientHomeTierBadgeHeaderBox,
 )
 Widget clientHomeTierBadgeLongTitle() => _clientHomeTierBadgeHosted(
-      const _ClientHomeTierBadgeActiveHeader(
-        title: 'Pharmacy run — Ashrafieh to Hamra, ring the second bell',
-        tier: ClientRequestTier.flash,
-      ),
-    );
+  const _ClientHomeTierBadgeActiveHeader(
+    title: 'Pharmacy run — Ashrafieh to Hamra, ring the second bell',
+    tier: ClientRequestTier.flash,
+  ),
+);
 
 /// All four enum values side by side, which is the only way to see the palette
 /// as a palette.
@@ -715,27 +732,31 @@ Widget clientHomeTierBadgeLongTitle() => _clientHomeTierBadgeHosted(
   size: _clientHomeTierBadgeStripBox,
 )
 Widget clientHomeTierBadgeStrip() => _clientHomeTierBadgeHosted(
-      const Column(
-        mainAxisSize: MainAxisSize.min,
+  Column(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      const Wrap(
+        spacing: Spacing.large,
+        runSpacing: Spacing.small,
+        alignment: WrapAlignment.center,
         children: <Widget>[
-          Wrap(
-            spacing: Spacing.large,
-            runSpacing: Spacing.small,
-            alignment: WrapAlignment.center,
-            children: <Widget>[
-              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.flash),
-              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.express),
-              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.standard),
-              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.unknown),
-            ],
-          ),
-          SizedBox(height: Spacing.small),
-          Text(
-            'Every ClientRequestTier value',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          ),
+          _ClientHomeTierBadgeTierSwatch(ClientRequestTier.flash),
+          _ClientHomeTierBadgeTierSwatch(ClientRequestTier.express),
+          _ClientHomeTierBadgeTierSwatch(ClientRequestTier.standard),
+          _ClientHomeTierBadgeTierSwatch(ClientRequestTier.unknown),
         ],
       ),
-      width: _clientHomeTierBadgePendingHeaderWidth,
-    );
+      const SizedBox(height: Spacing.small),
+      Builder(
+        builder: (BuildContext context) => Text(
+          'Every ClientRequestTier value',
+          textAlign: TextAlign.center,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w500),
+        ),
+      ),
+    ],
+  ),
+  width: _clientHomeTierBadgePendingHeaderWidth,
+);

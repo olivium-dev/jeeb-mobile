@@ -73,9 +73,11 @@ class RegistrationCubit extends Cubit<RegistrationState> {
       return;
     }
     if (state.isSendingCode) return;
+    // AE-17: a 429 window the CTA advertises must actually hold the request.
+    if (state.isRateLimitedNow) return;
     emit(state.copyWith(isSendingCode: true, phoneError: null));
-    final outcome = await _otpService.sendCode(phone.e164);
-    switch (outcome) {
+    final result = await _requestCode(phone.e164);
+    switch (result.outcome) {
       case OtpSendOutcome.sent:
         emit(
           state.copyWith(
@@ -83,7 +85,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             isSendingCode: false,
             otpError: null,
             failedAttempts: 0,
-            resendSecondsRemaining: _policy.resendCooldown.inSeconds,
+            resendSecondsRemaining: _resendWindow(result),
+            otpRetryAfterSeconds: null,
           ),
         );
         _startResendCountdown();
@@ -95,17 +98,21 @@ class RegistrationCubit extends Cubit<RegistrationState> {
           ),
         );
       case OtpSendOutcome.rateLimited:
+        // AE-17: the CTA must be dead for the SERVER's window, not our guess.
         emit(
           state.copyWith(
             isSendingCode: false,
             phoneError: RegistrationPhoneError.rateLimited,
+            resendSecondsRemaining: _resendWindow(result),
+            otpRetryAfterSeconds: _resendWindow(result),
           ),
         );
+        _startResendCountdown();
       case OtpSendOutcome.serverError:
         emit(
           state.copyWith(
             isSendingCode: false,
-            phoneError: RegistrationPhoneError.networkError,
+            phoneError: RegistrationPhoneError.serverError,
           ),
         );
       case OtpSendOutcome.networkError:
@@ -118,25 +125,73 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     }
   }
 
+  /// X1/R3: [OtpSendResultService] is a separate one-method interface, so the
+  /// eight `implements OtpService` sites keep compiling.
+  Future<OtpSendResult> _requestCode(String e164) async {
+    // `Object` so the `is` test can promote: OtpSendResultService is a sibling
+    // interface, not a subtype of OtpService.
+    final Object service = _otpService;
+    if (service is OtpSendResultService) return service.requestCode(e164);
+    return OtpSendResult(outcome: await _otpService.sendCode(e164));
+  }
+
+  int _resendWindow(OtpSendResult result) =>
+      result.retryAfter?.inSeconds ?? _policy.resendCooldown.inSeconds;
+
   Future<void> resendCode() async {
-    if (state.resendSecondsRemaining > 0) return;
+    if (state.resendSecondsRemaining > 0 || state.isSendingCode) return;
     final phone = state.parsedPhone;
     if (phone == null) return;
-    final outcome = await _otpService.sendCode(phone.e164);
-    switch (outcome) {
+    emit(state.copyWith(isSendingCode: true, otpError: null));
+    final result = await _requestCode(phone.e164);
+    switch (result.outcome) {
       case OtpSendOutcome.sent:
         emit(
           state.copyWith(
+            isSendingCode: false,
             otpError: null,
-            resendSecondsRemaining: _policy.resendCooldown.inSeconds,
+            resendSecondsRemaining: _resendWindow(result),
+            otpRetryAfterSeconds: null,
           ),
         );
         _startResendCountdown();
-      case OtpSendOutcome.invalidPhone:
       case OtpSendOutcome.rateLimited:
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            otpError: RegistrationOtpError.rateLimited,
+            // The copy and the CTA must name the SAME window: a header-less 429
+            // otherwise reads "request a new code now" while Resend is dead.
+            resendSecondsRemaining: _resendWindow(result),
+            otpRetryAfterSeconds: _resendWindow(result),
+          ),
+        );
+        _startResendCountdown();
       case OtpSendOutcome.serverError:
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            otpError: RegistrationOtpError.serverError,
+          ),
+        );
       case OtpSendOutcome.networkError:
-        emit(state.copyWith(otpError: RegistrationOtpError.networkError));
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            otpError: RegistrationOtpError.networkError,
+          ),
+        );
+      case OtpSendOutcome.invalidPhone:
+        // The number itself is the problem, so the OTP step cannot fix it.
+        _stopResendCountdown();
+        emit(
+          state.copyWith(
+            isSendingCode: false,
+            step: RegistrationStep.phone,
+            otpError: null,
+            phoneError: RegistrationPhoneError.invalid,
+          ),
+        );
     }
   }
 
@@ -172,6 +227,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
               otpError: null,
               step: RegistrationStep.lockedOut,
               lockoutSecondsRemaining: _policy.lockoutDuration.inSeconds,
+              otpRetryAfterSeconds: null,
+              lockoutFromRateLimit: false,
             ),
           );
           _startLockoutCountdown();
@@ -186,7 +243,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
         }
       case OtpVerifyOutcome.rateLimited:
 
-        /// Gateway 429; enter lockout (don't burn attempt).
+        /// Gateway 429; enter lockout (don't burn attempt). The verify outcome
+        /// carries no window, so the local policy duration is what we enforce.
         _stopResendCountdown();
         emit(
           state.copyWith(
@@ -194,6 +252,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             otpError: null,
             step: RegistrationStep.lockedOut,
             lockoutSecondsRemaining: _policy.lockoutDuration.inSeconds,
+            otpRetryAfterSeconds: _policy.lockoutDuration.inSeconds,
+            lockoutFromRateLimit: true,
           ),
         );
         _startLockoutCountdown();
@@ -215,6 +275,20 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             otpError: RegistrationOtpError.accountSuspended,
           ),
         );
+      case OtpVerifyOutcome.serverError:
+        emit(
+          state.copyWith(
+            isVerifying: false,
+            otpError: RegistrationOtpError.serverError,
+          ),
+        );
+      case OtpVerifyOutcome.serviceUnavailable:
+        emit(
+          state.copyWith(
+            isVerifying: false,
+            otpError: RegistrationOtpError.serviceUnavailable,
+          ),
+        );
       case OtpVerifyOutcome.networkError:
         emit(
           state.copyWith(
@@ -234,6 +308,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
         otpError: null,
         isSendingCode: false,
         isVerifying: false,
+        otpRetryAfterSeconds: null,
+        lockoutFromRateLimit: false,
       ),
     );
   }
@@ -245,11 +321,23 @@ class RegistrationCubit extends Cubit<RegistrationState> {
         _stopResendCountdown();
         return;
       }
+      final next = state.resendSecondsRemaining - 1;
+      // The 429 copy names a window; once it elapses the message is a lie.
+      final expired = next == 0;
       emit(
         state.copyWith(
-          resendSecondsRemaining: state.resendSecondsRemaining - 1,
+          resendSecondsRemaining: next,
+          otpError: expired && state.otpError == RegistrationOtpError.rateLimited
+              ? null
+              : state.otpError,
+          phoneError:
+              expired && state.phoneError == RegistrationPhoneError.rateLimited
+              ? null
+              : state.phoneError,
+          otpRetryAfterSeconds: expired ? null : state.otpRetryAfterSeconds,
         ),
       );
+      if (expired) _stopResendCountdown();
     });
   }
 
@@ -271,6 +359,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             failedAttempts: 0,
             lockoutSecondsRemaining: 0,
             otpError: null,
+            otpRetryAfterSeconds: null,
+            lockoutFromRateLimit: false,
           ),
         );
         return;

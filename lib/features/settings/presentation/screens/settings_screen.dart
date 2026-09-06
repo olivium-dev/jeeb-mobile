@@ -9,7 +9,13 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/role/role_availability_cubit.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
+import '../../../../core/network/app_failure.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -24,6 +30,7 @@ import '../../domain/account_service.dart';
 import '../../domain/avatar_cache_evictor.dart';
 import '../../domain/avatar_repository.dart';
 import '../../domain/jeeber_unregister_service.dart';
+import '../../domain/notification_preferences.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/settings_analytics_card.dart';
 import '../widgets/settings_become_jeeber_card.dart';
@@ -90,6 +97,9 @@ class SettingsScreen extends StatelessWidget {
         refreshSignals: _resolveProfileRefreshSignals(),
         // F3: unregister-role write path, same DI-graph-or-degrade shape.
         jeeberUnregisterService: _resolveJeeberUnregisterService(),
+        // F11: device-local toggles. Stage 2 registers the store; until then
+        // the screen degrades to today's in-memory behaviour.
+        notificationStore: _resolveNotificationStore(),
       )..load(),
       child: view,
     );
@@ -124,6 +134,11 @@ class SettingsScreen extends StatelessWidget {
     if (!sl.isRegistered<JeeberUnregisterService>()) return null;
     return sl<JeeberUnregisterService>();
   }
+
+  static SettingsNotificationPrefsStore? _resolveNotificationStore() {
+    if (!sl.isRegistered<SettingsNotificationPrefsStore>()) return null;
+    return sl<SettingsNotificationPrefsStore>();
+  }
 }
 
 class _SettingsView extends StatelessWidget {
@@ -139,9 +154,12 @@ class _SettingsView extends StatelessWidget {
       listener: (context, state) {
         final message = _bannerMessage(state.banner, l10n);
         if (message != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(message)));
+          final String id = 'settings_banner_${state.banner.name}_snack';
+          if (_isSuccessBanner(state.banner)) {
+            showJeebSuccessSnack(context, message: message, identifier: id);
+          } else {
+            showJeebErrorSnack(context, message: message, identifier: id);
+          }
           context.read<SettingsCubit>().dismissBanner();
         }
       },
@@ -171,7 +189,7 @@ class _SettingsView extends StatelessWidget {
                   ),
                   // The board's `flex: 1` — the empty band is real, never
                   // filled.
-                  Expanded(child: _SettingsBody(state: state)),
+                  Expanded(child: _SettingsContent(state: state)),
                   SafeArea(
                     top: false,
                     child: Padding(
@@ -192,6 +210,63 @@ class _SettingsView extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// LR-05: the three rungs. A throwing profile read used to spin forever.
+class _SettingsContent extends StatelessWidget {
+  const _SettingsContent({required this.state});
+
+  final SettingsState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<SettingsCubit>();
+    switch (state.status) {
+      case SettingsStatus.initial:
+      case SettingsStatus.loading:
+        return JeebStateHost(
+          child: JeebEmptyState(
+            identifier: 'settings_loading',
+            reason: JeebEmptyStateReason.loading,
+            headline: l10n.liveSettingsLoadingHeadline,
+          ),
+        );
+      case SettingsStatus.failed:
+        return JeebStateHost(
+          child: JeebFailureBlock(
+            failure: state.error ?? const UnknownFailure(),
+            identifier: 'settings_error',
+            retryIdentifier: 'settings_retry_cta',
+            onRetry: cubit.load,
+            onExit: cubit.signOut,
+            exitLabel: l10n.appBarSignOut,
+          ),
+        );
+      case SettingsStatus.loaded:
+        final AppFailure? refreshError = state.refreshError;
+        if (refreshError == null) return _SettingsBody(state: state);
+        return Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.xLarge,
+                Spacing.small,
+                Spacing.xLarge,
+                0,
+              ),
+              child: JeebRefreshFailedNote(
+                failure: refreshError,
+                identifier: 'settings_refresh_failed_note',
+                onRetry: cubit.refresh,
+                onDismiss: cubit.dismissRefreshError,
+              ),
+            ),
+            Expanded(child: _SettingsBody(state: state)),
+          ],
+        );
+    }
   }
 }
 
@@ -282,5 +357,22 @@ String? _bannerMessage(SettingsBanner banner, AppLocalizations l10n) {
       return l10n.jeeberUnregisterPositiveBalance;
     case SettingsBanner.jeeberUnregisterUnavailable:
       return l10n.jeeberUnregisterUnavailable;
+    case SettingsBanner.profileSaveFailed:
+      return l10n.settingsProfileSaveFailed;
+    case SettingsBanner.avatarRemoveFailed:
+      return l10n.settingsAvatarRemoveFailed;
+    case SettingsBanner.notificationSaveFailed:
+      return l10n.settingsNotificationsSaveFailed;
+    case SettingsBanner.accountDeleteFailed:
+      return l10n.accountDeleteFailed;
+    case SettingsBanner.accountDeleteNotSignedIn:
+      return l10n.accountDeleteNotSignedIn;
   }
 }
+
+/// Which banners are good news — the only ones that get the success pair.
+bool _isSuccessBanner(SettingsBanner banner) =>
+    banner == SettingsBanner.profileSaved ||
+    banner == SettingsBanner.signedOut ||
+    banner == SettingsBanner.accountDeletionRequested ||
+    banner == SettingsBanner.jeeberUnregistered;

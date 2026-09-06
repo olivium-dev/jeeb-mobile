@@ -4,8 +4,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/kyc/application/kyc_wizard_cubit.dart';
 import '../../../features/kyc/application/kyc_wizard_state.dart';
+import '../../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../../features/kyc/domain/kyc_form_schema.dart';
 import '../../../features/kyc/domain/kyc_gateway.dart';
 import '../../../features/kyc/domain/kyc_submission.dart';
@@ -162,9 +164,10 @@ class KycWizardScreenPreviewFixtures {
   /// in-line wait mark.
   static KycWizardState captureProcessingState({
     KycCaptureSlot slot = KycCaptureSlot.idBack,
-  }) =>
-      identityState(idFrontCaptured: true, tosAccepted: true)
-          .copyWith(capturing: slot);
+  }) => identityState(
+    idFrontCaptured: true,
+    tosAccepted: true,
+  ).copyWith(capturing: slot);
 
   /// A real [KycWizardCubit] parked on [seed], with every production transition
   /// still live.
@@ -218,13 +221,78 @@ class KycWizardScreenPreviewFixtures {
 /// the only way to put a captured [PhotoAttachment], a submit-scoped field
 class _SeededKycWizardCubit extends KycWizardCubit {
   _SeededKycWizardCubit(KycWizardState seed, KycGateway gateway)
-      : super(
-          // Canned bytes, so a capture tapped in the catalog fills with the ID
-          pickerService: StubPhotoPickerService(
-            cameraPayload: KycWizardScreenPreviewFixtures.idCardBytes,
-          ),
-          gateway: gateway,
-        ) {
+    : super(
+        // Canned bytes, so a capture tapped in the catalog fills with the ID
+        pickerService: StubPhotoPickerService(
+          cameraPayload: KycWizardScreenPreviewFixtures.idCardBytes,
+        ),
+        gateway: gateway,
+      ) {
     emit(seed);
   }
+}
+
+/// F1: the status read THROWS, so the wizard must land on
+/// `kyc_wizard_status_error` instead of spinning forever.
+class KycWizardScreenThrowingStatusGateway extends FakeKycGateway {
+  KycWizardScreenThrowingStatusGateway({
+    this.failure = const ServerFailure(status: 500),
+  });
+
+  final AppFailure failure;
+
+  @override
+  Future<KycSubmission> fetchStatus() async =>
+      throw KycGatewayException(failure);
+}
+
+/// F26: a loaded status whose BACKGROUND refresh fails — the note over the
+/// body, never a blanked screen.
+class KycWizardScreenRefreshFailingGateway extends FakeKycGateway {
+  KycWizardScreenRefreshFailingGateway({super.initial});
+
+  int statusReads = 0;
+
+  @override
+  Future<KycSubmission> fetchStatus() async {
+    statusReads++;
+    if (statusReads == 1) {
+      return super.fetchStatus();
+    }
+    throw const KycGatewayException(NetworkFailure(offline: true));
+  }
+}
+
+/// Exposes the actual scripted gateway so catalog regression tests can verify
+/// retry I/O even when the same failed state is intentionally deduplicated.
+class KycWizardScreenCatalogCubit extends KycWizardCubit {
+  KycWizardScreenCatalogCubit(this.observedGateway)
+    : super(gateway: observedGateway, pickerService: StubPhotoPickerService());
+
+  final KycGateway observedGateway;
+}
+
+/// F25: the CDN rejects an upload inside `submit()` — 413, 415 and 500 are
+/// three different sentences, not one "submit failed".
+class KycWizardScreenCdnRejectingGateway implements CdnAssetGateway {
+  const KycWizardScreenCdnRejectingGateway({this.status = 413});
+
+  final int status;
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async => throw CdnUploadException(
+    'cdn_signed_put',
+    failure: status >= 500
+        ? ServerFailure(status: status)
+        : const ValidationFailure(),
+    status: status,
+  );
+
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async =>
+      throw const CdnFetchException('cdn_fetch');
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/client_offers/application/client_offers_cubit.dart';
 import 'package:jeeb_mobile/features/client_offers/application/client_offers_state.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
@@ -387,6 +388,28 @@ void main() {
         expect(cubit.state.requestIsExpired, isFalse);
       },
     );
+  });
+  group('the state carries a classified failure (WP-3)', () {
+    test('a network load failure lands an AppFailure beside the enum',
+        () async {
+      final repo = ScriptedOffersRepository(
+        snapshots: const <OffersSnapshot>[],
+        fetchFailure: OffersFailure.network,
+      );
+      final cubit = ClientOffersCubit(
+        repository: repo,
+        requestId: 'req-1',
+        retryDelay: (Duration _) async {},
+        refreshSignals: const Stream<void>.empty(),
+        clockTicks: const Stream<void>.empty(),
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      expect(cubit.state.status, OffersScreenStatus.failed);
+      expect(cubit.state.error, OffersFailure.network);
+      expect(cubit.state.appFailure, isA<NetworkFailure>());
+    });
   });
 }
 

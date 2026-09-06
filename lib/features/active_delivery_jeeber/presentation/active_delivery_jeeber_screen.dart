@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
+import '../../background_gps/application/background_gps_state.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/active_delivery_cubit.dart';
 import '../domain/active_delivery_repository.dart';
@@ -199,12 +208,18 @@ class _Unavailable extends StatelessWidget {
           Expanded(
             child: Semantics(
               identifier: 'mark_delivered_root',
-              child: Center(
-                child: SingleChildScrollView(
-                  child: JeebEmptyState(
-                    status: JeebEmptyStateStatus.error,
-                    headline: l10n.activeDeliveryTitle,
-                    body: l10n.activeDeliveryUnavailable,
+              child: JeebStateHost(
+                child: JeebEmptyState(
+                  status: JeebEmptyStateStatus.error,
+                  headline: l10n.activeDeliveryUnavailableHeadline,
+                  body: l10n.activeDeliveryUnavailable,
+                  identifier: 'active_delivery_unavailable',
+                  action: JeebCtaFooter.single(
+                    child: JeebCtaButton.primary(
+                      label: l10n.actionBack,
+                      identifier: 'active_delivery_exit_cta',
+                      onTap: () => _popOrHome(context),
+                    ),
                   ),
                 ),
               ),
@@ -245,19 +260,37 @@ class _Body extends StatelessWidget {
   }
 
   void _onStateChange(BuildContext context, ActiveDeliveryState state) {
-    final raw = state.transitionError;
-    if (raw != null) {
-      // EXEMPT: OMDS exports no standalone toast/snackbar widget; ScaffoldMessenger
-      // + showOmdsSnackbar is the approved fleet pattern for transient feedback.
-      // P6/B4: prefer the kind-specific LOCALIZED copy; the cubit's English
-      // literal is only the fallback for an unclassified failure.
+    final kind = state.transitionErrorKind;
+    if (kind != null) {
       final l10n = AppLocalizations.of(context);
-      showOmdsSnackbar(
-        context,
-        message:
-            _localizedTransitionError(l10n, state.transitionErrorKind) ?? raw,
-      );
+      final String? copy = _localizedTransitionError(l10n, kind);
+      if (copy != null) {
+        showJeebErrorSnack(
+          context,
+          message: copy,
+          identifier: 'active_delivery_transition_error',
+        );
+      } else {
+        showJeebErrorSnack(
+          context,
+          failure: activeDeliveryFailureOf(kind),
+          identifier: 'active_delivery_transition_error',
+        );
+      }
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
+    }
+    final photoFailure = state.proofPhotoFailure;
+    if (photoFailure != null &&
+        state.proofPhotoStatus == ProofPhotoStatus.failed) {
+      final l10n = AppLocalizations.of(context);
+      showJeebErrorSnack(
+        context,
+        message: photoFailure == PhotoPickFailure.permissionDenied
+            ? l10n.activeDeliveryProofPhotoPermission
+            : l10n.activeDeliveryProofPhotoUnavailable,
+        identifier: 'active_delivery_proof_photo_error',
+      );
+      context.read<ActiveDeliveryCubit>().acknowledgeProofPhotoFailure();
     }
     // JM-051 AC2: done → mandatory rating (NOT OTP). One-shot signal.
     if (state.delivered) {
@@ -278,6 +311,11 @@ class _Body extends StatelessWidget {
     ActiveDeliveryFailure.network => l10n.activeDeliveryErrorNetwork,
     ActiveDeliveryFailure.otpRequired => l10n.activeDeliveryErrorOtpNeeded,
     ActiveDeliveryFailure.server => l10n.activeDeliveryErrorGeneric,
+    ActiveDeliveryFailure.invalidOtp => l10n.errorInvalidCode,
+    ActiveDeliveryFailure.otpLocked => l10n.otpHandoverLockedBody,
+    ActiveDeliveryFailure.notFound => l10n.errorNotFoundBody,
+    ActiveDeliveryFailure.otpCodeRequired =>
+      l10n.activeDeliveryOtpCodeTooShort,
     _ => null,
   };
 
@@ -327,28 +365,20 @@ class _Body extends StatelessWidget {
   ) {
     switch (state.mode) {
       case ActiveDeliveryMode.loading:
-        return Center(
-          child: SingleChildScrollView(
-            child: JeebEmptyState(
-              status: JeebEmptyStateStatus.loading,
-              headline: l10n.activeDeliveryLoadingHeadline,
-              identifier: 'active_delivery_loading',
-            ),
+        return JeebStateHost(
+          child: JeebEmptyState(
+            status: JeebEmptyStateStatus.loading,
+            headline: l10n.activeDeliveryLoadingHeadline,
+            identifier: 'active_delivery_loading',
           ),
         );
       case ActiveDeliveryMode.error:
-        return Center(
-          child: SingleChildScrollView(
-            child: JeebEmptyState(
-              status: JeebEmptyStateStatus.error,
-              headline: l10n.activeDeliveryErrorHeadline,
-              body: state.errorMessage ?? l10n.activeDeliveryLoadError,
-              identifier: 'active_delivery_error',
-              action: JeebCtaButton.primary(
-                label: l10n.deliveryStatusRetry,
-                onTap: () => context.read<ActiveDeliveryCubit>().loadDelivery(),
-              ),
-            ),
+        return JeebStateHost(
+          child: JeebFailureBlock(
+            failure: activeDeliveryFailureOf(state.loadFailureKind),
+            identifier: 'active_delivery_error',
+            onRetry: () => context.read<ActiveDeliveryCubit>().loadDelivery(),
+            onExit: () => _popOrHome(context),
           ),
         );
       case ActiveDeliveryMode.ready:
@@ -374,6 +404,11 @@ class _Body extends StatelessWidget {
           // background-location banner.
           onOpenGpsSettings: () =>
               context.read<ActiveDeliveryCubit>().openGpsSettings(),
+          onResumeGps: () => context.read<ActiveDeliveryCubit>().resumeGps(),
+          onDismissRefreshFailure: () => context
+              .read<ActiveDeliveryCubit>()
+              .acknowledgeRefreshFailure(),
+          onRetryRefresh: () => context.read<ActiveDeliveryCubit>().refresh(),
           onRetryGpsPermission: () =>
               context.read<ActiveDeliveryCubit>().retryGpsPermission(),
           onEnterGoodsCost: onEnterGoodsCost,
@@ -407,6 +442,9 @@ class _ReadyContent extends StatelessWidget {
     required this.onOpenMaps,
     required this.onOpenGpsSettings,
     required this.onRetryGpsPermission,
+    required this.onResumeGps,
+    required this.onDismissRefreshFailure,
+    required this.onRetryRefresh,
     required this.l10n,
     this.onEnterGoodsCost,
   });
@@ -426,6 +464,15 @@ class _ReadyContent extends StatelessWidget {
 
   /// [GpsPermissionBanner] CTA — re-runs the in-app permission escalation.
   final VoidCallback onRetryGpsPermission;
+
+  /// Re-arms an uploader that tore itself down after repeated failures.
+  final VoidCallback onResumeGps;
+
+  /// Clears `refreshFailure`; the rows stay on screen.
+  final VoidCallback onDismissRefreshFailure;
+
+  /// Re-runs the warm refresh behind the strip.
+  final VoidCallback onRetryRefresh;
 
   final VoidCallback? onEnterGoodsCost;
   final AppLocalizations l10n;
@@ -482,6 +529,17 @@ class _ReadyContent extends StatelessWidget {
               Spacing.medium,
             ),
             children: [
+              // A warm poll failed while these rows stayed up (F28): the strip
+              // says so instead of the refresh failing silently.
+              if (state.refreshFailure != null) ...[
+                JeebRefreshFailedNote(
+                  failure: activeDeliveryFailureOf(state.refreshFailure),
+                  identifier: 'active_delivery_refresh_failed',
+                  onDismiss: onDismissRefreshFailure,
+                  onRetry: onRetryRefresh,
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
               // P0 (live tracking): FIRST item, above everything, whenever the
               // GPS uploader is parked on a missing background-location grant.
               // While this is visible the customer's tracking map is empty and
@@ -493,6 +551,21 @@ class _ReadyContent extends StatelessWidget {
                   needsSystemSettings: state.gpsNeedsSystemSettings,
                   onOpenSettings: onOpenGpsSettings,
                   onRetry: onRetryGpsPermission,
+                ),
+                const SizedBox(height: Spacing.small),
+              ] else if (state.gpsPhase == BackgroundGpsPhase.error) ...[
+                // The uploader tore itself down after repeated failures and
+                // nothing rendered that before: the delivery ran blind.
+                JeebInfoNote.error(
+                  title: l10n.activeDeliveryGpsStoppedTitle,
+                  text: l10n.activeDeliveryGpsStoppedBody,
+                  identifier: 'active_delivery_gps_stopped',
+                  trailing: JeebCtaButton.outline(
+                    label: l10n.activeDeliveryGpsStoppedRetry,
+                    identifier: 'active_delivery_gps_resume_cta',
+                    expand: false,
+                    onTap: onResumeGps,
+                  ),
                 ),
                 const SizedBox(height: Spacing.small),
               ],
@@ -517,7 +590,8 @@ class _ReadyContent extends StatelessWidget {
                   // gateway demands the recipient code for `AtDoor → Done`.
                   otpRequired: state.otpRequired,
                   isVerifyingOtp: state.isVerifyingOtp,
-                  otpError: state.otpError,
+                  otpErrorKind: state.otpErrorKind,
+                  otpAttemptsRemaining: state.otpAttemptsRemaining,
                   onSubmitOtp: onSubmitOtp,
                   l10n: l10n,
                 ),
@@ -858,4 +932,30 @@ class _ResumeRefreshState extends State<_ResumeRefresh>
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// The copy-family failure an [ActiveDeliveryFailure] renders as. Shared with
+/// the fixtures and the tests so one mapping is asserted, not three.
+AppFailure activeDeliveryFailureOf(ActiveDeliveryFailure? kind) =>
+    switch (kind) {
+      ActiveDeliveryFailure.network => networkFailureFromReachability(),
+      ActiveDeliveryFailure.notFound => const NotFoundFailure(),
+      ActiveDeliveryFailure.otpLocked => const ForbiddenFailure(),
+      ActiveDeliveryFailure.invalidOtp ||
+      ActiveDeliveryFailure.otpCodeRequired ||
+      ActiveDeliveryFailure.badRequest ||
+      ActiveDeliveryFailure.invalidTransition ||
+      ActiveDeliveryFailure.otpRequired => const ValidationFailure(),
+      ActiveDeliveryFailure.server => const ServerFailure(status: 500),
+      null => const UnknownFailure(),
+    };
+
+/// Exit that survives a deep-link root: `maybePop` alone is a silent no-op
+/// when this screen IS the stack, which is exactly the 404/403 case.
+void _popOrHome(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
+  }
 }

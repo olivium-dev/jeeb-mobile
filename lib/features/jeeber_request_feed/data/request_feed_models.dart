@@ -39,6 +39,8 @@ class DeliveryRequest extends Equatable {
     required this.estimatedDistanceKm,
     required this.potentialEarnings,
     required this.currency,
+    this.earningsKnown = true,
+    this.currencyKnown = true,
     required this.expiresAt,
     this.senderName,
     this.senderAvatarUrl,
@@ -61,7 +63,15 @@ class DeliveryRequest extends Equatable {
 
   final double potentialEarnings;
 
+  /// False when the envelope carried no price at all: a missing figure must
+  /// not be presented as a real 0.00 (R6-13a).
+  final bool earningsKnown;
+
   final String currency;
+
+  /// False when the envelope named no currency: [currency] is then a
+  /// formatting placeholder the UI must not present as a real unit.
+  final bool currencyKnown;
 
   final DateTime? expiresAt;
 

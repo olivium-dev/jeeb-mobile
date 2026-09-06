@@ -9,11 +9,7 @@ class EmptyReviewsRepository implements ReviewsRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
-    return const ReviewsPage(
-      reviews: <ReviewItem>[],
-      page: 1,
-      totalPages: 1,
-    );
+    return const ReviewsPage(reviews: <ReviewItem>[], page: 1, totalPages: 1);
   }
 
   @override

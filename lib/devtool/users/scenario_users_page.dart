@@ -5,8 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/onboarding/onboarding_cubit.dart';
+import '../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../l10n/app_localizations.dart';
 import '../gateway/dev_gateway_client.dart';
+import '../gateway/dev_gateway_failure.dart';
 import 'fund_jeeber_wallet_page.dart';
 
 class ScenarioUsersPage extends StatefulWidget {
@@ -90,8 +95,9 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
           _selectedScenario.role,
         );
       }
-      showOmdsSuccessSnackbar(
+      showJeebSuccessSnack(
         context,
+        identifier: 'devtool_scenario_users_action_success',
         message: l10n.scenarioUsersCreated(
           _scenarioLabel(l10n, _selectedScenario),
           user.username,
@@ -101,12 +107,20 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
       if (isJeeber && _approveKyc) {
         final status = await _runOnlineReady(user.id);
         if (!mounted) return;
-        showOmdsSuccessSnackbar(context, message: '${user.id} — $status');
+        showJeebSuccessSnack(
+          context,
+          identifier: 'devtool_scenario_users_action_success',
+          message: '${user.id} — $status',
+        );
       }
       _loadRoster();
     } on DevGatewayException catch (e) {
       if (!mounted) return;
-      showOmdsErrorSnackbar(context, message: e.message);
+      showJeebErrorSnack(
+        context,
+        identifier: 'devtool_scenario_users_action_error',
+        message: e.message,
+      );
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
@@ -117,10 +131,18 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
     try {
       final status = await _runOnlineReady(userId);
       if (!mounted) return;
-      showOmdsSuccessSnackbar(context, message: '$userId — $status');
+      showJeebSuccessSnack(
+        context,
+        identifier: 'devtool_scenario_users_action_success',
+        message: '$userId — $status',
+      );
     } on DevGatewayException catch (e) {
       if (!mounted) return;
-      showOmdsErrorSnackbar(context, message: e.message);
+      showJeebErrorSnack(
+        context,
+        identifier: 'devtool_scenario_users_action_error',
+        message: e.message,
+      );
     } finally {
       if (mounted) setState(() => _seeding = false);
     }
@@ -200,7 +222,7 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
         showBackButton: true,
         centerTitle: false,
       ),
-      body: OmdsPullToRefresh(
+      body: JeebPullToRefresh(
         onRefresh: () async {
           _loadRoster();
           await _rosterFuture;
@@ -364,52 +386,37 @@ class _ScenarioRosterSnapshot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: OmdsLoadingState()),
+      return JeebEmptyState.compact(
+        identifier: 'devtool_scenario_users_roster_loading',
+        status: JeebEmptyStateStatus.loading,
+        reason: JeebEmptyStateReason.loading,
+        variant: JeebEmptyStateVariant.balcony,
+        headline: l10n.scenarioUsersRosterLoadingHeadline,
       );
     }
     final error = snapshot.error;
     if (error != null) {
-      return _ScenarioRosterError(error: error, onRetry: onRetry);
+      return JeebFailureBlock.compact(
+        failure: devGatewayFailure(error),
+        identifier: 'devtool_scenario_users_roster_error',
+        bodyOverride: devGatewayMessage(error),
+        variant: JeebEmptyStateVariant.balcony,
+        onRetry: onRetry,
+        onExit: () => Navigator.of(context).maybePop(),
+      );
     }
     final users = snapshot.data ?? const <DevUser>[];
     if (users.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(AppLocalizations.of(context).scenarioUsersEmpty),
+      return JeebEmptyState.compact(
+        identifier: 'devtool_scenario_users_roster_empty',
+        reason: JeebEmptyStateReason.nothingYet,
+        variant: JeebEmptyStateVariant.balcony,
+        headline: l10n.scenarioUsersEmpty,
       );
     }
     return _ScenarioRosterList(users: users, onAddMoney: onAddMoney);
-  }
-}
-
-class _ScenarioRosterError extends StatelessWidget {
-  const _ScenarioRosterError({required this.error, required this.onRetry});
-
-  final Object error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final message = error is DevGatewayException
-        ? (error as DevGatewayException).message
-        : error.toString();
-    return OMDSSectionCard(
-      title: AppLocalizations.of(context).scenarioUsersRoster,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(message, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          OMDSOutlinedButton(
-            text: AppLocalizations.of(context).scenarioUsersRetry,
-            onTap: onRetry,
-          ),
-        ],
-      ),
-    );
   }
 }
 

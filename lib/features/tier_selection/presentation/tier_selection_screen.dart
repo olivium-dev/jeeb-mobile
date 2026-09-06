@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/tier_selection_cubit.dart';
 import '../cubit/tier_selection_state.dart';
@@ -111,16 +117,45 @@ class _Body extends StatelessWidget {
     switch (state.status) {
       case TierSelectionStatus.initial:
       case TierSelectionStatus.loading:
-        return const Center(child: OmdsLoadingState());
+        return JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.tierSelectionLoadingHeadline,
+          identifier: 'tier_selection_loading',
+        );
       case TierSelectionStatus.error:
-        return Center(
-          child: OmdsErrorState(
-            message: l10n.requestSummaryErrorNetwork,
+        return JeebStateHost(
+          onRefresh: () => context.read<TierSelectionCubit>().load(),
+          child: JeebFailureBlock(
+            key: TierSelectionScreen.retryButtonKey,
+            failure: state.appFailure ?? const UnknownFailure(),
+            identifier: 'tier_selection_error',
             onRetry: () => context.read<TierSelectionCubit>().load(),
-            retryLabel: l10n.requestSummaryRetry,
+            // A 403/401 is not retryable: without this the block draws no CTA
+            // at all and the user is stranded.
+            onExit: () => _leaveTierSelection(context),
+            exitLabel: l10n.actionBack,
           ),
         );
       case TierSelectionStatus.loaded:
+        if (state.isEmpty) {
+          return JeebStateHost(
+            onRefresh: () => context.read<TierSelectionCubit>().load(),
+            child: JeebEmptyState(
+              reason: JeebEmptyStateReason.noResults,
+              variant: JeebEmptyStateVariant.parcel,
+              headline: l10n.requestTypeTiersEmptyHeadline,
+              body: l10n.requestTypeTiersEmptyBody,
+              identifier: 'tier_selection_empty',
+              action: JeebCtaButton.outline(
+                label: l10n.actionRetry,
+                leadingIcon: Icons.refresh,
+                expand: false,
+                identifier: 'tier_selection_empty_retry_cta',
+                onTap: () => context.read<TierSelectionCubit>().load(),
+              ),
+            ),
+          );
+        }
         return _LoadedView(state: state);
     }
   }
@@ -342,6 +377,15 @@ class _TierListEntry extends StatelessWidget {
   String _formatPrice(int amount, String currency) =>
       MoneyFormat.format(amount.toDouble(), currency: currency);
 }
+/// The way out of an unrecoverable catalogue failure.
+void _leaveTierSelection(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
+  }
+}
+
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 
@@ -376,8 +420,11 @@ final class TierSelectionScreenCaptions {
   /// The retryable failure.
   static const String errorNetwork = 'preview · tier read failed · network';
 
-  /// The un-retryable one, wearing the same sentence.
+  /// A 5xx — retryable, and NO LONGER wearing the network sentence.
   static const String errorServer = 'preview · tier read failed · server 5xx';
+
+  /// 403 — not retryable: an exit, never an inert Retry.
+  static const String errorForbidden = 'preview · tier read refused · 403';
 
   /// The banner no production path can raise.
   static const String cachedFallback =
@@ -546,20 +593,31 @@ Widget tierSelectionScreenEmptyCatalogue() => _tierSelectionScreenHosted(
   size: _tierSelectionScreenPhoneBox,
 )
 Widget tierSelectionScreenErrorNetwork() => _tierSelectionScreenHosted(
-      () => TierSelectionScreenPreviewFixtures.failing(TierLoadFailure.network),
+      TierSelectionScreenPreviewFixtures.offline,
       TierSelectionScreenCaptions.errorNetwork,
     );
 
-/// The read reached Jeeb and Jeeb answered badly — a 5xx, or a body
-/// `_parseResponse` cannot recognise.
+/// The read reached Jeeb and Jeeb answered badly — a 5xx. Distinct copy from
+/// the network reading: only Network/Timeout may blame the connection.
 @JeebPreview(
   group: 'tier_selection',
-  name: 'Error · server 5xx (same copy)',
+  name: 'Error · server 5xx',
   size: _tierSelectionScreenPhoneBox,
 )
 Widget tierSelectionScreenErrorServer() => _tierSelectionScreenHosted(
-      () => TierSelectionScreenPreviewFixtures.failing(TierLoadFailure.server),
+      TierSelectionScreenPreviewFixtures.unavailable,
       TierSelectionScreenCaptions.errorServer,
+    );
+
+/// 403 — nothing the customer can retry into, so the block offers an exit.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Error · forbidden 403 (no retry)',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenErrorForbidden() => _tierSelectionScreenHosted(
+      TierSelectionScreenPreviewFixtures.forbidden,
+      TierSelectionScreenCaptions.errorForbidden,
     );
 
 /// The cached-options banner — dead code, drawn.

@@ -8,7 +8,9 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/observability/crash_reporter.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
@@ -47,6 +49,14 @@ Future<_Built> _buildRouter() async {
     'app.onboarding.completed': true,
   });
   final prefs = await SharedPreferences.getInstance();
+  // The screens behind these routes now fail CLOSED on a DI miss (GEN-01), so
+  // the harness boots the real composition root the way bootstrap.dart does.
+  if (!GetIt.instance.isRegistered<SharedPreferences>()) {
+    configureDependencies(
+      sharedPreferences: prefs,
+      crashReporter: const NoopCrashReporter(),
+    );
+  }
 
   final onboarding = OnboardingCubit(prefs: prefs);
   final lock = BiometricLockCubit(

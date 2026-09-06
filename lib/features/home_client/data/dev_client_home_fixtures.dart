@@ -76,8 +76,8 @@ class DevClientHomeFixtures {
   static const List<ClientHomeRequest> _replies = <ClientHomeRequest>[
     ClientHomeRequest(
       id: 'rep-1',
-      title: 'ORD-23470',
-      displayId: 'ORD-23470',
+      title: 'ORD-23473',
+      displayId: 'ORD-23473',
       status: ClientRequestStatus.offersReceived,
       destinationLabel: _itemsSummary,
       itemsSummary: _itemsSummary,

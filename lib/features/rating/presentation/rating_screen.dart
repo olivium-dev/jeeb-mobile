@@ -12,6 +12,7 @@ import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../mixed_direction/presentation/mixed_direction_text.dart';
 import '../domain/entities/rating_status.dart';
@@ -98,6 +99,7 @@ class _RatingScreenState extends State<RatingScreen> {
   late int _stars = widget.initialStars;
   late final Set<String> _tags = <String>{...widget.initialTags};
   bool _submitting = false;
+  RatingFailure? _submitFailure;
   final TextEditingController _commentController = TextEditingController();
 
   RatingRepository get _repository =>
@@ -130,7 +132,10 @@ class _RatingScreenState extends State<RatingScreen> {
 
   Future<void> _onSubmit() async {
     if (_stars == 0 || _submitting) return;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _submitFailure = null;
+    });
     try {
       await _repository.submitRating(
         deliveryId: widget.deliveryId,
@@ -141,9 +146,24 @@ class _RatingScreenState extends State<RatingScreen> {
             : _commentController.text,
         tags: _tags.isEmpty ? null : _tags.toList(),
       );
-    } catch (_) {
-      // Mandatory terminal: even a transient failure must not strand the user
-      // on the un-dismissable screen, so we still route home (AC2).
+    } catch (e) {
+      // Routing home on failure discarded the rating AND told the user it
+      // had been sent. Stay, say so, and offer a retry.
+      if (!mounted) return;
+      final failure = ratingFailureOf(e);
+      setState(() {
+        _submitting = false;
+        _submitFailure = failure;
+      });
+      final l10n = AppLocalizations.of(context);
+      showJeebErrorSnack(
+        context,
+        message: l10n.ratingSubmitFailedSnack,
+        identifier: 'rating_submit_error',
+        retryLabel: l10n.actionRetry,
+        onRetry: _onSubmit,
+      );
+      return;
     }
     if (!mounted) return;
     context.go('/');
@@ -169,7 +189,15 @@ class _RatingScreenState extends State<RatingScreen> {
             container: true,
             child: _submitting
                 ? const _FeedbackSubmittingView()
-                : _FeedbackBody(data: _data, onSubmit: _onSubmit),
+                : _FeedbackBody(
+                    data: _data,
+                    onSubmit: _onSubmit,
+                    // PopScope(canPop:false) makes this screen terminal, so a
+                    // failure must leave exactly one way out.
+                    onSkip: _submitFailure == null
+                        ? null
+                        : () => context.go('/'),
+                  ),
           ),
         ),
       ),
@@ -187,7 +215,11 @@ class _NoopRatingRepository implements RatingRepository {
     required bool isClient,
     String? comment,
     List<String>? tags,
-  }) async {}
+  }) async {
+    // Silently succeeding fabricated a rating nobody stored; the screen's
+    // failure path is the honest outcome when DI has no repository.
+    throw const RatingRepositoryException(RatingFailure.unknown);
+  }
 
   @override
   Future<RatingStatus> fetchRatingStatus({required String deliveryId}) {
@@ -196,19 +228,34 @@ class _NoopRatingRepository implements RatingRepository {
 }
 
 class _FeedbackBody extends StatelessWidget {
-  const _FeedbackBody({required this.data, required this.onSubmit});
+  const _FeedbackBody({
+    required this.data,
+    required this.onSubmit,
+    this.onSkip,
+  });
 
   final FeedbackContentData data;
   final VoidCallback onSubmit;
 
+  /// Shown only after a failed submit — the single escape from a terminal.
+  final VoidCallback? onSkip;
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final skip = onSkip;
     return SafeArea(
       // R15 leaves the bottom of the screen empty: `Expanded` + a docked
       // footer, never a `Spacer` inside the scroll column.
       child: Column(
         children: [
           Expanded(child: _FeedbackScrollArea(data: data)),
+          if (skip != null)
+            JeebCtaButton.text(
+              label: l10n.actionClose,
+              identifier: 'rating_skip_cta',
+              onTap: skip,
+            ),
           _FeedbackFooter(stars: data.stars, onSubmit: onSubmit),
         ],
       ),

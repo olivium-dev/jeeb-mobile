@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/requests/server_request_status.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
@@ -47,7 +50,12 @@ class DioOffersRepository implements OffersRepository {
     required String offerId,
   }) async {
     try {
-      final response = await _dio.post<dynamic>('/v1/offers/$offerId/accept');
+      // Retry and the error snack both re-POST; RetryInterceptor only replays
+      // mutations that carry the key.
+      final response = await _dio.post<dynamic>(
+        '/v1/offers/$offerId/accept',
+        options: Options(headers: {'Idempotency-Key': 'accept-$offerId'}),
+      );
       return _parseAcceptResult(response.data);
     } on DioException catch (e) {
       _rethrowAccept(e);
@@ -76,7 +84,12 @@ class DioOffersRepository implements OffersRepository {
     final store = _handoverCodeStore;
     if (store == null || deliveryId == null || code == null) return;
     unawaited(
-      store.save(deliveryId: deliveryId, code: code).catchError((_) {}),
+      store.save(deliveryId: deliveryId, code: code).catchError((Object e) {
+        Diag.event('handover_code_save_failed', <String, Object?>{
+          'deliveryId': deliveryId,
+          'kind': AppFailure.of(e).kind.name,
+        });
+      }),
     );
   }
 
@@ -89,7 +102,10 @@ class DioOffersRepository implements OffersRepository {
           (data['offers'] as List?) ??
           const <dynamic>[];
     } else {
-      throw const OffersRepositoryException(OffersFailure.unknown);
+      throw const OffersRepositoryException(
+        OffersFailure.unknown,
+        'unparseable offers payload',
+      );
     }
     final rows = items.whereType<Map<String, dynamic>>().toList(growable: false);
 
@@ -235,19 +251,27 @@ class DioOffersRepository implements OffersRepository {
   static const Duration _rateLimitRetryFallback = Duration(seconds: 5);
 
   Never _rethrowDio(DioException e) {
+    // `cancel` is our own local throttle, which AppFailure classifies as
+    // unknown — keep it a rate limit.
     if (_isRateLimited(e)) {
       throw OffersRepositoryException(
         OffersFailure.rateLimited,
         'rate limited',
         _retryAfterOf(e),
+        GatewayProblem.tryParse(e.response?.data),
       );
     }
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      throw const OffersRepositoryException(OffersFailure.network);
-    }
-    throw const OffersRepositoryException(OffersFailure.unknown);
+    final AppFailure f = AppFailure.of(e);
+    throw OffersRepositoryException(
+      f is NetworkFailure || f is TimeoutFailure
+          ? OffersFailure.network
+          : OffersFailure.unknown,
+      null,
+      null,
+      f.problem,
+      null,
+      f,
+    );
   }
 
   static bool _isRateLimited(DioException e) =>
@@ -261,48 +285,40 @@ class DioOffersRepository implements OffersRepository {
   }
 
   Never _rethrowAccept(DioException e) {
-    final status = e.response?.statusCode;
+    final int? status = e.response?.statusCode;
+    final GatewayProblem? problem = GatewayProblem.tryParse(e.response?.data);
     if (status == 409) {
-      if (_isTooManyActiveDeliveries(e.response?.data)) {
-        throw const OffersRepositoryException(OffersFailure.jeeberAtCapacity);
-      }
+      final String? suffix = problem?.typeSuffix;
       throw OffersRepositoryException(
-        _isRequestClosedConflict(e.response?.data)
-            ? OffersFailure.requestNotOpen
-            : OffersFailure.offerNotPending,
+        _conflictFailure(suffix),
+        null,
+        null,
+        problem,
+        suffix,
       );
     }
     if (status == 410 || status == 404) {
-      throw const OffersRepositoryException(OffersFailure.requestNotOpen);
+      throw OffersRepositoryException(
+        OffersFailure.requestNotOpen,
+        null,
+        null,
+        problem,
+        problem?.typeSuffix,
+      );
     }
     _rethrowDio(e);
   }
 
-  bool _isRequestClosedConflict(Object? data) {
-    if (data is! Map) return false;
-    final haystack = [
-      data['type'],
-      data['code'],
-      data['title'],
-      data['detail'],
-      data['error'],
-    ].whereType<String>().map((s) => s.toLowerCase()).join(' ');
-    return haystack.contains('request_not_open') ||
-        haystack.contains('request-not-open') ||
-        haystack.contains('request-not-acceptable') ||
-        haystack.contains('request_not_acceptable') ||
-        haystack.contains('already-accepted') ||
-        haystack.contains('already_accepted') ||
-        haystack.contains('request is no longer');
-  }
-
-  static bool _isTooManyActiveDeliveries(Object? body) {
-    const marker = 'too-many-active-deliveries';
-    if (body is Map) {
-      final type = body['type'];
-      if (type is String && type.contains(marker)) return true;
-    }
-    if (body is String && body.contains(marker)) return true;
-    return false;
-  }
+  /// The gateway's own 409 `type` suffixes — never English prose, which used
+  /// to send `request-expired` down the offerNotPending branch.
+  static OffersFailure _conflictFailure(String? suffix) => switch (suffix) {
+        'request-not-open' ||
+        'request-not-acceptable' ||
+        'already-accepted' =>
+          OffersFailure.requestNotOpen,
+        'request-expired' => OffersFailure.requestExpired,
+        'too-many-active-deliveries' => OffersFailure.jeeberAtCapacity,
+        'offer-jeeber-insufficient-balance' => OffersFailure.jeeberWalletShort,
+        _ => OffersFailure.offerNotPending,
+      };
 }

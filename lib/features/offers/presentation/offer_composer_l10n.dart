@@ -209,17 +209,35 @@ class OfferComposerL10n {
   /// Request-gone snack — reuses the existing offer-submit getter.
   String get requestGone => _l10n.offerSubmitRequestGone;
 
-  /// Generic submit-failure snack.
-  String get errorGeneric => _pick(
-    'Couldn’t send your offer. Please try again.',
-    'تعذّر إرسال عرضك. يرجى المحاولة مجدداً.',
-  );
+  /// Generic submit-failure copy — the shared failure family's body.
+  String get errorGeneric => _l10n.errorGenericBody;
 
-  /// Network-failure snack.
-  String get errorNetwork => _pick(
-    'No connection. Check your network and try again.',
-    'لا يوجد اتصال. تحقق من شبكتك وحاول مجدداً.',
-  );
+  /// Network-failure copy — the only line allowed to blame the connection.
+  String get errorNetwork => _l10n.errorNetworkBody;
+
+  /// 409 `offer-already-exists` — a live bid already stands.
+  String get errorDuplicate => _l10n.offerErrorDuplicate;
+
+  /// The duplicate note's link into the pending-offers list.
+  String get errorDuplicateCta => _l10n.offerErrorDuplicateCta;
+
+  /// 400 `offer-fee-too-low` — rendered on the price field.
+  String get errorFeeTooLow => _l10n.offerErrorFeeTooLow;
+
+  /// 400 `offer-eta-invalid` — rendered under the ETA row.
+  String get errorEtaInvalid => _l10n.offerErrorEtaInvalid;
+
+  /// 400 `offer-note-too-long` — rendered under the note field.
+  String get errorNoteTooLong => _l10n.offerErrorNoteTooLong;
+
+  /// 409 `offer-out-of-range`.
+  String get errorOutOfRange => _l10n.offerErrorOutOfRange;
+
+  /// 409 `same-delivery-role-violation`.
+  String get errorSameRole => _l10n.offerErrorSameRole;
+
+  /// 409 `request-not-open-for-offers`.
+  String get errorRequestNotOpen => _l10n.offerErrorRequestNotOpen;
 
   // ── Insufficient-balance sheet (JM-046) ───────────────────────────────────
   /// `insufficient_balance_sheet` heading.

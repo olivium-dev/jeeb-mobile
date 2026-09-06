@@ -20,6 +20,11 @@ import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../delivery_status/domain/jeeber_summary.dart';
 import '../application/live_tracking_cubit.dart';
@@ -111,7 +116,11 @@ class LiveTrackingScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     switch (state.pendingEvent) {
       case LiveTrackingEvent.jeeberOnTheWay:
-        showOmdsSnackbar(context, message: l10n.trackingJeeberOnTheWay);
+        showJeebSnack(
+          context,
+          message: l10n.trackingJeeberOnTheWay,
+          identifier: 'tracking_on_the_way',
+        );
         break;
       case LiveTrackingEvent.deliveredAutoAdvance:
         // JM-032 AC2: terminal delivered → auto-advance to the receipt prompt.
@@ -149,8 +158,7 @@ class _TrackingStateView extends StatelessWidget {
       case LiveTrackingViewMode.error:
         return _BackBarScaffold(
           child: _TrackingErrorBody(
-            message: state.errorMessage,
-            title: state.errorTitle,
+            failure: state.failure ?? const UnknownFailure(),
             onRetry: () => context.read<LiveTrackingCubit>().retry(),
           ),
         );
@@ -175,6 +183,8 @@ class _TrackingStateView extends StatelessWidget {
           deliveryId: deliveryId,
           useLiveMap: useLiveMap,
           handoverCode: state.handoverCode,
+          refreshError: state.refreshError,
+          streamUnavailable: state.streamUnavailable,
         );
     }
   }
@@ -239,12 +249,11 @@ class _TrackingLoadingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState.compact(
-          status: JeebEmptyStateStatus.loading,
-          headline: l10n.trackingTitle,
-        ),
+    return JeebStateHost(
+      child: JeebEmptyState.compact(
+        status: JeebEmptyStateStatus.loading,
+        headline: l10n.trackingLoadingHeadline,
+        identifier: 'tracking_loading',
       ),
     );
   }
@@ -381,6 +390,8 @@ class _TrackingBody extends StatelessWidget {
     required this.deliveryId,
     required this.useLiveMap,
     this.handoverCode,
+    this.refreshError,
+    this.streamUnavailable = false,
   });
 
   /// How much of the viewport the sheet may claim before it scrolls internally
@@ -397,6 +408,12 @@ class _TrackingBody extends StatelessWidget {
   /// (inline in [OtpAtDoorCard]) at the door. Null → surfaces degrade to the
   /// pre-fix layout and the OTP screen's SMS fallback.
   final String? handoverCode;
+
+  /// A warm refresh failed with rows on screen; the sheet says so.
+  final AppFailure? refreshError;
+
+  /// The live-position socket could not be opened.
+  final bool streamUnavailable;
 
   @override
   Widget build(BuildContext context) {
@@ -424,6 +441,8 @@ class _TrackingBody extends StatelessWidget {
                 isAtDoor: isAtDoor,
                 deliveryId: deliveryId,
                 handoverCode: handoverCode,
+                refreshError: refreshError,
+                streamUnavailable: streamUnavailable,
               ),
             ),
           ),
@@ -443,6 +462,8 @@ class _TrackingSheet extends StatelessWidget {
     required this.isAtDoor,
     required this.deliveryId,
     required this.handoverCode,
+    this.refreshError,
+    this.streamUnavailable = false,
   });
 
   /// The board insets the sheet from the phone edge by 4 and rounds its
@@ -462,6 +483,8 @@ class _TrackingSheet extends StatelessWidget {
   final bool isAtDoor;
   final String deliveryId;
   final String? handoverCode;
+  final AppFailure? refreshError;
+  final bool streamUnavailable;
 
   @override
   Widget build(BuildContext context) {
@@ -507,6 +530,8 @@ class _TrackingSheet extends StatelessWidget {
                       isAtDoor: isAtDoor,
                       deliveryId: deliveryId,
                       handoverCode: handoverCode,
+                      refreshError: refreshError,
+                      streamUnavailable: streamUnavailable,
                     ),
                   ),
                 ),
@@ -525,15 +550,20 @@ class _SheetContent extends StatelessWidget {
     required this.isAtDoor,
     required this.deliveryId,
     required this.handoverCode,
+    required this.refreshError,
+    required this.streamUnavailable,
   });
 
   final DeliveryTrackingInfo info;
   final bool isAtDoor;
   final String deliveryId;
   final String? handoverCode;
+  final AppFailure? refreshError;
+  final bool streamUnavailable;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final jeeber = info.jeeber;
@@ -555,6 +585,24 @@ class _SheetContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Spacing.large - Spacing.twoXSmall),
+        if (refreshError != null) ...[
+          JeebRefreshFailedNote(
+            failure: refreshError!,
+            identifier: 'tracking_refresh_failed',
+            onDismiss: () =>
+                context.read<LiveTrackingCubit>().acknowledgeRefreshError(),
+            onRetry: () => context.read<LiveTrackingCubit>().refreshNow(),
+          ),
+          const SizedBox(height: Spacing.small),
+        ],
+        if (streamUnavailable) ...[
+          JeebInfoNote.warning(
+            identifier: 'tracking_stream_unavailable',
+            icon: Icons.location_disabled,
+            text: l10n.trackingPositionUnavailable,
+          ),
+          const SizedBox(height: Spacing.small),
+        ],
         // JM-032 AC1: the 4-step stepper is the PRIMARY visual.
         // P6/A5: at the door the third step RELABELS to "At Door" (its
         // identifier stays `tracking_step_in_transit`).
@@ -828,39 +876,25 @@ class _HandoverCodeRow extends StatelessWidget {
 }
 
 class _TrackingErrorBody extends StatelessWidget {
-  const _TrackingErrorBody({
-    required this.message,
-    required this.onRetry,
-    this.title,
-  });
+  const _TrackingErrorBody({required this.failure, required this.onRetry});
 
-  final String? message;
-
-  /// Distinct heading for the 404 "delivery not found" state; null renders the
-  /// generic GPS/server error layout.
-  final String? title;
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   static const Key errorStateKey = Key('live-tracking-error-state');
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: Spacing.large),
-        child: JeebEmptyState.compact(
-          key: errorStateKey,
-          status: JeebEmptyStateStatus.error,
-          identifier: 'tracking_error_state',
-          headline: title ?? l10n.trackingGpsLostTitle,
-          body: message ?? l10n.trackingGpsLostBody,
-          action: JeebCtaButton.accent(
-            label: l10n.trackingGpsLostRetry,
-            expand: true,
-            onTap: onRetry,
-          ),
-        ),
+    // A 404 gets the exit, not a Retry: refetching a delivery that is not
+    // there cannot win. `failureCopy` decides which.
+    return JeebStateHost(
+      key: errorStateKey,
+      padding: const EdgeInsets.symmetric(vertical: Spacing.large),
+      child: JeebFailureBlock.compact(
+        failure: failure,
+        identifier: 'tracking_error_state',
+        onRetry: onRetry,
+        onExit: () => trackingBack(context),
       ),
     );
   }

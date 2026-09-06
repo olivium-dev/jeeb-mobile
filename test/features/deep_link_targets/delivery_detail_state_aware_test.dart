@@ -142,7 +142,7 @@ void main() {
   );
 
   testWidgets(
-    'status UNAVAILABLE (fetch throws) → fails open to the full legacy list',
+    'status READ FAILED → says so, keeps the safe rows, and omits Cancel',
     (tester) async {
       final repo = _FakeSummaryRepository(
         throwFailure: OrderChatSummaryFailure.network,
@@ -150,12 +150,17 @@ void main() {
       await tester.pumpWidget(await _host(repo));
       await tester.pumpAndSettle();
 
-      // Fail-open = every legacy row + Cancel, exactly as before JEBV4-309.
+      // F18: "settled after a failure" is not "settled with a status". The
+      // safe rows stay; the destructive act and the delivered-only Rate do not.
       expect(_row('order-detail-track'), findsOneWidget);
       expect(_row('order-detail-otp'), findsOneWidget);
-      expect(_row('order-detail-rate'), findsOneWidget);
       expect(_row('order-detail-escalate'), findsOneWidget);
-      expect(_row('order-detail-cancel'), findsOneWidget);
+      expect(_row('order-detail-cancel'), findsNothing);
+      expect(_row('order-detail-rate'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('order_detail_status_failed'),
+        findsOneWidget,
+      );
       // No terminal banners while the status is unknown.
       expect(_row('order-detail-status-delivered'), findsNothing);
       expect(_row('order-detail-status-cancelled'), findsNothing);

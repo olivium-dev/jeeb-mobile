@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'delivery_address.dart';
 import 'delivery_snapshot.dart';
 import 'delivery_stage.dart';
@@ -72,6 +74,9 @@ class InMemoryDeliveryStatusGateway implements DeliveryStatusGateway {
   Future<CancellationOutcome> cancel(String deliveryId) async => cancelOutcome;
 }
 
+/// Fixture data. It was the production default of `DeliveryStatusScreen`,
+/// which rendered a demo delivery as if it were the user's own.
+@visibleForTesting
 DeliverySnapshot demoDeliverySnapshot({
   String id = 'demo-delivery',
   DeliveryStage stage = DeliveryStage.matched,

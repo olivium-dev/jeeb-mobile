@@ -39,6 +39,19 @@ class _FailingDisplayNameRepository implements DisplayNameRepository {
   }
 }
 
+/// A PUT the gateway refuses: `/v1/users/me` answered without a `userId`, or a
+/// 401/403 — the identity change is rejected, not merely delayed.
+class _UnauthorizedDisplayNameRepository implements DisplayNameRepository {
+  const _UnauthorizedDisplayNameRepository();
+
+  @override
+  Future<void> submitDisplayName(String name) async {
+    throw const DisplayNameRepositoryException(
+      DisplayNameFailure.unauthorized,
+    );
+  }
+}
+
 /// The designed states both dev surfaces render.
 abstract final class DisplayNameSetupScreenPreviewFixtures {
   /// The name the driven fixtures submit.
@@ -55,6 +68,14 @@ abstract final class DisplayNameSetupScreenPreviewFixtures {
   /// A PUT that rejects with a network failure.
   static const DisplayNameRepository failing = _FailingDisplayNameRepository();
 
+  /// A PUT the gateway refuses outright (UX-39 / UX-23).
+  static const DisplayNameRepository unauthorized =
+      _UnauthorizedDisplayNameRepository();
+
+  /// `idle` over a PUT that will be refused; drive it to see the rejection.
+  static DisplayNameCubit unauthorizedRejecting() =>
+      DisplayNameCubit(repository: unauthorized);
+
   /// The cubit the screen would build for itself in the idle state.
   /// The catalog's idle state passes [accepting] through the `repository:` seam
   static DisplayNameCubit idle() => DisplayNameCubit(repository: accepting);
@@ -70,7 +91,8 @@ abstract final class DisplayNameSetupScreenPreviewFixtures {
   /// Deliberately NOT submitted here: seat it under a
   static DisplayNameCubit rejecting() => DisplayNameCubit(repository: failing);
 
-  /// `saved` — reached with **no repository at all**.
+  /// `unavailable` — reached with **no repository at all**. UX-39: this used to
+  /// report `saved`, a fabricated success for a PUT nobody issued.
   /// This is not a contrivance for the dev surfaces: it is the branch
   static DisplayNameCubit savedWithoutRepository() {
     final DisplayNameCubit cubit = DisplayNameCubit();

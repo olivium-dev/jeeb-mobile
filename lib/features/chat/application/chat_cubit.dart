@@ -5,9 +5,14 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
+import '../domain/chat_message.dart';
+import '../domain/chat_outbox.dart';
 import '../domain/delivery_chat_message.dart';
 import 'chat_state.dart';
 
@@ -109,7 +114,16 @@ class ChatCubit extends Cubit<ChatState> {
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
     Stream<void>? refreshSignals,
+    ChatOutbox? outbox,
+    String currentUserId = '',
+    Stream<void>? reconnectSignals,
   }) : _deliveryId = deliveryId,
+       _outbox = currentUserId.isEmpty
+           ? null
+           : outbox is AccountScopedChatOutbox
+           ? (outbox as AccountScopedChatOutbox).forAccount(currentUserId)
+           : outbox,
+       _currentUserId = currentUserId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
@@ -120,12 +134,14 @@ class ChatCubit extends Cubit<ChatState> {
        // outside the chat would have no delivery id to track until an in-chat
        // accept / PhaseChanged event — leaving the "Track order" CTA hidden on
        // an already-accepted order.
-       super(ChatState(
-         acceptedDeliveryId: (initialDeliveryId != null &&
-                 initialDeliveryId.isNotEmpty)
-             ? initialDeliveryId
-             : null,
-       )) {
+       super(
+         ChatState(
+           acceptedDeliveryId:
+               (initialDeliveryId != null && initialDeliveryId.isNotEmpty)
+               ? initialDeliveryId
+               : null,
+         ),
+       ) {
     // b02 polling→push: a chat push must DRIVE the open thread.
     //
     // Until this line the chat screen was the only live surface that took no
@@ -145,6 +161,11 @@ class ChatCubit extends Cubit<ChatState> {
     // parallel bus is how one subscriber silently keeps polling while its twin
     // goes push-driven.
     _refreshSubscription = refreshSignals?.listen((_) => _refreshFromPush());
+    // OFF-04: an offline→online edge is the moment a queued send can win.
+    _reconnectSubscription =
+        (reconnectSignals ?? NetworkReachabilitySignals.instance.stream).listen(
+          (_) => unawaited(_flushOutbox()),
+        );
   }
 
   final String _deliveryId;
@@ -153,7 +174,27 @@ class ChatCubit extends Cubit<ChatState> {
   final PhotoCompressor _compressor;
   final DateTime Function() _clock;
 
+  /// Durable store for text sends that failed. Null keeps the pre-outbox
+  /// behaviour exactly: a failed bubble that lives only in memory.
+  final ChatOutbox? _outbox;
+
+  /// Sender id stamped on outbox rows. Empty when the host did not resolve one.
+  final String _currentUserId;
+  bool _closing = false;
+
   StreamSubscription<ChatEvent>? _subscription;
+
+  /// Reachability-edge subscription driving the outbox flush. Cancelled in
+  /// [close].
+  StreamSubscription<void>? _reconnectSubscription;
+
+  /// In-flight latch for [load] — a double-tapped retry must not issue two
+  /// history reads whose completions can land out of order.
+  bool _loadInFlight = false;
+
+  /// The error the phase read absorbed, kept so the cold-load failure has a
+  /// classified failure to render.
+  Object? _lastPhaseError;
 
   /// Push→refetch subscription (b02). Cancelled in [close].
   StreamSubscription<void>? _refreshSubscription;
@@ -207,11 +248,18 @@ class ChatCubit extends Cubit<ChatState> {
   /// and starts listening for inbound events. Also fetches the conversation
   /// phase so the composer/offer-card UI renders correctly on first paint.
   Future<void> load() async {
-    emit(state.copyWith(
-      isLoadingHistory: true,
-      clearError: true,
-      historyLoadFailed: false,
-    ));
+    if (_loadInFlight) return;
+    _loadInFlight = true;
+    _lastPhaseError = null;
+    emit(
+      state.copyWith(
+        isLoadingHistory: true,
+        clearError: true,
+        historyLoadFailed: false,
+        clearHistoryFailure: true,
+        clearRefreshFailure: true,
+      ),
+    );
     // Both reads still leave together — one round-trip of latency, not two —
     // but their FAILURES are no longer shared. `Future.wait` made a phase-read
     // fault indistinguishable from a history-read fault, and they have opposite
@@ -222,7 +270,13 @@ class ChatCubit extends Cubit<ChatState> {
     final historyFuture = _gateway.loadHistory(_deliveryId);
     final phaseFuture = _gateway
         .loadPhase(_deliveryId)
-        .then<ConversationPhase?>((p) => p, onError: (Object _) => null);
+        .then<ConversationPhase?>(
+          (p) => p,
+          onError: (Object e) {
+            _lastPhaseError = e;
+            return null;
+          },
+        );
     try {
       final history = await historyFuture;
       final phase = await phaseFuture;
@@ -247,13 +301,17 @@ class ChatCubit extends Cubit<ChatState> {
           isLoadingHistory: false,
           historyLoadFailed: knowsNothing,
           error: knowsNothing ? ChatError.historyLoadFailed : null,
+          historyFailure: knowsNothing
+              ? AppFailure.of(_lastPhaseError ?? const UnknownFailure())
+              : null,
+          clearHistoryFailure: !knowsNothing,
         ),
       );
       // P4/P5: pull the bytes for any inbound `image` that arrived as a bare
       // CDN ref, so the peer's photo renders rather than a placeholder.
       _resolveImageBytes();
       _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
-    } catch (_) {
+    } catch (error) {
       // b02 — A 500 IS NOT AN EMPTY THREAD.
       //
       // This used to be a bare collapse to `messages: const [], phase:
@@ -275,14 +333,22 @@ class ChatCubit extends Cubit<ChatState> {
       // `messages: const []` is kept: this is the COLD path, there is nothing on
       // screen to preserve. The non-destructive rule that protects a rendered
       // thread lives in [refresh] / [_reconciledWithHistory].
-      emit(state.copyWith(
-        messages: const [],
-        phase: ConversationPhase.unknown,
-        isLoadingHistory: false,
-        historyLoadFailed: true,
-        error: ChatError.historyLoadFailed,
-      ));
+      emit(
+        state.copyWith(
+          messages: const [],
+          phase: ConversationPhase.unknown,
+          isLoadingHistory: false,
+          historyLoadFailed: true,
+          error: ChatError.historyLoadFailed,
+          historyFailure: AppFailure.of(error),
+        ),
+      );
+    } finally {
+      _loadInFlight = false;
     }
+    // OFF-04: a queued row is not in server history, so the cold load has to
+    // rebuild its failed bubble or the user never sees the unsent message.
+    await _rehydrateOutbox();
     // A cold load that FAILED is the one case with nothing left to re-read it:
     // the push bus only fires on inbound traffic, and a thread the user cannot
     // see generates none. Arm the bounded retry (and cancel it on success).
@@ -462,20 +528,28 @@ class ChatCubit extends Cubit<ChatState> {
           // `broadcasting` here would silently UN-ACCEPT a live order on one
           // flaky read, mid-delivery.
           phase: phase,
-          // Self-heal: a resume / push-driven read that succeeds retires the
-          // error body raised by an earlier cold-load failure.
+          // Self-heal: a read that succeeds retires BOTH the cold error body
+          // and the warm strip a previous failed re-read raised.
           historyLoadFailed: false,
+          clearHistoryFailure: true,
+          clearRefreshFailure: true,
         ),
       );
       _resolveImageBytes();
       // A read that came back is proof the thread is reachable again, so the
       // cold-load-failure retry stands down.
       _cancelHistoryRetry();
-    } catch (_) {
-      // Keep the current thread on a transient refresh failure. Note this does
-      // NOT raise `historyLoadFailed`: there is (or may be) a rendered thread
-      // here, and stale-but-present beats blank. The error body is for the COLD
-      // path, where the failure is the only reason the screen has no rows.
+      unawaited(_flushOutbox());
+    } catch (error) {
+      // F35 — keep the thread, never raise the cold rung or `isLoadingHistory`,
+      // but stop being silent about the failed re-read.
+      if (isClosed) return;
+      emit(
+        state.copyWith(
+          refreshFailure: AppFailure.of(error),
+          error: ChatError.refreshFailed,
+        ),
+      );
     }
   }
 
@@ -566,6 +640,7 @@ class ChatCubit extends Cubit<ChatState> {
     final unclaimedOwnEchoes = history
         .where((m) => m.isMine && !shownById.containsKey(m.id))
         .toList();
+
     /// Echo id → the shown bubble it absorbed. The absorbed bubble takes the
     /// echo's PLACE IN THE SERVER ARRAY rather than staying where the local send
     /// path put it; that position is the whole point of absorbing it.
@@ -574,8 +649,9 @@ class ChatCubit extends Cubit<ChatState> {
     for (final shown in state.messages) {
       if (serverIds.contains(shown.id)) continue;
       if (shown.isMine) {
-        final echoIndex = unclaimedOwnEchoes
-            .indexWhere((echo) => _isEchoOfOwnMessage(shown, echo));
+        final echoIndex = unclaimedOwnEchoes.indexWhere(
+          (echo) => _isEchoOfOwnMessage(shown, echo),
+        );
         if (echoIndex != -1) {
           final echo = unclaimedOwnEchoes.removeAt(echoIndex);
           absorbed[echo.id] = _adoptEcho(shown, echo);
@@ -711,7 +787,7 @@ class ChatCubit extends Cubit<ChatState> {
     required String mimeType,
     required int durationMs,
   }) async {
-    final idempotencyKey = 'voice-$_deliveryId-${_outboxCounter++}';
+    final idempotencyKey = _nextId(prefix: 'voice');
     final draft = DeliveryChatMessage.voice(
       id: idempotencyKey,
       author: ChatAuthor.me,
@@ -720,10 +796,12 @@ class ChatCubit extends Cubit<ChatState> {
       url: '',
       durationMs: durationMs,
     );
-    emit(state.copyWith(
-      messages: _appended(draft),
-      clearError: true,
-    ));
+    emit(state.copyWith(messages: _appended(draft), clearError: true));
+    _pendingVoiceUploads[draft.id] = (
+      bytes: List<int>.unmodifiable(audioBytes),
+      mimeType: mimeType,
+      durationMs: durationMs,
+    );
     await _dispatchVoiceNote(
       draft: draft,
       audioBytes: audioBytes,
@@ -732,6 +810,9 @@ class ChatCubit extends Cubit<ChatState> {
       idempotencyKey: idempotencyKey,
     );
   }
+
+  final Map<String, ({List<int> bytes, String mimeType, int durationMs})>
+  _pendingVoiceUploads = {};
 
   Future<void> _dispatchVoiceNote({
     required DeliveryChatMessage draft,
@@ -747,11 +828,13 @@ class ChatCubit extends Cubit<ChatState> {
         mimeType: mimeType,
         durationMs: durationMs,
       );
+      if (_closing || isClosed) return;
+      _pendingVoiceUploads.remove(draft.id);
       final uploaded = DeliveryChatMessage.voice(
         id: draft.id,
         author: ChatAuthor.me,
         sentAt: draft.sentAt,
-        status: MessageStatus.sent,
+        status: MessageStatus.sending,
         url: result.url,
         durationMs: durationMs,
         transcription: result.transcription,
@@ -759,6 +842,7 @@ class ChatCubit extends Cubit<ChatState> {
       _replaceMessage(draft.id, uploaded);
       await _dispatch(uploaded);
     } catch (_) {
+      if (_closing || isClosed) return;
       _updateMessage(draft.id, MessageStatus.failed);
       emit(state.copyWith(error: ChatError.voiceUploadFailed));
     }
@@ -796,9 +880,13 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() async {
+    _closing = true;
+    _pendingVoiceUploads.clear();
     _cancelHistoryRetry();
     await _refreshSubscription?.cancel();
     _refreshSubscription = null;
+    await _reconnectSubscription?.cancel();
+    _reconnectSubscription = null;
     await _subscription?.cancel();
     return super.close();
   }
@@ -813,11 +901,14 @@ class ChatCubit extends Cubit<ChatState> {
           ? await _pickerService.pickFromCamera()
           : await _pickerService.pickFromGallery();
       compressed = await _compressor.compress(raw.bytes);
+      if (_closing || isClosed) return;
       if (compressed.length > _maxAttachmentBytes) {
-        emit(state.copyWith(
-          isAttaching: false,
-          error: ChatError.attachmentUploadFailed,
-        ));
+        emit(
+          state.copyWith(
+            isAttaching: false,
+            error: ChatError.attachmentUploadFailed,
+          ),
+        );
         return;
       }
       // Optimistic LOCAL-BYTES bubble: the sender sees their own photo
@@ -830,18 +921,15 @@ class ChatCubit extends Cubit<ChatState> {
         bytes: compressed,
         source: raw.source,
       );
-      emit(
-        state.copyWith(
-          messages: _appended(draft),
-          isAttaching: false,
-        ),
-      );
+      emit(state.copyWith(messages: _appended(draft), isAttaching: false));
     } on PhotoPickException catch (e) {
+      if (_closing || isClosed) return;
       emit(
         state.copyWith(isAttaching: false, error: _mapPickFailure(e.failure)),
       );
       return;
     } catch (_) {
+      if (_closing || isClosed) return;
       emit(
         state.copyWith(isAttaching: false, error: ChatError.pickUnavailable),
       );
@@ -865,6 +953,7 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       objectRef = await _gateway.uploadImage(bytes: bytes);
     } catch (_) {
+      if (_closing || isClosed) return;
       _updateMessage(draft.id, MessageStatus.failed);
       emit(state.copyWith(error: ChatError.attachmentUploadFailed));
       Diag.event('chat_image_upload', <String, Object?>{
@@ -873,6 +962,7 @@ class ChatCubit extends Cubit<ChatState> {
       });
       return;
     }
+    if (_closing || isClosed) return;
     if (objectRef.isEmpty) {
       await _dispatch(draft);
       return;
@@ -904,11 +994,13 @@ class ChatCubit extends Cubit<ChatState> {
   /// no bytes yet, NEWEST FIRST, and swap them onto the bubble.
   void _resolveImageBytes() {
     final pending = state.messages
-        .where((m) =>
-            m.kind == MessageKind.image &&
-            m.photoBytes == null &&
-            (m.imageUrl ?? '').isNotEmpty &&
-            !_resolvingImageRefs.contains(m.imageUrl))
+        .where(
+          (m) =>
+              m.kind == MessageKind.image &&
+              m.photoBytes == null &&
+              (m.imageUrl ?? '').isNotEmpty &&
+              !_resolvingImageRefs.contains(m.imageUrl),
+        )
         .toList(growable: false)
         .reversed
         .take(_maxResolvedImages)
@@ -923,7 +1015,8 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> _fetchImageInto(String messageId, String objectRef) async {
     try {
       final bytes = await _gateway.fetchImageBytes(objectRef);
-      if (isClosed || bytes.isEmpty) return;
+      if (isClosed) return;
+      if (bytes.isEmpty) throw StateError('Image response contained no bytes');
       final current = state.messages.firstWhere(
         (m) => m.id == messageId,
         orElse: () => _missing,
@@ -941,10 +1034,53 @@ class ChatCubit extends Cubit<ChatState> {
           bytes: bytes,
         ),
       );
-    } catch (_) {
-      // Leave the placeholder; a later poll tick retries after eviction.
       _resolvingImageRefs.remove(objectRef);
+    } catch (_) {
+      // F36 — the poll tick this used to wait for was deleted in N4, so a bare
+      // placeholder was permanent. Mark it so the bubble can offer a reload.
+      _resolvingImageRefs.remove(objectRef);
+      if (isClosed) return;
+      final current = state.messages.firstWhere(
+        (m) => m.id == messageId,
+        orElse: () => _missing,
+      );
+      if (current.id != messageId) return;
+      _replaceMessage(messageId, current.copyWith(imageLoadFailed: true));
     }
+  }
+
+  /// Re-enter the image fetch for a tile whose bytes could not be resolved.
+  Future<void> retryImage(String messageId) async {
+    final current = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (current.id != messageId) return;
+    final String ref = current.imageUrl ?? '';
+    if (ref.isEmpty) return;
+    if (_resolvingImageRefs.contains(ref)) return;
+    _replaceMessage(
+      messageId,
+      current.copyWith(imageLoadFailed: false, photoBytes: Uint8List(0)),
+    );
+    _resolvingImageRefs.add(ref);
+    await _fetchImageInto(messageId, ref);
+  }
+
+  /// An HTTP read is not a decode: the bubble reports the exact bytes it tried
+  /// so a stale decode cannot poison a newer successful retry.
+  void imageDecodeFailed(String messageId, Uint8List? attemptedBytes) {
+    if (isClosed) return;
+    final current = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (current.id != messageId ||
+        !identical(current.photoBytes, attemptedBytes)) {
+      return;
+    }
+    _resolvingImageRefs.remove(current.imageUrl);
+    _replaceMessage(messageId, current.copyWith(imageLoadFailed: true));
   }
 
   /// "Not found" sentinel for a `firstWhere` lookup — never rendered, never
@@ -957,23 +1093,212 @@ class ChatCubit extends Cubit<ChatState> {
     hasServerTimestamp: false,
   );
 
-  Future<void> _dispatch(DeliveryChatMessage draft) async {
+  Future<void> _dispatch(
+    DeliveryChatMessage draft, {
+    bool userInitiated = true,
+  }) async {
+    if (_closing || isClosed) return;
     try {
       final ack = await _gateway.send(_deliveryId, draft);
+      if (_closing || isClosed) return;
       _updateMessage(draft.id, ack.status);
       Diag.event('chat_message_send', <String, Object?>{
         'deliveryId': _deliveryId,
         'result': ack.status.name,
       });
     } catch (_) {
+      if (_closing || isClosed) return;
       _updateMessage(draft.id, MessageStatus.failed);
-      emit(state.copyWith(error: ChatError.sendFailed));
+      // A background flush that fails again is not a user action, so it must
+      // not fire the "send failed" snack on every reachability edge.
+      if (userInitiated) emit(state.copyWith(error: ChatError.sendFailed));
       Diag.event('chat_message_send', <String, Object?>{
         'deliveryId': _deliveryId,
         'result': 'failed',
       });
+      await _persistFailedSend(draft);
     }
   }
+
+  /// OFF-04 — a failed TEXT send survives the process. Attachments carry no
+  /// `body`, so they keep the in-memory failed bubble and [retryMessage].
+  Future<void> _persistFailedSend(DeliveryChatMessage draft) async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || draft.kind != MessageKind.text) return;
+    final row = ChatMessage(
+      clientId: draft.id,
+      conversationId: _deliveryId,
+      senderId: _currentUserId,
+      body: draft.text,
+      createdAt: draft.sentAt.toUtc(),
+      status: ChatMessageStatus.failed,
+    );
+    try {
+      // `enqueue` is a plain append on both stores, so a retry that fails again
+      // must UPDATE its row — otherwise every edge duplicates it.
+      final queued = await outbox.load();
+      if (queued.any((m) => m.clientId == row.clientId)) {
+        await outbox.update(row);
+      } else {
+        await outbox.enqueue(row);
+      }
+      await _syncOutboxPending();
+    } catch (error) {
+      Diag.event('chat_outbox_enqueue_failed', <String, Object?>{
+        'deliveryId': _deliveryId,
+        'error': error.runtimeType.toString(),
+      });
+    }
+  }
+
+  /// Resume a failed upload before dispatch; uploaded attachments reuse their ref.
+  Future<void> retryMessage(
+    String messageId, {
+    bool userInitiated = true,
+  }) async {
+    if (_closing || isClosed) return;
+    final message = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (message.id != messageId) return;
+    if (!message.isMine || message.status != MessageStatus.failed) return;
+    _updateMessage(messageId, MessageStatus.sending);
+    final draft = message.copyWith(status: MessageStatus.sending);
+    final voice = _pendingVoiceUploads[messageId];
+    if (voice != null) {
+      await _dispatchVoiceNote(
+        draft: draft,
+        audioBytes: voice.bytes,
+        mimeType: voice.mimeType,
+        durationMs: voice.durationMs,
+        idempotencyKey: messageId,
+      );
+    } else if (message.kind == MessageKind.voice &&
+        (message.voiceUrl ?? '').isEmpty) {
+      _updateMessage(messageId, MessageStatus.failed);
+      if (userInitiated) {
+        emit(state.copyWith(error: ChatError.voiceUploadFailed));
+      }
+      return;
+    } else if (message.kind == MessageKind.photo &&
+        message.photoBytes != null) {
+      await _uploadAndDispatchImage(draft: draft, bytes: message.photoBytes!);
+    } else {
+      await _dispatch(draft, userInitiated: userInitiated);
+    }
+    if (isClosed) return;
+    final settled = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (settled.id == messageId &&
+        (settled.status == MessageStatus.sent ||
+            settled.status == MessageStatus.delivered ||
+            settled.status == MessageStatus.read)) {
+      await _removeQueuedRow(messageId);
+      await _syncOutboxPending();
+    }
+  }
+
+  Future<void> _removeQueuedRow(String messageId) async {
+    try {
+      await _outbox?.remove(messageId);
+    } catch (error) {
+      Diag.event('chat_outbox_remove_failed', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
+    }
+  }
+
+  /// OFF-04 — rebuild the failed bubbles for rows that outlived the process.
+  /// Server history never carries an unsent draft, so without this the
+  /// persisted row is invisible AND unreachable by [retryMessage].
+  Future<List<ChatMessage>> _rehydrateOutbox() async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || isClosed) return const <ChatMessage>[];
+    final List<ChatMessage> queued;
+    try {
+      queued = (await outbox.load())
+          .where(_ownsOutboxRow)
+          .toList(growable: false);
+    } catch (error) {
+      Diag.event('chat_outbox_load_failed', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
+      return const <ChatMessage>[];
+    }
+    if (isClosed) return const <ChatMessage>[];
+    final known = state.messages.map((m) => m.id).toSet();
+    final restored = <DeliveryChatMessage>[
+      for (final ChatMessage row in queued)
+        if (!known.contains(row.clientId))
+          DeliveryChatMessage.text(
+            id: row.clientId,
+            author: ChatAuthor.me,
+            sentAt: row.createdAt,
+            status: MessageStatus.failed,
+            text: row.body,
+          ),
+    ];
+    if (restored.isNotEmpty) {
+      emit(
+        state.copyWith(
+          messages: _ordered(<DeliveryChatMessage>[
+            ...state.messages,
+            ...restored,
+          ]),
+        ),
+      );
+    }
+    await _syncOutboxPending();
+    return queued;
+  }
+
+  /// Re-attempt every queued row for THIS conversation. Bounded by the outbox
+  /// size; no timer, no schedule.
+  Future<void> _flushOutbox() async {
+    if (_outbox == null || isClosed) return;
+    final List<ChatMessage> queued = await _rehydrateOutbox();
+    for (final ChatMessage row in queued) {
+      if (_closing || isClosed) return;
+      final message = state.messages.firstWhere(
+        (m) => m.id == row.clientId,
+        orElse: () => _missing,
+      );
+      if (message.id == row.clientId &&
+          message.isMine &&
+          (message.status == MessageStatus.sent ||
+              message.status == MessageStatus.delivered ||
+              message.status == MessageStatus.read)) {
+        await _removeQueuedRow(row.clientId);
+      } else {
+        await retryMessage(row.clientId, userInitiated: false);
+      }
+    }
+    await _syncOutboxPending();
+  }
+
+  /// Publish the queued count for THIS conversation so the connection banner
+  /// can render it.
+  Future<void> _syncOutboxPending() async {
+    final ChatOutbox? outbox = _outbox;
+    if (outbox == null || isClosed) return;
+    try {
+      final rows = await outbox.load();
+      if (isClosed) return;
+      final int mine = rows.where(_ownsOutboxRow).length;
+      if (mine == state.outboxPending) return;
+      emit(state.copyWith(outboxPending: mine));
+    } catch (_) {
+      // A count we could not read is not worth a rung of its own.
+    }
+  }
+
+  bool _ownsOutboxRow(ChatMessage row) =>
+      _currentUserId.isNotEmpty &&
+      row.senderId == _currentUserId &&
+      row.conversationId == _deliveryId;
 
   void _handleEvent(ChatEvent event) {
     switch (event) {
@@ -982,6 +1307,7 @@ class ChatCubit extends Cubit<ChatState> {
         // decides whether the push-driven HTTP fallback is still needed.
         if (_realtimeLive == live) return;
         _realtimeLive = live;
+        emit(state.copyWith(realtimeLive: live));
         Diag.event('chat_realtime_transport', <String, Object?>{
           'conversation_id': _deliveryId,
           'live': live,
@@ -1020,6 +1346,14 @@ class ChatCubit extends Cubit<ChatState> {
         _promoteAtLeast(id, MessageStatus.delivered);
       case ReadReceipt(throughMessageId: final id):
         _promoteThroughRead(id);
+      case MessageDropped(reason: final reason):
+        // F34 — a frame the transport could not parse. The thread is missing a
+        // message and no retry will fetch it, so say so and offer the re-read.
+        emit(state.copyWith(error: ChatError.messageDropped));
+        Diag.event('chat_frame_dropped', <String, Object?>{
+          'conversation_id': _deliveryId,
+          'reason': reason,
+        });
       case PhaseChanged(phase: final phase, deliveryId: final deliveryId):
         emit(state.copyWith(phase: phase, acceptedDeliveryId: deliveryId));
         Diag.event('delivery_status', <String, Object?>{
@@ -1226,9 +1560,9 @@ class ChatCubit extends Cubit<ChatState> {
         out.add(m);
         continue;
       }
-      out.add(m.copyWith(
-        sentAt: ceiling.subtract(_anchorStep * (undated - placed)),
-      ));
+      out.add(
+        m.copyWith(sentAt: ceiling.subtract(_anchorStep * (undated - placed))),
+      );
       placed++;
     }
     return out;
@@ -1256,11 +1590,11 @@ class ChatCubit extends Cubit<ChatState> {
   /// path last rebuilt the list. One ordering rule for every path, and the local
   /// clock is not part of it.
   List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) => _ordered([
-        ...state.messages,
-        draft.anchoredAt(
-          _anchorAfter(state.messages, draft, _projectedServerNow(draft)),
-        ),
-      ]);
+    ...state.messages,
+    draft.anchoredAt(
+      _anchorAfter(state.messages, draft, _projectedServerNow(draft)),
+    ),
+  ]);
 
   /// The ordering anchor for a message composed right now: WHERE THE SERVER'S
   /// CLOCK WAS WHEN THE USER PRESSED SEND ([_projectedServerNow]), raised to a
@@ -1381,15 +1715,19 @@ class ChatCubit extends Cubit<ChatState> {
   static DeliveryChatMessage _adoptEcho(
     DeliveryChatMessage shown,
     DeliveryChatMessage echo,
-  ) =>
-      echo.copyWith(
-        status: _statusOrder[shown.status]! >= _statusOrder[echo.status]!
-            ? shown.status
-            : echo.status,
-        photoBytes: echo.photoBytes ?? shown.photoBytes,
-      );
+  ) => echo.copyWith(
+    status: _statusOrder[shown.status]! >= _statusOrder[echo.status]!
+        ? shown.status
+        : echo.status,
+    photoBytes: echo.photoBytes ?? shown.photoBytes,
+  );
 
-  String _nextId() => 'msg-$_deliveryId-${_outboxCounter++}';
+  String _nextId({String prefix = 'msg'}) {
+    final suffix = _currentUserId.isEmpty
+        ? '${_outboxCounter++}'
+        : newOperationId();
+    return '$prefix-$_deliveryId-$suffix';
+  }
 
   ChatError _mapPickFailure(PhotoPickFailure failure) {
     switch (failure) {

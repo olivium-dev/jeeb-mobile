@@ -9,17 +9,27 @@ import 'package:jeeb_mobile/core/dev_seam/dev_seam.dart';
 import 'package:jeeb_mobile/core/dev_seam/dev_seam_config.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_code_cells.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
+import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/registration_attempt_policy.dart';
 import 'package:jeeb_mobile/features/registration/presentation/otp_verification_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
 class _MockOtpService extends Mock implements OtpService {}
+
+class _SnapshotRegistrationCubit extends RegistrationCubit {
+  _SnapshotRegistrationCubit(OtpService service, RegistrationState snapshot)
+      : super(otpService: service) {
+    emit(snapshot);
+  }
+}
 
 void main() {
   late _MockOtpService otp;
@@ -447,4 +457,69 @@ void main() {
     expect(edit.style!.color, accent);
     await cubit.close();
   });
+
+  // F16: the resend CTA had NO in-flight affordance at all, so a double tap
+  // looked like nothing happening.
+  testWidgets('the resend CTA carries the in-flight state', (tester) async {
+    final cubit = await primedOnOtpStep(
+      policy: const RegistrationAttemptPolicy(resendCooldown: Duration.zero),
+    );
+    addTearDown(cubit.close);
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+
+    final resend = tester.widget<JeebCtaButton>(
+      find.byKey(const Key('registration.resend')),
+    );
+    expect(resend.isLoading, isFalse);
+    expect(resend.isEnabled, isTrue);
+  });
+
+  // AE-16 / F29 / F30: three kinds that used to print one "check your
+  // connection" line now print their own.
+  testWidgets('serverError, serviceUnavailable and rateLimited each print '
+      'their own line', (tester) async {
+    final cubit = await primedOnOtpStep();
+    addTearDown(cubit.close);
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(OtpVerificationScreen)),
+    );
+
+    expect(
+      <String>{
+        l10n.registrationOtpServerError,
+        l10n.registrationOtpServiceUnavailable,
+        l10n.registrationOtpNetworkError,
+      }.length,
+      3,
+      reason: 'the three kinds must not share a string',
+    );
+  });
+
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    for (final seconds in <int?>[null, 0, 5]) {
+      testWidgets('rate-limited OTP copy respects nullable window $seconds · ${locale.languageCode}', (tester) async {
+        final cubit = _SnapshotRegistrationCubit(otp, RegistrationState(
+          step: RegistrationStep.otp,
+          phoneInput: '71123456',
+          otpError: RegistrationOtpError.rateLimited,
+          otpRetryAfterSeconds: seconds,
+          resendSecondsRemaining: seconds ?? 0,
+        ));
+        addTearDown(cubit.close);
+        await tester.pumpWidget(hostScreen(cubit, locale: locale));
+        await tester.pump();
+        final l10n = AppLocalizations.of(tester.element(find.byType(OtpVerificationScreen)));
+        final expected = seconds == null
+            ? l10n.errorRateLimitedBody
+            : l10n.registrationOtpRateLimitedSeconds(seconds);
+        expect(find.text(expected), findsOneWidget);
+        if (seconds == null) {
+          expect(find.text(l10n.registrationOtpRateLimitedSeconds(0)), findsNothing);
+        }
+      });
+    }
+  }
 }

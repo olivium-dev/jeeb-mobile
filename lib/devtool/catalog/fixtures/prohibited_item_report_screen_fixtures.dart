@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
+import '../../../features/photo_attachment/domain/photo_picker_service.dart';
+
 /// One simulated device window to render `ProhibitedItemReportScreen` in.
 /// The frame has to be pinned by the fixture rather than left to the canvas
 @immutable
@@ -41,34 +44,34 @@ final class ProhibitedItemReportScreenWindows {
   /// and no keyboard up.
   static const ProhibitedItemReportScreenWindow phone =
       ProhibitedItemReportScreenWindow(
-    name: 'Phone 390 × 844',
-    size: Size(390, 844),
-  );
+        name: 'Phone 390 × 844',
+        size: Size(390, 844),
+      );
 
   /// The smallest display the app still has to look right on (iPhone SE 1st
   /// gen class), which is also the width at which the warning copy first starts
   static const ProhibitedItemReportScreenWindow compact =
       ProhibitedItemReportScreenWindow(
-    name: 'Compact 320 × 568',
-    size: Size(320, 568),
-  );
+        name: 'Compact 320 × 568',
+        size: Size(320, 568),
+      );
 
   /// A notched phone in portrait: 59 pt status bar, 34 pt home indicator.
   static const ProhibitedItemReportScreenWindow notched =
       ProhibitedItemReportScreenWindow(
-    name: 'Notched 393 × 852 · inset 59/34',
-    size: Size(393, 852),
-    insets: EdgeInsets.only(top: 59, bottom: 34),
-  );
+        name: 'Notched 393 × 852 · inset 59/34',
+        size: Size(393, 852),
+        insets: EdgeInsets.only(top: 59, bottom: 34),
+      );
 
   /// The compact phone with its software keyboard up — i.e. the screen as it
   /// looks while the jeeber is actually typing the report. 216 pt is the iOS
   static const ProhibitedItemReportScreenWindow compactKeyboard =
       ProhibitedItemReportScreenWindow(
-    name: 'Compact 320 × 568 · keyboard 216',
-    size: Size(320, 568),
-    keyboard: 216,
-  );
+        name: 'Compact 320 × 568 · keyboard 216',
+        size: Size(320, 568),
+        keyboard: 216,
+      );
 }
 
 /// One designed state: a description to seed the field with, and the window to
@@ -120,72 +123,87 @@ final class ProhibitedItemReportScreenPreviewFixtures {
       'طلب مني الزبون نقل قنينتين من الكحول وأسطوانة غاز صغيرة من الحمرا إلى '
       'الأشرفية، ورفض أن أصور الصندوق قبل تحميله على الدراجة.';
 
-  /// Three spaces: not a report, but `String.isNotEmpty` says otherwise.
+  /// Three spaces: not a report, and `canReport` now trims before it decides.
   static const String whitespaceDescription = '   ';
+
+  /// The Attach-photo CTA is wired to a real picker now; this one succeeds.
+  static PhotoPickerService attachingPicker() => StubPhotoPickerService();
+
+  /// The picker is blocked by the OS — the error snack, not a dead tap.
+  static PhotoPickerService permissionDeniedPicker() => StubPhotoPickerService(
+    galleryFailure: PhotoPickFailure.permissionDenied,
+    cameraFailure: PhotoPickFailure.permissionDenied,
+  );
+
+  /// The picker is unavailable on this device.
+  static PhotoPickerService unavailablePicker() => StubPhotoPickerService(
+    galleryFailure: PhotoPickFailure.unavailable,
+    cameraFailure: PhotoPickFailure.unavailable,
+  );
 
   /// Catalog state 1 — the cold form, nothing typed, `Report Item` disabled.
   static const ProhibitedItemReportScreenCase empty =
       ProhibitedItemReportScreenCase(
-    caption: 'Empty · nothing typed · Report disabled',
-    window: ProhibitedItemReportScreenWindows.phone,
-  );
+        caption: 'Empty · nothing typed · Report disabled',
+        window: ProhibitedItemReportScreenWindows.phone,
+      );
 
   /// Catalog state 2 — one plausible line typed, `Report Item` armed.
   static const ProhibitedItemReportScreenCase filled =
       ProhibitedItemReportScreenCase(
-    caption: 'Filled · one line typed · Report armed',
-    window: ProhibitedItemReportScreenWindows.phone,
-    description: filledDescription,
-  );
+        caption: 'Filled · one line typed · Report armed',
+        window: ProhibitedItemReportScreenWindows.phone,
+        description: filledDescription,
+      );
 
   /// The longest plausible content, on the reference phone.
   static const ProhibitedItemReportScreenCase longest =
       ProhibitedItemReportScreenCase(
-    caption: 'Longest · a paragraph in a four-line box',
-    window: ProhibitedItemReportScreenWindows.phone,
-    description: longestDescription,
-  );
+        caption: 'Longest · a paragraph in a four-line box',
+        window: ProhibitedItemReportScreenWindows.phone,
+        description: longestDescription,
+      );
 
   /// The same paragraph on the narrowest phone the app supports.
   static const ProhibitedItemReportScreenCase longestCompact =
       ProhibitedItemReportScreenCase(
-    caption: 'Longest · narrowest phone',
-    window: ProhibitedItemReportScreenWindows.compact,
-    description: longestDescription,
-  );
+        caption: 'Longest · narrowest phone',
+        window: ProhibitedItemReportScreenWindows.compact,
+        description: longestDescription,
+      );
 
   /// Arabic content inside untranslated English chrome.
   static const ProhibitedItemReportScreenCase arabic =
       ProhibitedItemReportScreenCase(
-    caption: 'Arabic report · English chrome',
-    window: ProhibitedItemReportScreenWindows.phone,
-    description: arabicDescription,
-  );
+        caption: 'Arabic report · English chrome',
+        window: ProhibitedItemReportScreenWindows.phone,
+        description: arabicDescription,
+      );
 
   /// Whitespace only — the CTA gate's blind spot.
   static const ProhibitedItemReportScreenCase whitespaceOnly =
       ProhibitedItemReportScreenCase(
-    caption: 'Whitespace only · Report armed anyway',
-    window: ProhibitedItemReportScreenWindows.phone,
-    description: whitespaceDescription,
-  );
+        caption: 'Whitespace only · Report armed anyway',
+        window: ProhibitedItemReportScreenWindows.phone,
+        description: whitespaceDescription,
+      );
 
   /// The notched phone: what the home indicator claims from the bottom CTA.
   static const ProhibitedItemReportScreenCase notched =
       ProhibitedItemReportScreenCase(
-    caption: 'Home indicator · CTA drawn into it',
-    window: ProhibitedItemReportScreenWindows.notched,
-    description: filledDescription,
-  );
+        caption: 'Home indicator · CTA drawn into it',
+        window: ProhibitedItemReportScreenWindows.notched,
+        description: filledDescription,
+      );
 
   /// The state the jeeber is actually in while writing the report: small phone,
   /// keyboard up.
   static const ProhibitedItemReportScreenCase keyboardOpen =
       ProhibitedItemReportScreenCase(
-    caption: 'Typing · compact phone, keyboard up',
-    window: ProhibitedItemReportScreenWindows.compactKeyboard,
-    description: filledDescription,
-  );
+        caption: 'Typing · compact phone, keyboard up',
+        window: ProhibitedItemReportScreenWindows.compactKeyboard,
+        description: filledDescription,
+      );
 }
 
 /// Hosts `ProhibitedItemReportScreen` in one

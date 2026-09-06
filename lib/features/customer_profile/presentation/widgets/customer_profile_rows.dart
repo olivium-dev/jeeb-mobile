@@ -43,11 +43,25 @@ class CustomerProfileRows extends StatelessWidget {
     required this.onContact,
     required this.onRateApp,
     required this.onLogout,
-  });
+  }) : signOutOnly = false;
+
+  /// The failed-cold-read rung: the sign-out escape hatch alone, with no row
+  /// that would assert an account fact the read never returned (F4).
+  const CustomerProfileRows.signOutOnly({super.key, required this.onLogout})
+    : signOutOnly = true,
+      showRegister = false,
+      onRegisterDelivery = _unreachable,
+      onPassword = _unreachable,
+      onNotifications = _unreachable,
+      onLanguage = _unreachable,
+      onAddresses = _unreachable,
+      onContact = _unreachable,
+      onRateApp = _unreachable;
 
   /// Exit-glyph size on the sign-out row (board `20-settings` `tpl 1217`).
   static const double signOutGlyphSize = 18;
 
+  final bool signOutOnly;
   final bool showRegister;
   final VoidCallback onRegisterDelivery;
   final VoidCallback onPassword;
@@ -61,6 +75,7 @@ class CustomerProfileRows extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (signOutOnly) return _signOutCard(l10n);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -132,24 +147,29 @@ class CustomerProfileRows extends StatelessWidget {
 
         // ── Sign out — its own card, no chevron: it opens the confirm sheet
         //    in place instead of navigating (board `tpl 1216`).
-        JeebOutlinedCard.grouped(
-          children: [
-            JeebListRow(
-              identifier: 'customer_profile_logout_row',
-              // Reuses `appBarSignOut` ("Sign out").
-              icon: _signOutGlyph,
-              iconSize: signOutGlyphSize,
-              title: l10n.appBarSignOut,
-              showChevron: false,
-              padding: JeebOutlinedCard.defaultPadding,
-              onTap: onLogout,
-            ),
-          ],
-        ),
+        _signOutCard(l10n),
       ],
     );
   }
+
+  Widget _signOutCard(AppLocalizations l10n) => JeebOutlinedCard.grouped(
+    children: [
+      JeebListRow(
+        identifier: 'customer_profile_logout_row',
+        // Reuses `appBarSignOut` ("Sign out").
+        icon: _signOutGlyph,
+        iconSize: signOutGlyphSize,
+        title: l10n.appBarSignOut,
+        showChevron: false,
+        padding: JeebOutlinedCard.defaultPadding,
+        onTap: onLogout,
+      ),
+    ],
+  );
 }
+
+/// Placeholder for the actions [CustomerProfileRows.signOutOnly] never draws.
+void _unreachable() {}
 
 /// `Icons.logout` ships with `matchTextDirection: false`, so its arrow keeps
 /// pointing at the LTR end edge inside an Arabic layout. This is the same glyph
