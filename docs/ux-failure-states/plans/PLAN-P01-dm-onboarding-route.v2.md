@@ -1,5 +1,7 @@
 # PLAN P01-dm-onboarding-route v2 — form-builder submit contract, persisted in user preferences through the gateway
 
+> **Superseded by [P01 v3](PLAN-P01-dm-onboarding-route.v3.md) (2026-09-06).** Historical design only; execute nothing below. The current plan implements the owner's form-builder → mobile renderer → gateway → user-preferences direction, including the review corrections to deployment and template ownership.
+
 Status: PLAN ONLY (no repo file changed). Author: Fable 5.1 principal, 2026-09-06. Supersedes v1
 (`PLAN-P01-dm-onboarding-route.md`) after the owner answered OD-1 with free text:
 **"Keep using the formbuilder, store the data in the user preferences (through gateway)"** and OD-2 with

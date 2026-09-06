@@ -219,11 +219,9 @@ G4. Open the PR (title `fix(notifications): emit request-id ref + mobile-grammar
     inbox row`), body = §1/§2 evidence + the §4 table; link mobile PR #335 OWNER-CONFIRM (b).
     Merge is owner-gated.
 
-### Mobile — repo `olivium-dev/jeeb-mobile`, follow-up branch `fix/notifications-inbox-kinds`
+### Mobile — repo `olivium-dev/jeeb-mobile`, commits on PR #335 under OD-0 `widen`
 
-Reconciled (C1): PR #335 is scope-frozen. Develop this branch stacked on `ux/api-error-handling-empty-states`
-(so the F8 `_dispatch` rewrite is the base), then after #335 is squash-merged run
-`git rebase --onto origin/main ux/api-error-handling-empty-states fix/notifications-inbox-kinds` and open the PR against `main`.
+Superseded by OD-0 `widen`: no `fix/notifications-inbox-kinds` branch is created. Mobile changes land as grouped commits on `ux/api-error-handling-empty-states` (#335). Hand-authored fixtures do not depend on deployment; captured fixtures wait for the owner-deployed gateway and land on this PR only if still open, otherwise a separately reviewed follow-up.
 
 M1. `lib/features/notifications/domain/notifications_repository.dart`: add enum members
     `NotificationKind.chat` and `NotificationKind.availability` (append before `unknown`; no
@@ -373,8 +371,7 @@ after stripping `_dispatch` as in G3.
 
 ## Reconciled (2026-09-05 conflict review — see plans/CONFLICT-REVIEW.md)
 
-- Reconciled (C1): mobile M1–M2, M4–M8 ship as follow-up branch `fix/notifications-inbox-kinds` (stacked now,
-  retargeted to `main` after the #335 squash). M3 dropped (C4). M7 split into two commits (C5); commit 1 has no
+- Superseded by OD-0 `widen`: mobile M1–M2, M4–M8 ride #335 as grouped commits; no stacked branch. M3 dropped (C4). M7 split into two commits (C5); commit 1 has no
   deploy dependency and can merge before the gateway change is live (kind additions are backward-compatible:
   `availability` → shell, `chat`/`delivery` rows without `ref` keep snacking).
 - Reconciled (C10): M6 ARB keys land in the serialized l10n order (P13 → P05 → P06 → P07 → P02 → P03 → P12-B); resolve

@@ -1,5 +1,7 @@
 # CONFLICT-REVIEW — 13 plans, `ux/api-error-handling-empty-states` follow-ups (2026-09-05)
 
+> **Historical conflict record, superseded in part (2026-09-06).** OD-0 `widen` voids C1's scope freeze: mobile follow-ups ride #335. P01 v3 replaces the earlier P01 design; P15 defines the wallet dependency train. Consult those current plans and the execution-plan update before acting on instructions below.
+
 Reviewer: fresh Fable 5.1 principal, no prior involvement. Inputs read in full: FINAL-REPORT.md, RULINGS.md,
 UX-API-AUDIT.md (skimmed for R-rulings only), device-evidence-3/REPORT.md, device-evidence-2/*/REPORT.md (headers),
 PLAN-P01…P13. Code facts verified in the worktree `jeeb-mobile-worktrees/ux-api-errors @ ecfd3cc1` (registry

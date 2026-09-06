@@ -1,11 +1,13 @@
 # PLAN P11 — isolated device proof that the refresh-failed snack clears ON RECONNECT (F6 `clearOnReconnect`)
 
+> Session helper note: `dump.sh` meant an adb UI-automator dump plus pull/identifier parsing; `shot.sh` meant an adb screenshot. Recreate these helpers locally or use the reviewed P08 tooling when it lands; they are not shipped with this historical plan.
+
 Pending point: `P11-snack-reconnect-proof`. Planning only; no repo file was changed while writing this.
 Repo: `olivium-dev/jeeb-mobile`. Branch `ux/api-error-handling-empty-states` @ `ecfd3cc1` on `origin/main@ab610933`.
 Worktree: `/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile-worktrees/ux-api-errors`.
 PR: https://github.com/olivium-dev/jeeb-mobile/pull/335 (draft).
 Device: SM-A336B `RZCT505K7WF` (Android 14, USB adb). Gateway: `https://msi.olivium.space/gateway`.
-Scratchpad root (`$S` below): `/private/tmp/claude-501/-Users-oudaykhaled-Desktop-olivium-jeeb/6a29e634-9ff5-4e5b-b358-a1a84368ab4f/scratchpad`.
+Scratchpad root (`$S` below): a local session scratch directory outside the repository.
 
 ---
 
@@ -128,9 +130,7 @@ Rejected alternatives: (a) runtime pref `dev.snack_action_ms` — needs async `S
    `flutter test test/core/widgets/jeeb/jeeb_snack_test.dart test/core/dev_flags_test.dart` → green;
    `flutter test --exclude-tags capture` → baseline 0 failures (guardrail ratchets included; no new identifiers, no ARB change, so `secret_redactor_test` inventory and l10n parity are unaffected — still run `qa/t-mob-fix-002/l10n_parity_check.sh --analyze` and `tool/check_design_tokens.sh` because CI does).
 6. **Commit** on `ux/api-error-handling-empty-states` (never a new repo; same branch/PR): `fix(ux): F6 snack closes are observable in Diag; dev-only lifetime stretch for device proofs`. Sequence it BEFORE P10's "mark ready for review" step (`ci.yml` concurrency cancels in-flight CI on every push — P10 S5).
-   Reconciled (C1): #335 is scope-frozen with exactly three allowed commits — P12 Change A, this one, then P10's CI
-   fix — pushed as ONE batch. If OD-16 (C2 define) is unanswered when the batch is ready, commit C1 only (Diag events)
-   and run the proof on the 8 s snack relying on `reason="reconnect"`; C2 then becomes a follow-up.
+   Superseded by OD-0 `widen`: this work rides #335 in an integration-owned batch. OD-16 selected the dev-gated define, so C1 and C2 are both planned; do not claim the device proof until its evidence exists.
 7. **Build the proof APK** (jeeb-mobile worktree):
    ```
    MAPS_KEY=$(grep MAPS_API_KEY /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile/android/local.properties | cut -d= -f2)
@@ -219,7 +219,7 @@ Effort: **M** (code + tests ≈ 1 h; two builds + three device runs + report ≈
 
 ## Reconciled (2026-09-05 conflict review — see plans/CONFLICT-REVIEW.md)
 
-- Reconciled (C1): one of the three commits allowed on PR #335 (batched with P12-A and the CI fix); its device proof
+- Superseded by OD-0 `widen`: a planned commit on PR #335 (batched with P12-A and the CI fix); its device proof
   does not gate `gh pr ready` but should be run on the batched head SHA right after the P10 §7.1 smoke (same build,
   plus the 30 s proof build if C2 is approved — leave the phone on the default build afterwards, run C).
 - Reconciled (C15): P13 later edits `test/core/widgets/jeeb/jeeb_snack_test.dart` (one case) and `app_failure_copy.dart`;

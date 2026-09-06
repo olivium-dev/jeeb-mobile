@@ -1,5 +1,7 @@
 # PLAN P07 — Arabic failure states validated on the real device
 
+> Session helper note: `dump.sh` meant an adb UI-automator dump plus pull/identifier parsing; `shot.sh` meant an adb screenshot. Recreate these helpers locally or use the reviewed P08 tooling when it lands; they are not shipped with this historical plan.
+
 Branch `ux/api-error-handling-empty-states` (worktree `/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile-worktrees/ux-api-errors`, `ecfd3cc1` on `origin/main@ab610933`, draft PR #335).
 Device SM-A336B `RZCT505K7WF`, Android 14, app `app.jeeb.mobile.dev`, install `-r` only, never uninstall.
 Owner rules that bind this plan: no new repo; Flutter 3.44.2; gates = `dart analyze --fatal-infos .` + `flutter test --exclude-tags capture` (79 % floor) + l10n parity + AR plurals + `tool/check_design_tokens.sh`; comments ≤ 2 lines; identifier grammar `<screen>_loading|_empty|_error` + `<screen>_retry_cta`; tests assert by identifier in EN **and** AR; PR #330 token-refresh invariants untouched; deploys owner-gated (nothing here deploys anything).
@@ -94,7 +96,7 @@ Never add a 401/403 rule in this plan (PR #330 lane).
 
 ## 3. Device run protocol (`$SCRATCH/device-evidence-4/p07-ar/`)
 
-`$SCRATCH` = `/private/tmp/claude-501/-Users-oudaykhaled-Desktop-olivium-jeeb/6a29e634-9ff5-4e5b-b358-a1a84368ab4f/scratchpad`. Reuse `dump.sh` (ui.xml + parsed ids) and `shot.sh` (png) with the evidence dir changed. Name files `NN-<scenario>-<step>.{xml,png}`.
+`$SCRATCH` = a local session scratch directory outside the repository. Reuse `dump.sh` (ui.xml + parsed ids) and `shot.sh` (png) with the evidence dir changed. Name files `NN-<scenario>-<step>.{xml,png}`.
 
 ### 3.1 Build + install (after §2 is committed)
 ```

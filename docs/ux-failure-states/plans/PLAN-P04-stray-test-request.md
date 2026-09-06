@@ -1,5 +1,7 @@
 # PLAN P04 — stray test request `defb1f07` + "leave no state" rule for device validations
 
+> Session helper note: `dump.sh` meant an adb UI-automator dump plus pull/identifier parsing; `shot.sh` meant an adb screenshot. Recreate these helpers locally or use the reviewed P08 tooling when it lands; they are not shipped with this historical plan.
+
 Planner: Fable 5.1 (plan only, no repo file changed). Date: 2026-09-05.
 Deadline: the request auto-expires **2026-09-06 11:21:56 UTC** (`offerDeadlineAt`); do Part A before then.
 
@@ -9,7 +11,7 @@ All reads were done against `https://msi.olivium.space/gateway` with OpenMode-mi
 (`POST /auth/tokens` → 200 for both users; receipts in
 `$SCRATCH/p04-mint.json`, `p04-karim-mint.json`, `p04-client-list.json`, `p04-client-legacy.json`,
 `p04-karim-feed.json`, `p04-karim-notifs.json`). `$SCRATCH` =
-`/private/tmp/claude-501/-Users-oudaykhaled-Desktop-olivium-jeeb/6a29e634-9ff5-4e5b-b358-a1a84368ab4f/scratchpad`.
+a local session scratch directory outside the repository.
 
 | Fact | Value | Evidence |
 |---|---|---|

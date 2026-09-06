@@ -45,10 +45,10 @@ Mergeable = RFR + the lane reviews in §5 posted with no unresolved "BLOCK" item
 
 ---
 
-## 2. Fix the CI timeout (the only code change needed to go green)
+## 2. Fix the CI timeout (one of the required-check blockers)
 
 **File**: `.github/workflows/ci-flutter-stage.yml` (branch worktree).
-**Change**: line 55 `timeout-minutes: 20` → `timeout-minutes: 35`.
+**APPLIED 2026-09-06 in the local review-fix wave:** test-job `timeout-minutes` is now 35 (OD-12). A green CI run on the resulting pushed head is still required; the independent rubyzip security gate remains blocked.
 Rationale: main takes 16m24s, this branch 19m09s–19m29s; `flutter-ci.yml` already grants the same suite 40 min. 35 keeps the cap below Flutter CI's and gives ~15 min headroom. Do NOT add `--concurrency`/sharding in this PR (sharding is follow-up F1 in §10 — it changes the required-context names and therefore branch protection, which is owner-gated).
 
 Commit message (comment ≤ 2 lines rule applies to code only; this is a commit):
@@ -58,11 +58,7 @@ ci(flutter-stage): raise test job timeout 20→35 min — suite grew 8257→1053
 Steps:
 1. `cd /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile-worktrees/ux-api-errors && git fetch origin && git status --short` (must be empty, 0 behind).
 2. Edit line 55 as above. `git add .github/workflows/ci-flutter-stage.yml && git commit`.
-3. Reconciled (C1): PR #335 is SCOPE-FROZEN. The only commits still allowed on it are P12 Change A (id grammar + ratchet
-   repair, ~7 files), P11 (Diag close-reason + dev-only snack stretch, 4 files, C2 only if OD-16 is answered) and this
-   CI change — committed in that order and pushed as ONE batch. `git push origin ux/api-error-handling-empty-states`.
-   **Do not push anything else until the run finishes** (S5: a second push cancels it). Everything else (P05, P06, P07,
-   P13, P02-mobile, P03-mobile, P08 tooling, P12 Change B) is a follow-up PR off post-merge `main` (§10).
+3. SUPERSEDED by OD-0 `widen`: the scope freeze is void. Mobile follow-ups land as grouped commits on #335; the integration owner pushes one validated batch and lets its checks finish, because another push cancels in-flight CI. Post-deploy-only evidence still waits for the separately authorized deployment.
 4. `gh pr checks 335 --watch --required` — wait for all 5 required contexts. Expected: `Flutter stage / Test` ≈ 19–21 min, `CI ready` SUCCESS.
 5. Record the "Run tests" step duration from `gh api repos/olivium-dev/jeeb-mobile/actions/jobs/<test-job-id> --jq '.steps[] | select(.name=="Run tests")'` into the PR "Reviewer map" comment (§5).
 
@@ -185,6 +181,8 @@ Build numbers are date-coded `YYMMDDNN`, must exceed `26090403` (Android) and `2
 
 ## 9. Owner decisions (exact questions)
 
+> Answered since this historical questionnaire: OD-12 = 35 minutes, OD-13 = squash and keep branch, OD-14 = both stores the first day after merge. OD-15 is superseded by the wallet-independence rule and P15 train. Do not ask these old questions again; deployment, merge and upstream filing still require their designated owner actions.
+
 - **D1** Approve raising `ci-flutter-stage.yml` test job `timeout-minutes` 20 → 35 (one-line CI change on the PR) instead of sharding the suite now? (yes/no)
 - **D2** Merge method: squash + keep branch (recommended) or merge commit? (squash/merge)
 - **D3** Dispatch the internal RC + distribute workflows for the merge SHA on Play internal and TestFlight (§7.2)? (yes/no; if yes, which day → sets `26MMDDNN`)
@@ -193,7 +191,9 @@ Build numbers are date-coded `YYMMDDNN`, must exceed `26090403` (Android) and `2
 
 ---
 
-## 10. Post-merge follow-ups (separate PRs, not on #335)
+## 10. Follow-ups (landing amended by OD-0 widen)
+
+> F2/F3/F4 mobile work rides #335 in validated batches, not separate stacked PRs. Gateway changes remain separate; captured post-deploy evidence waits for its deployment. P01's route flip remains post-deploy/post-merge under v3, and sharding/branch-protection changes remain owner-gated.
 - F1 Shard the `Flutter stage / Test` job (`flutter test --total-shards 2 --shard-index N` matrix) and re-point branch protection at the aggregated `CI ready` only — reduces wall time to ~10 min; needs owner to edit required contexts.
 - F2 = **P05** (guardrail residuals). Reconciled: the `onboarding_funding_screen.dart:349` claim is stale — that rung already reads `fundingWalletLoadingHeadline` on the branch; the one remaining title-as-headline hit is `jeeber_feed_tab_view.dart:480`, plus 3 `showOmdsErrorSnackbar` and 4 lib-wide `Omds*State` sites (P05 §0).
 - F3 = **P07** (AR on device), **P08** (4xx/5xx/429/RFC 7807 via the shared fault proxy), **P09** (never-exercised surfaces), **P11** (F6 reconnect isolation), **P13** (unreachable-host copy), **P06** (greeting after failed read).
@@ -211,14 +211,7 @@ Build numbers are date-coded `YYMMDDNN`, must exceed `26090403` (Android) and `2
 
 ## Reconciled (2026-09-05 conflict review — see plans/CONFLICT-REVIEW.md)
 
-- Reconciled (C1) — **scope freeze of PR #335**: allowed commits = P12 Change A, P11 (C1 + C2 if OD-16 answered in
-  time, else C1 only), §2 CI timeout. One batched push (S5), one CI run, one §7.1 smoke for the resulting head SHA,
-  then `gh pr ready`. Rationale: R4 (every new head SHA needs a device re-smoke), the 20-min CI cap, and an 887-file
-  review that must not be a moving target. Owner confirmation is OD-0.
-- Reconciled (C1) — follow-up lanes after the squash merge (each a PR against `main`; branches may be developed stacked
-  on `ux/api-error-handling-empty-states` now and moved with `git rebase --onto origin/main ux/api-error-handling-empty-states <branch>`):
-  wave-2 mobile order P13 → P05 → P06 → P07 → P02-mobile → P03-mobile → P12-B (serialized because they all touch
-  `lib/l10n/**` and/or the identifier registry, C9/C10); P04 Part B and P08 tooling are independent of that order.
+- SUPERSEDED by OD-0 `widen`: mobile follow-ups ride #335 in validated batches, with the l10n/identifier serialization retained. The earlier three-commit restriction and stacked-branch requirement are void. Deployment-dependent work and device proof remain gated; the security audit is not bypassed.
 - Reconciled (C12): §7.1 smoke evidence goes to `scratchpad/device-evidence-4/p10-smoke/` (the root REPORT.md is not shared).
 - Reconciled (C14): §6 item 5 carried items map to P01 (a), P02 (b), P03 (c), P04 (d), P05 (e); the three gateway PRs get
   ONE combined MSI deploy + ONE staging dispatch (OD-3) — do not ask the owner for three.

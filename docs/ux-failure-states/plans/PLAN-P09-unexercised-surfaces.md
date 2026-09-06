@@ -1,11 +1,13 @@
 # PLAN P09 — exercise the never-exercised surfaces on the real device
 
+> Session helper note: `dump.sh` meant an adb UI-automator dump plus pull/identifier parsing; `shot.sh` meant an adb screenshot. Recreate these helpers locally or use the reviewed P08 tooling when it lands; they are not shipped with this historical plan.
+
 Branch `ux/api-error-handling-empty-states` @ `ecfd3cc1` (worktree
 `/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile-worktrees/ux-api-errors`, draft PR #335).
 Device SM-A336B `RZCT505K7WF`, app `app.jeeb.mobile.dev`, product activity
 `com.olivium.jeeb.MainActivity`, Dev Tool alias `com.olivium.jeeb.LegacyDevToolLauncher`.
 Live gateway `https://msi.olivium.space/gateway` (RFC 7807 producer, health 200 on 2026-09-05).
-Scratchpad `$SP` = `/private/tmp/claude-501/-Users-oudaykhaled-Desktop-olivium-jeeb/6a29e634-9ff5-4e5b-b358-a1a84368ab4f/scratchpad`.
+Scratchpad `$SP` = a local session scratch directory outside the repository.
 Probe evidence for every claim below: `$SP/p09-probe/` (minted sessions, per-account endpoint bodies, proxy test log).
 
 This plan changes NO repo file unless a defect is found (then: fix + identifier test on the same branch).

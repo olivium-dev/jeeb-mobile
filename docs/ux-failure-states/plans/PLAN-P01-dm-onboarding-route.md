@@ -1,5 +1,7 @@
 # PLAN P01-dm-onboarding-route — DM-onboarding submit route, end to end
 
+> **Superseded by [P01 v3](PLAN-P01-dm-onboarding-route.v3.md) (2026-09-06).** Historical design only; execute nothing below. The current plan implements the owner's form-builder → mobile renderer → gateway → user-preferences direction, including the review corrections to deployment and template ownership.
+
 Status: PLAN ONLY (no repo file changed). Author: Fable 5.1 planner, 2026-09-05.
 Repos: `olivium-dev/jeeb-gateway` (new branch off `origin/main`), `olivium-dev/jeeb-mobile`
 (commit on `ux/api-error-handling-empty-states` while PR #335 is unmerged, else a new branch off main).

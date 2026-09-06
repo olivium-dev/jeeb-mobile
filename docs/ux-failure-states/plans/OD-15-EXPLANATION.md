@@ -1,5 +1,7 @@
 # OD-15 — "Is there a breaking change, and which one is being used now?" (verified 2026-09-06)
 
+> **Updated 2026-09-06:** [PLAN-P15](PLAN-P15-wallet-independence.md) supersedes the landing recommendation below. There are two breaking hazards in the unmodified epic: the currency-default switch and startup rejection of inconsistent currency configuration outside Development/Testing. The planned mobile landing is one PR (M1), rewriting the historical single commit. P15 now retains active source wallets for compensation, requires the staging Partner currency pin, and defines the gateway dependency train. Live-state claims below remain the original dated snapshot, not a fresh deployment check.
+
 ## 1. What is running now
 **The main code is what is used everywhere today. The fee-guard branch ("the epic") is used nowhere — it was never merged and never deployed.**
 - Dev server (MSI): the gateway process runs from `jeeb-native-builds/20260904/jeeb-gateway-6679f6e` — that is exactly the tip of the gateway's `main` (4 Sep, PR #576).
@@ -17,10 +19,11 @@ Two branches called `epic/wallet-guard-fix`, written 24–25 Aug, containing the
 
 ## 3. Is there a breaking change?
 - **From choosing either option: no.** Re-baselining and merging are both ways of preparing code on a side branch. Nothing reaches a phone or a server until a PR is merged to main AND you dispatch a deploy. Neither option touches data, existing installs, or what testers see.
-- **From the epic itself, whenever it ships (same under both options): one true breaking item plus deliberate behaviour changes.**
+- **From the epic itself, whenever it ships (same under both options): two breaking hazards plus deliberate behaviour changes.**
   1. Breaking: currency default flips 1 → 2 (USD). Balances stored under currency 1 stop counting until the migration tool is run — it must run BEFORE that deploy (you already ruled "USD only, migrate the currency-1 test balances").
-  2. Intended changes users will notice: balance visibly drops while offers are open (holds); at most 20 open offers; if the wallet or fee lookup is down the offer is refused with "try again" instead of slipping through; a clear "withdrawn — not enough balance" notice replaces "offer lost".
-  3. Not breaking: no new API routes, no gateway database changes, fee collection stays OFF, and old app versions keep working against the new server (unknown new errors fall back to a generic message, no crash; new app against old server also falls back). No forced app update.
+  2. Breaking at startup: inconsistent Commission/Partner currency configuration can prevent boot in every non-Development/Testing environment. P15 therefore introduces a degraded health check before strict enforcement.
+  3. Intended changes users will notice: balance visibly drops while offers are open (holds); at most 20 open offers; if the wallet or fee lookup is down the offer is refused with "try again" instead of slipping through; a clear "withdrawn — not enough balance" notice replaces "offer lost".
+  4. Not breaking: no new API routes, no gateway database changes, fee collection stays OFF, and old app versions keep working against the new server (unknown new errors fall back to a generic message, no crash; new app against old server also falls back). No forced app update.
 
 ## 4. What each option means for you
 - **Re-baseline (`rebaseline`)**: cut a fresh branch from today's main and replay the epic onto it. Server: replay the 5 commits in order; 74 of the 90 files are untouched by main and 33 are brand-new files, so only 4 files need a human decision (take main's newer balance/push code, keep the epic's logic). App: after PR #335 lands, rewrite the single app commit on the new standard error path and re-add the 9 EN+AR strings. Cost: a developer redoes about a day of integration work. Benefit: the guard is built against the code that will actually ship, and main's newer wallet code is not fought with.
@@ -28,7 +31,7 @@ Two branches called `epic/wallet-guard-fix`, written 24–25 Aug, containing the
 - Either way the 6 September situation for users is identical: nothing changes until the follow-up PR is merged and deployed, and the currency migration remains a separate, owner-run step before that deploy.
 
 ## 5. My recommendation and why
-**Re-baseline (answer "yes" to OD-15).** It is not throwing the work away — it is replaying it onto today's code, and most of it replays untouched. The merge route preserves the branch's history at the price of hand-resolving stale wallet code in translation files, which is exactly where silent mistakes hide. Keep the currency flip + migration as its own gated deploy after the guard PR, so the one truly breaking step is done deliberately, on a day you choose.
+**Re-baseline (answer "yes" to OD-15).** It is not throwing the work away — it is replaying it onto today's code, and most of it replays untouched. The merge route preserves the branch's history at the price of hand-resolving stale wallet code in translation files, which is exactly where silent mistakes hide. The current P15 train replaces this earlier ordering: currency migration and explicit environment pins are a separate gated step before aggregate/holds activation, with source wallets retained and startup validation initially non-blocking.
 
 ## Evidence appendix (all read from `origin/*`, no checkouts changed)
 - MSI: `ssh msi-ec2-cloudflare 'readlink /proc/$(pgrep -x JeebGateway)/cwd'` → `/home/ec2-user/jeeb-native-builds/20260904/jeeb-gateway-6679f6e`; `systemctl list-units` → `jeeb-gateway.service running`. `git log -1 origin/main` (gateway) → `6679f6e` 2026-09-04.

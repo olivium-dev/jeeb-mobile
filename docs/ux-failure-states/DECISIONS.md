@@ -1,5 +1,7 @@
 # Owner decisions — recorded 2026-09-06 (from the decision-record artifact db, collection `decisions`)
 
+> Historical 06:54–07:05 UTC decision snapshot. Later owner clarifications are recorded in [P01 v3](plans/PLAN-P01-dm-onboarding-route.v3.md) (form builder defines the form; gateway stores answers in preferences) and [P15](plans/PLAN-P15-wallet-independence.md) (wallet independence without breaking sibling products). Their corrected plans supersede the pending OD-1/OD-15 wording below; this table is not a claim that those questions remain unanswered.
+
 | OD | Decision | Matches CTO recommendation |
 |---|---|---|
 | OD-0 | Let follow-ups ride #335 (`widen`) | No — recommended freeze |

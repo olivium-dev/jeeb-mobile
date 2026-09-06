@@ -128,9 +128,9 @@ Reconciled (C14): a worktree so P01/P02/P03 gateway branches build in parallel; 
 - PR to `main`; CI (`ci.yml`) must be green. **Deploy is owner-gated**: prepare only — PR link + the MSI native-build/`Deploy to Jeeb`
   recipe in memory `jeeb-chatfix-engagement-2026-09-04.md`; never dispatch it.
 
-## 5. Fix steps — MOBILE (`olivium-dev/jeeb-mobile`, new branch `ux/p03-create-request-validation` off `ux/api-error-handling-empty-states@ecfd3cc1`; stacked on PR #335 because it needs `ValidationFailure` + `showJeebErrorSnack`)
+## 5. Fix steps — MOBILE (`olivium-dev/jeeb-mobile`, one commit on PR #335 under OD-0 `widen`)
 
-Reconciled (C1): after #335 is squash-merged, `git rebase --onto origin/main ux/api-error-handling-empty-states ux/p03-create-request-validation` and open against `main`. Never push this work onto #335 itself.
+Superseded by OD-0 `widen`: no `ux/p03-create-request-validation` branch or rebase-onto step. The mobile M1–M6 change rides #335; `fix/p03-create-request-validation` is the separate GATEWAY branch.
 
 **M1 — new `lib/features/location/domain/compose_description_rules.dart`**
 - `const int kComposeDescriptionMinLength = 5; const int kComposeDescriptionMaxLength = 280;`
@@ -199,12 +199,12 @@ Blocked creates persist no row (`CreateModerationEvaluator` runs before insert) 
   `rocket/rounds`, the 4-char token floor and the negative-test list; anything else is an owner lexicon call, not code.
 - Live lexicon gaps are owner DATA (no alcohol item; "Live animals"/"Human remains" match only as phrases) — code cannot and should not invent them.
 - Gateway `ValidationProblemDetails` serialises `errors` with the field name as sent (`description`); mobile matches on that exact key.
-- Stacked branch: if #335 is rebased/squashed, rebase this branch on the new base before review.
+- No stacked mobile branch; integrate with #335 and rerun the affected tests before its squash merge.
 - `RequestSummaryScreen` door (`/request-summary`) will now see `errors.description` in `request_summary_submit_error`; it cannot edit the description — acceptable, note in PR.
 - Voice multipart surface stays unmoderated (2e) until its own ticket.
 
 ## 8. Dependencies
-- PR #335 merged (or this branch rebased onto its final base).
+- Phase A needs the #335 batch build; Phase B needs the separately authorized gateway deployment.
 - Owner-gated gateway deploy of the merged fix to MSI before Phase B; the CMS/admin lexicon remains owner data.
 
 ## 9. Owner decision (one)
