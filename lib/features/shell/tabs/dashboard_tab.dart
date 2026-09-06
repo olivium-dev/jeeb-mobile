@@ -13,6 +13,7 @@ import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../../../core/power/battery_optimization.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
@@ -144,6 +145,8 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) => GreetingProfileCubit(
             repository: _resolveGreetingRepository(),
             refreshSignals: _profileRefreshStream(),
+            reconnectSignals: NetworkReachabilitySignals.instance.stream,
+            resumeSignals: AppResumeSignals.instance.stream,
           )..load(),
         ),
       ],

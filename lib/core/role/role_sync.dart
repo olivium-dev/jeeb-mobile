@@ -6,6 +6,7 @@ import '../../features/customer_profile/data/dio_customer_profile_repository.dar
 import '../../features/customer_profile/domain/customer_profile_repository.dart';
 import '../di/injection_container.dart';
 import '../network/app_failure.dart';
+import '../network/app_failure_mapper.dart';
 import 'role_availability_cubit.dart';
 import 'role_cubit.dart';
 import 'user_role.dart';
@@ -69,7 +70,7 @@ class RoleSync {
   }
 
   AppFailure _classify(CustomerProfileFailure failure) => switch (failure) {
-        CustomerProfileFailure.network => const NetworkFailure(),
+        CustomerProfileFailure.network => networkFailureFromReachability(),
         CustomerProfileFailure.unauthorized => const UnauthorizedFailure(),
         CustomerProfileFailure.unknown => const UnknownFailure(),
       };

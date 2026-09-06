@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
@@ -64,8 +65,11 @@ class _StalledRepo implements OrderSummaryRepository {
 Widget _harnessWithCubit(
   OrderSummaryCubit Function(OrderSummaryRepository, String) factory, {
   Locale locale = const Locale('en'),
-}) =>
-    _harness(_Repo(summary: _kSummary), locale: locale, cubitFactory: factory);
+}) => _harness(
+  _Repo(summary: _kSummary),
+  locale: locale,
+  cubitFactory: factory,
+);
 
 Widget _harness(
   OrderSummaryRepository repo, {
@@ -107,13 +111,15 @@ BoxDecoration _paintedBox(WidgetTester tester, Finder of) {
 
 void main() {
   group('M3-05 · field + surface rungs (derived from R12)', () {
-    testWidgets('mounts the content field, still, at the topEnd default',
-        (WidgetTester tester) async {
+    testWidgets('mounts the content field, still, at the topEnd default', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
-      final JeebMidnightField field =
-          tester.widget<JeebMidnightField>(find.byType(JeebMidnightField));
+      final JeebMidnightField field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
       expect(field.variant, JeebFieldVariant.content);
       expect(field.animateDecor, isFalse);
       // R12 is a top-end bloom tile and declares no periwinkle wash.
@@ -121,13 +127,16 @@ void main() {
       expect(field.washPlacement, isNull);
     });
 
-    testWidgets('the ticket paints R12\'s xl slab at the strong glass rung',
-        (WidgetTester tester) async {
+    testWidgets('the ticket paints R12\'s xl slab at the strong glass rung', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
-      final BoxDecoration decoration =
-          _paintedBox(tester, find.byType(JeebOutlinedCard));
+      final BoxDecoration decoration = _paintedBox(
+        tester,
+        find.byType(JeebOutlinedCard),
+      );
       expect(
         decoration.borderRadius,
         BorderRadius.circular(JeebRadii.xl),
@@ -144,8 +153,9 @@ void main() {
   group('M3-05 · money emphasis', () {
     // The ramp carries the emphasis; the ink does NOT. A read-only recap spends
     // no accent (M3 ruling: `primary` on a non-CTA is a defect signature).
-    testWidgets('the price run is the 22/w800 token in onSurface ink',
-        (WidgetTester tester) async {
+    testWidgets('the price run is the 22/w800 token in onSurface ink', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
@@ -162,23 +172,26 @@ void main() {
       expect(price.style!.color, isNot(JeebMidnight.orange));
     });
 
-    testWidgets('the item value sits a rung BELOW the price, at R12\'s 14.5/700',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
-      await tester.pump();
+    testWidgets(
+      'the item value sits a rung BELOW the price, at R12\'s 14.5/700',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
+        await tester.pump();
 
-      final Text value = tester.widget<Text>(
-        find.descendant(
-          of: find.bySemanticsIdentifier('order_summary_item'),
-          matching: find.text('Pharmacy pickup'),
-        ),
-      );
-      expect(value.style!.fontSize, 14.5);
-      expect(value.style!.fontWeight, FontWeight.w700);
-    });
+        final Text value = tester.widget<Text>(
+          find.descendant(
+            of: find.bySemanticsIdentifier('order_summary_item'),
+            matching: find.text('Pharmacy pickup'),
+          ),
+        );
+        expect(value.style!.fontSize, 14.5);
+        expect(value.style!.fontWeight, FontWeight.w700);
+      },
+    );
 
-    testWidgets('the review count is parenthesised ONCE',
-        (WidgetTester tester) async {
+    testWidgets('the review count is parenthesised ONCE', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
@@ -188,8 +201,9 @@ void main() {
   });
 
   group('M3-05 · CTA treatment', () {
-    testWidgets('Track is the lone accent act and Open chat stays glass',
-        (WidgetTester tester) async {
+    testWidgets('Track is the lone accent act and Open chat stays glass', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
@@ -221,8 +235,9 @@ void main() {
       );
     });
 
-    testWidgets('the CTA pair is DOCKED — outside the scroll area',
-        (WidgetTester tester) async {
+    testWidgets('the CTA pair is DOCKED — outside the scroll area', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
@@ -234,61 +249,71 @@ void main() {
         findsNothing,
         reason: 'R12 docks its act below the scroll area.',
       );
-      final JeebCtaFooter footer =
-          tester.widget<JeebCtaFooter>(find.byType(JeebCtaFooter));
+      final JeebCtaFooter footer = tester.widget<JeebCtaFooter>(
+        find.byType(JeebCtaFooter),
+      );
       expect(footer.padding, JeebCtaFooter.docked);
       expect(footer.form, JeebCtaFooterForm.split);
     });
   });
 
   group('M3-05 · the empty / loading / error family', () {
-    testWidgets('cold read draws the parcel skeleton',
-        (WidgetTester tester) async {
+    testWidgets('cold read draws the parcel skeleton', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_StalledRepo()));
       await tester.pump();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.status, JeebEmptyStateStatus.loading);
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.identifier, 'order_summary_loading');
       expect(find.byType(JeebCtaFooter), findsNothing);
     });
 
-    testWidgets('a 404 is the ERROR rung with an EXIT, never an inert Retry',
-        (WidgetTester tester) async {
+    testWidgets('a 404 is the ERROR rung with an EXIT, never an inert Retry', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         _harness(_Repo(failure: OrderSummaryFailure.notFound)),
       );
       await tester.pump();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.effectiveStatus, JeebEmptyStateStatus.error);
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.identifier, 'order_summary_error');
-      expect(find.bySemanticsIdentifier('order_summary_retry_cta'),
-          findsNothing);
+      expect(
+        find.bySemanticsIdentifier('order_summary_retry_cta'),
+        findsNothing,
+      );
       // R6: an unrecoverable kind gets a way onward, never a dead block.
-      expect(find.bySemanticsIdentifier('order_summary_exit_cta'),
-          findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('order_summary_exit_cta'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('a loaded-but-absent summary still owns order_summary_empty',
-        (WidgetTester tester) async {
+    testWidgets('a loaded-but-absent summary still owns order_summary_empty', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         _harnessWithCubit(
-          (OrderSummaryRepository repo, String id) =>
-              OrderSummaryCubit(repository: repo, deliveryId: id)
-                ..emit(const OrderSummaryState(
-                  status: OrderSummaryStatus.loaded,
-                )),
+          (OrderSummaryRepository repo, String id) => OrderSummaryCubit(
+            repository: repo,
+            deliveryId: id,
+          )..emit(const OrderSummaryState(status: OrderSummaryStatus.loaded)),
         ),
       );
       await tester.pump();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.effectiveStatus, JeebEmptyStateStatus.empty);
       expect(state.identifier, 'order_summary_empty');
     });
@@ -298,12 +323,13 @@ void main() {
       await tester.pumpWidget(
         _harnessWithCubit(
           (OrderSummaryRepository repo, String id) =>
-              OrderSummaryCubit(repository: repo, deliveryId: id)
-                ..emit(const OrderSummaryState(
+              OrderSummaryCubit(repository: repo, deliveryId: id)..emit(
+                const OrderSummaryState(
                   status: OrderSummaryStatus.loaded,
                   summary: _kSummary,
                   refreshError: OrderSummaryFailure.network,
-                )),
+                ),
+              ),
         ),
       );
       await tester.pump();
@@ -328,20 +354,60 @@ void main() {
       );
     });
 
-    testWidgets('a transport failure is the ERROR rung and refetches on Retry',
-        (WidgetTester tester) async {
+    for (final locale in const [Locale('en'), Locale('ar')]) {
+      for (final online in [true, false]) {
+        testWidgets(
+          'network summary copy follows reachability $online · $locale',
+          (tester) async {
+            NetworkReachabilitySignals.instance.debugObserve(online: online);
+            addTearDown(NetworkReachabilitySignals.debugReset);
+            await tester.pumpWidget(
+              _harness(
+                _Repo(failure: OrderSummaryFailure.network),
+                locale: locale,
+              ),
+            );
+            await tester.pumpAndSettle();
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(OrderSummaryScreen)),
+            );
+            expect(
+              find.bySemanticsIdentifier('order_summary_error'),
+              findsOneWidget,
+            );
+            expect(
+              find.text(
+                online ? l10n.errorUnreachableBody : l10n.errorNetworkBody,
+              ),
+              findsOneWidget,
+            );
+            expect(
+              find.text(
+                online ? l10n.errorNetworkBody : l10n.errorUnreachableBody,
+              ),
+              findsNothing,
+            );
+          },
+        );
+      }
+    }
+
+    testWidgets('a transport failure is the ERROR rung and refetches on Retry', (
+      WidgetTester tester,
+    ) async {
       final _Repo repo = _Repo(failure: OrderSummaryFailure.network);
       await tester.pumpWidget(_harness(repo));
       await tester.pump();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.effectiveStatus, JeebEmptyStateStatus.error);
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.identifier, 'order_summary_error');
       expect(
         state.body,
-        'You appear to be offline. Check your connection and try again.',
+        "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
       );
 
       expect(repo.calls, 1);
@@ -354,8 +420,9 @@ void main() {
   });
 
   group('M3-05 · identifiers survive the restyle', () {
-    testWidgets('the root node does not swallow its children',
-        (WidgetTester tester) async {
+    testWidgets('the root node does not swallow its children', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
 
@@ -382,9 +449,11 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.bySemanticsIdentifier('order_summary_pinned'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('order_summary_pinned'),
+        findsOneWidget,
+      );
       expect(find.bySemanticsIdentifier('order_summary_track'), findsOneWidget);
     });
   });
 }
-

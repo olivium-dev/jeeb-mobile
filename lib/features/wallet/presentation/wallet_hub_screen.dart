@@ -84,10 +84,14 @@ class WalletHubScreen extends StatefulWidget {
     this.repository,
     this.kycStatusGate,
     this.walletRefreshSignals,
+    this.cubitFactory,
   });
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletRepository? repository;
+
+  /// Construction seam; this screen owns and closes the returned cubit.
+  final WalletHubCubit Function()? cubitFactory;
 
   /// KYC-status source for the pending banner (AC7). Defaults to the shared
   /// `sl<JeeberKycStatusGate>()` the integrator landed (JM-036) — the same gate
@@ -105,9 +109,10 @@ class WalletHubScreen extends StatefulWidget {
 
 class _WalletHubScreenState extends State<WalletHubScreen>
     with ResumeRefetchMixin {
-  late final WalletHubCubit _cubit = WalletHubCubit(
-    repository: widget.repository ?? sl<WalletRepository>(),
-  )..load();
+  late final WalletHubCubit _cubit = widget.cubitFactory != null
+      ? widget.cubitFactory!()
+      : (WalletHubCubit(repository: widget.repository ?? sl<WalletRepository>())
+          ..load());
   StreamSubscription<void>? _walletRefreshSub;
 
   @override

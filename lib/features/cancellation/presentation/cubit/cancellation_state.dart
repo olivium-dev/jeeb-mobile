@@ -6,6 +6,17 @@ import '../../domain/cancellation_result.dart';
 sealed class CancellationState extends Equatable {
   const CancellationState();
 
+  bool get isTerminalRefusal => switch (this) {
+    CancellationTooLate() => true,
+    CancellationError(
+      kind: CancellationFailure.notAParty ||
+          CancellationFailure.forbidden ||
+          CancellationFailure.tooLate,
+    ) =>
+      true,
+    _ => false,
+  };
+
   @override
   List<Object?> get props => [];
 }

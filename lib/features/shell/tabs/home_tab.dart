@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
@@ -73,6 +75,8 @@ class HomeTab extends StatelessWidget {
             repository: _resolveGreetingRepository(devSeed),
             seed: _greetingSeed(devSeed),
             refreshSignals: _profileRefreshStream(),
+            reconnectSignals: NetworkReachabilitySignals.instance.stream,
+            resumeSignals: AppResumeSignals.instance.stream,
           )..load(),
         ),
       ],

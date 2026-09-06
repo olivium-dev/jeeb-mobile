@@ -87,7 +87,7 @@ void main() {
       tester.element(find.byType(CancelRequestSheet)),
     );
     expect(find.text(l10n.loginNetworkError), findsNothing);
-    expect(find.text(l10n.errorNetworkBody), findsOneWidget);
+    expect(find.text(l10n.errorUnreachableBody), findsOneWidget);
   });
 
   testWidgets('a DI-less host says unavailable instead of fabricating a cancel',

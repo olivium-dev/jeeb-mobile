@@ -121,8 +121,8 @@ class ChatCubit extends Cubit<ChatState> {
        _outbox = currentUserId.isEmpty
            ? null
            : outbox is AccountScopedChatOutbox
-               ? (outbox as AccountScopedChatOutbox).forAccount(currentUserId)
-               : outbox,
+           ? (outbox as AccountScopedChatOutbox).forAccount(currentUserId)
+           : outbox,
        _currentUserId = currentUserId,
        _gateway = gateway,
        _pickerService = pickerService,
@@ -134,12 +134,14 @@ class ChatCubit extends Cubit<ChatState> {
        // outside the chat would have no delivery id to track until an in-chat
        // accept / PhaseChanged event — leaving the "Track order" CTA hidden on
        // an already-accepted order.
-       super(ChatState(
-         acceptedDeliveryId: (initialDeliveryId != null &&
-                 initialDeliveryId.isNotEmpty)
-             ? initialDeliveryId
-             : null,
-       )) {
+       super(
+         ChatState(
+           acceptedDeliveryId:
+               (initialDeliveryId != null && initialDeliveryId.isNotEmpty)
+               ? initialDeliveryId
+               : null,
+         ),
+       ) {
     // b02 polling→push: a chat push must DRIVE the open thread.
     //
     // Until this line the chat screen was the only live surface that took no
@@ -161,8 +163,9 @@ class ChatCubit extends Cubit<ChatState> {
     _refreshSubscription = refreshSignals?.listen((_) => _refreshFromPush());
     // OFF-04: an offline→online edge is the moment a queued send can win.
     _reconnectSubscription =
-        (reconnectSignals ?? NetworkReachabilitySignals.instance.stream)
-            .listen((_) => unawaited(_flushOutbox()));
+        (reconnectSignals ?? NetworkReachabilitySignals.instance.stream).listen(
+          (_) => unawaited(_flushOutbox()),
+        );
   }
 
   final String _deliveryId;
@@ -248,13 +251,15 @@ class ChatCubit extends Cubit<ChatState> {
     if (_loadInFlight) return;
     _loadInFlight = true;
     _lastPhaseError = null;
-    emit(state.copyWith(
-      isLoadingHistory: true,
-      clearError: true,
-      historyLoadFailed: false,
-      clearHistoryFailure: true,
-      clearRefreshFailure: true,
-    ));
+    emit(
+      state.copyWith(
+        isLoadingHistory: true,
+        clearError: true,
+        historyLoadFailed: false,
+        clearHistoryFailure: true,
+        clearRefreshFailure: true,
+      ),
+    );
     // Both reads still leave together — one round-trip of latency, not two —
     // but their FAILURES are no longer shared. `Future.wait` made a phase-read
     // fault indistinguishable from a history-read fault, and they have opposite
@@ -265,10 +270,13 @@ class ChatCubit extends Cubit<ChatState> {
     final historyFuture = _gateway.loadHistory(_deliveryId);
     final phaseFuture = _gateway
         .loadPhase(_deliveryId)
-        .then<ConversationPhase?>((p) => p, onError: (Object e) {
-          _lastPhaseError = e;
-          return null;
-        });
+        .then<ConversationPhase?>(
+          (p) => p,
+          onError: (Object e) {
+            _lastPhaseError = e;
+            return null;
+          },
+        );
     try {
       final history = await historyFuture;
       final phase = await phaseFuture;
@@ -325,14 +333,16 @@ class ChatCubit extends Cubit<ChatState> {
       // `messages: const []` is kept: this is the COLD path, there is nothing on
       // screen to preserve. The non-destructive rule that protects a rendered
       // thread lives in [refresh] / [_reconciledWithHistory].
-      emit(state.copyWith(
-        messages: const [],
-        phase: ConversationPhase.unknown,
-        isLoadingHistory: false,
-        historyLoadFailed: true,
-        error: ChatError.historyLoadFailed,
-        historyFailure: AppFailure.of(error),
-      ));
+      emit(
+        state.copyWith(
+          messages: const [],
+          phase: ConversationPhase.unknown,
+          isLoadingHistory: false,
+          historyLoadFailed: true,
+          error: ChatError.historyLoadFailed,
+          historyFailure: AppFailure.of(error),
+        ),
+      );
     } finally {
       _loadInFlight = false;
     }
@@ -534,10 +544,12 @@ class ChatCubit extends Cubit<ChatState> {
       // F35 — keep the thread, never raise the cold rung or `isLoadingHistory`,
       // but stop being silent about the failed re-read.
       if (isClosed) return;
-      emit(state.copyWith(
-        refreshFailure: AppFailure.of(error),
-        error: ChatError.refreshFailed,
-      ));
+      emit(
+        state.copyWith(
+          refreshFailure: AppFailure.of(error),
+          error: ChatError.refreshFailed,
+        ),
+      );
     }
   }
 
@@ -628,6 +640,7 @@ class ChatCubit extends Cubit<ChatState> {
     final unclaimedOwnEchoes = history
         .where((m) => m.isMine && !shownById.containsKey(m.id))
         .toList();
+
     /// Echo id → the shown bubble it absorbed. The absorbed bubble takes the
     /// echo's PLACE IN THE SERVER ARRAY rather than staying where the local send
     /// path put it; that position is the whole point of absorbing it.
@@ -636,8 +649,9 @@ class ChatCubit extends Cubit<ChatState> {
     for (final shown in state.messages) {
       if (serverIds.contains(shown.id)) continue;
       if (shown.isMine) {
-        final echoIndex = unclaimedOwnEchoes
-            .indexWhere((echo) => _isEchoOfOwnMessage(shown, echo));
+        final echoIndex = unclaimedOwnEchoes.indexWhere(
+          (echo) => _isEchoOfOwnMessage(shown, echo),
+        );
         if (echoIndex != -1) {
           final echo = unclaimedOwnEchoes.removeAt(echoIndex);
           absorbed[echo.id] = _adoptEcho(shown, echo);
@@ -798,7 +812,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   final Map<String, ({List<int> bytes, String mimeType, int durationMs})>
-      _pendingVoiceUploads = {};
+  _pendingVoiceUploads = {};
 
   Future<void> _dispatchVoiceNote({
     required DeliveryChatMessage draft,
@@ -889,10 +903,12 @@ class ChatCubit extends Cubit<ChatState> {
       compressed = await _compressor.compress(raw.bytes);
       if (_closing || isClosed) return;
       if (compressed.length > _maxAttachmentBytes) {
-        emit(state.copyWith(
-          isAttaching: false,
-          error: ChatError.attachmentUploadFailed,
-        ));
+        emit(
+          state.copyWith(
+            isAttaching: false,
+            error: ChatError.attachmentUploadFailed,
+          ),
+        );
         return;
       }
       // Optimistic LOCAL-BYTES bubble: the sender sees their own photo
@@ -905,12 +921,7 @@ class ChatCubit extends Cubit<ChatState> {
         bytes: compressed,
         source: raw.source,
       );
-      emit(
-        state.copyWith(
-          messages: _appended(draft),
-          isAttaching: false,
-        ),
-      );
+      emit(state.copyWith(messages: _appended(draft), isAttaching: false));
     } on PhotoPickException catch (e) {
       if (_closing || isClosed) return;
       emit(
@@ -983,11 +994,13 @@ class ChatCubit extends Cubit<ChatState> {
   /// no bytes yet, NEWEST FIRST, and swap them onto the bubble.
   void _resolveImageBytes() {
     final pending = state.messages
-        .where((m) =>
-            m.kind == MessageKind.image &&
-            m.photoBytes == null &&
-            (m.imageUrl ?? '').isNotEmpty &&
-            !_resolvingImageRefs.contains(m.imageUrl))
+        .where(
+          (m) =>
+              m.kind == MessageKind.image &&
+              m.photoBytes == null &&
+              (m.imageUrl ?? '').isNotEmpty &&
+              !_resolvingImageRefs.contains(m.imageUrl),
+        )
         .toList(growable: false)
         .reversed
         .take(_maxResolvedImages)
@@ -1002,7 +1015,8 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> _fetchImageInto(String messageId, String objectRef) async {
     try {
       final bytes = await _gateway.fetchImageBytes(objectRef);
-      if (isClosed || bytes.isEmpty) return;
+      if (isClosed) return;
+      if (bytes.isEmpty) throw StateError('Image response contained no bytes');
       final current = state.messages.firstWhere(
         (m) => m.id == messageId,
         orElse: () => _missing,
@@ -1020,6 +1034,7 @@ class ChatCubit extends Cubit<ChatState> {
           bytes: bytes,
         ),
       );
+      _resolvingImageRefs.remove(objectRef);
     } catch (_) {
       // F36 — the poll tick this used to wait for was deleted in N4, so a bare
       // placeholder was permanent. Mark it so the bubble can offer a reload.
@@ -1043,10 +1058,29 @@ class ChatCubit extends Cubit<ChatState> {
     if (current.id != messageId) return;
     final String ref = current.imageUrl ?? '';
     if (ref.isEmpty) return;
-    _replaceMessage(messageId, current.copyWith(imageLoadFailed: false));
     if (_resolvingImageRefs.contains(ref)) return;
+    _replaceMessage(
+      messageId,
+      current.copyWith(imageLoadFailed: false, photoBytes: Uint8List(0)),
+    );
     _resolvingImageRefs.add(ref);
     await _fetchImageInto(messageId, ref);
+  }
+
+  /// An HTTP read is not a decode: the bubble reports the exact bytes it tried
+  /// so a stale decode cannot poison a newer successful retry.
+  void imageDecodeFailed(String messageId, Uint8List? attemptedBytes) {
+    if (isClosed) return;
+    final current = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => _missing,
+    );
+    if (current.id != messageId ||
+        !identical(current.photoBytes, attemptedBytes)) {
+      return;
+    }
+    _resolvingImageRefs.remove(current.imageUrl);
+    _replaceMessage(messageId, current.copyWith(imageLoadFailed: true));
   }
 
   /// "Not found" sentinel for a `firstWhere` lookup — never rendered, never
@@ -1143,9 +1177,12 @@ class ChatCubit extends Cubit<ChatState> {
     } else if (message.kind == MessageKind.voice &&
         (message.voiceUrl ?? '').isEmpty) {
       _updateMessage(messageId, MessageStatus.failed);
-      if (userInitiated) emit(state.copyWith(error: ChatError.voiceUploadFailed));
+      if (userInitiated) {
+        emit(state.copyWith(error: ChatError.voiceUploadFailed));
+      }
       return;
-    } else if (message.kind == MessageKind.photo && message.photoBytes != null) {
+    } else if (message.kind == MessageKind.photo &&
+        message.photoBytes != null) {
       await _uploadAndDispatchImage(draft: draft, bytes: message.photoBytes!);
     } else {
       await _dispatch(draft, userInitiated: userInitiated);
@@ -1205,12 +1242,14 @@ class ChatCubit extends Cubit<ChatState> {
           ),
     ];
     if (restored.isNotEmpty) {
-      emit(state.copyWith(
-        messages: _ordered(<DeliveryChatMessage>[
-          ...state.messages,
-          ...restored,
-        ]),
-      ));
+      emit(
+        state.copyWith(
+          messages: _ordered(<DeliveryChatMessage>[
+            ...state.messages,
+            ...restored,
+          ]),
+        ),
+      );
     }
     await _syncOutboxPending();
     return queued;
@@ -1521,9 +1560,9 @@ class ChatCubit extends Cubit<ChatState> {
         out.add(m);
         continue;
       }
-      out.add(m.copyWith(
-        sentAt: ceiling.subtract(_anchorStep * (undated - placed)),
-      ));
+      out.add(
+        m.copyWith(sentAt: ceiling.subtract(_anchorStep * (undated - placed))),
+      );
       placed++;
     }
     return out;
@@ -1551,11 +1590,11 @@ class ChatCubit extends Cubit<ChatState> {
   /// path last rebuilt the list. One ordering rule for every path, and the local
   /// clock is not part of it.
   List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) => _ordered([
-        ...state.messages,
-        draft.anchoredAt(
-          _anchorAfter(state.messages, draft, _projectedServerNow(draft)),
-        ),
-      ]);
+    ...state.messages,
+    draft.anchoredAt(
+      _anchorAfter(state.messages, draft, _projectedServerNow(draft)),
+    ),
+  ]);
 
   /// The ordering anchor for a message composed right now: WHERE THE SERVER'S
   /// CLOCK WAS WHEN THE USER PRESSED SEND ([_projectedServerNow]), raised to a
@@ -1676,13 +1715,12 @@ class ChatCubit extends Cubit<ChatState> {
   static DeliveryChatMessage _adoptEcho(
     DeliveryChatMessage shown,
     DeliveryChatMessage echo,
-  ) =>
-      echo.copyWith(
-        status: _statusOrder[shown.status]! >= _statusOrder[echo.status]!
-            ? shown.status
-            : echo.status,
-        photoBytes: echo.photoBytes ?? shown.photoBytes,
-      );
+  ) => echo.copyWith(
+    status: _statusOrder[shown.status]! >= _statusOrder[echo.status]!
+        ? shown.status
+        : echo.status,
+    photoBytes: echo.photoBytes ?? shown.photoBytes,
+  );
 
   String _nextId({String prefix = 'msg'}) {
     final suffix = _currentUserId.isEmpty

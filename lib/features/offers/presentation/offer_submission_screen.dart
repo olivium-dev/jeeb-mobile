@@ -13,6 +13,7 @@ import '../../../core/idempotency/operation_id.dart';
 import '../../../core/jeeb_commission.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
@@ -351,7 +352,7 @@ class _OfferComposerState extends State<_OfferComposer>
     final carried = state.failure;
     if (carried != null) return carried;
     return switch (state.errorReason) {
-      OfferSubmissionFailure.network => const NetworkFailure(),
+      OfferSubmissionFailure.network => networkFailureFromReachability(),
       OfferSubmissionFailure.server => const ServerFailure(status: 500),
       OfferSubmissionFailure.invalidInput => const ValidationFailure(),
       _ => const UnknownFailure(),
@@ -482,6 +483,8 @@ class _OfferComposerState extends State<_OfferComposer>
             height: JeebCtaButton.primaryHeightTall,
             isEnabled:
                 !_insufficientForEnteredPrice &&
+                state.mode != OfferFormMode.requestGone &&
+                state.errorReason != OfferSubmissionFailure.sameRoleViolation &&
                 state.mode != OfferFormMode.duplicate,
             isLoading: state.isSubmitting,
             onTap: () => _onSendTapped(context),
@@ -624,7 +627,8 @@ class _OfferComposerState extends State<_OfferComposer>
         ),
       );
     }
-    if (state.mode != OfferFormMode.error ||
+    if ((state.mode != OfferFormMode.error &&
+         state.mode != OfferFormMode.requestGone) ||
         _isFieldRejection(state.errorReason)) {
       return const SizedBox.shrink();
     }
@@ -639,7 +643,15 @@ class _OfferComposerState extends State<_OfferComposer>
         liveRegion: true,
         child: JeebInfoNote.error(
           icon: Icons.error_outline,
-          text: _errorNoteText(context, l10n, state),
+          text: state.mode == OfferFormMode.requestGone
+              ? l10n.requestGone
+              : _errorNoteText(context, l10n, state),
+          linkLabel: state.errorReason == OfferSubmissionFailure.sameRoleViolation
+              ? AppLocalizations.of(context).actionBack : null,
+          onLink: state.errorReason == OfferSubmissionFailure.sameRoleViolation
+              ? widget.onWithdrawn : null,
+          linkIdentifier: state.errorReason == OfferSubmissionFailure.sameRoleViolation
+              ? 'offer_composer_terminal_exit_cta' : null,
           identifier: 'offer_composer_error_note',
         ),
       ),
@@ -769,6 +781,9 @@ class _OfferComposerState extends State<_OfferComposer>
   ) async {
     if (_insufficientShown) return;
     _insufficientShown = true;
+    // A 402 can race an external wallet mutation. Refresh the context behind
+    // the server-owned shortfall sheet rather than leaving an obsolete amount.
+    unawaited(_loadWallet());
 
     // UX-15: only the server's own figures. A local reserve substituted for a
     // missing one would render a fabricated zero shortfall.

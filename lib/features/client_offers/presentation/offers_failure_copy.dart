@@ -1,4 +1,5 @@
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/offers_repository.dart';
@@ -16,7 +17,10 @@ String offersFailureCopy(
 }) {
   switch (failure) {
     case OffersFailure.network:
-      return l10n.offersErrorNetwork;
+      return failureCopy(
+        l10n,
+        appFailure ?? networkFailureFromReachability(),
+      ).body;
     case OffersFailure.requestNotOpen:
       return l10n.offersErrorRequestNotOpen;
     case OffersFailure.requestExpired:

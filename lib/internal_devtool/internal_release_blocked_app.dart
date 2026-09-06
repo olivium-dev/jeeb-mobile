@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
+import '../core/widgets/jeeb/jeeb_empty_state.dart';
 
 import '../core/theme/app_theme.dart';
 
@@ -18,12 +18,15 @@ class InternalReleaseBlockedApp extends StatelessWidget {
     themeMode: ThemeMode.dark,
     home: const Scaffold(
       body: SafeArea(
-        child: OmdsErrorState(
-          title: 'Internal build blocked',
-          message:
+        child: JeebEmptyState(
+          identifier: 'internal_release_blocked_error',
+          status: JeebEmptyStateStatus.error,
+          reason: JeebEmptyStateReason.failed,
+          variant: JeebEmptyStateVariant.parcel,
+          headline: 'Internal build blocked',
+          body:
               "This build's signed internal-release policy does not match "
               'the staging contract.',
-          icon: Icons.lock_outline,
         ),
       ),
     ),

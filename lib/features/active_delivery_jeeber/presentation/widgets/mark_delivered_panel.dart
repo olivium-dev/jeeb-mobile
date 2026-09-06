@@ -3,10 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/network/app_failure_mapper.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -195,7 +197,10 @@ class _DoorOtpEntryState extends State<_DoorOtpEntry> {
         l10n.otpHandoverAttemptsRemaining(remaining),
       ActiveDeliveryFailure.invalidOtp => l10n.errorInvalidCode,
       ActiveDeliveryFailure.notFound => l10n.errorNotFoundBody,
-      ActiveDeliveryFailure.network => l10n.errorNetworkBody,
+      ActiveDeliveryFailure.network => failureCopy(
+        l10n,
+        networkFailureFromReachability(),
+      ).body,
       _ => l10n.errorGenericBody,
     };
   }

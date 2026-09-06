@@ -1270,6 +1270,23 @@ void main() {
   });
 
   group('the screen-level rungs carry the identifier triple (WP-3)', () {
+    for (final locale in <Locale>[const Locale('en'), const Locale('ar')]) {
+      testWidgets('unreachable home has honest copy and Retry · ${locale.languageCode}', (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(_harness(repo: const _UnreachableClientHome(), locale: locale));
+          await tester.pumpAndSettle();
+          final l10n = AppLocalizations.of(tester.element(find.byType(ClientHomeScreen)));
+          expect(find.bySemanticsIdentifier('client_home_error'), findsOneWidget);
+          expect(find.bySemanticsIdentifier('client_home_retry_cta'), findsOneWidget);
+          expect(tester.getSemantics(find.bySemanticsIdentifier('client_home_error_body')).label, l10n.errorUnreachableBody);
+          expect(find.text(l10n.errorNetworkBody), findsNothing);
+          expect(find.bySemanticsIdentifier('offline_banner'), findsNothing);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
     testWidgets('loading → client_home_loading', (tester) async {
       final _StalledClientHome repo = _StalledClientHome();
       await tester.pumpWidget(_harness(repo: repo));
@@ -1364,6 +1381,14 @@ void main() {
       handle.dispose();
     });
   });
+}
+
+class _UnreachableClientHome implements ClientHomeRepository {
+  const _UnreachableClientHome();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw const NetworkFailure(reason: NetworkFailureReason.hostLookup);
 }
 
 /// The requests read is dead; in-progress loaded empty. Empty-shaped, but a

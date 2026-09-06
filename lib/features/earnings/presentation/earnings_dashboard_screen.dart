@@ -262,7 +262,7 @@ class _EmptyEarnings extends StatelessWidget {
             action: JeebCtaButton.outline(
               label: copy.emptyRefresh,
               expand: false,
-              identifier: 'earnings_empty_refresh_cta',
+              identifier: 'earnings_empty_retry_cta',
               onTap: cubit.refresh,
             ),
           ),

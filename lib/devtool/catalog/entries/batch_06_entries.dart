@@ -15,6 +15,7 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
 
 import '../fixtures/live_tracking_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 
 import 'package:jeeb_mobile/features/location/data/fake_address_form_repository.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart'
@@ -161,19 +162,19 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
     ),
     CatalogState(
       'Warm — refresh failed over a live snapshot',
-      (_) => _liveTrackingPreview(
+      (_) => catalogTrackingFailure(_liveTrackingPreview(
         LiveTrackingScreenWarmFailingRepository(
           LiveTrackingScreenFixtures.inTransitInfo,
         ),
-      ),
+      )),
     ),
     CatalogState(
       'Warm — position lost, the map goes stale',
-      (_) => _liveTrackingPreview(
+      (_) => catalogTrackingFailure(_liveTrackingPreview(
         const LiveTrackingScreenSilentPositionRepository(
           LiveTrackingScreenFixtures.inTransitInfo,
         ),
-      ),
+      ), positionLost: true),
     ),
     CatalogState(
       'Error — position stream refused (auth)',
@@ -351,6 +352,27 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
         userId: ClientLocationScreenFixtures.userId,
         repository: ClientLocationScreenFixtures.savedAddressesPending,
         currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+      ),
+    ),
+    // Seeded presentation, not a submitted gateway response or device proof.
+    CatalogState(
+      'description_too_short',
+      (_) => const ClientLocationScreen(
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+        initialDescription: 'Milk 2L',
+        initialDescriptionFailure: ClientLocationScreenFixtures.validationTooShort,
+      ),
+    ),
+    CatalogState(
+      'moderation_blocked',
+      (_) => const ClientLocationScreen(
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+        initialDescription: 'Deliver firearms',
+        initialDescriptionFailure: ClientLocationScreenFixtures.moderationBlocked,
       ),
     ),
   ],

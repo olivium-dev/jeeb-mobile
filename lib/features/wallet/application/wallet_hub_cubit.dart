@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/wallet_repository.dart';
 import 'wallet_hub_state.dart';
 
@@ -78,7 +79,7 @@ AppFailure classifyWalletFailure(Object error) {
   if (error is WalletRepositoryException) {
     return error.cause ??
         switch (error.failure) {
-          WalletFailure.network => const NetworkFailure(),
+          WalletFailure.network => networkFailureFromReachability(),
           WalletFailure.unauthorized => const UnauthorizedFailure(),
           WalletFailure.unknown => const UnknownFailure(),
         };

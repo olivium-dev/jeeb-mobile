@@ -14,6 +14,7 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -27,7 +28,7 @@ import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../application/delivery_receipt_cubit.dart';
 import '../application/delivery_receipt_state.dart';
 import '../data/dio_delivery_receipt_repository.dart';
-import '../data/fake_delivery_receipt_repository.dart';
+import '../data/unavailable_delivery_receipt_repository.dart';
 import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
 import 'widgets/proof_photo_hero.dart';
@@ -89,19 +90,15 @@ class DeliveryReceiptScreen extends StatelessWidget {
   DeliveryReceiptRepository _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
-    // Prefer the DI-bound interface once the integrator registers it
-    // (50_ROUTE_REQUESTS.md). Until then, construct the Dio impl over the
-    // shared Dio so the running app reaches the real mock (:4010) — `sl<Dio>()`
-    // is registered at boot. A DI-less widget/router test (no GetIt configured)
-    // falls back to the in-memory fake so mount-and-find stays green without a
-    // network/keystore — mirrors ClientOffersScreen's Fake fallback.
+    // Production must resolve real wiring. Tests/previews supply their local
+    // repository explicitly; missing DI cannot manufacture a cash receipt.
     if (sl.isRegistered<DeliveryReceiptRepository>()) {
       return sl<DeliveryReceiptRepository>();
     }
     if (sl.isRegistered<Dio>()) {
       return DioDeliveryReceiptRepository(sl<Dio>());
     }
-    return FakeDeliveryReceiptRepository();
+    return UnavailableDeliveryReceiptRepository();
   }
 
   CdnAssetGateway? _resolveCdnAssetGateway() {
@@ -116,10 +113,9 @@ class DeliveryReceiptScreen extends StatelessWidget {
     final repo = _resolveRepository();
     final cdn = _resolveCdnAssetGateway();
     return BlocProvider<DeliveryReceiptCubit>(
-      create: (_) => DeliveryReceiptCubit(
-        repository: repo,
-        deliveryId: deliveryId,
-      )..load(),
+      create: (_) =>
+          DeliveryReceiptCubit(repository: repo, deliveryId: deliveryId)
+            ..load(),
       child: _DeliveryReceiptView(cdnAssetGateway: cdn),
     );
   }
@@ -271,9 +267,7 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
   static String _errorCopy(
     AppLocalizations l10n,
     DeliveryReceiptFailure? failure,
-  ) =>
-      receiptErrorCopy(l10n, failure);
-
+  ) => receiptErrorCopy(l10n, failure);
 }
 
 /// The non-loaded states, on the one Midnight pattern family (study-notes
@@ -363,11 +357,11 @@ class _LoadedBody extends StatelessWidget {
                   zoomCtaText: l10n.receiptProofZoomCta,
                   onZoom: proofPhotoUrl != null
                       ? () => showProofPhotoViewer(
-                            context,
-                            url: proofPhotoUrl,
-                            closeLabel: l10n.receiptProofViewerCloseLabel,
-                            unavailableText: l10n.receiptProofUnavailable,
-                          )
+                          context,
+                          url: proofPhotoUrl,
+                          closeLabel: l10n.receiptProofViewerCloseLabel,
+                          unavailableText: l10n.receiptProofUnavailable,
+                        )
                       : null,
                   onZoomBytes: (bytes) => showProofPhotoViewer(
                     context,
@@ -381,8 +375,7 @@ class _LoadedBody extends StatelessWidget {
                   JeebRefreshFailedNote(
                     failure: receiptFailureOf(state.refreshError),
                     identifier: 'receipt_refresh_failed',
-                    messageOverride:
-                        receiptErrorCopy(l10n, state.refreshError),
+                    messageOverride: receiptErrorCopy(l10n, state.refreshError),
                     onDismiss: () => context
                         .read<DeliveryReceiptCubit>()
                         .acknowledgeRefreshError(),
@@ -435,8 +428,9 @@ class _LoadedBody extends StatelessWidget {
                   label: l10n.receiptConfirmCta,
                   onTap: confirming
                       ? null
-                      : () =>
-                          context.read<DeliveryReceiptCubit>().confirmReceipt(),
+                      : () => context
+                            .read<DeliveryReceiptCubit>()
+                            .confirmReceipt(),
                   child: ExcludeSemantics(
                     // The tile draws this act orange (`tpl 847`) — the one
                     // sanctioned accent CTA on the screen.
@@ -536,7 +530,9 @@ class _CashStatement extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final mutedText =
-        (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight()).mutedText;
+        (Theme.of(context).extension<JeebSemanticColors>() ??
+                JeebSemanticColors.midnight())
+            .mutedText;
     final roles = context.jeebRoles;
 
     // Cash is the gross order amount paid in person; the Jeeber name degrades
@@ -595,8 +591,9 @@ class _CashStatement extends StatelessWidget {
                   const SizedBox(height: Sizes.threeXSmall),
                   Text(
                     l10n.receiptCashNote,
-                    style: context.jeebText.bodySmall
-                        .copyWith(color: mutedText),
+                    style: context.jeebText.bodySmall.copyWith(
+                      color: mutedText,
+                    ),
                   ),
                 ],
               ),
@@ -647,7 +644,7 @@ class _CashStatement extends StatelessWidget {
 /// The copy-family failure a [DeliveryReceiptFailure] renders as.
 AppFailure receiptFailureOf(DeliveryReceiptFailure? failure) =>
     switch (failure) {
-      DeliveryReceiptFailure.network => const NetworkFailure(),
+      DeliveryReceiptFailure.network => networkFailureFromReachability(),
       DeliveryReceiptFailure.notFound => const NotFoundFailure(),
       DeliveryReceiptFailure.forbidden => const ForbiddenFailure(),
       DeliveryReceiptFailure.transitionNotAllowed => const ConflictFailure(),

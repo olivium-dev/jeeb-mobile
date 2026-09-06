@@ -10,14 +10,17 @@ import '../../../features/notifications/presentation/notifications_list_screen.d
 import '../../../features/offer_kyc_gate/presentation/delivery_register_prompt_screen.dart';
 import '../../../features/offer_kyc_gate/presentation/offer_kyc_gate_screen.dart';
 import '../../../features/offers/presentation/offer_submission_screen.dart';
+import '../../../features/offers/domain/offer_submission_repository.dart';
 import '../../../features/offline_mode/application/offline_cubit.dart';
 import '../../../features/offline_mode/presentation/offline_banner.dart';
 import '../catalog_models.dart';
+import '../../../features/notification_prefs/application/notification_prefs_cubit.dart';
 import '../fixtures/delivery_register_prompt_screen_fixtures.dart';
 import '../fixtures/notification_prefs_screen_fixtures.dart';
 import '../fixtures/notifications_list_screen_fixtures.dart';
 import '../fixtures/offer_kyc_gate_screen_fixtures.dart';
 import '../fixtures/offer_submission_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 
 Widget _notifPrefsScreen(NotificationPrefsRepository repository) =>
     notificationPrefsScreenSeeded(
@@ -55,13 +58,15 @@ Widget _offerComposerSubmitting() => OfferSubmissionScreen(
 
 /// One rung per gateway refusal, already settled before the first frame.
 Widget _offerComposerFailed(ScriptedOfferSubmissionRepository repository) =>
-    OfferSubmissionScreen(
+    catalogSubmitOffer(OfferSubmissionScreen(
       requestId: OfferSubmissionScreenPreviewFixtures.validationRequestId,
       submissionService: const Object(),
       onWithdrawn: OfferSubmissionScreenPreviewFixtures.noop,
-      walletRepository: OfferSubmissionScreenPreviewFixtures.walletRepository,
-      cubit: OfferSubmissionScreenPreviewFixtures.failedCubit(repository),
-    );
+      walletRepository: repository.failure == OfferSubmissionFailure.insufficientBalance
+          ? OfferSubmissionFailureWalletRepository()
+          : OfferSubmissionScreenPreviewFixtures.walletRepository,
+      repository: CatalogObservedOfferRepository(repository),
+    ), repository.failure!);
 
 Widget _offerComposerValidationErrors() => OfferSubmissionScreen(
       requestId: OfferSubmissionScreenPreviewFixtures.validationRequestId,
@@ -131,15 +136,16 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
             ),
           ),
           CatalogState(
-            'Unauthorized — sign-in exit',
+            'Unauthorized — safe back exit',
             (_) => _notifPrefsScreen(
               NotificationPreferencesScreenThrowingRepository.unauthorized,
             ),
           ),
           CatalogState(
             'Save failed — the toggle reverts, snack carries Retry',
-            (_) => _notifPrefsScreen(
-              const NotificationPreferencesScreenSaveFailingRepository(),
+            (_) => BlocProvider<NotificationPrefsCubit>(
+              create: (_) => NotificationPreferencesScreenSaveFailureCubit(),
+              child: const NotificationPrefsScreen(),
             ),
           ),
         ],
@@ -180,15 +186,15 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
           ),
           CatalogState(
             'Mark-read failed — the flip rolls back (NOTIF-03)',
-            (_) => _notificationsScreen(
+            (_) => catalogNotificationFailure(_notificationsScreen(
               NotificationsListScreenPreviewFixtures.markReadFailure(),
-            ),
+            )),
           ),
           CatalogState(
             'Ref-less rows — every tap says it cannot open (NOTIF-04)',
-            (_) => _notificationsScreen(
+            (_) => catalogNotificationFailure(_notificationsScreen(
               NotificationsListScreenPreviewFixtures.refLessInbox(),
-            ),
+            ), refLess: true),
           ),
           CatalogState(
             'Error — unauthorized (sign-in exit)',

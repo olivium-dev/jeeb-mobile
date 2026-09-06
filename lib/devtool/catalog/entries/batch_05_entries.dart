@@ -15,11 +15,11 @@ import '../../../features/jeeber_request_feed/presentation/request_feed_screen.d
 import '../../../features/kyc/application/kyc_wizard_cubit.dart';
 import '../../../features/kyc/domain/kyc_gateway.dart';
 import '../../../features/kyc/domain/kyc_submission.dart';
-import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
 import '../../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import '../../../core/network/app_failure.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/kyc_rejected_screen_fixtures.dart';
 import '../fixtures/kyc_wizard_screen_fixtures.dart';
 import '../fixtures/jeeber_pending_offers_screen_fixtures.dart';
@@ -147,23 +147,23 @@ final CatalogEntry _pendingOffersEntry = CatalogEntry(
     ),
     CatalogState(
       'Error — withdraw failed',
-      (_) => const JeeberPendingOffersScreen(
+      (_) => catalogWithdrawFailure(const JeeberPendingOffersScreen(
         jeeberId: jeeberPendingOffersScreenJeeberId,
         repository: WithdrawFailingSubmittedOffersRepository(
           JeeberPendingOffersScreenOffers.awaitingDecision,
           NetworkFailure(),
         ),
-      ),
+      )),
     ),
     CatalogState(
       'Refresh failed — stale rows stay up',
-      (_) => JeeberPendingOffersScreen(
+      (_) => catalogPendingRefresh(JeeberPendingOffersScreen(
         jeeberId: jeeberPendingOffersScreenJeeberId,
-        cubit: refreshFailedSubmittedOffersCubit(
+        repository: ReadThenFailSubmittedOffersRepository(
           JeeberPendingOffersScreenOffers.awaitingDecision,
           const NetworkFailure(),
         ),
-      ),
+      )),
     ),
   ],
 );
@@ -532,14 +532,12 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
 
 /// Hydrates the wizard through the real `loadStatus()` over a scripted gateway.
 Widget _kycWizardOverGateway(KycGateway gateway, {int reads = 1}) {
-  final KycWizardCubit cubit = KycWizardCubit(
-    pickerService: StubPhotoPickerService(),
-    gateway: gateway,
-  );
+  final KycWizardCubit cubit = KycWizardScreenCatalogCubit(gateway);
   unawaited(
     Future<void>(() async {
-      for (int i = 0; i < reads; i++) {
-        await cubit.loadStatus();
+      await cubit.loadStatus();
+      for (int i = 1; i < reads && !cubit.isClosed; i++) {
+        await cubit.refreshStatus();
       }
     }),
   );

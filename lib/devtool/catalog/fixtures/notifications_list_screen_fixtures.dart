@@ -63,7 +63,11 @@ class NotificationsListScreenFailingRepository
   Future<List<NotificationItem>> fetchNotifications() async {
     throw NotificationsRepositoryException.classified(
       failure,
-      appFailure: appFailure ?? const UnknownFailure(),
+      appFailure: appFailure ?? switch (failure) {
+        NotificationsFailure.network => const NetworkFailure(),
+        NotificationsFailure.unauthorized => const UnauthorizedFailure(),
+        NotificationsFailure.unknown => const UnknownFailure(),
+      },
     );
   }
 
@@ -151,7 +155,7 @@ class NotificationsListScreenPreviewFixtures {
 
   // ────────────────────────────── the casts ───────────────────────────────
 
-  /// Catalog "Populated": three rows spanning three D84 dispatch classes, one
+  /// Catalog "Populated": five rows spanning five D84 dispatch classes, one
   /// of them already read.
   static List<NotificationItem> get inbox => <NotificationItem>[
     row(
@@ -176,6 +180,21 @@ class NotificationsListScreenPreviewFixtures {
       title: 'Low wallet balance',
       body: 'Top up to keep bidding on requests',
       age: const Duration(days: 3),
+    ),
+    row(
+      id: 'n-chat',
+      kind: NotificationKind.chat,
+      title: 'New message',
+      body: 'Your Jeeber sent a message about your request.',
+      age: const Duration(days: 4),
+      ref: 'request-chat-preview',
+    ),
+    row(
+      id: 'n-availability',
+      kind: NotificationKind.availability,
+      title: 'Availability updated',
+      body: 'Open your home to check your availability.',
+      age: const Duration(days: 5),
     ),
   ];
 

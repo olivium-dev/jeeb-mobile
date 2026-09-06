@@ -70,9 +70,31 @@ class ClientLocationScreenModerationSubmissionService
       );
 }
 
+class ClientLocationScreenValidationSubmissionService
+    implements RequestSubmissionService {
+  const ClientLocationScreenValidationSubmissionService();
+
+  @override
+  Future<String> submit(RequestDraft draft) async =>
+      throw ClientLocationScreenFixtures.validationTooShort;
+}
+
 /// The designed states of `ClientLocationScreen`, as (repository, resolver)
 class ClientLocationScreenFixtures {
   const ClientLocationScreenFixtures._();
+
+  static const validationTooShort = RequestSubmissionException.classified(
+    RequestSubmissionFailure.invalidInput,
+    appFailure: ValidationFailure(
+      field: 'description',
+      fieldErrors: <String, List<String>>{'description': <String>['too-short']},
+    ),
+  );
+
+  static const moderationBlocked = RequestModerationRequired(
+    blocked: true,
+    matches: <String>['Firearms'],
+  );
 
   /// Owning user id. Injected so the screen never reaches for [AuthTokenStore]
   static const String userId = 'preview-user-001';

@@ -124,7 +124,11 @@ class OfferFormCubit extends Cubit<OfferFormState> {
     String? idempotencyKey,
   }) async {
     // A double-tap on the docked CTA would otherwise post the offer twice.
-    if (state.isSubmitting) return;
+    if (state.isSubmitting ||
+        state.mode == OfferFormMode.requestGone ||
+        state.errorReason == OfferSubmissionFailure.sameRoleViolation) {
+      return;
+    }
 
     final priceErr = _validatePrice(priceUsd);
     final etaErr = _validateEta(etaMinutes);
@@ -285,6 +289,9 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   }
 
   void acknowledgeError() {
+    // Changing a draft cannot change ownership of the addressed request.
+    // Keep this refusal latched until the request-scoped composer is closed.
+    if (state.errorReason == OfferSubmissionFailure.sameRoleViolation) return;
     if (state.mode == OfferFormMode.error ||
         state.mode == OfferFormMode.duplicate) {
       emit(

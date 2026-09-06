@@ -683,6 +683,7 @@ class _UploadFailureActions extends StatelessWidget {
     final Widget discard = JeebCtaButton.outline(
       key: VoiceRecordingKeys.discardButton,
       label: l10n.voiceRecordingRecordAgain,
+      wrapLabel: true,
       onTap: () => cubit.discardClip(),
       expand: true,
     );
@@ -697,6 +698,7 @@ class _UploadFailureActions extends StatelessWidget {
             child: JeebCtaButton.primary(
               key: VoiceRecordingKeys.retryUploadButton,
               label: l10n.voiceRecordingRetryUploadSubmit,
+              wrapLabel: true,
               onTap: () => cubit.send(),
               expand: true,
             ),

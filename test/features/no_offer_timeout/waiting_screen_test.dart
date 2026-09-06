@@ -405,7 +405,7 @@ void main() {
       expect(find.bySemanticsIdentifier('waiting_countdown'), findsNothing);
     });
 
-    testWidgets('T5.5 — a network failure keeps the generic connection copy', (
+    testWidgets('T5.5 — unknown transport uses unreachable copy', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -419,7 +419,7 @@ void main() {
       // The body now comes from the shared copy family, which is the only
       // branch allowed to blame the connection.
       expect(
-        find.text('Check your connection and try again.'),
+        find.text("Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again."),
         findsOneWidget,
       );
     });

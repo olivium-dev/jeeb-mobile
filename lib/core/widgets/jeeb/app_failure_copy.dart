@@ -10,14 +10,14 @@ typedef FailureCopy = ({
   bool retryable,
 });
 
-/// THE copy family for [AppFailure]: only Network/Timeout blame the user's
-/// connection, and no branch leaks "server"/"gateway"/parse vocabulary.
+/// Only offline network failures and timeouts may blame connectivity.
+/// An unreachable host does not prove the device has no connection.
 FailureCopy failureCopy(AppLocalizations l10n, AppFailure failure) {
   switch (failure) {
-    case NetworkFailure():
+    case NetworkFailure(:final bool offline):
       return (
-        title: l10n.errorNetworkTitle,
-        body: l10n.errorNetworkBody,
+        title: offline ? l10n.errorNetworkTitle : l10n.errorUnreachableTitle,
+        body: offline ? l10n.errorNetworkBody : l10n.errorUnreachableBody,
         action: l10n.actionRetry,
         retryable: true,
       );

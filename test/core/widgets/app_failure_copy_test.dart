@@ -15,6 +15,9 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 const List<AppFailure> _kAllFailures = <AppFailure>[
   NetworkFailure(offline: true),
   NetworkFailure(),
+  NetworkFailure(reason: NetworkFailureReason.hostLookup),
+  NetworkFailure(reason: NetworkFailureReason.refused),
+  NetworkFailure(offline: true, reason: NetworkFailureReason.hostLookup),
   TimeoutFailure(phase: DioExceptionType.connectionTimeout),
   TimeoutFailure(phase: DioExceptionType.sendTimeout),
   TimeoutFailure(phase: DioExceptionType.receiveTimeout),
@@ -39,7 +42,7 @@ const List<AppFailure> _kAllFailures = <AppFailure>[
 
 /// The two kinds whose copy is allowed to talk about the user's connection.
 bool _blamesConnectivity(AppFailure f) =>
-    f is NetworkFailure || f is TimeoutFailure;
+    f is TimeoutFailure || (f is NetworkFailure && f.offline);
 
 /// Words that name our own plumbing. A user has no server and no gateway.
 const List<String> _kBannedEn = <String>[
@@ -53,6 +56,10 @@ const List<String> _kBannedEn = <String>[
   'http',
   '500',
   '503',
+  'dns',
+  'lookup',
+  'resolve',
+  'host',
 ];
 
 /// The Arabic equivalents of the same leak.
@@ -100,13 +107,15 @@ void main() {
 
   group('failureCopy · only transport failures blame the connection', () {
     for (final AppFailure failure in _kAllFailures) {
+      if (failure is NetworkFailure && !failure.offline) continue;
       test('${failure.runtimeType} · en', () {
         final String body = failureCopy(en, failure).body.toLowerCase();
         final bool mentions = _kConnectivityEn.any(body.contains);
         expect(
           mentions,
           _blamesConnectivity(failure) ? isTrue : isFalse,
-          reason: 'A ${failure.runtimeType} that tells the user to check '
+          reason:
+              'A ${failure.runtimeType} that tells the user to check '
               'their connection sends them to fix something that is not '
               'broken (the client_location honesty rule): "$body"',
         );
@@ -115,9 +124,38 @@ void main() {
       test('${failure.runtimeType} · ar', () {
         final String body = failureCopy(ar, failure).body;
         final bool mentions = _kConnectivityAr.any(body.contains);
-        expect(mentions, _blamesConnectivity(failure) ? isTrue : isFalse,
-            reason: 'AR body: "$body"');
+        expect(
+          mentions,
+          _blamesConnectivity(failure) ? isTrue : isFalse,
+          reason: 'AR body: "$body"',
+        );
       });
+    }
+  });
+
+  group('failureCopy · unreachable is distinct from device offline', () {
+    for (final l10n in <AppLocalizations>[en, ar]) {
+      for (final reason in NetworkFailureReason.values) {
+        test('${l10n.locale.languageCode} · ${reason.name}', () {
+          final unreachable = failureCopy(l10n, NetworkFailure(reason: reason));
+          expect(unreachable.title, l10n.errorUnreachableTitle);
+          expect(unreachable.body, l10n.errorUnreachableBody);
+          expect(unreachable.title, isNot(l10n.errorNetworkTitle));
+          expect(unreachable.body, isNot(l10n.errorNetworkBody));
+          expect(
+            unreachable.body.toLowerCase(),
+            isNot(contains('check your connection')),
+          );
+          expect(unreachable.body, isNot(contains('تحقّق من اتصالك')));
+          expect(unreachable.retryable, isTrue);
+          final offline = failureCopy(
+            l10n,
+            NetworkFailure(offline: true, reason: reason),
+          );
+          expect(offline.title, l10n.errorNetworkTitle);
+          expect(offline.body, l10n.errorNetworkBody);
+        });
+      }
     }
   });
 
@@ -148,22 +186,27 @@ void main() {
   });
 
   group('failureCopy · retryable matches what the CTA can achieve', () {
-    test('auth retry policy and copy agree for every flag combination EN/AR', () {
-      for (final l10n in [en, ar]) {
-        for (final recovering in [false, true]) {
-          for (final storeUnavailable in [false, true]) {
-            final failure = UnauthorizedFailure(
-              recovering: recovering,
-              storeUnavailable: storeUnavailable,
-            );
-            final copy = failureCopy(l10n, failure);
-            expect(failure.isRetryable, copy.retryable);
-            expect(copy.action,
-                recovering ? l10n.actionRetry : l10n.actionSignIn);
+    test(
+      'auth retry policy and copy agree for every flag combination EN/AR',
+      () {
+        for (final l10n in [en, ar]) {
+          for (final recovering in [false, true]) {
+            for (final storeUnavailable in [false, true]) {
+              final failure = UnauthorizedFailure(
+                recovering: recovering,
+                storeUnavailable: storeUnavailable,
+              );
+              final copy = failureCopy(l10n, failure);
+              expect(failure.isRetryable, copy.retryable);
+              expect(
+                copy.action,
+                recovering ? l10n.actionRetry : l10n.actionSignIn,
+              );
+            }
           }
         }
-      }
-    });
+      },
+    );
 
     test('unrecoverable kinds are never marked retryable', () {
       for (final AppFailure failure in <AppFailure>[
@@ -175,7 +218,8 @@ void main() {
         expect(
           failureCopy(en, failure).retryable,
           isFalse,
-          reason: '${failure.runtimeType} would render a Retry the user '
+          reason:
+              '${failure.runtimeType} would render a Retry the user '
               'can never win',
         );
       }
@@ -190,19 +234,22 @@ void main() {
       );
     });
 
-    test('transport, server, conflict, validation and unknown are retryable', () {
-      for (final AppFailure failure in <AppFailure>[
-        const NetworkFailure(),
-        const TimeoutFailure(phase: DioExceptionType.receiveTimeout),
-        const ServerFailure(status: 500),
-        const ConflictFailure(),
-        const ValidationFailure(),
-        const RateLimitedFailure(),
-        const UnknownFailure(),
-      ]) {
-        expect(failureCopy(en, failure).retryable, isTrue);
-      }
-    });
+    test(
+      'transport, server, conflict, validation and unknown are retryable',
+      () {
+        for (final AppFailure failure in <AppFailure>[
+          const NetworkFailure(),
+          const TimeoutFailure(phase: DioExceptionType.receiveTimeout),
+          const ServerFailure(status: 500),
+          const ConflictFailure(),
+          const ValidationFailure(),
+          const RateLimitedFailure(),
+          const UnknownFailure(),
+        ]) {
+          expect(failureCopy(en, failure).retryable, isTrue);
+        }
+      },
+    );
   });
 
   group('failureCopy · the branches that must differ', () {
@@ -254,7 +301,10 @@ void main() {
     });
 
     test('an expired session offers sign-in, a 403 offers a way back', () {
-      expect(failureCopy(en, const UnauthorizedFailure()).action, en.actionSignIn);
+      expect(
+        failureCopy(en, const UnauthorizedFailure()).action,
+        en.actionSignIn,
+      );
       expect(failureCopy(en, const ForbiddenFailure()).action, en.actionBack);
       expect(failureCopy(en, const GoneFailure()).action, en.actionBack);
     });

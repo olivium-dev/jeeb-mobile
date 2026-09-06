@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../dev_flags.dart';
+import '../../diagnostics/diag.dart';
 import '../../network/app_failure.dart';
 import '../../network/network_reachability_signals.dart';
 import '../../theme/jeeb_color_roles.dart';
@@ -14,6 +16,14 @@ const Duration kJeebSnackDuration = Duration(seconds: 4);
 
 /// Long enough to read the line and reach Retry; still bounded (F6).
 const Duration kJeebSnackActionDuration = Duration(seconds: 8);
+
+/// Development proof builds may stretch the lifetime; product defaults stay put.
+Duration get jeebSnackActionDuration =>
+    kDevAffordancesAllowed && kDevSnackActionMsOverride > 0
+    ? const Duration(milliseconds: kDevSnackActionMsOverride)
+    : kJeebSnackActionDuration;
+
+final Expando<_SnackLifetime> _currentSnacks = Expando<_SnackLifetime>();
 
 /// The ONE transient failure surface: replaces `showOmdsErrorSnackbar` (2.79:1,
 /// an AA failure) with the errorContainer pair, and is the only one with Retry.
@@ -110,7 +120,19 @@ void _show(
   final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
   final TextStyle? base = Theme.of(context).snackBarTheme.contentTextStyle;
   final bool hasAction = actionLabel != null && onAction != null;
-  messenger.hideCurrentSnackBar();
+  final Duration life =
+      duration ?? (hasAction ? jeebSnackActionDuration : kJeebSnackDuration);
+  _currentSnacks[messenger]?.cancel();
+  messenger.clearSnackBars();
+  final lifetime = _SnackLifetime(messenger, clearOnReconnect, () {
+    Diag.event('snack_shown', <String, Object?>{
+      'identifier': identifier,
+      'hasAction': hasAction,
+      'clearOnReconnect': clearOnReconnect,
+      'durationMs': life.inMilliseconds,
+    });
+  });
+  _currentSnacks[messenger] = lifetime;
   final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller =
       messenger.showSnackBar(
         SnackBar(
@@ -118,16 +140,17 @@ void _show(
           // Flutter derives `persist` from `action != null`, and a persisting
           // snack is never timed out at all (scaffold.dart 617-624).
           persist: false,
-          duration:
-              duration ??
-              (hasAction ? kJeebSnackActionDuration : kJeebSnackDuration),
-          content: Semantics(
-            identifier: identifier,
-            liveRegion: true,
-            container: true,
-            child: Text(
-              text,
-              style: (base ?? const TextStyle()).copyWith(color: ink),
+          duration: life,
+          content: _SnackContent(
+            lifetime: lifetime,
+            child: Semantics(
+              identifier: identifier,
+              liveRegion: true,
+              container: true,
+              child: Text(
+                text,
+                style: (base ?? const TextStyle()).copyWith(color: ink),
+              ),
             ),
           ),
           action: !hasAction
@@ -138,24 +161,107 @@ void _show(
                   key: Key('${identifier}_retry_cta'),
                   label: actionLabel,
                   textColor: ink,
-                  onPressed: onAction,
+                  onPressed: () {
+                    lifetime.cancel();
+                    onAction();
+                  },
                 ),
         ),
       );
-  if (!clearOnReconnect) return;
-  bool settled = false;
-  late final StreamSubscription<void> reconnected;
-  reconnected = NetworkReachabilitySignals.instance.stream.listen((void _) {
-    if (settled) return;
-    settled = true;
-    // `controller.close()` and not `hideCurrentSnackBar()`: a later snack must
-    // survive the reconnect that retires this one.
-    controller.close();
-  });
+  lifetime.controller = controller;
   unawaited(
-    controller.closed.whenComplete(() {
-      settled = true;
-      unawaited(reconnected.cancel());
+    controller.closed.then((SnackBarClosedReason reason) {
+      lifetime.cancel();
+      final shownAt = lifetime.shownAt;
+      if (shownAt == null) return;
+      Diag.event('snack_closed', <String, Object?>{
+        'identifier': identifier,
+        'reason': lifetime.retiredByReconnect ? 'reconnect' : reason.name,
+        'elapsedMs': DateTime.now().difference(shownAt).inMilliseconds,
+      });
     }),
   );
+}
+
+class _SnackLifetime {
+  _SnackLifetime(this.messenger, this.clearOnReconnect, this.onShown);
+
+  final ScaffoldMessengerState messenger;
+  final bool clearOnReconnect;
+  final VoidCallback onShown;
+  DateTime? shownAt;
+  late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason>
+  controller;
+  StreamSubscription<void>? _reconnected;
+  Animation<double>? _animation;
+  int _mounts = 0;
+  bool _cancelled = false;
+  bool retiredByReconnect = false;
+
+  void attach(Animation<double>? animation) {
+    _mounts++;
+    _animation = animation;
+    if (shownAt == null) {
+      shownAt = DateTime.now();
+      onShown();
+    }
+    if (_cancelled || !clearOnReconnect || _reconnected != null) return;
+    _reconnected = NetworkReachabilitySignals.instance.stream.listen((void _) {
+      if (_cancelled || !messenger.mounted) return;
+      final status = _animation?.status;
+      // An exit already in flight keeps its original timeout/action/hide cause.
+      if (status == AnimationStatus.reverse ||
+          status == AnimationStatus.dismissed) {
+        cancel();
+        return;
+      }
+      retiredByReconnect = true;
+      cancel();
+      controller.close();
+    });
+  }
+
+  void detach() {
+    if (--_mounts == 0) cancel();
+  }
+
+  void cancel() {
+    _cancelled = true;
+    unawaited(_reconnected?.cancel());
+    _reconnected = null;
+    if (identical(_currentSnacks[messenger], this)) {
+      _currentSnacks[messenger] = null;
+    }
+  }
+}
+
+// A messenger can disappear without completing controller.closed.
+// Tie its reconnect subscription to the displayed content as well.
+class _SnackContent extends StatefulWidget {
+  const _SnackContent({required this.lifetime, required this.child});
+
+  final _SnackLifetime lifetime;
+  final Widget child;
+
+  @override
+  State<_SnackContent> createState() => _SnackContentState();
+}
+
+class _SnackContentState extends State<_SnackContent> {
+  @override
+  void initState() {
+    super.initState();
+    widget.lifetime.attach(
+      context.findAncestorWidgetOfExactType<SnackBar>()?.animation,
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.lifetime.detach();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

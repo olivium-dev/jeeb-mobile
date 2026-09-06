@@ -187,8 +187,8 @@ class AppLocalizations {
   String get scenarioUsersMakeOnlineReady =>
       _get('scenarioUsersMakeOnlineReady');
   String get scenarioUsersRoster => _get('scenarioUsersRoster');
-  String get scenarioUsersRetry => _get('scenarioUsersRetry');
   String get scenarioUsersEmpty => _get('scenarioUsersEmpty');
+  String get scenarioUsersRosterLoadingHeadline => _get('scenarioUsersRosterLoadingHeadline');
 
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
@@ -877,6 +877,10 @@ class AppLocalizations {
   String get composeDescriptionHint => _get('composeDescriptionHint');
   String get composeDescriptionHelper => _get('composeDescriptionHelper');
   String get composeDescriptionRequired => _get('composeDescriptionRequired');
+  String get composeDescriptionTooShort => _get('composeDescriptionTooShort');
+  String get composeDescriptionTooLong => _get('composeDescriptionTooLong');
+  String composeDescriptionProhibited(String items) =>
+      _get('composeDescriptionProhibited').replaceAll('{items}', items);
   String get composeDescriptionMicSemantic =>
       _get('composeDescriptionMicSemantic');
 
@@ -3358,6 +3362,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get errorNetworkBody => _get('errorNetworkBody');
   String get errorTimeoutTitle => _get('errorTimeoutTitle');
   String get errorTimeoutBody => _get('errorTimeoutBody');
+  String get errorUnreachableTitle => _get('errorUnreachableTitle');
+  String get errorUnreachableBody => _get('errorUnreachableBody');
   String get errorServerTitle => _get('errorServerTitle');
   String get errorServerBody => _get('errorServerBody');
   String get errorServiceUnavailableBody => _get('errorServiceUnavailableBody');
@@ -3412,6 +3418,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveriesLoadError => _get('activeDeliveriesLoadError');
   String get availabilityDutyOffTitle => _get('availabilityDutyOffTitle');
   String get availabilityDutyOffSubtitle => _get('availabilityDutyOffSubtitle');
+  String get jeeberFeedDutyOffEmptyHeadline => _get('jeeberFeedDutyOffEmptyHeadline');
+  String get jeeberFeedDutyOffEmptyBody => _get('jeeberFeedDutyOffEmptyBody');
   String get availabilityNotRegisteredTitle => _get('availabilityNotRegisteredTitle');
   String get availabilityNotRegisteredBody => _get('availabilityNotRegisteredBody');
   String get availabilityErrorForbidden => _get('availabilityErrorForbidden');
@@ -3703,6 +3711,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get notificationsCategoryLabelDispute => _get('notificationsCategoryLabelDispute');
   String get notificationsCategoryLabelSupport => _get('notificationsCategoryLabelSupport');
   String get notificationsCategoryLabelUnknown => _get('notificationsCategoryLabelUnknown');
+  String get notificationsCategoryLabelChat => _get('notificationsCategoryLabelChat');
+  String get notificationsCategoryLabelAvailability => _get('notificationsCategoryLabelAvailability');
   String get notificationsUnreadLabel => _get('notificationsUnreadLabel');
   String get notificationsNewRequestFallbackTitle => _get('notificationsNewRequestFallbackTitle');
   String get notificationsNewRequestFallbackBody => _get('notificationsNewRequestFallbackBody');

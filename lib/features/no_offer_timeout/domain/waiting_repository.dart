@@ -1,4 +1,5 @@
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import 'waiting_request.dart';
 
 enum WaitingFailure {
@@ -35,7 +36,7 @@ class WaitingException implements Exception {
   AppFailure get appFailure =>
       classifiedFailure ??
       switch (failure) {
-        WaitingFailure.network => const NetworkFailure(),
+        WaitingFailure.network => networkFailureFromReachability(),
         WaitingFailure.notFound => NotFoundFailure(cause: this),
         WaitingFailure.contractViolation =>
           UnknownFailure(cause: this, parse: true),

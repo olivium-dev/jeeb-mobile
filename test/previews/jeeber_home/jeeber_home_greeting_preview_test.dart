@@ -12,6 +12,9 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
   'Landed nameless · fallback greeting': jeeberHomeGreetingResolvedNameless,
   'Landed named': jeeberHomeGreetingNamed,
   'No ambient cubit · fallback greeting': jeeberHomeGreetingNoCubit,
+  'getMe failed · network · retry': jeeberHomeGreetingFailedNetwork,
+  'getMe failed · session expired · no retry':
+      jeeberHomeGreetingFailedSessionExpired,
 };
 
 Finder _loadingId() =>
@@ -28,6 +31,8 @@ void main() {
       'Landed nameless · fallback greeting': 'Welcome back',
       'Landed named': 'Ahlan, Karim',
       'No ambient cubit · fallback greeting': 'Welcome back',
+      'getMe failed · network · retry': "Couldn't load your profile",
+      'getMe failed · session expired · no retry': "Couldn't load your profile",
     },
   );
 
@@ -43,10 +48,14 @@ void main() {
 
     for (final MapEntry<String, Widget Function()> landed
         in <String, Widget Function()>{
-      'Landed nameless · fallback greeting': jeeberHomeGreetingResolvedNameless,
-      'Landed named': jeeberHomeGreetingNamed,
-      'No ambient cubit · fallback greeting': jeeberHomeGreetingNoCubit,
-    }.entries) {
+          'Landed nameless · fallback greeting':
+              jeeberHomeGreetingResolvedNameless,
+          'Landed named': jeeberHomeGreetingNamed,
+          'No ambient cubit · fallback greeting': jeeberHomeGreetingNoCubit,
+          'getMe failed · network · retry': jeeberHomeGreetingFailedNetwork,
+          'getMe failed · session expired · no retry':
+              jeeberHomeGreetingFailedSessionExpired,
+        }.entries) {
       testWidgets('${landed.key} carries no loading tag', (
         WidgetTester tester,
       ) async {
@@ -54,5 +63,23 @@ void main() {
         expect(_loadingId(), findsNothing);
       });
     }
+  });
+
+  testWidgets('the failed network preview has a retry cta', (tester) async {
+    await pumpPreview(tester, jeeberHomeGreetingFailedNetwork);
+    expect(
+      find.bySemanticsIdentifier('jeeber_home_greeting_retry_cta'),
+      findsOneWidget,
+    );
+    expect(find.text('Welcome back'), findsNothing);
+  });
+
+  testWidgets('the session-expired preview has no retry', (tester) async {
+    await pumpPreview(tester, jeeberHomeGreetingFailedSessionExpired);
+    expect(
+      find.bySemanticsIdentifier('jeeber_home_greeting_retry_cta'),
+      findsNothing,
+    );
+    expect(find.text('Welcome back'), findsNothing);
   });
 }

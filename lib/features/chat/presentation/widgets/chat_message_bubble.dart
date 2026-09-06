@@ -48,6 +48,7 @@ class ChatMessageBubble extends StatelessWidget {
     this.clustered = false,
     this.onRetry,
     this.onImageRetry,
+    this.onImageFailure,
   });
 
   final DeliveryChatMessage message;
@@ -58,6 +59,7 @@ class ChatMessageBubble extends StatelessWidget {
 
   /// Re-fetches the bytes of an image whose read failed.
   final VoidCallback? onImageRetry;
+  final VoidCallback? onImageFailure;
 
   /// True when the previous row is a message from the SAME author, in which
   /// case the rows tighten into one visual block. This is how the board's
@@ -103,6 +105,7 @@ class ChatMessageBubble extends StatelessWidget {
         return _ImageBubble(
           message: message,
           onRetry: onRetry,
+          onImageFailure: onImageFailure,
           onImageRetry: onImageRetry,
         );
       case MessageKind.voice:
@@ -129,7 +132,8 @@ class ChatMessageBubble extends StatelessWidget {
   DeliveryChatMessage message,
   VoidCallback? onRetry,
 ) {
-  if (onRetry == null || !message.isMine ||
+  if (onRetry == null ||
+      !message.isMine ||
       message.status != MessageStatus.failed) {
     return (onTap: null, identifier: null, semanticLabel: null);
   }
@@ -141,9 +145,8 @@ class ChatMessageBubble extends StatelessWidget {
 }
 
 /// Which side of the thread [message] belongs to.
-JeebChatBubbleSide _sideOf(DeliveryChatMessage message) => message.isMine
-    ? JeebChatBubbleSide.outgoing
-    : JeebChatBubbleSide.incoming;
+JeebChatBubbleSide _sideOf(DeliveryChatMessage message) =>
+    message.isMine ? JeebChatBubbleSide.outgoing : JeebChatBubbleSide.incoming;
 
 /// The formatted clock for [message], or null when the server never dated it.
 ///
@@ -208,7 +211,9 @@ JeebChatStatus? _statusOf(BuildContext context, DeliveryChatMessage message) {
 
 String _authorLabel(BuildContext context, DeliveryChatMessage message) {
   final l10n = AppLocalizations.of(context);
-  return message.isMine ? l10n.chatAuthorSelf : l10n.chatPlaceholderCounterpartName;
+  return message.isMine
+      ? l10n.chatAuthorSelf
+      : l10n.chatPlaceholderCounterpartName;
 }
 
 String _formatDuration(int ms) {
@@ -281,11 +286,17 @@ class _PhotoBubble extends StatelessWidget {
 }
 
 class _ImageBubble extends StatelessWidget {
-  const _ImageBubble({required this.message, this.onRetry, this.onImageRetry});
+  const _ImageBubble({
+    required this.message,
+    this.onRetry,
+    this.onImageRetry,
+    this.onImageFailure,
+  });
 
   final DeliveryChatMessage message;
   final VoidCallback? onRetry;
   final VoidCallback? onImageRetry;
+  final VoidCallback? onImageFailure;
 
   @override
   Widget build(BuildContext context) {
@@ -302,7 +313,25 @@ class _ImageBubble extends StatelessWidget {
         onTap: retry.onTap,
         identifier: retry.identifier,
         semanticLabel: retry.semanticLabel,
-        child: message.text.isEmpty ? null : AutoDirectionText(message.text),
+        child: message.imageLoadFailed
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (message.text.isNotEmpty) AutoDirectionText(message.text),
+                  Semantics(
+                    identifier: 'chat_detail_image_retry',
+                    child: TextButton.icon(
+                      onPressed: onImageRetry,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l10n.chatImageRetry),
+                    ),
+                  ),
+                ],
+              )
+            : message.text.isEmpty
+            ? null
+            : AutoDirectionText(message.text),
       ),
     );
   }
@@ -318,13 +347,14 @@ class _ImageBubble extends StatelessWidget {
   /// ABSOLUTE http(s) value (a legacy/external image) is passed through.
   /// Null falls through to the kit's placeholder tile.
   Widget? _imageContent(BuildContext context, DeliveryChatMessage message) {
+    if (message.imageLoadFailed) return const _TilePlaceholder();
     final Uint8List? bytes = message.photoBytes;
     if (bytes != null && bytes.isNotEmpty) {
       return Image.memory(
         bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,
-        errorBuilder: (_, _, _) => _placeholder(context),
+        errorBuilder: (_, _, _) => _decodeError(context),
       );
     }
     final String url = message.imageUrl ?? '';
@@ -332,26 +362,19 @@ class _ImageBubble extends StatelessWidget {
       return OmdsCachedImage(
         url: url,
         fit: BoxFit.cover,
-        errorWidget: (_, _, _) => _placeholder(context),
+        errorWidget: (_, _, _) => _decodeError(context),
       );
     }
-    return message.imageLoadFailed ? _placeholder(context) : null;
+    return null;
   }
 
   /// F36: a tile whose bytes could not be read gets a way back instead of a
   /// permanent placeholder.
-  Widget _placeholder(BuildContext context) {
-    final VoidCallback? retryImage = onImageRetry;
-    if (!message.imageLoadFailed || retryImage == null) {
-      return const _TilePlaceholder();
-    }
-    return Semantics(
-      identifier: 'chat_detail_image_retry',
-      button: true,
-      container: true,
-      label: AppLocalizations.of(context).chatImageRetry,
-      child: InkWell(onTap: retryImage, child: const _TilePlaceholder()),
-    );
+  Widget _decodeError(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) onImageFailure?.call();
+    });
+    return const _TilePlaceholder();
   }
 }
 
@@ -386,7 +409,10 @@ class _VoiceBubble extends StatelessWidget {
     final int durationSecs = ((message.voiceDurationMs ?? 0) / 1000).round();
     final String? transcription = message.voiceTranscription;
     return Semantics(
-      label: l10n.chatVoiceNoteA11y(_authorLabel(context, message), durationSecs),
+      label: l10n.chatVoiceNoteA11y(
+        _authorLabel(context, message),
+        durationSecs,
+      ),
       child: JeebChatBubble(
         side: _sideOf(message),
         media: JeebChatMedia.voice(

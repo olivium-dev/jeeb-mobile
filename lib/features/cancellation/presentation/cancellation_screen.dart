@@ -60,10 +60,8 @@ class CancellationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => CancellationCubit(
-        _resolveRepository(),
-        initialState: initialState,
-      ),
+      create: (_) =>
+          CancellationCubit(_resolveRepository(), initialState: initialState),
       child: _CancellationView(
         deliveryId: deliveryId,
         isJeeber: isJeeber,
@@ -125,12 +123,7 @@ class _CancellationViewState extends State<_CancellationView> {
         'other',
       ];
     }
-    return [
-      'changed_mind',
-      'wait_too_long',
-      'wrong_address',
-      'other',
-    ];
+    return ['changed_mind', 'wait_too_long', 'wrong_address', 'other'];
   }
 
   String _label(String reason, AppLocalizations l10n) {
@@ -158,10 +151,10 @@ class _CancellationViewState extends State<_CancellationView> {
     final reason = _selectedReason;
     if (reason == null) return;
     await context.read<CancellationCubit>().submit(
-          deliveryId: widget.deliveryId,
-          reason: reason,
-          otherDetails: reason == 'other' ? _otherController.text : null,
-        );
+      deliveryId: widget.deliveryId,
+      reason: reason,
+      otherDetails: reason == 'other' ? _otherController.text : null,
+    );
   }
 
   /// Only success leaves the screen. The 409 and 5xx lanes used to flash a
@@ -232,10 +225,21 @@ class _CancellationViewState extends State<_CancellationView> {
                         children: [
                           if (state is CancellationError)
                             _ErrorStrip(kind: state.kind),
-                          _SubmitFooter(
-                            isEnabled: _selectedReason != null,
-                            onSubmit: () => _submit(context),
-                          ),
+                          if (state.isTerminalRefusal)
+                            JeebCtaFooter.single(
+                              child: JeebCtaButton.primary(
+                                identifier: 'cancellation_exit_cta',
+                                label: l10n.actionBack,
+                                onTap: () => context.canPop()
+                                    ? context.pop()
+                                    : context.go('/'),
+                              ),
+                            )
+                          else
+                            _SubmitFooter(
+                              isEnabled: _selectedReason != null,
+                              onSubmit: () => _submit(context),
+                            ),
                         ],
                       );
                     },

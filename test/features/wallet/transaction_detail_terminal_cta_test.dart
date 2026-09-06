@@ -122,13 +122,13 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('only a NETWORK failure blames the connection', (tester) async {
+  testWidgets('an offline network failure blames the connection', (tester) async {
     useReduceMotion(tester);
     await pump(
       tester,
       const _FailingTransactionRepository(
         WalletTransactionFailure.network,
-        NetworkFailure(),
+        NetworkFailure(offline: true),
       ),
     );
     expect(find.text('Check your connection and try again.'), findsOneWidget);

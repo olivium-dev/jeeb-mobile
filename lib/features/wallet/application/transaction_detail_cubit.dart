@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/wallet_transaction_repository.dart';
 import 'transaction_detail_state.dart';
 
@@ -65,7 +66,7 @@ class TransactionDetailCubit extends Cubit<TransactionDetailState> {
     if (error is WalletTransactionRepositoryException) {
       return error.cause ??
           switch (error.failure) {
-            WalletTransactionFailure.network => const NetworkFailure(),
+            WalletTransactionFailure.network => networkFailureFromReachability(),
             WalletTransactionFailure.notFound => const NotFoundFailure(),
             WalletTransactionFailure.unauthorized =>
               const UnauthorizedFailure(),

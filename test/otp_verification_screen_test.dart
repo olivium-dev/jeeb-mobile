@@ -14,6 +14,7 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
+import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/registration_attempt_policy.dart';
 import 'package:jeeb_mobile/features/registration/presentation/otp_verification_screen.dart';
@@ -22,6 +23,13 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'support/sync_app_localizations.dart';
 
 class _MockOtpService extends Mock implements OtpService {}
+
+class _SnapshotRegistrationCubit extends RegistrationCubit {
+  _SnapshotRegistrationCubit(OtpService service, RegistrationState snapshot)
+      : super(otpService: service) {
+    emit(snapshot);
+  }
+}
 
 void main() {
   late _MockOtpService otp;
@@ -489,4 +497,29 @@ void main() {
       reason: 'the three kinds must not share a string',
     );
   });
+
+  for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+    for (final seconds in <int?>[null, 0, 5]) {
+      testWidgets('rate-limited OTP copy respects nullable window $seconds · ${locale.languageCode}', (tester) async {
+        final cubit = _SnapshotRegistrationCubit(otp, RegistrationState(
+          step: RegistrationStep.otp,
+          phoneInput: '71123456',
+          otpError: RegistrationOtpError.rateLimited,
+          otpRetryAfterSeconds: seconds,
+          resendSecondsRemaining: seconds ?? 0,
+        ));
+        addTearDown(cubit.close);
+        await tester.pumpWidget(hostScreen(cubit, locale: locale));
+        await tester.pump();
+        final l10n = AppLocalizations.of(tester.element(find.byType(OtpVerificationScreen)));
+        final expected = seconds == null
+            ? l10n.errorRateLimitedBody
+            : l10n.registrationOtpRateLimitedSeconds(seconds);
+        expect(find.text(expected), findsOneWidget);
+        if (seconds == null) {
+          expect(find.text(l10n.registrationOtpRateLimitedSeconds(0)), findsNothing);
+        }
+      });
+    }
+  }
 }

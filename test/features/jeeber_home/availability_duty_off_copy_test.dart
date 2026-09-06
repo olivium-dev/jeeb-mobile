@@ -83,6 +83,30 @@ void main() {
         findsOneWidget,
       );
       expect(find.text(l10n.availabilityDutyOffTitle), findsWidgets);
+      final empty = find.bySemanticsIdentifier(
+        'jeeber_feed_offline_empty_state',
+      );
+      expect(
+        find.descendant(
+          of: empty,
+          matching: find.text(l10n.jeeberFeedDutyOffEmptyHeadline),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: empty,
+          matching: find.text(l10n.jeeberFeedDutyOffEmptyBody),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: empty,
+          matching: find.text(l10n.availabilityDutyOffTitle),
+        ),
+        findsNothing,
+      );
       expect(find.text(l10n.availabilityDutyOffSubtitle), findsWidgets);
 
       // The connectivity vocabulary is gone from the banner and the body.

@@ -67,7 +67,7 @@ const RequestFeedState _loadingSeed = RequestFeedState(
 );
 const RequestFeedState _errorSeed = RequestFeedState(
   status: RequestFeedStatus.error,
-  error: NetworkFailure(),
+  error: NetworkFailure(offline: true),
 );
 const RequestFeedState _emptySeed = RequestFeedState(
   status: RequestFeedStatus.ready,

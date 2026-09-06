@@ -1,4 +1,5 @@
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../reviews/domain/reviews_repository.dart';
 import '../domain/delivery_man_profile_repository.dart';
 import '../domain/delivery_man_profile_view_data.dart';
@@ -53,7 +54,7 @@ class ReviewsBackedDeliveryManProfileRepository
       switch (e.failure) {
         ReviewsFailure.notFound => NotFoundFailure(cause: e),
         ReviewsFailure.unauthorized => UnauthorizedFailure(cause: e),
-        ReviewsFailure.network => NetworkFailure(cause: e),
+        ReviewsFailure.network => networkFailureFromReachability(cause: e),
         ReviewsFailure.unknown => UnknownFailure(cause: e),
       };
 }

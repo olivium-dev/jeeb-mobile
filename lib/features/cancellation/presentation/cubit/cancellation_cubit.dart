@@ -9,7 +9,7 @@ import 'cancellation_state.dart';
 class CancellationCubit extends Cubit<CancellationState> {
   /// [initialState] presets a state for screen-catalog preview (DT-04).
   CancellationCubit(this._repository, {CancellationState? initialState})
-      : super(initialState ?? const CancellationIdle());
+    : super(initialState ?? const CancellationIdle());
 
   final CancellationRepository _repository;
 
@@ -18,7 +18,7 @@ class CancellationCubit extends Cubit<CancellationState> {
     required String reason,
     String? otherDetails,
   }) async {
-    if (state is CancellationLoading) return;
+    if (state is CancellationLoading || state.isTerminalRefusal) return;
     emit(const CancellationLoading());
     try {
       final result = await _repository.cancel(
@@ -36,7 +36,9 @@ class CancellationCubit extends Cubit<CancellationState> {
     }
   }
 
-  void reset() => emit(const CancellationIdle());
+  void reset() {
+    if (!state.isTerminalRefusal) emit(const CancellationIdle());
+  }
 
   static CancellationFailure _kindOf(AppFailure failure) =>
       switch (failure.kind) {

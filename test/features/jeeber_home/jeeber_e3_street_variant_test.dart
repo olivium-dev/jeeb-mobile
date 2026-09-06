@@ -139,7 +139,13 @@ void main() {
 
       expect(find.byKey(JeeberNoRequestsView.rootKey), findsOneWidget);
       // OFF-16: duty-off vocabulary — "offline" is reserved for connectivity.
-      expect(find.text("You're off duty"), findsOneWidget);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(JeeberNoRequestsView)),
+      );
+      expect(cubit.state.status.isOnline, isFalse);
+      expect(find.text(l10n.jeeberFeedDutyOffEmptyHeadline), findsOneWidget);
+      expect(find.text(l10n.jeeberFeedDutyOffEmptyBody), findsOneWidget);
+      expect(find.text(l10n.jeeberFeedQuietStreetTitle), findsNothing);
       expect(find.textContaining("you're online"), findsNothing);
       _expectStreet(tester);
     });

@@ -80,6 +80,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -103,6 +104,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -128,6 +130,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -150,6 +153,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -175,6 +179,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -197,6 +202,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -219,6 +225,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSpacing = 10,
     this.mirrorIcons = false,
     this.shrinkLabelToFit = false,
+    this.wrapLabel = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -319,6 +326,10 @@ class JeebCtaButton extends StatelessWidget {
   /// narrow. Opt-in: only the split footers that halve the width need it.
   final bool shrinkLabelToFit;
 
+  /// Lets accessible-size labels wrap and grow the pill above its minimum
+  /// height. Opt-in so existing single-line button layouts remain unchanged.
+  final bool wrapLabel;
+
   /// Horizontal inset around the content. Defaults per [variant]; 01's `Skip`
   /// measures `0/22`.
   final EdgeInsetsGeometry? contentPadding;
@@ -398,12 +409,18 @@ class JeebCtaButton extends StatelessWidget {
       padding: contentPadding ?? _defaultContentPadding,
       child: content,
     );
+    if (wrapLabel) {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: content,
+      );
+    }
 
     Widget button = SizedBox(
       // `expand` must stay opt-out: 01's `Skip` sits in an unbounded Row slot,
       // where `double.infinity` would throw.
       width: (expand ?? _isPill) ? double.infinity : null,
-      height: height ?? _defaultHeight,
+      height: wrapLabel ? null : (height ?? _defaultHeight),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: _fill(roles, scheme, semantics, live),
@@ -431,12 +448,19 @@ class JeebCtaButton extends StatelessWidget {
               // so the ripple is suppressed and the highlight covers the fill.
               splashColor: isAccent ? Colors.transparent : null,
               highlightColor: isAccent ? semantics.orangePressed : null,
-              child: Center(child: content),
+              child: Center(heightFactor: wrapLabel ? 1 : null, child: content),
             ),
           ),
         ),
       ),
     );
+
+    if (wrapLabel) {
+      button = ConstrainedBox(
+        constraints: BoxConstraints(minHeight: height ?? _defaultHeight),
+        child: button,
+      );
+    }
 
     if (identifier != null || semanticLabel != null) {
       button = Semantics(
@@ -458,8 +482,8 @@ class JeebCtaButton extends StatelessWidget {
       label,
       style: style,
       textAlign: TextAlign.center,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+      maxLines: wrapLabel ? null : 1,
+      overflow: wrapLabel ? TextOverflow.visible : TextOverflow.ellipsis,
     );
     if (shrinkLabelToFit) {
       labelText = FittedBox(fit: BoxFit.scaleDown, child: labelText);

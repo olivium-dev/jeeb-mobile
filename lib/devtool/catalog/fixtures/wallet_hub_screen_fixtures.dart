@@ -3,8 +3,29 @@
 import 'dart:async';
 
 import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/features/wallet/application/wallet_hub_cubit.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
+
+WalletHubCubit walletHubRefreshFailedCubit() {
+  final cubit = WalletHubCatalogCubit();
+  unawaited(
+    cubit.load().then((_) async {
+      if (!cubit.isClosed) await cubit.refresh();
+    }),
+  );
+  return cubit;
+}
+
+/// Exposes real repository reads for causal UI retry assertions. State changes
+/// are not a read counter: two identical failures may emit no new state.
+class WalletHubCatalogCubit extends WalletHubCubit {
+  WalletHubCatalogCubit()
+    : this._(WalletHubScreenRefreshFailingRepository(walletHubScreenHealthy));
+  WalletHubCatalogCubit._(this.observedRepository)
+    : super(repository: observedRepository);
+  final WalletHubScreenRefreshFailingRepository observedRepository;
+}
 
 /// Canned [WalletRepository] — `fetchBalance()` resolves to [balance]
 /// immediately. No Dio, no GetIt, no network.
@@ -67,9 +88,11 @@ class WalletHubScreenRefreshFailingRepository implements WalletRepository {
   final WalletBalance balance;
 
   bool _served = false;
+  int fetchCalls = 0;
 
   @override
   Future<WalletBalance> fetchBalance() async {
+    fetchCalls++;
     if (_served) {
       throw const WalletRepositoryException(
         WalletFailure.network,
@@ -88,8 +111,7 @@ class WalletHubScreenKycGate implements JeeberKycStatusGate {
   const WalletHubScreenKycGate(this.status);
 
   /// The approved jeeber: no pending banner, offering allowed.
-  const WalletHubScreenKycGate.approved()
-      : status = JeeberKycStatus.approved;
+  const WalletHubScreenKycGate.approved() : status = JeeberKycStatus.approved;
 
   /// Registered, KYC submitted, not yet reviewed (D38/D39) — may top up, may
   /// not yet bid. Drives `wallet_kyc_pending_banner`.

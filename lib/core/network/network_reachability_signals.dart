@@ -57,6 +57,9 @@ class NetworkReachabilitySignals {
   /// Unknown reads as online: never blame connectivity without evidence.
   bool get isOnline => _online ?? true;
 
+  /// Null until the connectivity source has provided transport evidence.
+  bool? get knownOnline => _online;
+
   bool? get debugOnline => _online;
 
   void bindSource(Stream<bool> source, {Future<bool>? seed}) {

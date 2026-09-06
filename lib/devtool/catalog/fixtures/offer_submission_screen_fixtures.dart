@@ -56,6 +56,32 @@ class ScriptedOfferSubmissionRepository implements OfferSubmissionRepository {
   }
 }
 
+/// Observes the actual values submitted by the mounted catalog form. Tests
+/// assert these, not merely that a pre-seeded failure happened to render.
+class CatalogObservedOfferRepository implements OfferSubmissionRepository {
+  CatalogObservedOfferRepository(this.delegate);
+  final ScriptedOfferSubmissionRepository delegate;
+  int submissions = 0;
+  double? price;
+  int? eta;
+  String? note;
+
+  @override
+  Future<OfferSubmissionResult> submitOffer({
+    required String requestId,
+    required double priceUsd,
+    required int etaMinutes,
+    String? note,
+  }) {
+    submissions++;
+    price = priceUsd;
+    eta = etaMinutes;
+    this.note = note;
+    return delegate.submitOffer(requestId: requestId, priceUsd: priceUsd,
+      etaMinutes: etaMinutes, note: note);
+  }
+}
+
 /// A fake [WalletRepository] for the composer's money lines (W1m).
 /// `_loadWallet` swallows every failure and leaves `_wallet` null, so [failure]
 /// and [stalls] both degrade the screen to the same reading — the currency
@@ -85,6 +111,17 @@ class ScriptedWalletRepository implements WalletRepository {
     }
     return Future<WalletBalance>.value(balance);
   }
+}
+
+/// Funded when the draft opens; externally changed before its POST returns.
+/// The second real read agrees with the server's authoritative 402 figures.
+class OfferSubmissionFailureWalletRepository implements WalletRepository {
+  int reads = 0;
+
+  @override
+  Future<WalletBalance> fetchBalance() async => ++reads == 1
+      ? OfferSubmissionScreenPreviewFixtures.wallet
+      : OfferSubmissionScreenPreviewFixtures.drainedWallet;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

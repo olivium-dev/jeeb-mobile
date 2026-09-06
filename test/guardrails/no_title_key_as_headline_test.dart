@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'guardrail_sources.dart';
 
-/// Reused keys on `origin/main` the day WP-0B landed. Stage 2 drives this to 0.
-const int _kFloor = 1;
+/// Floor is zero since P05 (2026-09-06); never raise.
+const int _kFloor = 0;
 
 final RegExp _kTitleArg = RegExp(r'\btitle:\s*l10n\.(\w+)\b');
 final RegExp _kHeadlineArg = RegExp(r'\bheadline:\s*l10n\.(\w+)\b');

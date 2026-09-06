@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -937,7 +938,7 @@ class _ResumeRefreshState extends State<_ResumeRefresh>
 /// the fixtures and the tests so one mapping is asserted, not three.
 AppFailure activeDeliveryFailureOf(ActiveDeliveryFailure? kind) =>
     switch (kind) {
-      ActiveDeliveryFailure.network => const NetworkFailure(),
+      ActiveDeliveryFailure.network => networkFailureFromReachability(),
       ActiveDeliveryFailure.notFound => const NotFoundFailure(),
       ActiveDeliveryFailure.otpLocked => const ForbiddenFailure(),
       ActiveDeliveryFailure.invalidOtp ||

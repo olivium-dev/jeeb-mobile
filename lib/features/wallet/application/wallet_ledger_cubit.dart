@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/wallet_ledger_repository.dart';
 import 'wallet_ledger_state.dart';
 
@@ -144,7 +145,7 @@ AppFailure classifyLedgerFailure(Object error) {
   if (error is WalletLedgerRepositoryException) {
     return error.cause ??
         switch (error.failure) {
-          WalletLedgerFailure.network => const NetworkFailure(),
+          WalletLedgerFailure.network => networkFailureFromReachability(),
           WalletLedgerFailure.unauthorized => const UnauthorizedFailure(),
           WalletLedgerFailure.unknown => const UnknownFailure(),
         };

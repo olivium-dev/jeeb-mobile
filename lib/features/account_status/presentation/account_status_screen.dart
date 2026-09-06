@@ -83,10 +83,14 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 ///   `account_status_support_cta`  — Contact support → support-ticket
 ///   `account_status_signout_cta`  — Sign out → logout-delete host
 class AccountStatusScreen extends StatelessWidget {
-  const AccountStatusScreen({super.key, this.repository});
+  const AccountStatusScreen({super.key, this.repository, this.cubitFactory});
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final AccountStatusRepository? repository;
+
+  /// An injected lifecycle for deterministic previews/tests. The provider
+  /// closes the created cubit; the factory drives its initial transition.
+  final AccountStatusCubit Function()? cubitFactory;
 
   /// The in-flight read (`account_status_loading`).
   static const String loadingIdentifier = 'account_status_loading';
@@ -116,7 +120,8 @@ class AccountStatusScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<AccountStatusCubit>(
       create: (_) =>
-          AccountStatusCubit(repository: _resolveRepository())..load(),
+          cubitFactory?.call() ??
+          (AccountStatusCubit(repository: _resolveRepository())..load()),
       child: const _AccountStatusView(),
     );
   }
@@ -164,8 +169,7 @@ class _AccountStatusView extends StatelessWidget {
                           return _LoadingBody(copy: copy);
                         case AccountStatusScreenStatus.failed:
                           return _FailedBody(
-                            failure:
-                                state.appFailure ?? const UnknownFailure(),
+                            failure: state.appFailure ?? const UnknownFailure(),
                             copy: copy,
                           );
                         case AccountStatusScreenStatus.loaded:
@@ -235,8 +239,8 @@ class _FailedBody extends StatelessWidget {
         // over a body that says the session expired.
         headlineOverride:
             failureCopy(AppLocalizations.of(context), failure).retryable
-                ? copy.loadErrorTitle
-                : null,
+            ? copy.loadErrorTitle
+            : null,
         onRetry: () => context.read<AccountStatusCubit>().refresh(),
         exitLabel: copy.signoutCta,
         onExit: () => LogoutDeleteConfirmSheet.show(
@@ -312,8 +316,8 @@ class _BlockedBody extends StatelessWidget {
     final String? reason = value == null
         ? null
         : (serverReason ??
-            copy.reasonForCode(serverReasonCode) ??
-            copy.defaultReason(value));
+              copy.reasonForCode(serverReasonCode) ??
+              copy.defaultReason(value));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

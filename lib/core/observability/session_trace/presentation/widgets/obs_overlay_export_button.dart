@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../obs_overlay_controller.dart';
+import '../../../../widgets/jeeb/jeeb_snack.dart';
 
 class ObsOverlayExportButton extends StatefulWidget {
   const ObsOverlayExportButton({super.key, required this.controller});
@@ -9,8 +10,7 @@ class ObsOverlayExportButton extends StatefulWidget {
   final ObsOverlayController controller;
 
   @override
-  State<ObsOverlayExportButton> createState() =>
-      _ObsOverlayExportButtonState();
+  State<ObsOverlayExportButton> createState() => _ObsOverlayExportButtonState();
 }
 
 class _ObsOverlayExportButtonState extends State<ObsOverlayExportButton> {
@@ -28,9 +28,17 @@ class _ObsOverlayExportButtonState extends State<ObsOverlayExportButton> {
     final message = widget.controller.lastExportMessage;
     if (message == null) return;
     if (widget.controller.lastExportSucceeded) {
-      showOmdsSuccessSnackbar(context, message: message);
+      showJeebSuccessSnack(
+        context,
+        identifier: 'devtool_session_logs_export_success',
+        message: message,
+      );
     } else {
-      showOmdsErrorSnackbar(context, message: message);
+      showJeebErrorSnack(
+        context,
+        identifier: 'devtool_session_logs_export_error',
+        message: message,
+      );
     }
   }
 
@@ -65,10 +73,9 @@ class _ExportedPathLabel extends StatelessWidget {
       child: SelectableText(
         path,
         key: const Key('obs-overlay-export-path'),
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }

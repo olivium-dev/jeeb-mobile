@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_statement.dart';
 
@@ -153,7 +154,7 @@ class SettlementCubit extends Cubit<SettlementState> {
     if (e is! SettlementException) return AppFailure.of(e);
     return e.cause ??
         switch (e.failure) {
-          SettlementFailure.network => const NetworkFailure(),
+          SettlementFailure.network => networkFailureFromReachability(),
           SettlementFailure.notFound => const NotFoundFailure(),
           SettlementFailure.server => const ServerFailure(status: 500),
           SettlementFailure.fileWrite ||

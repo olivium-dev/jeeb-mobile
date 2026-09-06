@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -284,7 +285,7 @@ class _ErrorBody extends StatelessWidget {
 /// The load/submit failure the copy family renders. Kept beside the screen so
 /// the fixtures and the tests agree on one mapping.
 AppFailure otpHandoverFailure(OtpHandoverErrorKind? kind) => switch (kind) {
-  OtpHandoverErrorKind.network => const NetworkFailure(),
+  OtpHandoverErrorKind.network => networkFailureFromReachability(),
   OtpHandoverErrorKind.notFound => const NotFoundFailure(),
   OtpHandoverErrorKind.invalidOtp ||
   OtpHandoverErrorKind.notAtDoor ||

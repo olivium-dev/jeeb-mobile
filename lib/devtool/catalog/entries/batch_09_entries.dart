@@ -28,24 +28,25 @@ import '../fixtures/mutual_rating_screen_fixtures.dart';
 import '../fixtures/otp_verification_screen_fixtures.dart';
 import '../fixtures/prohibited_acknowledgment_dialog_fixtures.dart';
 import '../fixtures/prohibited_item_report_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 import '../fixtures/rating_screen_fixtures.dart';
 import '../fixtures/registration_screen_fixtures.dart';
 
 // Batch 09: profile_name, prohibited_acknowledgment, prohibited_item_report,
 
 List<CatalogEntry> get batch09Entries => <CatalogEntry>[
-      _displayNameSetupScreenEntry,
-      _prohibitedAcknowledgmentDialogEntry,
-      _prohibitedItemReportScreenEntry,
-      _mutualRatingScreenEntry,
-      _ratingScreenEntry,
-      _registrationScreenEntry,
-      _otpVerificationScreenEntry,
-      _superLoginSheetEntry,
-      _superLoginPickerEntry,
+  _displayNameSetupScreenEntry,
+  _prohibitedAcknowledgmentDialogEntry,
+  _prohibitedItemReportScreenEntry,
+  _mutualRatingScreenEntry,
+  _ratingScreenEntry,
+  _registrationScreenEntry,
+  _otpVerificationScreenEntry,
+  _superLoginSheetEntry,
+  _superLoginPickerEntry,
 
-      // rate_app — SKIPPED (no UI to catalog).
-    ];
+  // rate_app — SKIPPED (no UI to catalog).
+];
 
 Widget _displayNameSetupFailurePreview() {
   final cubit = DisplayNameSetupScreenPreviewFixtures.rejecting();
@@ -93,16 +94,8 @@ Widget _displayNameSetupUnauthorizedPreview() {
 }
 
 const List<ProhibitedItem> _sampleProhibitedItems = [
-  ProhibitedItem(
-    id: 'p1',
-    name: 'Firearms & Ammunition',
-    category: 'Weapons',
-  ),
-  ProhibitedItem(
-    id: 'p2',
-    name: 'Live Animals',
-    category: 'Animals',
-  ),
+  ProhibitedItem(id: 'p1', name: 'Firearms & Ammunition', category: 'Weapons'),
+  ProhibitedItem(id: 'p2', name: 'Live Animals', category: 'Animals'),
   ProhibitedItem(
     id: 'p3',
     name: 'Unsealed Alcohol',
@@ -111,7 +104,8 @@ const List<ProhibitedItem> _sampleProhibitedItems = [
   ),
 ];
 
-class _FakeProhibitedAckRepository implements ProhibitedAcknowledgmentRepository {
+class _FakeProhibitedAckRepository
+    implements ProhibitedAcknowledgmentRepository {
   const _FakeProhibitedAckRepository({this.throwOnFetch = false});
 
   final bool throwOnFetch;
@@ -132,11 +126,13 @@ class _FakeProhibitedAckRepository implements ProhibitedAcknowledgmentRepository
   Future<void> saveLocalAcknowledgment() async {}
 }
 
-class _PendingProhibitedAckRepository implements ProhibitedAcknowledgmentRepository {
+class _PendingProhibitedAckRepository
+    implements ProhibitedAcknowledgmentRepository {
   const _PendingProhibitedAckRepository();
 
   @override
-  Future<List<ProhibitedItem>> fetchItems() => Completer<List<ProhibitedItem>>().future;
+  Future<List<ProhibitedItem>> fetchItems() =>
+      Completer<List<ProhibitedItem>>().future;
 
   @override
   Future<void> acknowledge() async {}
@@ -154,7 +150,8 @@ class _ProhibitedAckDialogHost extends StatefulWidget {
   final ProhibitedAcknowledgmentRepository repository;
 
   @override
-  State<_ProhibitedAckDialogHost> createState() => _ProhibitedAckDialogHostState();
+  State<_ProhibitedAckDialogHost> createState() =>
+      _ProhibitedAckDialogHostState();
 }
 
 class _ProhibitedAckDialogHostState extends State<_ProhibitedAckDialogHost> {
@@ -163,7 +160,10 @@ class _ProhibitedAckDialogHostState extends State<_ProhibitedAckDialogHost> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      showProhibitedAcknowledgmentDialog(context, repository: widget.repository);
+      showProhibitedAcknowledgmentDialog(
+        context,
+        repository: widget.repository,
+      );
     });
   }
 
@@ -200,6 +200,7 @@ final CatalogEntry _prohibitedAcknowledgmentDialogEntry = CatalogEntry(
       (_) => ProhibitedAckDialogHost(
         repository: AckFailingProhibitedAckRepository(),
         matches: const <String>['knife'],
+        attemptAcknowledgment: true,
       ),
     ),
   ],
@@ -227,30 +228,33 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
     ),
     CatalogState(
       'Photo attached (the CTA is wired now)',
-      (_) => ProhibitedItemReportScreen(
+      (_) => catalogAttachPhoto(ProhibitedItemReportScreen(
         requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
         initialDescription:
             ProhibitedItemReportScreenPreviewFixtures.filled.description,
-        photoPicker: ProhibitedItemReportScreenPreviewFixtures.attachingPicker(),
-      ),
+        photoPicker:
+            ProhibitedItemReportScreenPreviewFixtures.attachingPicker(),
+      )),
     ),
     CatalogState(
       'Photo permission denied',
-      (_) => ProhibitedItemReportScreen(
+      (_) => catalogAttachPhoto(ProhibitedItemReportScreen(
         requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
         initialDescription:
             ProhibitedItemReportScreenPreviewFixtures.filled.description,
-        photoPicker: ProhibitedItemReportScreenPreviewFixtures.permissionDeniedPicker(),
-      ),
+        photoPicker:
+            ProhibitedItemReportScreenPreviewFixtures.permissionDeniedPicker(),
+      )),
     ),
     CatalogState(
       'Photo unavailable',
-      (_) => ProhibitedItemReportScreen(
+      (_) => catalogAttachPhoto(ProhibitedItemReportScreen(
         requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
         initialDescription:
             ProhibitedItemReportScreenPreviewFixtures.filled.description,
-        photoPicker: ProhibitedItemReportScreenPreviewFixtures.unavailablePicker(),
-      ),
+        photoPicker:
+            ProhibitedItemReportScreenPreviewFixtures.unavailablePicker(),
+      )),
     ),
   ],
 );
@@ -276,10 +280,8 @@ final CatalogEntry _mutualRatingScreenEntry = CatalogEntry(
     // The board frame: named counterpart, 4 stars, two tags lit.
     CatalogState(
       'Rate — Board Frame',
-      (_) => _mutualRatingScreen(
-        mutualRatingScreenBoardCubit,
-        rateeName: 'Karim',
-      ),
+      (_) =>
+          _mutualRatingScreen(mutualRatingScreenBoardCubit, rateeName: 'Karim'),
     ),
     CatalogState(
       'Rate — Jeeber Rates Client',
@@ -407,6 +409,7 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
       (_) => _otpVerificationScreen(
         () => _otpServiceCubit(
           const RegistrationScreenRateLimitedOtpService(),
+          resend: true,
         ),
       ),
     ),
@@ -429,7 +432,7 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
 
 /// Parks the cubit on the OTP step over a scripted service, then submits a
 /// code so the service's own outcome is what the meta row reports.
-RegistrationCubit _otpServiceCubit(OtpService service) {
+RegistrationCubit _otpServiceCubit(OtpService service, {bool resend = false}) {
   final RegistrationCubit cubit = RegistrationScreenSeededCubit(
     otpService: service,
     seed: const RegistrationState(
@@ -437,7 +440,9 @@ RegistrationCubit _otpServiceCubit(OtpService service) {
       phoneInput: otpVerificationScreenPhoneInput,
     ),
   );
-  unawaited(cubit.verifyCode('1234'));
+  // Retry-After rides the RESEND result; verify-only has no server window.
+  // Driving verifyCode under the "server 45s" label staged the wrong scenario.
+  unawaited(resend ? cubit.resendCode() : cubit.verifyCode('1234'));
   return cubit;
 }
 
@@ -448,8 +453,7 @@ class _FakeSuperLoginService implements SuperLoginService {
   Future<SuperLoginResult> signIn({
     required String userId,
     required String passcode,
-  }) async =>
-      const SuperLoginFailure(SuperLoginError.invalidCredentials);
+  }) async => const SuperLoginFailure(SuperLoginError.invalidCredentials);
 }
 
 class _PendingSuperLoginService implements SuperLoginService {
@@ -459,8 +463,7 @@ class _PendingSuperLoginService implements SuperLoginService {
   Future<SuperLoginResult> signIn({
     required String userId,
     required String passcode,
-  }) =>
-      Completer<SuperLoginResult>().future;
+  }) => Completer<SuperLoginResult>().future;
 }
 
 // Without an injected cubit the sheet resolves `sl<SuperLoginService>()`, which
@@ -491,7 +494,11 @@ SuperLoginCubit _erroredSuperLoginCubit() {
 }
 
 class _SuperLoginSheetHost extends StatefulWidget {
-  const _SuperLoginSheetHost({this.cubit, this.initialUserId, this.initialPasscode});
+  const _SuperLoginSheetHost({
+    this.cubit,
+    this.initialUserId,
+    this.initialPasscode,
+  });
 
   final SuperLoginCubit? cubit;
   final String? initialUserId;
@@ -586,7 +593,8 @@ class _PendingSuperLoginDemoUserService implements SuperLoginDemoUserService {
   const _PendingSuperLoginDemoUserService();
 
   @override
-  Future<List<SuperLoginDemoUser>> fetchDemoUsers() => Completer<List<SuperLoginDemoUser>>().future;
+  Future<List<SuperLoginDemoUser>> fetchDemoUsers() =>
+      Completer<List<SuperLoginDemoUser>>().future;
 }
 
 class _SuperLoginPickerHost extends StatefulWidget {

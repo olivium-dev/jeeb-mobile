@@ -190,6 +190,22 @@ Widget jeebFailureBlockNetwork() => _jeebFailureBlockHosted(
   ),
 );
 
+/// Transport exists or is unknown, but the destination cannot be reached.
+@JeebPreview(
+  group: 'core',
+  name: 'Unreachable host (retry)',
+  size: _jeebFailureBlockBox,
+  matrix: true,
+)
+Widget jeebFailureBlockUnreachable() => _jeebFailureBlockHosted(
+  'Unreachable host (retry)',
+  JeebFailureBlock(
+    failure: const NetworkFailure(reason: NetworkFailureReason.hostLookup),
+    identifier: 'preview_error',
+    onRetry: () {},
+  ),
+);
+
 /// 5xx: retryable, but the copy must not say "server".
 @JeebPreview(group: 'core', name: 'Server 500 (retry)', size: _jeebFailureBlockBox)
 Widget jeebFailureBlockServer() => _jeebFailureBlockHosted(

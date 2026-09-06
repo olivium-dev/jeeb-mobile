@@ -24,11 +24,7 @@ import '../../application/client_offers_state.dart';
 ///   - `offer_review_sort_price`
 ///   - `offer_review_sort_rating`
 class OfferSortBar extends StatelessWidget {
-  const OfferSortBar({
-    super.key,
-    required this.mode,
-    required this.onChanged,
-  });
+  const OfferSortBar({super.key, required this.mode, required this.onChanged});
 
   final OfferSortMode mode;
   final ValueChanged<OfferSortMode> onChanged;
@@ -36,7 +32,9 @@ class OfferSortBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return JeebChipRow(
+    // Labels retain their full text at narrow widths/large text. The established
+    // scrollable chip-row variant keeps every sort reachable without overflow.
+    return JeebChipRow.scrollable(
       children: [
         _SortChip(
           identifier: 'offer_review_sort_best',

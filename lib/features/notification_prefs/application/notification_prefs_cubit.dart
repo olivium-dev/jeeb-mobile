@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/notification_prefs_model.dart';
 import '../domain/notification_prefs_repository.dart';
 import 'notification_prefs_state.dart';
@@ -173,7 +174,7 @@ class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
       };
 
   static AppFailure _appFailureFor(NotificationPrefsFailure f) => switch (f) {
-        NotificationPrefsFailure.network => const NetworkFailure(),
+        NotificationPrefsFailure.network => networkFailureFromReachability(),
         NotificationPrefsFailure.unauthorized => const UnauthorizedFailure(),
         NotificationPrefsFailure.serverError => const ServerFailure(status: 500),
         NotificationPrefsFailure.malformed => const UnknownFailure(parse: true),

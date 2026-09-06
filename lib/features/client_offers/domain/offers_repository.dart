@@ -1,4 +1,5 @@
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/network/gateway_problem.dart';
 import 'offer.dart';
 
@@ -106,7 +107,7 @@ class OffersRepositoryException implements Exception {
   AppFailure get appFailure =>
       classifiedFailure ??
       switch (failure) {
-        OffersFailure.network => const NetworkFailure(),
+        OffersFailure.network => networkFailureFromReachability(),
         OffersFailure.rateLimited =>
           RateLimitedFailure(retryAfter: retryAfter, problem: problem),
         OffersFailure.requestNotOpen ||

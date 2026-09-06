@@ -76,6 +76,15 @@ class ForbiddenClientHomeRepository implements ClientHomeRepository {
       throw const ForbiddenFailure();
 }
 
+/// No transport-offline evidence; the home destination cannot be resolved.
+class UnreachableClientHomeRepository implements ClientHomeRepository {
+  const UnreachableClientHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw const NetworkFailure(reason: NetworkFailureReason.hostLookup);
+}
+
 /// The designed states of `ClientHomeScreen`, as repositories + a cubit factory.
 /// Deliberately NOT a widget builder: the two consumers need different chrome
 /// around the same screen, and a shared builder that took a `wrapInScaffold`
@@ -132,6 +141,9 @@ class ClientHomeScreenPreviewFixtures {
   /// 403 cold load — the unrecoverable branch, no inert Retry.
   static ClientHomeRepository forbiddenRepository() =>
       const ForbiddenClientHomeRepository();
+
+  static ClientHomeRepository unreachableRepository() =>
+      const UnreachableClientHomeRepository();
 
   /// Pending EMPTY, Replies POPULATED — the one-shot "land where the content
   /// is" affordance in `_resolveInitialTab`, which must advance to Replies and

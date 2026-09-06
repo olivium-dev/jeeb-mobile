@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/idempotency/operation_id.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../case_evidence/data/dio_case_evidence_uploader.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/escalate_repository.dart';
@@ -188,7 +189,7 @@ class DioEscalateRepository
       throw EscalateException.classified(
         EscalateErrorKind.network,
         cause: e,
-        failure: NetworkFailure(cause: e),
+        failure: networkFailureFromReachability(cause: e),
       );
     }
   }

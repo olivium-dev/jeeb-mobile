@@ -79,6 +79,7 @@ void main() {
       expect(byId('dispute_evidence_empty'), findsOneWidget);
       expect(byId('dispute_evidence_error'), findsNothing);
       expect(byId('dispute_evidence_loading'), findsNothing);
+      expect(byId('dispute_auto_attach_note'), findsNothing);
     });
 
     testWidgets('[$tag] a failed preview draws the error rung, never empty', (
@@ -92,6 +93,7 @@ void main() {
 
       expect(byId('dispute_evidence_error'), findsOneWidget);
       expect(byId('dispute_evidence_empty'), findsNothing);
+      expect(byId('dispute_auto_attach_note'), findsNothing);
     });
   }
 
@@ -105,8 +107,8 @@ void main() {
     expect(byId('dispute_evidence_loading'), findsNothing);
     expect(byId('dispute_evidence_empty'), findsNothing);
     expect(byId('dispute_evidence_error'), findsNothing);
-    // The auto-attach note is the honest thing that stands alone.
-    expect(byId('dispute_auto_attach_note'), findsOneWidget);
+    // No evidence read means no authority to claim it was attached.
+    expect(byId('dispute_auto_attach_note'), findsNothing);
   });
 
   testWidgets('a resolved preview with content draws no empty rung', (
@@ -127,5 +129,6 @@ void main() {
 
     expect(byId('dispute_evidence_empty'), findsNothing);
     expect(byId('dispute_evidence_error'), findsNothing);
+    expect(byId('dispute_auto_attach_note'), findsOneWidget);
   });
 }

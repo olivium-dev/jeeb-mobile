@@ -2,6 +2,7 @@
 // nothing was tappable; a failed image tile had no way back at all.
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,9 @@ class _Gateway extends ChatGateway {
   bool imageFails = true;
   int sends = 0;
   int imageReads = 0;
+  Uint8List imageBytes = File(
+    'assets/illustrations/delivery_3d.png',
+  ).readAsBytesSync();
   final _events = StreamController<ChatEvent>.broadcast();
 
   @override
@@ -43,7 +47,7 @@ class _Gateway extends ChatGateway {
   Future<Uint8List> fetchImageBytes(String objectRef) async {
     imageReads++;
     if (imageFails) throw StateError('HTTP 503');
-    return Uint8List.fromList(<int>[1, 2, 3, 4]);
+    return imageBytes;
   }
 
   @override
@@ -61,27 +65,74 @@ class _NoopPicker implements PhotoPickerService {
 }
 
 DeliveryChatMessage _theirImage() => DeliveryChatMessage.image(
-      id: 'img-1',
-      author: ChatAuthor.them,
-      sentAt: DateTime.utc(2026, 8, 1, 12),
-      status: MessageStatus.delivered,
-      url: 'chat_attachment/abc.jpg',
-    );
+  id: 'img-1',
+  author: ChatAuthor.them,
+  sentAt: DateTime.utc(2026, 8, 1, 12),
+  status: MessageStatus.delivered,
+  url: 'chat_attachment/abc.jpg',
+);
 
 DeliveryChatMessage _theirText() => DeliveryChatMessage.text(
-      id: 'srv-1',
-      author: ChatAuthor.them,
-      sentAt: DateTime.utc(2026, 8, 1, 12),
-      status: MessageStatus.delivered,
-      text: 'On my way',
-    );
+  id: 'srv-1',
+  author: ChatAuthor.them,
+  sentAt: DateTime.utc(2026, 8, 1, 12),
+  status: MessageStatus.delivered,
+  text: 'On my way',
+);
 
 void main() {
+  for (final malformed in [false, true]) {
+    testWidgets(
+      'empty or malformed image bytes stay failed until valid retry: $malformed',
+      (tester) async {
+        useReduceMotion(tester);
+        final gateway = _Gateway(history: [_theirImage()])
+          ..imageFails = false
+          ..imageBytes = malformed
+              ? Uint8List.fromList([1, 2, 3, 4])
+              : Uint8List(0);
+        addTearDown(gateway.dispose);
+        final cubit = ChatCubit(
+          deliveryId: 'conv-1',
+          gateway: gateway,
+          pickerService: const _NoopPicker(),
+        );
+        addTearDown(cubit.close);
+        await tester.pumpWidget(
+          wrapForTest(
+            ChatScreen(
+              deliveryId: 'conv-1',
+              counterpartName: 'Kamal',
+              cubit: cubit,
+            ),
+          ),
+        );
+        await cubit.load();
+        await tester.pumpAndSettle();
+        expect(find.text('Reload image'), findsOneWidget);
+        expect(cubit.state.messages.single.imageLoadFailed, isTrue);
+        expect(gateway.imageReads, 1);
+
+        gateway.imageBytes = File(
+          'assets/illustrations/delivery_3d.png',
+        ).readAsBytesSync();
+        await tester.tap(find.bySemanticsIdentifier('chat_detail_image_retry'));
+        await tester.pumpAndSettle();
+        expect(gateway.imageReads, 2);
+        expect(cubit.state.messages.single.imageLoadFailed, isFalse);
+        expect(cubit.state.messages.single.photoBytes, gateway.imageBytes);
+        expect(find.text('Reload image'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
     final String tag = locale.languageCode;
 
-    testWidgets('$tag · a failed OWN bubble is tappable and re-dispatches',
-        (tester) async {
+    testWidgets('$tag · a failed OWN bubble is tappable and re-dispatches', (
+      tester,
+    ) async {
       useReduceMotion(tester);
       final gateway = _Gateway();
       addTearDown(gateway.dispose);
@@ -92,14 +143,16 @@ void main() {
       );
       addTearDown(cubit.close);
 
-      await tester.pumpWidget(wrapForTest(
-        ChatScreen(
-          deliveryId: 'conv-1',
-          counterpartName: 'Kamal',
-          cubit: cubit,
+      await tester.pumpWidget(
+        wrapForTest(
+          ChatScreen(
+            deliveryId: 'conv-1',
+            counterpartName: 'Kamal',
+            cubit: cubit,
+          ),
+          locale: locale,
         ),
-        locale: locale,
-      ));
+      );
       await cubit.load();
       cubit.composerChanged('are you close?');
       await cubit.sendText();
@@ -139,9 +192,15 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    await tester.pumpWidget(wrapForTest(
-      ChatScreen(deliveryId: 'conv-1', counterpartName: 'Kamal', cubit: cubit),
-    ));
+    await tester.pumpWidget(
+      wrapForTest(
+        ChatScreen(
+          deliveryId: 'conv-1',
+          counterpartName: 'Kamal',
+          cubit: cubit,
+        ),
+      ),
+    );
     await cubit.load();
     await tester.pumpAndSettle();
 
@@ -169,32 +228,35 @@ void main() {
 
   // F36 — the placeholder used to be permanent: the poll tick its comment
   // relied on was deleted in N4.
-  test('an image whose fetch throws is MARKED, and retryImage re-enters',
-      () async {
-    final gateway = _Gateway(history: <DeliveryChatMessage>[_theirImage()]);
-    addTearDown(gateway.dispose);
-    final cubit = ChatCubit(
-      deliveryId: 'conv-1',
-      gateway: gateway,
-      pickerService: const _NoopPicker(),
-    );
-    addTearDown(cubit.close);
+  test(
+    'an image whose fetch throws is MARKED, and retryImage re-enters',
+    () async {
+      final gateway = _Gateway(history: <DeliveryChatMessage>[_theirImage()]);
+      addTearDown(gateway.dispose);
+      final cubit = ChatCubit(
+        deliveryId: 'conv-1',
+        gateway: gateway,
+        pickerService: const _NoopPicker(),
+      );
+      addTearDown(cubit.close);
 
-    await cubit.load();
-    await Future<void>.delayed(Duration.zero);
-    expect(gateway.imageReads, 1);
-    expect(cubit.state.messages.single.imageLoadFailed, isTrue);
+      await cubit.load();
+      await Future<void>.delayed(Duration.zero);
+      expect(gateway.imageReads, 1);
+      expect(cubit.state.messages.single.imageLoadFailed, isTrue);
 
-    gateway.imageFails = false;
-    await cubit.retryImage('img-1');
+      gateway.imageFails = false;
+      await cubit.retryImage('img-1');
 
-    expect(gateway.imageReads, 2);
-    expect(cubit.state.messages.single.imageLoadFailed, isFalse);
-    expect(cubit.state.messages.single.photoBytes, isNotNull);
-  });
+      expect(gateway.imageReads, 2);
+      expect(cubit.state.messages.single.imageLoadFailed, isFalse);
+      expect(cubit.state.messages.single.photoBytes, isNotNull);
+    },
+  );
 
-  testWidgets('the failed image tile exposes its reload affordance',
-      (tester) async {
+  testWidgets('the failed image tile exposes its reload affordance', (
+    tester,
+  ) async {
     useReduceMotion(tester);
     final gateway = _Gateway(history: <DeliveryChatMessage>[_theirImage()]);
     addTearDown(gateway.dispose);
@@ -205,9 +267,15 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    await tester.pumpWidget(wrapForTest(
-      ChatScreen(deliveryId: 'conv-1', counterpartName: 'Kamal', cubit: cubit),
-    ));
+    await tester.pumpWidget(
+      wrapForTest(
+        ChatScreen(
+          deliveryId: 'conv-1',
+          counterpartName: 'Kamal',
+          cubit: cubit,
+        ),
+      ),
+    );
     await cubit.load();
     await tester.pumpAndSettle();
 
@@ -217,13 +285,11 @@ void main() {
     );
 
     gateway.imageFails = false;
+    expect(find.text('Reload image'), findsOneWidget);
     await tester.tap(find.bySemanticsIdentifier('chat_detail_image_retry'));
     await tester.pumpAndSettle();
 
     expect(gateway.imageReads, 2);
-    expect(
-      find.bySemanticsIdentifier('chat_detail_image_retry'),
-      findsNothing,
-    );
+    expect(find.bySemanticsIdentifier('chat_detail_image_retry'), findsNothing);
   });
 }

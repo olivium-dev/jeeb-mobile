@@ -196,10 +196,7 @@ class _DeliveryManProfileBody extends StatelessWidget {
   void _openAllReviews(BuildContext context) {
     final jeeberId = data.jeeberId;
     if (jeeberId == null || jeeberId.isEmpty) return;
-    context.pushNamed(
-      'reviews-list',
-      queryParameters: {'jeeberId': jeeberId},
-    );
+    context.pushNamed('reviews-list', queryParameters: {'jeeberId': jeeberId});
   }
 }
 
@@ -250,8 +247,9 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DeliveryManProfileReviewsState reviews =
-        context.watch<DeliveryManProfileReviewsCubit>().state;
+    final DeliveryManProfileReviewsState reviews = context
+        .watch<DeliveryManProfileReviewsCubit>()
+        .state;
     final bool loaded =
         reviews.status == DeliveryManProfileReviewsStatus.loaded;
     return DeliveryManProfileHeader(
@@ -260,7 +258,7 @@ class _Header extends StatelessWidget {
       isVerified: data.isVerified,
       rating: data.rating,
       reviewCount: loaded ? reviews.reviewCount : data.reviewCount,
-      showCount: loaded,
+      showCount: reviews.showCount,
       location: data.location,
       isAvailable: data.isAvailable,
       isColdStart: data.isColdStart, // D59 — hide score until N>=5.

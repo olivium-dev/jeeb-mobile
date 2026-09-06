@@ -54,6 +54,7 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
               action: JeebCtaButton.primary(
                 label: l10n.kycStatusOpenWizardCta,
                 expand: false,
+                wrapLabel: true,
                 identifier: 'deep_link_kyc_status_open_cta',
                 onTap: () => context.goNamed('kyc-status'),
               ),
@@ -64,6 +65,7 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
     );
   }
 }
+
 // ============================== JEEB PREVIEWS ==============================
 const Size _kycStatusScreenPhoneCanvas = Size(402, 888);
 
@@ -76,10 +78,7 @@ const Size _kycStatusScreenNotchedCanvas = Size(405, 896);
 /// Every state is the same screen in a different window — see the fixture.
 /// The `const KycStatusScreen()` is constructed HERE rather than inside the
 Widget _kycStatusScreenHosted(KycStatusScreenWindow window) =>
-    KycStatusScreenPreviewHost(
-      window: window,
-      screen: const KycStatusScreen(),
-    );
+    KycStatusScreenPreviewHost(window: window, screen: const KycStatusScreen());
 
 @JeebPreview(
   group: 'deep_link_targets',

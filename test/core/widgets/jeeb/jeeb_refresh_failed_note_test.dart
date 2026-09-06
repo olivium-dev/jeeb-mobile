@@ -26,25 +26,36 @@ Future<void> _pump(
 void main() {
   group('JeebRefreshFailedNote · copy', () {
     for (final Locale locale in kFailureLocales) {
-      testWidgets('resolves the copy family · ${locale.languageCode}', (
-        WidgetTester tester,
-      ) async {
-        await _pump(
-          tester,
-          JeebRefreshFailedNote(
-            failure: const NetworkFailure(offline: true),
-            identifier: 'wallet_ledger_refresh_failed',
-            onDismiss: () {},
-          ),
-          locale: locale,
-        );
+      for (final offline in [true, false]) {
+        testWidgets(
+          'resolves the copy family · ${locale.languageCode} · offline=$offline',
+          (WidgetTester tester) async {
+            await _pump(
+              tester,
+              JeebRefreshFailedNote(
+                failure: NetworkFailure(offline: offline),
+                identifier: 'wallet_ledger_refresh_failed',
+                onDismiss: () {},
+              ),
+              locale: locale,
+            );
 
-        final AppLocalizations l10n = l10nOf(tester, JeebRefreshFailedNote);
-        expect(
-          find.text(failureCopy(l10n, const NetworkFailure()).body),
-          findsOneWidget,
+            final AppLocalizations l10n = l10nOf(tester, JeebRefreshFailedNote);
+            expect(
+              find.text(
+                offline ? l10n.errorNetworkBody : l10n.errorUnreachableBody,
+              ),
+              findsOneWidget,
+            );
+            expect(
+              find.text(
+                offline ? l10n.errorUnreachableBody : l10n.errorNetworkBody,
+              ),
+              findsNothing,
+            );
+          },
         );
-      });
+      }
     }
 
     testWidgets('messageOverride wins for a per-screen line', (
@@ -190,30 +201,27 @@ void main() {
     }
 
     for (final Locale locale in kFailureLocales) {
-      testWidgets(
-        'a connectivity note dismisses itself on the edge · '
-        '${locale.languageCode}',
-        (WidgetTester tester) async {
-          int dismissals = 0;
-          await _pump(
-            tester,
-            JeebRefreshFailedNote(
-              failure: const NetworkFailure(offline: true),
-              identifier: 'order_history_refresh_failed',
-              onDismiss: () => dismissals++,
-            ),
-            locale: locale,
-          );
-          expect(
-            find.bySemanticsIdentifier('order_history_refresh_failed'),
-            findsOneWidget,
-          );
+      testWidgets('a connectivity note dismisses itself on the edge · '
+          '${locale.languageCode}', (WidgetTester tester) async {
+        int dismissals = 0;
+        await _pump(
+          tester,
+          JeebRefreshFailedNote(
+            failure: const NetworkFailure(offline: true),
+            identifier: 'order_history_refresh_failed',
+            onDismiss: () => dismissals++,
+          ),
+          locale: locale,
+        );
+        expect(
+          find.bySemanticsIdentifier('order_history_refresh_failed'),
+          findsOneWidget,
+        );
 
-          reconnect();
-          await tester.pump();
-          expect(dismissals, 1);
-        },
-      );
+        reconnect();
+        await tester.pump();
+        expect(dismissals, 1);
+      });
     }
 
     testWidgets('a server failure is left alone — nothing about it changed', (

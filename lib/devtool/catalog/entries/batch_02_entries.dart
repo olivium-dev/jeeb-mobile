@@ -24,6 +24,7 @@ import '../../../features/customer_profile/domain/customer_profile_repository.da
 import '../../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/cancellation_screen_fixtures.dart';
 import '../fixtures/chat_screen_fixtures.dart';
 import '../fixtures/client_offers_screen_fixtures.dart';
@@ -382,13 +383,13 @@ final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
     ),
     CatalogState(
       'Refresh failed over a seeded profile (UX-42)',
-      (_) => CustomerProfileScreen(
+      (_) => catalogProfileRefresh(CustomerProfileScreen(
         data: CustomerProfileScreenPreviewFixtures.ratedClient,
         repository: CustomerProfileScreenRefreshFailingRepository(
           CustomerProfileScreenPreviewFixtures.ratedClient,
         ),
         reviewLauncher: const CustomerProfileScreenInertReviewLauncher(),
-      ),
+      )),
     ),
     CatalogState(
       'Cold blank read failed (UX-42)',
@@ -403,13 +404,13 @@ final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
     ),
     CatalogState(
       'Rate-app unavailable (RATE-01)',
-      (_) => const CustomerProfileScreen(
+      (_) => catalogProfileRateApp(const CustomerProfileScreen(
         data: CustomerProfileScreenPreviewFixtures.ratedClient,
         repository: CustomerProfileScreenStaticRepository(
           CustomerProfileScreenPreviewFixtures.ratedClient,
         ),
         reviewLauncher: CustomerProfileScreenUnavailableReviewLauncher(),
-      ),
+      )),
     ),
   ],
 );

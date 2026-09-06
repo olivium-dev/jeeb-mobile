@@ -7,6 +7,29 @@ import 'package:go_router/go_router.dart';
 
 import '../../../features/notification_prefs/domain/notification_prefs_model.dart';
 import '../../../features/notification_prefs/domain/notification_prefs_repository.dart';
+import '../../../features/notification_prefs/application/notification_prefs_cubit.dart';
+import '../../../features/notification_prefs/application/notification_prefs_state.dart';
+
+/// Drives the real load → optimistic toggle → rejected save sequence once.
+/// No state is seeded; the production cubit owns revert and failure signaling.
+class NotificationPreferencesScreenSaveFailureCubit
+    extends NotificationPrefsCubit {
+  NotificationPreferencesScreenSaveFailureCubit()
+    : super(
+        repository: const NotificationPreferencesScreenSaveFailingRepository(),
+        debounce: Duration.zero,
+      );
+  bool _attempted = false;
+
+  @override
+  Future<void> load() async {
+    await super.load();
+    if (!isClosed && !_attempted && state is NotificationPrefsLoaded) {
+      _attempted = true;
+      toggleCategory(NotificationCategory.offers, false);
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -73,13 +96,13 @@ const NotificationPrefs notificationPreferencesScreenDefaultPrefs =
 /// The nearest thing this screen has to an EMPTY state — there is no list to be
 const NotificationPrefs notificationPreferencesScreenAllOffPrefs =
     NotificationPrefs(
-  categories: NotificationCategoryPrefs(
-    offers: false,
-    orderStatus: false,
-    wallet: false,
-    marketing: false,
-  ),
-);
+      categories: NotificationCategoryPrefs(
+        offers: false,
+        orderStatus: false,
+        wallet: false,
+        marketing: false,
+      ),
+    );
 
 /// A snapshot with `transactionalLocked: false`.
 /// `_PrefsBody` renders the whole Security section behind
@@ -119,10 +142,7 @@ final class NotificationPreferencesScreenWindows {
   /// The smallest display the app still has to look right on (iPhone SE 1st
   /// gen class), at the accessibility ceiling. Six rows of two-line copy plus
   static const NotificationPreferencesScreenWindow compactLargeText =
-      NotificationPreferencesScreenWindow(
-    size: Size(320, 568),
-    textScale: 2,
-  );
+      NotificationPreferencesScreenWindow(size: Size(320, 568), textScale: 2);
 }
 
 /// Where the app-bar back arrow lands when there is nothing to pop: the
@@ -223,7 +243,10 @@ class _NotificationPreferencesScreenPreviewHostState
           routes: <RouteBase>[if (widget.poppable) notifications],
         ),
         if (!widget.poppable)
-          GoRoute(path: '/settings/notifications', builder: (_, _) => widget.screen),
+          GoRoute(
+            path: '/settings/notifications',
+            builder: (_, _) => widget.screen,
+          ),
       ],
     );
   }
@@ -298,13 +321,13 @@ class NotificationPreferencesScreenThrowingRepository
   /// A `{}` body used to read as "everything on"; it is now `malformed`.
   static const NotificationPreferencesScreenThrowingRepository malformedBody =
       NotificationPreferencesScreenThrowingRepository(
-    NotificationPrefsFailure.malformed,
-  );
+        NotificationPrefsFailure.malformed,
+      );
 
   static const NotificationPreferencesScreenThrowingRepository unauthorized =
       NotificationPreferencesScreenThrowingRepository(
-    NotificationPrefsFailure.unauthorized,
-  );
+        NotificationPrefsFailure.unauthorized,
+      );
 
   final NotificationPrefsFailure failure;
 

@@ -65,11 +65,11 @@ void main() {
       expect(rateLimited, isNot(server));
     });
 
-    testWidgets('ONLY Network and Timeout blame the connection', (
+    testWidgets('ONLY offline network and timeout failures blame connectivity', (
       WidgetTester tester,
     ) async {
       expect(
-        await _bodyFor(tester, const NetworkFailure()),
+        await _bodyFor(tester, const NetworkFailure(offline: true)),
         contains(_connectivityBody),
       );
       expect(
@@ -81,6 +81,7 @@ void main() {
       );
 
       for (final AppFailure other in const <AppFailure>[
+        NetworkFailure(),
         ForbiddenFailure(),
         RateLimitedFailure(),
         ServerFailure(status: 500),

@@ -5,6 +5,7 @@ import 'dart:async';
 
 import '../../../core/network/app_failure.dart';
 import '../../../features/case_evidence/domain/case_evidence.dart';
+import '../../../features/support/application/support_detail_cubit.dart';
 import '../../../features/support/domain/support_repository.dart';
 
 /// The canonical seeded thread every non-error state renders.
@@ -183,6 +184,34 @@ class SupportThreadScreenPaginationFailingRepository
 abstract final class SupportTicketDetailScreenFixtures {
   /// The `/support/tickets/:id` path parameter every state stands for.
   static const String ticketId = 'ticket-preview-001';
+
+  /// Drive the real read and subsequent rejected operation, rather than
+  /// labeling the untouched loaded frame as a failure.
+  static SupportDetailCubit refreshFailedCubit() {
+    final cubit = SupportDetailCubit(
+      repository: SupportThreadScreenRefreshFailingRepository(),
+      ticketId: ticketId,
+    );
+    unawaited(
+      cubit.load().then((_) async {
+        if (!cubit.isClosed) await cubit.refresh();
+      }),
+    );
+    return cubit;
+  }
+
+  static SupportDetailCubit paginationFailedCubit() {
+    final cubit = SupportDetailCubit(
+      repository: const SupportThreadScreenPaginationFailingRepository(),
+      ticketId: ticketId,
+    );
+    unawaited(
+      cubit.load().then((_) async {
+        if (!cubit.isClosed) await cubit.loadMore();
+      }),
+    );
+    return cubit;
+  }
 
   /// The cold read, held open.
   static SupportRepository get loading =>

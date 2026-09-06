@@ -17,6 +17,9 @@ enum AppFailureKind {
   unknown,
 }
 
+/// Transport evidence for diagnostics; copy depends on reachability instead.
+enum NetworkFailureReason { unknown, hostLookup, refused, unreachable, closed, tls }
+
 /// The one error model. Everything thrown below the UI is classified into a
 /// subtype of this; features read [kind]/[problem], never the raw transport.
 sealed class AppFailure implements Exception {
@@ -79,6 +82,7 @@ sealed class AppFailure implements Exception {
 final class NetworkFailure extends AppFailure {
   const NetworkFailure({
     this.offline = false,
+    this.reason = NetworkFailureReason.unknown,
     super.problem,
     super.traceId,
     super.cause,
@@ -86,18 +90,25 @@ final class NetworkFailure extends AppFailure {
 
   final bool offline;
 
+  /// Copy keys on [offline] only; [reason] records what the transport said.
+  final NetworkFailureReason reason;
+
   @override
   AppFailureKind get kind => AppFailureKind.network;
 
   @override
   bool operator ==(Object other) =>
-      super == other && other is NetworkFailure && other.offline == offline;
+      super == other &&
+      other is NetworkFailure &&
+      other.offline == offline &&
+      other.reason == reason;
 
   @override
-  int get hashCode => Object.hash(super.hashCode, offline);
+  int get hashCode => Object.hash(super.hashCode, offline, reason);
 
   @override
-  String toString() => _describe('NetworkFailure', 'offline: $offline');
+  String toString() =>
+      _describe('NetworkFailure', 'offline: $offline, reason: ${reason.name}');
 }
 
 final class TimeoutFailure extends AppFailure {

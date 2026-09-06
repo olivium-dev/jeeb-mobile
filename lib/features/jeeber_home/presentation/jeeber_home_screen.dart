@@ -11,6 +11,7 @@ import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
+import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
@@ -39,6 +40,14 @@ import 'widgets/jeeber_unregistered_view.dart';
 
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/jeeber_home_screen_fixtures.dart';
+
+void _retryGreetingIfFailed(BuildContext context) {
+  try {
+    unawaited(context.read<GreetingProfileCubit>().retryIfFailed());
+  } on ProviderNotFoundException {
+    return;
+  }
+}
 
 class JeeberHomeScreen extends StatefulWidget {
   const JeeberHomeScreen({
@@ -388,7 +397,10 @@ class _RegisteredViewSwitch extends StatelessWidget {
     if (view.loadPhase == AvailabilityLoadPhase.loadError) {
       return _LoadErrorView(
         failure: view.loadError,
-        onRetry: () => context.read<AvailabilityCubit>().load(),
+        onRetry: () {
+          context.read<AvailabilityCubit>().load();
+          _retryGreetingIfFailed(context);
+        },
       );
     }
     if (view.loadPhase != AvailabilityLoadPhase.ready) {

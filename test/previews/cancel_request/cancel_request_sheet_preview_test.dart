@@ -50,7 +50,7 @@ void main() {
           'This request can no longer be cancelled.',
       // OFF-24: the shared NETWORK copy, not the login string this sheet used
       // to borrow.
-      'Failed · network (retryable)': 'Check your connection and try again.',
+      'Failed · network (retryable)': "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
       // The catch-all 404 / 403 / 5xx / malformed-body copy.
       'Failed · generic (5xx)': "Couldn't cancel your request. Please try again.",
       // `Narrow phone` deliberately has no entry: it renders the same strings
@@ -138,7 +138,7 @@ void main() {
         cancelRequestSheetFailedConflict:
             'This request can no longer be cancelled.',
         cancelRequestSheetFailedNetwork:
-            'Check your connection and try again.',
+            "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
         cancelRequestSheetFailedGeneric:
             "Couldn't cancel your request. Please try again.",
       }.entries) {
@@ -190,7 +190,7 @@ void main() {
       expect(tester.getSize(find.byType(CancelRequestSheet)).width, 320);
       // Same state as `Failed · network`, so it must still show that copy.
       expect(
-        find.text('Check your connection and try again.'),
+        find.text("Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again."),
         findsOneWidget,
       );
 

@@ -477,8 +477,8 @@ class _OfflineEmptyBody extends StatelessWidget {
       child: JeebEmptyState(
         identifier: 'jeeber_feed_offline_empty_state',
         variant: JeebEmptyStateVariant.street,
-        headline: l10n.availabilityDutyOffTitle,
-        body: l10n.availabilityDutyOffSubtitle,
+        headline: l10n.jeeberFeedDutyOffEmptyHeadline,
+        body: l10n.jeeberFeedDutyOffEmptyBody,
       ),
     );
   }

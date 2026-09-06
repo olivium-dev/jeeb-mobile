@@ -20,15 +20,19 @@ Future<bool?> showProhibitedAcknowledgmentDialog(
   BuildContext context, {
   required ProhibitedAcknowledgmentRepository repository,
   List<String> matches = const <String>[],
+  // The provider owns disposal; an injected factory owns its initial reads.
+  ProhibitedAcknowledgmentCubit Function()? cubitFactory,
 }) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: true,
     builder: (_) => BlocProvider(
-      create: (_) => ProhibitedAcknowledgmentCubit(
-        repository: repository,
-        matches: matches,
-      )..load(),
+      create: (_) =>
+          cubitFactory?.call() ??
+          (ProhibitedAcknowledgmentCubit(
+            repository: repository,
+            matches: matches,
+          )..load()),
       child: const _ProhibitedAcknowledgmentDialog(),
     ),
   );
@@ -40,8 +44,10 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return BlocConsumer<ProhibitedAcknowledgmentCubit,
-        ProhibitedAcknowledgmentState>(
+    return BlocConsumer<
+      ProhibitedAcknowledgmentCubit,
+      ProhibitedAcknowledgmentState
+    >(
       listenWhen: (prev, curr) => prev.status != curr.status,
       listener: _handleStateChange,
       builder: (context, state) => _buildDialog(context, l10n, state),
@@ -63,9 +69,7 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     ProhibitedAcknowledgmentState state,
   ) {
     return Dialog(
-      shape: const RoundedRectangleBorder(
-        borderRadius: OmdsBorderRadius.large,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: OmdsBorderRadius.large),
       child: Padding(
         padding: const EdgeInsets.all(Spacing.xLarge),
         child: Column(
@@ -248,10 +252,7 @@ class _LoadedBody extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.medium),
         ],
-        Text(
-          l10n.prohibitedItemsDialogBody,
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text(l10n.prohibitedItemsDialogBody, style: theme.textTheme.bodyMedium),
         const SizedBox(height: Spacing.medium),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 240),
@@ -279,7 +280,8 @@ class _ItemList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items
           .map(
-            (item) => _buildItemRow(item, colorScheme, context.jeebRoles, textTheme),
+            (item) =>
+                _buildItemRow(item, colorScheme, context.jeebRoles, textTheme),
           )
           .toList(growable: false),
     );
@@ -305,9 +307,7 @@ class _ItemList extends StatelessWidget {
               color: isBlock ? colorScheme.error : roles.warning,
             ),
             const SizedBox(width: Spacing.xSmall),
-            Expanded(
-              child: Text(item.name, style: textTheme.bodySmall),
-            ),
+            Expanded(child: Text(item.name, style: textTheme.bodySmall)),
           ],
         ),
       ),

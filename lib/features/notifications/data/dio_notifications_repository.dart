@@ -25,14 +25,18 @@ class DioNotificationsRepository implements NotificationsRepository {
             ? null
             : <String, Object>{'userId': userId},
       );
-      final data = res.data ?? const <String, dynamic>{};
-      final raw = data['items'] ?? data['notifications'];
-      final list = raw is List ? raw : const <dynamic>[];
+      final data = res.data;
+      if (data == null) throw const UnknownFailure(parse: true);
+      final raw = data.containsKey('items')
+          ? data['items']
+          : data['notifications'];
+      if (raw is! List) throw const UnknownFailure(parse: true);
       final out = <NotificationItem>[];
-      for (final item in list) {
-        if (item is Map) {
-          out.add(_item(item.cast<String, dynamic>()));
+      for (final item in raw) {
+        if (item is! Map<String, dynamic> || _str(item['id']) == null) {
+          throw const UnknownFailure(parse: true);
         }
+        out.add(_item(item));
       }
       return out;
     } on DioException catch (e) {

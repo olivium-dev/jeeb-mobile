@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/features/profile_name/application/display_name_cubit.dart';
 import 'package:jeeb_mobile/features/profile_name/domain/display_name_repository.dart';
 import 'package:jeeb_mobile/features/profile_name/presentation/display_name_setup_screen.dart';
@@ -29,9 +30,9 @@ class _RawThrowingRepository implements DisplayNameRepository {
 
   @override
   Future<void> submitDisplayName(String name) async => throw DioException(
-        requestOptions: RequestOptions(path: '/api/User/profile'),
-        type: DioExceptionType.connectionError,
-      );
+    requestOptions: RequestOptions(path: '/api/User/profile'),
+    type: DioExceptionType.connectionError,
+  );
 }
 
 void main() {
@@ -94,16 +95,53 @@ void main() {
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
       final String tag = locale.languageCode;
 
-      testWidgets('an unauthorized save says sign in again ($tag)',
+      for (final online in [true, false]) {
+        testWidgets(
+          'legacy name-save network failure follows reachability $online ($tag)',
           (tester) async {
+            NetworkReachabilitySignals.instance.debugObserve(online: online);
+            addTearDown(NetworkReachabilitySignals.debugReset);
+            final cubit = DisplayNameCubit(
+              repository: const _RejectingRepository(
+                DisplayNameFailure.network,
+              ),
+            );
+            addTearDown(cubit.close);
+            final l10n = await pumpAfterSubmit(tester, cubit, locale);
+            expect(
+              find.bySemanticsIdentifier('profile_name_save_error_snack'),
+              findsOneWidget,
+            );
+            expect(
+              find.text(
+                online ? l10n.errorUnreachableBody : l10n.errorNetworkBody,
+              ),
+              findsOneWidget,
+            );
+            expect(
+              find.text(
+                online ? l10n.errorNetworkBody : l10n.errorUnreachableBody,
+              ),
+              findsNothing,
+            );
+          },
+        );
+      }
+
+      testWidgets('an unauthorized save says sign in again ($tag)', (
+        tester,
+      ) async {
         final DisplayNameCubit cubit = DisplayNameCubit(
           repository: const _RejectingRepository(
             DisplayNameFailure.unauthorized,
           ),
         );
         addTearDown(cubit.close);
-        final AppLocalizations l10n =
-            await pumpAfterSubmit(tester, cubit, locale);
+        final AppLocalizations l10n = await pumpAfterSubmit(
+          tester,
+          cubit,
+          locale,
+        );
 
         expect(
           find.bySemanticsIdentifier('profile_name_save_error_snack'),
@@ -120,8 +158,11 @@ void main() {
           ),
         );
         addTearDown(cubit.close);
-        final AppLocalizations l10n =
-            await pumpAfterSubmit(tester, cubit, locale);
+        final AppLocalizations l10n = await pumpAfterSubmit(
+          tester,
+          cubit,
+          locale,
+        );
 
         expect(find.text(l10n.errorServerBody), findsOneWidget);
         expect(find.text(l10n.errorNetworkBody), findsNothing);
@@ -133,9 +174,7 @@ void main() {
       addTearDown(cubit.close);
       var done = 0;
       await tester.pumpWidget(
-        wrapForTest(
-          DisplayNameSetupScreen(cubit: cubit, onDone: () => done++),
-        ),
+        wrapForTest(DisplayNameSetupScreen(cubit: cubit, onDone: () => done++)),
       );
       await tester.pumpAndSettle();
       await tester.enterText(

@@ -24,6 +24,19 @@ class OfferAcceptState extends Equatable {
 
   bool get isSubmitting => status == OfferAcceptStatus.submitting;
 
+  /// These responses say the target can no longer be accepted. A repeated
+  /// write cannot repair an expired request or an offer that is not pending.
+  bool get canConfirm =>
+      !isSubmitting &&
+      status != OfferAcceptStatus.succeeded &&
+      error != OffersFailure.requestExpired &&
+      error != OffersFailure.requestNotOpen &&
+      error != OffersFailure.offerNotPending &&
+      appFailure is! UnauthorizedFailure &&
+      appFailure is! ForbiddenFailure &&
+      appFailure is! NotFoundFailure &&
+      appFailure is! GoneFailure;
+
   OfferAcceptState copyWith({
     OfferAcceptStatus? status,
     OfferAcceptResult? result,

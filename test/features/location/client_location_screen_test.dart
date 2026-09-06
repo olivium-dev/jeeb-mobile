@@ -311,6 +311,16 @@ void main() {
         expect(confirmButton(tester).isEnabled, isFalse);
 
         // Real content enables Confirm and lands in the compose controller.
+        await tester.enterText(find.byKey(fieldKey), 'a');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isFalse);
+        expect(find.bySemanticsIdentifier('compose_description_error'), findsOneWidget);
+        final l10n = AppLocalizations.of(tester.element(find.byKey(fieldKey)));
+        expect(find.text(l10n.composeDescriptionTooShort), findsOneWidget);
+        await tester.enterText(find.byKey(fieldKey), 'abcde');
+        await tester.pump();
+        expect(confirmButton(tester).isEnabled, isTrue);
+
         await tester.enterText(
           find.byKey(fieldKey),
           '2 shawarma + cola from Barbar',
@@ -404,6 +414,12 @@ void main() {
       // The field itself lays out right-to-left under the ar locale.
       final fieldContext = tester.element(find.byKey(fieldKey));
       expect(Directionality.of(fieldContext), TextDirection.rtl);
+      await tester.enterText(find.byKey(fieldKey), 'a');
+      await tester.pump();
+      final l10n = AppLocalizations.of(fieldContext);
+      expect(find.text(l10n.composeDescriptionTooShort), findsOneWidget);
+      expect(find.bySemanticsIdentifier('compose_description_error'), findsOneWidget);
+      expect(confirmButton(tester).isEnabled, isFalse);
     });
   });
 }

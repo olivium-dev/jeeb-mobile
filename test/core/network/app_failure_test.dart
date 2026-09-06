@@ -108,6 +108,15 @@ void main() {
     test('NetworkFailure distinguishes offline from unreachable', () {
       expect(const NetworkFailure(offline: true).offline, isTrue);
       expect(const NetworkFailure().offline, isFalse);
+      expect(const NetworkFailure().reason, NetworkFailureReason.unknown);
+      expect(
+        const NetworkFailure(reason: NetworkFailureReason.hostLookup),
+        isNot(const NetworkFailure()),
+      );
+      expect(
+        const NetworkFailure(reason: NetworkFailureReason.hostLookup).hashCode,
+        const NetworkFailure(reason: NetworkFailureReason.hostLookup).hashCode,
+      );
     });
 
     test('TimeoutFailure keeps the phase', () {
@@ -254,7 +263,7 @@ void main() {
     test('names the subtype and its discriminating payload', () {
       expect(
         const NetworkFailure(offline: true).toString(),
-        'NetworkFailure(offline: true)',
+        'NetworkFailure(offline: true, reason: unknown)',
       );
       expect(
         const ServerFailure(status: 503, traceId: 'trace-9').toString(),

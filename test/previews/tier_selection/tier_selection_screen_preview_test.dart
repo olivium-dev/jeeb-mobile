@@ -36,8 +36,7 @@ const String _slaNone = 'No SLA';
 const String _slaEco = '≤ 48 hr';
 const String _slaFlash = '≤ 1 hr';
 
-/// The connectivity sentence — now reachable ONLY from a Network/Timeout
-/// failure. `errorNetworkBody`.
+/// The offline fixture supplies explicit offline evidence: `errorNetworkBody`.
 const String _networkCopy = 'Check your connection and try again.';
 const String _retryLabel = 'Retry';
 

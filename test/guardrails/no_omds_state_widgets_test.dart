@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'guardrail_sources.dart';
 
-/// Sites on `origin/main` the day WP-0B landed. Stage 2 drives this to 0.
-const int _kFloor = 1;
+/// Floor is zero since P05 (2026-09-06); never raise.
+const int _kFloor = 0;
 
 void main() {
-  test('OmdsErrorState / OmdsLoadingState do not spread in lib/features', () {
+  test('OmdsErrorState / OmdsLoadingState do not spread in lib', () {
     final List<GuardrailHit> hits = scan(
-      'lib/features',
+      'lib',
       RegExp(r'\bOmds(ErrorState|LoadingState)\s*\('),
     );
     expect(

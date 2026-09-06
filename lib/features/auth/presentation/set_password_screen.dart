@@ -34,7 +34,8 @@ enum SetPasswordMode {
 
   /// Parses the `?mode=` query param. Always resolves to [inAppSocial] — the
   /// single surviving mode — regardless of the (now legacy) value (R-F).
-  static SetPasswordMode fromQuery(String? value) => SetPasswordMode.inAppSocial;
+  static SetPasswordMode fromQuery(String? value) =>
+      SetPasswordMode.inAppSocial;
 }
 
 /// `auth-set-password` (JM-022, JM-061). In-app-social set-password screen
@@ -143,9 +144,9 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
 
   void _onSubmit() {
     context.read<SetPasswordCubit>().submit(
-          newPassword: _newController.text,
-          confirmPassword: _confirmController.text,
-        );
+      newPassword: _newController.text,
+      confirmPassword: _confirmController.text,
+    );
   }
 
   /// Routes off the screen on a successful set-password. Runs only in the
@@ -221,7 +222,7 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                               hintText: l10n.setpwNewHint,
                               obscureText: state.newObscured,
                               autoValidate: false,
-                              enabled: !submitting,
+                              enabled: !submitting && !state.requiresExit,
                               textInputAction: TextInputAction.next,
                               onChanged: (_) => cubit.acknowledgeError(),
                               suffixIcon: Semantics(
@@ -249,7 +250,7 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                               hintText: l10n.setpwConfirmHint,
                               obscureText: state.confirmObscured,
                               autoValidate: false,
-                              enabled: !submitting,
+                              enabled: !submitting && !state.requiresExit,
                               textInputAction: TextInputAction.done,
                               onChanged: (_) => cubit.acknowledgeError(),
                               onSubmitted: (_) => _onSubmit(),
@@ -294,15 +295,21 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                       top: false,
                       child: JeebCtaFooter.single(
                         child: Semantics(
-                          identifier: 'setpw_submit_cta',
+                          identifier: state.requiresExit
+                              ? 'setpw_exit_cta'
+                              : 'setpw_submit_cta',
                           button: true,
                           // Periwinkle, not accent: R22 spends its one orange
                           // on a lit frame, and this screen draws none.
                           child: JeebCtaButton.primary(
-                            label: l10n.setpwSubmitCta,
+                            label: state.requiresExit
+                                ? l10n.actionBack
+                                : l10n.setpwSubmitCta,
                             isEnabled: !submitting,
                             isLoading: submitting,
-                            onTap: _onSubmit,
+                            onTap: state.requiresExit
+                                ? () => context.goNamed('settings')
+                                : _onSubmit,
                           ),
                         ),
                       ),
@@ -331,7 +338,7 @@ String _setPasswordErrorCopy(SetPasswordState state, AppLocalizations l10n) {
     AuthFailure.invalidRecoveryCode => l10n.setpwErrorInvalidToken,
     AuthFailure.badRequest => l10n.setpwErrorBadRequest,
     AuthFailure.emailCollision => l10n.registrationSocialErrorAccountDisabled,
-    // A bare 401 here is a dead reset token, not a typo in the second field.
+    // A bare 401 rejects authorization, not the password field's spelling.
     AuthFailure.invalidCredentials => l10n.setpwErrorInvalidToken,
     AuthFailure.serverError => l10n.errorServerBody,
     AuthFailure.rateLimited => l10n.errorRateLimitedBody,

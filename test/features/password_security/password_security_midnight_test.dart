@@ -21,13 +21,6 @@ import '../../support/sync_app_localizations.dart';
 
 const _delegate = SyncAppLocalizationsDelegate();
 
-/// Seeds a state the public cubit API cannot reach (submitting).
-class _SeededCubit extends PasswordSecurityCubit {
-  _SeededCubit(PasswordSecurityState seed) {
-    emit(seed);
-  }
-}
-
 Widget _host({
   bool hasPassword = true,
   PasswordSecurityCubit Function()? cubitFactory,
@@ -70,8 +63,9 @@ Widget _host({
 
 void main() {
   group('M3-26 field — carried from R22', () {
-    testWidgets('content variant, orange glow topEnd, still, no wash',
-        (tester) async {
+    testWidgets('content variant, orange glow topEnd, still, no wash', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host());
       await tester.pumpAndSettle();
 
@@ -87,8 +81,9 @@ void main() {
       expect(field.animateDecor, isFalse);
     });
 
-    testWidgets('scaffold is transparent so the field is what renders',
-        (tester) async {
+    testWidgets('scaffold is transparent so the field is what renders', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host());
       await tester.pumpAndSettle();
 
@@ -114,8 +109,9 @@ void main() {
       expect(labels, <String>['Security', 'Account']);
     });
 
-    testWidgets('social-only account keeps ACCOUNT and drops SECURITY',
-        (tester) async {
+    testWidgets('social-only account keeps ACCOUNT and drops SECURITY', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(hasPassword: false));
       await tester.pumpAndSettle();
 
@@ -128,8 +124,9 @@ void main() {
   });
 
   group('M3-26 orange budget', () {
-    testWidgets('neither CTA is accent — R22 spends orange on one lit frame',
-        (tester) async {
+    testWidgets('neither CTA is accent — R22 spends orange on one lit frame', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host());
       await tester.pumpAndSettle();
 
@@ -145,8 +142,9 @@ void main() {
       ]);
     });
 
-    testWidgets('social-only promotes the entry to periwinkle, not orange',
-        (tester) async {
+    testWidgets('social-only promotes the entry to periwinkle, not orange', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(hasPassword: false));
       await tester.pumpAndSettle();
 
@@ -154,8 +152,9 @@ void main() {
       expect(cta.variant, JeebCtaVariant.primary);
     });
 
-    testWidgets('reveal eye takes the muted ink role, not heading ink',
-        (tester) async {
+    testWidgets('reveal eye takes the muted ink role, not heading ink', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host());
       await tester.pumpAndSettle();
 
@@ -173,20 +172,25 @@ void main() {
     });
   });
 
-  group('M3-26 loading state', () {
-    testWidgets('submitting drives the CTA spinner and disables the fields',
-        (tester) async {
-      await tester.pumpWidget(
-        _host(
-          cubitFactory: () => _SeededCubit(
-            const PasswordSecurityState(
-              status: PasswordSecurityStatus.submitting,
-            ),
-          ),
-        ),
+  group('M3-26 unavailable capability', () {
+    testWidgets('valid submit is unavailable, never a fictional saving state', (
+      tester,
+    ) async {
+      final cubit = PasswordSecurityCubit();
+      cubit.submit(
+        current: 'OldPass1',
+        newPassword: 'NewPass123',
+        confirm: 'NewPass123',
       );
-      // NOT pumpAndSettle: the CTA spinner loops forever, so it never settles.
-      await tester.pump();
+      await tester.pumpWidget(_host(cubitFactory: () => cubit));
+      await tester.pumpAndSettle();
+      expect(cubit.state.status, PasswordSecurityStatus.unavailable);
+      expect(cubit.state.validation, isNull);
+      expect(
+        find.bySemanticsIdentifier('password_unavailable_note'),
+        findsOneWidget,
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
 
       final submit = tester.widget<JeebCtaButton>(
         find.descendant(
@@ -194,7 +198,7 @@ void main() {
           matching: find.byType(JeebCtaButton),
         ),
       );
-      expect(submit.isLoading, isTrue);
+      expect(submit.isLoading, isFalse);
       expect(submit.isEnabled, isFalse);
 
       final currentField = tester.widget<EditableText>(
@@ -203,7 +207,7 @@ void main() {
           matching: find.byType(EditableText),
         ),
       );
-      expect(currentField.readOnly, isTrue);
+      expect(currentField.readOnly, isFalse);
     });
   });
 }

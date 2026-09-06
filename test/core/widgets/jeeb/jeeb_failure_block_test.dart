@@ -20,6 +20,7 @@ import 'jeeb_failure_test_harness.dart';
 /// so the CTA choice is the widget's, not the caller's.
 const Map<String, AppFailure> _kKinds = <String, AppFailure>{
   'network': NetworkFailure(offline: true),
+  'unreachable': NetworkFailure(reason: NetworkFailureReason.hostLookup),
   'timeout': TimeoutFailure(phase: DioExceptionType.receiveTimeout),
   'server': ServerFailure(status: 500),
   'unavailable': ServerFailure(status: 503),

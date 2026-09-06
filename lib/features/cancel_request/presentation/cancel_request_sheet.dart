@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_scrim.dart';
@@ -117,7 +117,7 @@ class _CancelRequestView extends StatelessWidget {
     return switch (failure) {
       CancelRequestFailure.conflict => l10n.cancelRequestErrorConflict,
       CancelRequestFailure.network =>
-        failureCopy(l10n, const NetworkFailure()).body,
+        failureCopy(l10n, networkFailureFromReachability()).body,
       CancelRequestFailure.forbidden => l10n.errorForbiddenBody,
       CancelRequestFailure.notFound => l10n.errorNotFoundBody,
       _ => l10n.cancelRequestErrorGeneric,

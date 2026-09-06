@@ -9,33 +9,31 @@ class ProhibitedAcknowledgmentCubit
   ProhibitedAcknowledgmentCubit({
     required ProhibitedAcknowledgmentRepository repository,
     List<String> matches = const <String>[],
-  })  : _repository = repository,
-        super(ProhibitedAcknowledgmentState(matches: matches));
+  }) : _repository = repository,
+       super(ProhibitedAcknowledgmentState(matches: matches));
 
   final ProhibitedAcknowledgmentRepository _repository;
 
   Future<void> load() async {
     if (state.isLoading) return;
-    emit(state.copyWith(
-      status: ProhibitedAckStatus.loading,
-      clearFailure: true,
-    ));
+    emit(
+      state.copyWith(status: ProhibitedAckStatus.loading, clearFailure: true),
+    );
     try {
+      final items = await _repository.fetchItems();
       final alreadyAcked = await _repository.hasAcknowledged();
       if (alreadyAcked) {
         emit(state.copyWith(status: ProhibitedAckStatus.acknowledged));
         return;
       }
-      final items = await _repository.fetchItems();
-      emit(state.copyWith(
-        status: ProhibitedAckStatus.loaded,
-        items: items,
-      ));
+      emit(state.copyWith(status: ProhibitedAckStatus.loaded, items: items));
     } catch (e) {
-      emit(state.copyWith(
-        status: ProhibitedAckStatus.error,
-        failure: AppFailure.of(e),
-      ));
+      emit(
+        state.copyWith(
+          status: ProhibitedAckStatus.error,
+          failure: AppFailure.of(e),
+        ),
+      );
     }
   }
 
@@ -44,10 +42,12 @@ class ProhibitedAcknowledgmentCubit
         state.status != ProhibitedAckStatus.acknowledgeFailed) {
       return;
     }
-    emit(state.copyWith(
-      status: ProhibitedAckStatus.acknowledging,
-      clearFailure: true,
-    ));
+    emit(
+      state.copyWith(
+        status: ProhibitedAckStatus.acknowledging,
+        clearFailure: true,
+      ),
+    );
     try {
       await _repository.acknowledge();
       await _repository.saveLocalAcknowledgment();
@@ -55,10 +55,12 @@ class ProhibitedAcknowledgmentCubit
     } catch (e) {
       // Never latch locally on a failed server ack, or the user is never asked
       // again and the server never recorded it (F4).
-      emit(state.copyWith(
-        status: ProhibitedAckStatus.acknowledgeFailed,
-        failure: AppFailure.of(e),
-      ));
+      emit(
+        state.copyWith(
+          status: ProhibitedAckStatus.acknowledgeFailed,
+          failure: AppFailure.of(e),
+        ),
+      );
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -145,7 +146,10 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
     final appFailure = state.appFailure;
     if (appFailure != null) return failureCopy(l10n, appFailure).body;
     return switch (state.failure) {
-      DisplayNameFailure.network => l10n.errorNetworkBody,
+      DisplayNameFailure.network => failureCopy(
+        l10n,
+        networkFailureFromReachability(),
+      ).body,
       DisplayNameFailure.serverError => l10n.errorServerBody,
       _ => l10n.profileNameStepError,
     };
@@ -159,7 +163,10 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
     );
     final injected = widget.cubit;
     if (injected != null) {
-      return BlocProvider<DisplayNameCubit>.value(value: injected, child: child);
+      return BlocProvider<DisplayNameCubit>.value(
+        value: injected,
+        child: child,
+      );
     }
     return BlocProvider<DisplayNameCubit>(
       create: (_) => DisplayNameCubit(
@@ -193,8 +200,9 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
               child: LayoutBuilder(
                 builder: (context, constraints) => SingleChildScrollView(
                   child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
                     // Top-aligned; the residual band below the skip exit is the
                     // field's own glow — no Center, nothing stretched to fill.
                     child: _NameStepBody(
@@ -254,8 +262,9 @@ class _NameStepBody extends StatelessWidget {
           Text(
             l10n.profileNameStepSubtitle,
             // `onSurfaceVariant` IS the Midnight muted-ink role (#8A93D8).
-            style: context.jeebText.body
-                .copyWith(color: colorScheme.onSurfaceVariant),
+            style: context.jeebText.body.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: Spacing.xLarge),
           _NameField(controller: controller, enabled: !state.isSaving),

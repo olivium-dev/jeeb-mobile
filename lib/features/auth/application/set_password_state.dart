@@ -33,6 +33,14 @@ class SetPasswordState extends Equatable {
 
   final AuthSession? session;
 
+  /// Editing a password cannot repair a rejected authorization token.
+  bool get requiresExit => switch (failure) {
+    AuthFailure.invalidToken ||
+    AuthFailure.invalidRecoveryCode ||
+    AuthFailure.invalidCredentials => true,
+    _ => false,
+  };
+
   bool get hasError =>
       status == SetPasswordStatus.failed &&
       ((validation != null && validation != SetPasswordValidation.valid) ||
@@ -63,12 +71,12 @@ class SetPasswordState extends Equatable {
 
   @override
   List<Object?> get props => [
-        status,
-        newObscured,
-        confirmObscured,
-        validation,
-        failure,
-        appFailure,
-        session,
-      ];
+    status,
+    newObscured,
+    confirmObscured,
+    validation,
+    failure,
+    appFailure,
+    session,
+  ];
 }

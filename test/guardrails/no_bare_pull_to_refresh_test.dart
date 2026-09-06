@@ -5,14 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'guardrail_sources.dart';
 
-/// Sites on `origin/main` the day WP-0B landed. Stage 2 drives this to 0.
+/// Floor is zero since P05 (2026-09-06); never raise.
 const int _kFloor = 0;
 
 void main() {
-  test('bare OmdsPullToRefresh does not spread in lib/features', () {
+  test('bare OmdsPullToRefresh does not spread in lib', () {
     final List<GuardrailHit> hits = scan(
-      'lib/features',
+      'lib',
       RegExp(r'\bOmdsPullToRefresh\s*\('),
+      skipPaths: const ['lib/core/widgets/jeeb/jeeb_pull_to_refresh.dart'],
     );
     expect(
       hits.length,

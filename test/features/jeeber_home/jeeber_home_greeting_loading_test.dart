@@ -90,10 +90,7 @@ void main() {
       expect(find.text('?'), findsNothing);
       // The band itself stays: the eyebrow is not profile data.
       expect(find.text(l10n.jeeberDashboardEyebrow), findsOneWidget);
-      expect(
-        find.bySemanticsIdentifier('jeeber_home_avatar'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsIdentifier('jeeber_home_avatar'), findsOneWidget);
     });
 
     testWidgets('[$tag] a landed profile with no name keeps the fallback', (
@@ -124,15 +121,20 @@ void main() {
       expect(loadingId(), findsNothing);
     });
 
-    testWidgets('[$tag] a FAILED getMe falls back, it does not leave a '
-        'permanent loading band', (tester) async {
+    testWidgets('[$tag] a FAILED getMe leaves loading for the failed band', (
+      tester,
+    ) async {
       useReduceMotion(tester);
       await tester.pumpWidget(
         harness(repository: _FailingRepository(), locale: locale),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(l10nOf(tester).homeGreetingFallback), findsOneWidget);
+      expect(find.text(l10nOf(tester).homeGreetingFallback), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('jeeber_home_greeting_error'),
+        findsOneWidget,
+      );
       expect(loadingId(), findsNothing);
     });
 

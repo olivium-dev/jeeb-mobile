@@ -24,8 +24,7 @@ class _Stalled implements DeliveryManProfileRepository {
     required String jeeberId,
     int page = 1,
     int pageSize = 20,
-  }) =>
-      Completer<DeliveryManReviewsPage>().future;
+  }) => Completer<DeliveryManReviewsPage>().future;
 }
 
 class _Failing implements DeliveryManProfileRepository {
@@ -52,8 +51,7 @@ class _EmptyPage implements DeliveryManProfileRepository {
     required String jeeberId,
     int page = 1,
     int pageSize = 20,
-  }) async =>
-      DeliveryManReviewsPage.empty;
+  }) async => DeliveryManReviewsPage.empty;
 }
 
 const DeliveryManProfileViewData _data = DeliveryManProfileViewData(
@@ -153,6 +151,7 @@ void main() {
       findsOneWidget,
     );
     // The band's own count line is a claim about loaded rows; there are none.
+    expect(find.textContaining('0 Reviews'), findsNothing);
     expect(
       tester
           .widget<DeliveryReviewsHeader>(find.byType(DeliveryReviewsHeader))

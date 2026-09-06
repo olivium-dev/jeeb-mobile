@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/app_failure.dart';
+import '../../../../core/network/app_failure_mapper.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -219,7 +220,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     AvatarUploadFailure.serverError =>
       failureCopy(l10n, const ServerFailure(status: 500)).body,
     AvatarUploadFailure.network =>
-      failureCopy(l10n, const NetworkFailure()).body,
+      failureCopy(l10n, networkFailureFromReachability()).body,
     AvatarUploadFailure.unknown => l10n.profilePhotoChangeFailed,
   };
 

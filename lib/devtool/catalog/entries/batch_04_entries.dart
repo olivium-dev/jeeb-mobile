@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/app_failure.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/jeeber_active_deliveries_fixtures.dart';
 
 import '../../../features/escalate/application/escalate_cubit.dart';
@@ -43,7 +45,10 @@ List<CatalogEntry> get batch04Entries => <CatalogEntry>[
 ];
 
 /// [preSubmit] fires setReason → submit before first frame to drive submitting/error states.
-Widget _escalateScreen(EscalateRepository repository, {bool preSubmit = false}) {
+Widget _escalateScreen(
+  EscalateRepository repository, {
+  bool preSubmit = false,
+}) {
   return BlocProvider<EscalateCubit>(
     create: (_) => EscalateScreenPreviewFixtures.cubit(
       repository,
@@ -60,11 +65,11 @@ final CatalogEntry _escalateEntry = CatalogEntry(
   states: [
     CatalogState(
       'Reason picker (evidence loaded)',
-      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceLoaded()),
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.richPreview()),
     ),
     CatalogState(
       'Evidence degraded (chat/timeline unavailable)',
-      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceDegraded()),
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.failingPreview()),
     ),
     CatalogState(
       'Submitting',
@@ -150,10 +155,10 @@ final CatalogEntry _goodsCostEntry = CatalogEntry(
     ),
     CatalogState(
       'Amount unconfirmed — the server confirmed nothing',
-      (_) => GoodsCostScreen(
+      (_) => catalogGoodsUnconfirmed(GoodsCostScreen(
         deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
         repository: GoodsCostScreenPreviewFixtures.amountUnconfirmed(),
-      ),
+      )),
     ),
   ],
 );
@@ -163,13 +168,25 @@ Widget _clientHome({
   required ClientHomeRepository repository,
   required ClientHomeTab initialTab,
   String? name = ClientHomeScreenPreviewFixtures.greetingName,
+  bool failWarmRefresh = false,
 }) {
   return Scaffold(
     body: BlocProvider<ClientHomeCubit>(
-      create: (_) => ClientHomeScreenPreviewFixtures.cubit(
-        repository,
-        name: name,
-      ),
+      create: (_) {
+        final cubit = ClientHomeScreenPreviewFixtures.cubit(
+          repository,
+          name: name,
+        );
+        if (failWarmRefresh) {
+          // This repository only fails its SECOND read. Drive that real
+          // transition so the catalog displays the state its label promises.
+          unawaited(() async {
+            await cubit.load();
+            if (!cubit.isClosed) await cubit.refresh();
+          }());
+        }
+        return cubit;
+      },
       child: ClientHomeScreen(
         initialTab: initialTab,
         onCreateRequest: (_) {},
@@ -228,7 +245,7 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
       ),
     ),
     CatalogState(
-      'Partial failure — In Progress dead, the rest live',
+      'In Progress unavailable — isolated bucket (replies retained in state)',
       (_) => _clientHome(
         repository: ClientHomeScreenPreviewFixtures.partialFailureRepository(),
         initialTab: ClientHomeTab.inProgress,
@@ -239,12 +256,20 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
       (_) => _clientHome(
         repository: ClientHomeScreenPreviewFixtures.refreshFailingRepository(),
         initialTab: ClientHomeTab.pendingRequests,
+        failWarmRefresh: true,
       ),
     ),
     CatalogState(
       'Forbidden — no inert retry',
       (_) => _clientHome(
         repository: ClientHomeScreenPreviewFixtures.forbiddenRepository(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
+    CatalogState(
+      "Cold load failed — can't reach Jeeb (host unresolved)",
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.unreachableRepository(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
@@ -341,7 +366,10 @@ Widget _activeDeliveriesSeated(ActiveDeliveriesCubit cubit) => Scaffold(
   body: SafeArea(
     child: BlocProvider<ActiveDeliveriesCubit>.value(
       value: cubit,
-      child: ActiveDeliveriesBanner(onOpenChat: (_) {}, onManageDelivery: (_) {}),
+      child: ActiveDeliveriesBanner(
+        onOpenChat: (_) {},
+        onManageDelivery: (_) {},
+      ),
     ),
   ),
 );
@@ -351,12 +379,14 @@ Widget _activeDeliveriesSeated(ActiveDeliveriesCubit cubit) => Scaffold(
 Widget _jeeberHomeRegistered({
   required AvailabilityCubit availability,
   RequestFeedCubit? feedCubit,
+  VoidCallback? onRegister,
 }) {
   return BlocProvider<AvailabilityCubit>.value(
     value: availability,
     child: JeeberHomeScreen(
       profileName: JeeberHomeScreenPreviewFixtures.profileName,
       requestFeedCubit: feedCubit,
+      onRegister: onRegister,
       submittedOffersCubitFactory:
           JeeberHomeScreenPreviewFixtures.submittedOffersCubit,
     ),
@@ -434,8 +464,10 @@ final CatalogEntry _jeeberHomeEntry = CatalogEntry(
     ),
     CatalogState(
       'Not registered — availability answered 404',
-      (_) => _jeeberHomeRegistered(
-        availability: JeeberHomeScreenPreviewFixtures.notRegisteredAvailability(),
+      (context) => _jeeberHomeRegistered(
+        availability:
+            JeeberHomeScreenPreviewFixtures.notRegisteredAvailability(),
+        onRegister: () => context.pushNamed('jeeber-onboarding'),
       ),
     ),
     CatalogState(
@@ -486,4 +518,3 @@ final CatalogEntry _jeeberOnboardingEntry = CatalogEntry(
     ),
   ],
 );
-

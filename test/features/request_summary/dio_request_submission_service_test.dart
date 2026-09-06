@@ -76,6 +76,25 @@ const _draft = RequestDraft(
 
 void main() {
   group('DioRequestSubmissionService — T-MOB-REQSUBMIT POST /v1/requests', () {
+    test('description validation preserves field and machine code', () async {
+      final service = _service(_dioError(
+        DioExceptionType.badResponse,
+        status: 400,
+        body: <String, dynamic>{
+          'type': 'https://jeeb.dev/errors/validation',
+          'field': 'description',
+          'errors': <String, dynamic>{'description': <String>['too-short']},
+        },
+      ));
+      await expectLater(service.submit(_draft), throwsA(
+        isA<RequestSubmissionException>()
+            .having((e) => e.failure, 'failure', RequestSubmissionFailure.invalidInput)
+            .having((e) => e.appFailure, 'appFailure', isA<ValidationFailure>()
+                .having((e) => e.field, 'field', 'description')
+                .having((e) => e.fieldErrors['description'], 'codes', <String>['too-short'])),
+      ));
+    });
+
     test('parses id from 201 response body', () async {
       final service = _service(
         _dioRespond({'id': 'req-7c636340', 'status': 'pending'}),

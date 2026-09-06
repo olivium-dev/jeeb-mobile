@@ -33,6 +33,19 @@ class _SeededRepo implements EarningsRepository {
   }) async => '/tmp/e.pdf';
 }
 
+class _RefreshingRepo extends _SeededRepo {
+  _RefreshingRepo() : super(_empty);
+
+  final refresh = Completer<EarningsSummary>();
+  int reads = 0;
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async => ++reads == 1 ? summary : refresh.future;
+}
+
 class _FailingRepo implements EarningsRepository {
   const _FailingRepo(this.kind, this.failure);
 
@@ -137,14 +150,39 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('$tag: earnings_empty renders on an empty period, WITHOUT a '
-        'retry CTA', (tester) async {
+    testWidgets('$tag: earnings_empty renders on an empty period with '
+        'earnings_empty_retry_cta and WITHOUT the error retry CTA', (tester) async {
       useReduceMotion(tester);
       final SemanticsHandle handle = tester.ensureSemantics();
       await _pump(tester, const _SeededRepo(_empty), locale: locale);
 
       expect(find.bySemanticsIdentifier('earnings_empty'), findsOneWidget);
       expect(find.bySemanticsIdentifier('earnings_retry_cta'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('earnings_empty_retry_cta'),
+        findsOneWidget,
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('$tag: earnings_empty_retry_cta refresh keeps the empty rung '
+        'without loading', (tester) async {
+      useReduceMotion(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final repo = _RefreshingRepo();
+      await _pump(tester, repo, locale: locale);
+
+      await tester.tap(find.bySemanticsIdentifier('earnings_empty_retry_cta'));
+      await tester.pump();
+
+      expect(repo.reads, 2);
+      expect(find.bySemanticsIdentifier('earnings_loading'), findsNothing);
+      expect(find.bySemanticsIdentifier('earnings_empty'), findsOneWidget);
+      repo.refresh.complete(_empty);
+      await tester.pump();
+      expect(find.bySemanticsIdentifier('earnings_loading'), findsNothing);
+      expect(find.bySemanticsIdentifier('earnings_empty'), findsOneWidget);
 
       handle.dispose();
     });
@@ -187,7 +225,7 @@ void main() {
     useReduceMotion(tester);
     await _pump(
       tester,
-      const _FailingRepo(EarningsErrorKind.network, NetworkFailure()),
+      const _FailingRepo(EarningsErrorKind.network, NetworkFailure(offline: true)),
     );
     expect(find.text('Check your connection and try again.'), findsOneWidget);
 

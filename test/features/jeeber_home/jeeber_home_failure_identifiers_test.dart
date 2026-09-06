@@ -68,7 +68,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.bySemanticsIdentifier('jeeber_feed_empty_refresh_cta'),
+        find.bySemanticsIdentifier('jeeber_feed_empty_retry_cta'),
         findsOneWidget,
       );
     });

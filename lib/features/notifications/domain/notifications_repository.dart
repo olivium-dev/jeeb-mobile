@@ -17,6 +17,8 @@ enum NotificationKind {
   newRequest,
   dispute,
   support,
+  chat,
+  availability,
   unknown,
 }
 

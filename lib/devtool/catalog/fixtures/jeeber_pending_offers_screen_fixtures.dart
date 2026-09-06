@@ -209,6 +209,22 @@ class FailingSubmittedOffersRepository implements SubmittedOffersRepository {
   Future<bool> withdraw(String offerId) async => throw failure;
 }
 
+class ReadThenFailSubmittedOffersRepository
+    implements SubmittedOffersRepository {
+  ReadThenFailSubmittedOffersRepository(this.offers, this.failure);
+  final List<SubmittedOffer> offers;
+  final AppFailure failure;
+  int reads = 0;
+  @override
+  Future<List<SubmittedOffer>> listSubmitted() async {
+    if (++reads > 1) throw failure;
+    return offers;
+  }
+
+  @override
+  Future<bool> withdraw(String offerId) async => throw failure;
+}
+
 /// Lists fine, but every withdraw throws — the UX-04 snack rung.
 class WithdrawFailingSubmittedOffersRepository
     implements SubmittedOffersRepository {
@@ -230,11 +246,13 @@ class RefreshFailedSubmittedOffersCubit extends SubmittedOffersCubit {
     List<SubmittedOffer> offers,
     AppFailure failure,
   ) : super(repository: JeeberPendingOffersScreenStaticOffers(offers)) {
-    emit(SubmittedOffersState(
-      status: SubmittedOffersStatus.ready,
-      offers: offers,
-      refreshError: failure,
-    ));
+    emit(
+      SubmittedOffersState(
+        status: SubmittedOffersStatus.ready,
+        offers: offers,
+        refreshError: failure,
+      ),
+    );
   }
 }
 

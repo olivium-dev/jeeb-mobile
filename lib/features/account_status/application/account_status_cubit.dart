@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/account_status_repository.dart';
 import 'account_status_state.dart';
 
@@ -76,7 +77,7 @@ class AccountStatusCubit extends Cubit<AccountStatusState> {
   /// copy family reads. Terminal kinds get an exit CTA, never a Retry.
   static AppFailure _appFailureFor(AccountStatusFailure failure) =>
       switch (failure) {
-        AccountStatusFailure.network => const NetworkFailure(),
+        AccountStatusFailure.network => networkFailureFromReachability(),
         AccountStatusFailure.unauthorized => const UnauthorizedFailure(),
         AccountStatusFailure.forbidden => const ForbiddenFailure(),
         AccountStatusFailure.serverError => const ServerFailure(status: 500),

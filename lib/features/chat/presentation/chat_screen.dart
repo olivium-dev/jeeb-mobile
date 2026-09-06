@@ -836,8 +836,8 @@ class _ChatBody extends StatelessWidget {
         status: _blamesConnectivity(state.historyFailure)
             ? ConnectionStatus.disconnected
             : _blamesConnectivity(state.refreshFailure)
-                ? ConnectionStatus.reconnecting
-                : ConnectionStatus.connected,
+            ? ConnectionStatus.reconnecting
+            : ConnectionStatus.connected,
         pending: List<ChatMessage>.filled(
           state.outboxPending,
           _chatPendingPlaceholder,
@@ -1356,9 +1356,13 @@ class _MessageRow extends StatelessWidget {
             ? () => context.read<ChatCubit>().retryMessage(message.id)
             : null,
         // F36: an unresolved image tile gets a way back.
-        onImageRetry: message.imageLoadFailed
+        onImageRetry: (message.imageUrl ?? '').isNotEmpty
             ? () => context.read<ChatCubit>().retryImage(message.id)
             : null,
+        onImageFailure: () => context.read<ChatCubit>().imageDecodeFailed(
+          message.id,
+          message.photoBytes,
+        ),
       );
     }
     final offerId = message.offerPayload?.offerId ?? '';

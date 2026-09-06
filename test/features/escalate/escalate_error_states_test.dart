@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/app_failure_copy.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/case_evidence/domain/case_evidence.dart';
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
@@ -120,7 +121,7 @@ void main() {
       useReduceMotion(tester);
       await tester.pumpWidget(
         build(
-          const _FailingRepo(EscalateErrorKind.notFound, NotFoundFailure()),
+          const _FailingRepo(EscalateErrorKind.notFound, UnknownFailure()),
           locale: locale,
         ),
       );
@@ -130,6 +131,15 @@ void main() {
       expect(byId('dispute_error'), findsOneWidget);
       expect(byId('dispute_error_exit_cta'), findsOneWidget);
       expect(byId('dispute_error_retry_cta'), findsNothing);
+      final l10n = AppLocalizations.of(tester.element(byId('dispute_error')));
+      expect(
+        find.text(failureCopy(l10n, const NotFoundFailure()).body),
+        findsOneWidget,
+      );
+      expect(
+        find.text(failureCopy(l10n, const UnknownFailure()).body),
+        findsNothing,
+      );
     });
 
     testWidgets('[$tag] alreadyOpen gets the way out too', (tester) async {
@@ -143,8 +153,18 @@ void main() {
       await tester.pumpAndSettle();
       await submit(tester);
 
+      expect(byId('dispute_error'), findsOneWidget);
       expect(byId('dispute_error_exit_cta'), findsOneWidget);
       expect(byId('dispute_error_retry_cta'), findsNothing);
+      final l10n = AppLocalizations.of(tester.element(byId('dispute_error')));
+      // The headline states the conflict once; the body says what happens next
+      // instead of repeating it or telling a Retry-less block to try again.
+      expect(find.text(l10n.escalateErrorAlreadyOpen), findsOneWidget);
+      expect(find.text(l10n.disputeStatusBody), findsOneWidget);
+      expect(
+        find.text(failureCopy(l10n, const ConflictFailure()).body),
+        findsNothing,
+      );
     });
   }
 

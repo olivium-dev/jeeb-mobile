@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'guardrail_sources.dart';
 
-/// Sites on `origin/main` the day WP-0B landed. Stage 2 drives both to 0.
-const int _kOmdsErrorSnackbarFloor = 3;
+/// Floors are zero since P05 (2026-09-06); never raise.
+const int _kOmdsErrorSnackbarFloor = 0;
 const int _kRawSnackBarFloor = 0;
 
 void main() {

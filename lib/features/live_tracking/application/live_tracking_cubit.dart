@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/courier_position_channel.dart';
 import '../domain/delivery_tracking_info.dart';
@@ -183,7 +184,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   /// The kind→failure bridge for repositories that predate `appFailure:`.
   static AppFailure _failureFor(LiveTrackingErrorKind kind) => switch (kind) {
-    LiveTrackingErrorKind.network => const NetworkFailure(),
+    LiveTrackingErrorKind.network => networkFailureFromReachability(),
     LiveTrackingErrorKind.notFound => const NotFoundFailure(),
     LiveTrackingErrorKind.unauthorized => const UnauthorizedFailure(),
     LiveTrackingErrorKind.forbidden => const ForbiddenFailure(),

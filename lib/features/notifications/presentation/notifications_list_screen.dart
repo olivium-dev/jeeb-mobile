@@ -41,7 +41,8 @@ import 'widgets/notification_row.dart';
 ///                                via the SAME resolver the push tap uses;
 ///                                no `ref` → cannot-open snack, stay put)
 ///   offer_accepted             → order-chat when addressed, else cannot-open
-///   status                     → order-chat         (`chat-detail`, ref=conv/req)
+///   status / chat              → order-chat         (`chat-detail`, ref=request)
+///   availability               → role home          (`shell`, no ref needed)
 ///   low_balance / fee_won /
 ///     refund_penalty / topup   → wallet-hub         (`wallet`)
 ///   kyc_approved               → jeeber-requests-home (Dashboard tab → `shell`)
@@ -420,13 +421,14 @@ class _LoadedList extends StatelessWidget {
           _cannotOpen(context);
           break;
         }
-        context.goNamed('chat-detail', pathParameters: {'id': ref});
+        context.pushNamed('chat-detail', pathParameters: {'id': ref});
         break;
 
       // Order status → the addressed conversation thread.
       case NotificationKind.status:
+      case NotificationKind.chat:
         if (ref != null) {
-          context.goNamed('chat-detail', pathParameters: {'id': ref});
+          context.pushNamed('chat-detail', pathParameters: {'id': ref});
         } else {
           _cannotOpen(context);
         }
@@ -503,6 +505,7 @@ class _LoadedList extends StatelessWidget {
 
       // Marketing → customer-orders-home (Requests tab) — a shell tab.
       case NotificationKind.marketing:
+      case NotificationKind.availability:
         context.goNamed('shell');
         break;
 

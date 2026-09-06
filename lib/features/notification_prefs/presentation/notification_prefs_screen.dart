@@ -262,7 +262,9 @@ class _ErrorView extends StatelessWidget {
             : null,
         onRetry: onRetry,
         exitLabel: retryable ? null : l10n.actionBack,
-        onExit: retryable ? null : () => Navigator.of(context).maybePop(),
+        onExit: retryable
+            ? null
+            : () => context.canPop() ? context.pop() : context.go('/'),
       ),
     );
   }

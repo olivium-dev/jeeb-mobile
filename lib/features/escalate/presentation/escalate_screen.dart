@@ -307,14 +307,15 @@ class _InputForm extends StatelessWidget {
                 // JM-060 AC1: auto-attach note (D53) — the chat snapshot +
                 // GPS/timeline are attached automatically. Coined id
                 // `dispute_auto_attach_note` (67_W34_TEST_PLAN).
-                JeebInfoNote.muted(
-                  identifier: 'dispute_auto_attach_note',
-                  icon: Icons.attachment,
-                  text: l10n.escalateAutoAttachNote,
-                  padding: JeebInfoNote.stackedPadding,
-                  gap: JeebInfoNote.stackedGap,
-                  iconSize: JeebInfoNote.stackedIconSize,
-                ),
+                if (state.evidenceLoaded && !state.evidence.isEmpty)
+                  JeebInfoNote.muted(
+                    identifier: 'dispute_auto_attach_note',
+                    icon: Icons.attachment,
+                    text: l10n.escalateAutoAttachNote,
+                    padding: JeebInfoNote.stackedPadding,
+                    gap: JeebInfoNote.stackedGap,
+                    iconSize: JeebInfoNote.stackedIconSize,
+                  ),
                 _EvidencePreview(state: state),
                 const SizedBox(height: _kBlockGap),
                 _ReasonPicker(selectedReason: state.reason),
@@ -816,7 +817,13 @@ class _ErrorView extends StatelessWidget {
         exitIdentifier: 'dispute_error_exit_cta',
         variant: _kEmptyVariant,
         headlineOverride: _errorHeadline(l10n, failure, kind),
-        bodyOverride: state.hasUploadFailures
+        // The open dispute already has a body of its own; the Conflict copy
+        // ("try again") would contradict a block that carries no Retry.
+        bodyOverride: kind == EscalateErrorKind.notFound
+            ? failureCopy(l10n, const NotFoundFailure()).body
+            : kind == EscalateErrorKind.alreadyOpen
+            ? l10n.disputeStatusBody
+            : state.hasUploadFailures
             ? l10n.escalateUploadFailedBody
             : null,
         onRetry: canRetry

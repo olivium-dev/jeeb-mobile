@@ -42,11 +42,15 @@ class SupportTicketDetailScreen extends StatelessWidget {
     required this.ticketId,
     this.repository,
     this.photoPicker,
+    this.cubitFactory,
   });
 
   final String ticketId;
   final SupportRepository? repository;
   final PhotoPickerService? photoPicker;
+
+  /// Optional construction seam; the provider owns and closes this cubit.
+  final SupportDetailCubit Function()? cubitFactory;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +67,12 @@ class SupportTicketDetailScreen extends StatelessWidget {
       threadRepository = const EmptySupportThreadRepository();
     }
     return BlocProvider<SupportDetailCubit>(
-      create: (_) =>
-          SupportDetailCubit(repository: threadRepository, ticketId: ticketId)
-            ..load(),
+      create: (_) => cubitFactory != null
+          ? cubitFactory!()
+          : (SupportDetailCubit(
+              repository: threadRepository,
+              ticketId: ticketId,
+            )..load()),
       child: _SupportTicketDetailView(photoPicker: photoPicker),
     );
   }
@@ -257,7 +264,8 @@ class _ThreadBody extends StatelessWidget {
                   ),
                   const SizedBox(height: Spacing.small),
                 ],
-                if (state.nextCursor != null || state.loadingMore) ...[
+                if (state.paginationFailure == null &&
+                    (state.nextCursor != null || state.loadingMore)) ...[
                   Semantics(
                     identifier: 'support_thread_load_more',
                     button: true,

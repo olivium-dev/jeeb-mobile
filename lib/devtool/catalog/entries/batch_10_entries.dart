@@ -31,6 +31,7 @@ import '../fixtures/request_summary_screen_fixtures.dart';
 import '../fixtures/request_summary_unavailable_screen_fixtures.dart';
 import '../fixtures/request_type_screen_fixtures.dart';
 import '../fixtures/reviews_list_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 import '../fixtures/saved_addresses_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
 
@@ -52,6 +53,7 @@ Widget _requestSummaryScreen(
 Widget _settingsOverProfileRepository(
   ProfileRepository repository, {
   SettingsNotificationPrefsStore? notificationStore,
+  Future<void> Function(SettingsCubit)? afterLoad,
 }) => SettingsScreenPreviewHost(
   create: () {
     final SettingsCubit cubit = SettingsCubit(
@@ -59,7 +61,10 @@ Widget _settingsOverProfileRepository(
       accountService: const SettingsScreenFakeAccountService(),
       notificationStore: notificationStore,
     );
-    unawaited(cubit.load());
+    unawaited(() async {
+      await cubit.load();
+      if (!cubit.isClosed) await afterLoad?.call(cubit);
+    }());
     return cubit;
   },
   builder: (SettingsCubit cubit) => SettingsScreen(cubit: cubit),
@@ -254,30 +259,30 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       ),
       CatalogState(
         'Refresh failed over rows (LR-07)',
-        (_) => ReviewsListScreen(
+        (_) => catalogReviewFailure(ReviewsListScreen(
           jeeberId: reviewsListScreenJeeberId,
           repository: ReviewsListScreenRefreshFailingRepository(
             ReviewsListScreenPages.longestContent,
           ),
-        ),
+        ), CatalogReviewAction.refresh),
       ),
       CatalogState(
         'Load-more failed (TEST-16)',
-        (_) => const ReviewsListScreen(
+        (_) => catalogReviewFailure(const ReviewsListScreen(
           jeeberId: reviewsListScreenJeeberId,
           repository: ReviewsListScreenLoadMoreFailingRepository(
             ReviewsListScreenPages.longestContent,
           ),
-        ),
+        ), CatalogReviewAction.loadMore),
       ),
       CatalogState(
         'Report conflict — already rated (AE-25)',
-        (_) => const ReviewsListScreen(
+        (_) => catalogReviewFailure(const ReviewsListScreen(
           jeeberId: reviewsListScreenJeeberId,
           repository: ReviewsListScreenReportConflictRepository(
             ReviewsListScreenPages.longestContent,
           ),
-        ),
+        ), CatalogReviewAction.report),
       ),
       CatalogState(
         'Error — unauthorized (sign-in exit)',
@@ -325,6 +330,7 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
         'Save failed — the optimistic name rolls back (LR-15)',
         (_) => _settingsOverProfileRepository(
           SettingsScreenSaveFailingProfileRepository(),
+          afterLoad: (cubit) => cubit.saveProfile(name: 'Rejected edit'),
         ),
       ),
       CatalogState(
@@ -342,6 +348,7 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
           notificationStore: SettingsScreenFakeNotificationStore(
             writeFails: true,
           ),
+          afterLoad: (cubit) => cubit.setNotification(NotificationCategory.offers, false),
         ),
       ),
     ],
@@ -438,7 +445,7 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       CatalogState(
         'Save failed — retry',
         (_) => const NotificationPreferencesScreen(
-          repository: NotificationPreferencesScreenSaveFailingRepository(),
+          cubitFactory: NotificationPreferencesScreenSaveFailureCubit.new,
         ),
       ),
     ],

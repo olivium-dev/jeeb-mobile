@@ -2,10 +2,13 @@
 // contrast pair, the identifier and the Retry action are the whole point:
 // `showOmdsErrorSnackbar` shipped 2.79:1 ink, no id and no way to retry.
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/diagnostics/diag.dart';
 import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -54,6 +57,31 @@ Color _ink(WidgetTester tester) => tester
     )
     .style!
     .color!;
+
+List<Map<String, dynamic>> _diagEvents(List<String> lines, String name) => lines
+    .map(
+      (line) =>
+          jsonDecode(line.substring(Diag.prefix.length + 1))
+              as Map<String, dynamic>,
+    )
+    .where((record) => record['t'] == 'evt' && record['name'] == name)
+    .map((record) => record['data'] as Map<String, dynamic>)
+    .toList();
+
+class _ObservedReachabilitySignals extends NetworkReachabilitySignals {
+  final events = StreamController<void>.broadcast(sync: true);
+
+  @override
+  Stream<void> get stream => events.stream;
+
+  void reconnect() => events.add(null);
+
+  @override
+  Future<void> dispose() async {
+    await events.close();
+    await super.dispose();
+  }
+}
 
 void main() {
   group('showJeebErrorSnack', () {
@@ -145,7 +173,9 @@ void main() {
           tester.element(find.byType(SnackBar)),
         );
         expect(
-          find.text(failureCopy(l10n, const NetworkFailure()).body),
+          find.text(
+            failureCopy(l10n, const NetworkFailure(offline: true)).body,
+          ),
           findsOneWidget,
         );
       }
@@ -358,6 +388,311 @@ void main() {
     expect(find.text('first'), findsNothing);
   });
 
+  group('F6 · the close cause is observable', () {
+    late _ObservedReachabilitySignals bus;
+    late List<String> lines;
+    const identifier = 'order_history_refresh_failed_snack';
+
+    setUp(() {
+      bus = _ObservedReachabilitySignals();
+      NetworkReachabilitySignals.instance = bus;
+      lines = <String>[];
+      Diag.enabledOverride = true;
+      Diag.sink = lines.add;
+    });
+
+    tearDown(() async {
+      await NetworkReachabilitySignals.debugReset();
+      Diag.resetForTest();
+    });
+
+    for (final locale in kFailureLocales) {
+      testWidgets(
+        'shown metadata and reconnect cause · ${locale.languageCode}',
+        (tester) async {
+          await _fire(
+            tester,
+            (c) => showJeebErrorSnack(
+              c,
+              identifier: identifier,
+              failure: const NetworkFailure(offline: true),
+              onRetry: () {},
+            ),
+            locale: locale,
+          );
+          expect(_diagEvents(lines, 'snack_shown'), <Map<String, Object?>>[
+            <String, Object?>{
+              'identifier': identifier,
+              'hasAction': true,
+              'clearOnReconnect': true,
+              'durationMs': jeebSnackActionDuration.inMilliseconds,
+            },
+          ]);
+          expect(bus.events.hasListener, isTrue);
+          bus.reconnect();
+          bus.reconnect();
+          await tester.pumpAndSettle();
+          expect(find.bySemanticsIdentifier(identifier), findsNothing);
+          final closed = _diagEvents(lines, 'snack_closed');
+          expect(closed, hasLength(1));
+          expect(closed.single['reason'], 'reconnect');
+          expect(closed.single['elapsedMs'], isNonNegative);
+          expect(bus.events.hasListener, isFalse);
+        },
+      );
+
+      testWidgets(
+        'natural expiry remains timeout during reconnect · ${locale.languageCode}',
+        (tester) async {
+          await _fire(
+            tester,
+            (c) => showJeebErrorSnack(
+              c,
+              identifier: identifier,
+              failure: const NetworkFailure(offline: true),
+              onRetry: () {},
+            ),
+            locale: locale,
+          );
+          await tester.pump(jeebSnackActionDuration);
+          bus.reconnect();
+          await tester.pumpAndSettle();
+          expect(
+            _diagEvents(lines, 'snack_closed').single['reason'],
+            'timeout',
+          );
+          expect(find.bySemanticsIdentifier(identifier), findsNothing);
+          expect(bus.events.hasListener, isFalse);
+        },
+      );
+
+      testWidgets(
+        'Retry keeps action cause even if callback reconnects · ${locale.languageCode}',
+        (tester) async {
+          int retries = 0;
+          await _fire(
+            tester,
+            (c) => showJeebErrorSnack(
+              c,
+              identifier: identifier,
+              failure: const NetworkFailure(offline: true),
+              onRetry: () {
+                retries++;
+                bus.reconnect();
+              },
+            ),
+            locale: locale,
+          );
+          await tester.tap(find.byKey(const Key('${identifier}_retry_cta')));
+          await tester.pumpAndSettle();
+          expect(retries, 1);
+          expect(_diagEvents(lines, 'snack_closed').single['reason'], 'action');
+          expect(bus.events.hasListener, isFalse);
+        },
+      );
+
+      testWidgets(
+        '500 survives reconnect without a close event · ${locale.languageCode}',
+        (tester) async {
+          await _fire(
+            tester,
+            (c) => showJeebErrorSnack(
+              c,
+              identifier: identifier,
+              failure: const ServerFailure(status: 500),
+              onRetry: () {},
+            ),
+            locale: locale,
+          );
+          expect(
+            _diagEvents(lines, 'snack_shown').single['clearOnReconnect'],
+            isFalse,
+          );
+          bus.reconnect();
+          await tester.pumpAndSettle();
+          expect(find.bySemanticsIdentifier(identifier), findsOneWidget);
+          expect(_diagEvents(lines, 'snack_closed'), isEmpty);
+          expect(bus.events.hasListener, isFalse);
+        },
+      );
+
+      testWidgets(
+        'host lookup uses unreachable copy and reconnect cause · ${locale.languageCode}',
+        (tester) async {
+          await _fire(
+            tester,
+            (c) => showJeebErrorSnack(
+              c,
+              identifier: identifier,
+              failure: const NetworkFailure(
+                reason: NetworkFailureReason.hostLookup,
+              ),
+              onRetry: () {},
+            ),
+            locale: locale,
+          );
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(SnackBar)),
+          );
+          expect(find.text(l10n.errorUnreachableBody), findsOneWidget);
+          expect(
+            _diagEvents(lines, 'snack_shown').single['clearOnReconnect'],
+            isTrue,
+          );
+          bus.reconnect();
+          await tester.pumpAndSettle();
+          expect(
+            _diagEvents(lines, 'snack_closed').single['reason'],
+            'reconnect',
+          );
+          expect(find.bySemanticsIdentifier(identifier), findsNothing);
+        },
+      );
+    }
+
+    testWidgets('an explicit action duration wins on every helper', (
+      tester,
+    ) async {
+      const duration = Duration(seconds: 2);
+      final helpers = <void Function(BuildContext)>[
+        (c) => showJeebErrorSnack(
+          c,
+          identifier: identifier,
+          failure: const NetworkFailure(),
+          onRetry: () {},
+          duration: duration,
+        ),
+        (c) => showJeebSnack(
+          c,
+          identifier: identifier,
+          message: 'Saved',
+          actionLabel: 'Undo',
+          onAction: () {},
+          duration: duration,
+        ),
+        (c) => showJeebSuccessSnack(
+          c,
+          identifier: identifier,
+          message: 'Saved',
+          actionLabel: 'Undo',
+          onAction: () {},
+          duration: duration,
+        ),
+      ];
+      for (final helper in helpers) {
+        await _fire(tester, helper);
+        expect(_snack(tester).duration, duration);
+        expect(_diagEvents(lines, 'snack_shown').last['durationMs'], 2000);
+        await tester.pump(duration);
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets(
+      'replacement during exit preserves hide cause and replacement',
+      (tester) async {
+        late BuildContext context;
+        await _fire(tester, (c) {
+          context = c;
+          showJeebErrorSnack(
+            c,
+            identifier: identifier,
+            failure: const NetworkFailure(),
+            onRetry: () {},
+          );
+        });
+        showJeebSuccessSnack(
+          context,
+          identifier: 'offer_sent_snack',
+          message: 'Offer sent',
+        );
+        bus.reconnect();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.bySemanticsIdentifier('offer_sent_snack'), findsOneWidget);
+        expect(_diagEvents(lines, 'snack_closed').single['reason'], 'hide');
+        expect(bus.events.hasListener, isFalse);
+      },
+    );
+
+    testWidgets('discarded queued snack is never reported as shown or closed', (
+      tester,
+    ) async {
+      late BuildContext context;
+      await _fire(tester, (c) {
+        context = c;
+        showJeebSnack(c, identifier: 'first_snack', message: 'First');
+      });
+      showJeebSnack(
+        context,
+        identifier: 'discarded_snack',
+        message: 'Discarded',
+      );
+      showJeebSnack(context, identifier: 'latest_snack', message: 'Latest');
+      await tester.pumpAndSettle();
+      expect(find.text('Discarded'), findsNothing);
+      expect(find.text('Latest'), findsOneWidget);
+      expect(_diagEvents(lines, 'snack_shown').map((e) => e['identifier']), [
+        'first_snack',
+        'latest_snack',
+      ]);
+      expect(_diagEvents(lines, 'snack_closed').map((e) => e['identifier']), [
+        'first_snack',
+      ]);
+      await tester.pump(kJeebSnackDuration);
+      await tester.pumpAndSettle();
+      expect(_diagEvents(lines, 'snack_closed').map((e) => e['identifier']), [
+        'first_snack',
+        'latest_snack',
+      ]);
+    });
+
+    testWidgets('a queued replacement never closes the previous controller', (
+      tester,
+    ) async {
+      late BuildContext context;
+      await _fire(tester, (c) {
+        context = c;
+        showJeebSnack(c, identifier: 'first_snack', message: 'First');
+      });
+      showJeebErrorSnack(
+        context,
+        identifier: identifier,
+        failure: const NetworkFailure(),
+        onRetry: () {},
+      );
+      bus.reconnect();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsIdentifier(identifier), findsOneWidget);
+      bus.reconnect();
+      await tester.pumpAndSettle();
+      expect(_diagEvents(lines, 'snack_closed').last['reason'], 'reconnect');
+    });
+
+    testWidgets(
+      'messenger disposal cancels the subscription without a fake close',
+      (tester) async {
+        await _fire(
+          tester,
+          (c) => showJeebErrorSnack(
+            c,
+            identifier: identifier,
+            failure: const NetworkFailure(),
+            onRetry: () {},
+          ),
+        );
+        expect(bus.events.hasListener, isTrue);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(bus.events.hasListener, isFalse);
+        bus.reconnect();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_diagEvents(lines, 'snack_closed'), isEmpty);
+      },
+    );
+  });
+
   group('F6 · a snack has a bounded life', () {
     late NetworkReachabilitySignals bus;
 
@@ -396,7 +731,7 @@ void main() {
             'SnackBar derives persist from `action != null`, and a '
             'persisting snack is never timed out at all',
       );
-      expect(snack.duration, kJeebSnackActionDuration);
+      expect(snack.duration, jeebSnackActionDuration);
     });
 
     testWidgets('and it is gone once that duration elapses', (
@@ -413,7 +748,7 @@ void main() {
       );
       expect(find.byType(SnackBar), findsOneWidget);
 
-      await tester.pump(kJeebSnackActionDuration);
+      await tester.pump(jeebSnackActionDuration);
       await tester.pumpAndSettle();
       expect(find.byType(SnackBar), findsNothing);
     });
@@ -435,34 +770,31 @@ void main() {
     });
 
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
-      testWidgets(
-        'the reconnect edge retires a connectivity snack · '
-        '${locale.languageCode}',
-        (WidgetTester tester) async {
-          await _fire(
-            tester,
-            (BuildContext c) => showJeebErrorSnack(
-              c,
-              identifier: 'order_history_refresh_failed_snack',
-              failure: const NetworkFailure(offline: true),
-              onRetry: () {},
-            ),
-            locale: locale,
-          );
-          expect(
-            find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
-            findsOneWidget,
-          );
+      testWidgets('the reconnect edge retires a connectivity snack · '
+          '${locale.languageCode}', (WidgetTester tester) async {
+        await _fire(
+          tester,
+          (BuildContext c) => showJeebErrorSnack(
+            c,
+            identifier: 'order_history_refresh_failed_snack',
+            failure: const NetworkFailure(offline: true),
+            onRetry: () {},
+          ),
+          locale: locale,
+        );
+        expect(
+          find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
+          findsOneWidget,
+        );
 
-          reconnect();
-          await tester.pumpAndSettle();
-          expect(
-            find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
-            findsNothing,
-          );
-          expect(find.byType(SnackBar), findsNothing);
-        },
-      );
+        reconnect();
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsIdentifier('order_history_refresh_failed_snack'),
+          findsNothing,
+        );
+        expect(find.byType(SnackBar), findsNothing);
+      });
     }
 
     testWidgets('but leaves a snack that never blamed the connection', (

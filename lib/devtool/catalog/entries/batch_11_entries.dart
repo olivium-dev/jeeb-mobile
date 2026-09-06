@@ -376,6 +376,7 @@ final CatalogEntry _supportTicketDetailEntry = CatalogEntry(
       (_) => SupportTicketDetailScreen(
         ticketId: SupportTicketDetailScreenFixtures.ticketId,
         repository: SupportTicketDetailScreenFixtures.refreshFailure,
+        cubitFactory: SupportTicketDetailScreenFixtures.refreshFailedCubit,
       ),
     ),
     CatalogState(
@@ -383,6 +384,7 @@ final CatalogEntry _supportTicketDetailEntry = CatalogEntry(
       (_) => SupportTicketDetailScreen(
         ticketId: SupportTicketDetailScreenFixtures.ticketId,
         repository: SupportTicketDetailScreenFixtures.paginationFailure,
+        cubitFactory: SupportTicketDetailScreenFixtures.paginationFailedCubit,
       ),
     ),
   ],
@@ -633,6 +635,7 @@ final CatalogEntry _walletHubEntry = CatalogEntry(
     CatalogState(
       'Refresh failed — warm note over a live balance',
       (_) => WalletHubScreen(
+        cubitFactory: walletHubRefreshFailedCubit,
         repository: WalletHubScreenRefreshFailingRepository(
           walletHubScreenHealthy,
         ),
@@ -757,6 +760,7 @@ final CatalogEntry _walletActivityListEntry = CatalogEntry(
     CatalogState(
       'Load-more failed — footer retry, no scroll loop',
       (_) => const WalletActivityListScreen(
+        cubitFactory: walletActivityLoadMoreFailedCubit,
         repository: WalletActivityListScreenLoadMoreFailingRepository(
           walletActivityListScreenMixedLedger,
         ),
@@ -765,6 +769,7 @@ final CatalogEntry _walletActivityListEntry = CatalogEntry(
     CatalogState(
       'Refresh failed — rows stay up',
       (_) => WalletActivityListScreen(
+        cubitFactory: walletActivityRefreshFailedCubit,
         repository: WalletActivityListScreenRefreshFailingRepository(
           walletActivityListScreenMixedLedger,
         ),

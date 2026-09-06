@@ -12,6 +12,7 @@ import '../../../features/earnings/application/earnings_cubit.dart';
 import '../../../features/earnings/domain/earnings_repository.dart';
 import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/chat_detail_screen_fixtures.dart';
 import '../fixtures/delivery_detail_screen_fixtures.dart';
 import '../fixtures/delivery_man_profile_screen_fixtures.dart';
@@ -241,10 +242,10 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
       ),
       CatalogState(
         'Warm — refresh failed over a loaded receipt',
-        (context) => DeliveryReceiptScreen(
+        (context) => catalogReceiptRefresh(DeliveryReceiptScreen(
           deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
           repository: DeliveryReceiptScreenFixtures.refreshFailedWarm(),
-        ),
+        )),
       ),
     ],
   ),
@@ -329,7 +330,7 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
       CatalogState(
         'Refresh failed over a loaded dispute',
         (context) =>
-            _disputeStatusScreen(DisputeStatusScreenFixtures.refreshFailure),
+            catalogDisputeRefresh(_disputeStatusScreen(DisputeStatusScreenFixtures.refreshFailure)),
       ),
       CatalogState(
         'Empty status history (ES-20)',
@@ -369,19 +370,19 @@ final List<CatalogEntry> _earningsEntries = <CatalogEntry>[
       ),
       CatalogState(
         'Refresh failed — the dashboard stays up',
-        (context) => _earningsHost(
+        (context) => catalogEarningsFailure(_earningsHost(
           RefreshFailingEarningsRepository(
             EarningsDashboardScreenPreviewFixtures.populatedWeek,
           ),
-        ),
+        )),
       ),
       CatalogState(
         'Export failed — error snack',
-        (context) => _earningsHost(
+        (context) => catalogEarningsFailure(_earningsHost(
           const ExportFailingEarningsRepository(
             EarningsDashboardScreenPreviewFixtures.populatedWeek,
           ),
-        ),
+        ), export: true),
       ),
       CatalogState(
         'Error — server 500, retryable and never blames the network',

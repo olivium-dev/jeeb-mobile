@@ -7,6 +7,7 @@ import '../preview_test_harness.dart';
 
 const Map<String, Widget Function()> _previews = <String, Widget Function()>{
   'Network (retry)': jeebFailureBlockNetwork,
+  'Unreachable host (retry)': jeebFailureBlockUnreachable,
   'Server 500 (retry)': jeebFailureBlockServer,
   'Session expired (exit)': jeebFailureBlockSessionExpired,
   'Not found (no CTA)': jeebFailureBlockNotFound,
@@ -22,6 +23,7 @@ void main() {
     _previews,
     expectedText: const <String, String>{
       'Network (retry)': 'Network (retry)',
+      'Unreachable host (retry)': 'Unreachable host (retry)',
       'Server 500 (retry)': 'Server 500 (retry)',
       'Session expired (exit)': 'Session expired (exit)',
       'Not found (no CTA)': 'Not found (no CTA)',
@@ -36,6 +38,7 @@ void main() {
     ) async {
       for (final String state in const <String>[
         'Network (retry)',
+        'Unreachable host (retry)',
         'Server 500 (retry)',
         'Rate limited (30s)',
         'Compact (inline)',

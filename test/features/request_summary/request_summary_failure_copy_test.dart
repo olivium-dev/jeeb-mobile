@@ -28,6 +28,7 @@ const RequestDraft _draft = RequestDraft(
 /// The English bodies `failureCopy` selects, keyed by kind.
 const Map<String, String> _englishBody = <String, String>{
   'network': 'Check your connection and try again.',
+  'unreachable': "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
   'server': "We couldn't complete that. Try again in a moment.",
   'validation': 'Check the details and try again.',
   'unauthorized': 'Sign in again to continue.',
@@ -106,7 +107,8 @@ void main() {
 
     for (final MapEntry<String, AppFailure> entry
         in const <String, AppFailure>{
-      'network': NetworkFailure(),
+      'network': NetworkFailure(offline: true),
+      'unreachable': NetworkFailure(reason: NetworkFailureReason.hostLookup),
       'server': ServerFailure(status: 500),
       'validation': ValidationFailure(),
       'unauthorized': UnauthorizedFailure(),

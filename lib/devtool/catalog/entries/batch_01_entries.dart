@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
+import '../../../features/account_status/application/account_status_cubit.dart';
 
 import '../../../features/account_status/presentation/account_status_screen.dart';
 import '../fixtures/account_status_screen_fixtures.dart';
@@ -16,12 +20,12 @@ import '../../../features/biometric_login/presentation/biometric_prompt_screen.d
 import '../fixtures/biometric_prompt_screen_fixtures.dart';
 
 List<CatalogEntry> get batch01Entries => <CatalogEntry>[
-      _accountStatusEntry,
-      _activeDeliveryJeeberEntry,
-      _setPasswordEntry,
-      _biometricLockEntry,
-      _biometricPromptEntry,
-    ];
+  _accountStatusEntry,
+  _activeDeliveryJeeberEntry,
+  _setPasswordEntry,
+  _biometricLockEntry,
+  _biometricPromptEntry,
+];
 
 final CatalogEntry _accountStatusEntry = CatalogEntry(
   feature: 'account_status',
@@ -79,9 +83,18 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
     CatalogState(
       'Refresh failed over a loaded banner',
       (context) => AccountStatusScreen(
-        repository: AccountStatusScreenRefreshFailingRepository(
-          accountStatusScreenSuspended,
-        ),
+        cubitFactory: () {
+          final cubit = AccountStatusCubit(
+            repository: AccountStatusScreenRefreshFailingRepository(
+              accountStatusScreenSuspended,
+            ),
+          );
+          unawaited(() async {
+            await cubit.load();
+            if (!cubit.isClosed) await cubit.refresh();
+          }());
+          return cubit;
+        },
       ),
     ),
   ],
@@ -163,23 +176,20 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
     ),
     CatalogState(
       'Error — proof photo refused',
-      (context) => ActiveDeliveryJeeberScreen(
+      (context) => catalogProofPhotoFailure(ActiveDeliveryJeeberScreen(
         deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: ActiveDeliveryJeeberScreenSeededCubit(
-          ActiveDeliveryJeeberScreenFixtures.proofPhotoPermissionDenied,
-        ),
-      ),
+        repository: ActiveDeliveryScreenReadThenFailRepository(),
+        photoPicker: const ActiveDeliveryScreenDeniedPhotoPicker(),
+      )),
     ),
     CatalogState(
       'Warm — refresh failed over a live delivery',
-      (context) => ActiveDeliveryJeeberScreen(
+      (context) => catalogActiveRefresh(ActiveDeliveryJeeberScreen(
         deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: ActiveDeliveryJeeberScreenSeededCubit(
-          ActiveDeliveryJeeberScreenFixtures.refreshFailedWarm,
-        ),
-      ),
+        repository: ActiveDeliveryScreenReadThenFailRepository(failRefresh: true),
+      )),
     ),
   ],
 );
@@ -274,27 +284,23 @@ final CatalogEntry _biometricPromptEntry = CatalogEntry(
   states: [
     CatalogState(
       'Checking',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenCheckingCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenCheckingCubit()),
     ),
     CatalogState(
       'Available',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenAvailableCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenAvailableCubit()),
     ),
     CatalogState(
       'Unavailable',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenUnavailableCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenUnavailableCubit()),
     ),
     CatalogState(
       'Failed',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenFailedCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenFailedCubit()),
     ),
   ],
 );

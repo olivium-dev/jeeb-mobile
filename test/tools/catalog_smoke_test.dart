@@ -14,20 +14,8 @@ import 'package:omds/omds.dart';
 import '../support/midnight_test_harness.dart';
 import '../support/sync_app_localizations.dart';
 
-/// The board's own canvas: a narrower one would import pre-existing overflow
-/// into a gate that exists to catch build failures.
+/// The board's own canvas; focused responsive tests also cover narrow screens.
 const Size _kCanvas = Size(440, 956);
-
-/// Overflowing at the board's canvas when this gate landed — named, not
-/// skipped. Never add a row; delete rows as WP-3 / WP-8 fix them.
-const Set<String> _kKnownOverflow = <String>{
-  'client_offers · client_offers_screen · 0 Loaded — 3 offers',
-  'client_offers · client_offers_screen · 2 Offer window expired',
-  'client_offers · client_offers_screen · 3 Request closed',
-  'home_client · Client Home (Requests tab) · 0 In Progress (populated)',
-  'jeeber_onboarding · Delivery-Man Onboarding Wizard · 3 Step 3 — Checking coverage',
-  'jeeber_onboarding · Delivery-Man Onboarding Wizard · 4 Step 3 — Coverage check failed',
-};
 
 /// Catalog screens are reached by a push, so `context.canPop()` must be true
 /// and `GoRouter.of` must resolve at build time.
@@ -70,8 +58,8 @@ void main() {
         addTearDown(tester.view.reset);
         useReduceMotion(tester);
 
-        // takeException() collapses repeats into one summary, so the known
-        // rows are checked against every error the build actually reported.
+        // takeException() collapses repeats; require every reported error to
+        // be absent. There are no known-overflow exemptions.
         final List<String> reported = <String>[];
         final void Function(FlutterErrorDetails)? previousOnError =
             FlutterError.onError;
@@ -106,20 +94,7 @@ void main() {
         await pumpPastFakeLatency(tester);
 
         final Object? thrown = tester.takeException();
-        if (_kKnownOverflow.contains(name)) {
-          expect(
-            reported,
-            isNotEmpty,
-            reason: 'this state no longer fails — delete its row from '
-                '_kKnownOverflow so the fix is locked in',
-          );
-          expect(
-            reported,
-            everyElement(contains('overflowed')),
-            reason: 'this known-overflow state now fails for a NEW reason',
-          );
-          return;
-        }
+        expect(reported, isEmpty, reason: 'no catalog state may hide an overflow');
         expect(
           thrown,
           isNull,

@@ -93,10 +93,17 @@ const List<JeebEmptyMedallion> _kNoMedallions = <JeebEmptyMedallion>[];
 /// (study-notes ruling 1) — the light-theme OMDS shimmer/empty widgets they used
 /// paint `Colors.grey.shade300` on a navy field.
 class WalletActivityListScreen extends StatelessWidget {
-  const WalletActivityListScreen({super.key, this.repository});
+  const WalletActivityListScreen({
+    super.key,
+    this.repository,
+    this.cubitFactory,
+  });
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletLedgerRepository? repository;
+
+  /// Construction seam; the provider owns and closes the returned cubit.
+  final WalletLedgerCubit Function()? cubitFactory;
 
   /// Resolves the repo: an explicit override (tests) → the registered LIVE
   /// `DioWalletLedgerRepository` → an empty fallback when GetIt is not configured
@@ -116,8 +123,9 @@ class WalletActivityListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<WalletLedgerCubit>(
-      create: (_) =>
-          WalletLedgerCubit(repository: _resolveRepository())..load(),
+      create: (_) => cubitFactory != null
+          ? cubitFactory!()
+          : (WalletLedgerCubit(repository: _resolveRepository())..load()),
       child: const _WalletActivityView(),
     );
   }

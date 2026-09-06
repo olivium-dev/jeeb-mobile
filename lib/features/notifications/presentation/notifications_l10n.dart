@@ -53,6 +53,10 @@ class NotificationsL10n {
         return _l10n.notificationsCategoryLabelSupport;
       case NotificationKind.unknown:
         return _l10n.notificationsCategoryLabelUnknown;
+      case NotificationKind.chat:
+        return _l10n.notificationsCategoryLabelChat;
+      case NotificationKind.availability:
+        return _l10n.notificationsCategoryLabelAvailability;
     }
   }
 

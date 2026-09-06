@@ -265,7 +265,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                       // The LIVE remainder, not the frozen
                                       // header: the copy ticks with the CTA.
                                       retryAfterSeconds:
-                                          state.resendSecondsRemaining,
+                                          state.otpRetryAfterSeconds == null
+                                              ? null
+                                              : state.resendSecondsRemaining,
                                       onResend: _handleResend,
                                     ),
                                     if (state.failedAttempts > 0) ...[
@@ -586,7 +588,9 @@ String _otpErrorCopy(
     case RegistrationOtpError.accountSuspended:
       return l10n.registrationOtpAccountSuspended;
     case RegistrationOtpError.rateLimited:
-      return l10n.registrationOtpRateLimitedSeconds(retryAfterSeconds ?? 0);
+      return retryAfterSeconds == null
+          ? l10n.errorRateLimitedBody
+          : l10n.registrationOtpRateLimitedSeconds(retryAfterSeconds);
     case RegistrationOtpError.serverError:
       return l10n.registrationOtpServerError;
     case RegistrationOtpError.serviceUnavailable:

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../domain/earnings_repository.dart';
 import 'earnings_state.dart';
@@ -150,7 +151,7 @@ AppFailure classifyEarningsFailure(Object error) {
   if (error is EarningsRepositoryException) {
     return error.failure ??
         switch (error.kind) {
-          EarningsErrorKind.network => const NetworkFailure(),
+          EarningsErrorKind.network => networkFailureFromReachability(),
           EarningsErrorKind.server => const ServerFailure(status: 500),
           EarningsErrorKind.parse => const UnknownFailure(parse: true),
         };

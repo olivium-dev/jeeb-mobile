@@ -18,6 +18,7 @@ import '../../core/diagnostics/diag.dart';
 import '../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../core/formatting/friendly_reference.dart';
 import '../../core/network/app_failure.dart';
+import '../../core/network/app_failure_mapper.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/network/network_reachability_signals.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
@@ -1159,7 +1160,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     } on OrderChatSummaryException catch (error) {
       _lastSummaryFailure = switch (error.failure) {
         OrderChatSummaryFailure.notFound => const NotFoundFailure(),
-        OrderChatSummaryFailure.network => const NetworkFailure(),
+        OrderChatSummaryFailure.network => networkFailureFromReachability(),
         OrderChatSummaryFailure.unknown => UnknownFailure(cause: error),
       };
       return null;

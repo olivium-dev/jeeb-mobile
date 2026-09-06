@@ -39,19 +39,19 @@ class SupportTicketScreenPendingRepository implements SupportRepository {
 /// Both error readings the screen has — the network line and the generic
 /// "Couldn't submit." — arrive through this one class, so the D30 error body is
 class SupportTicketScreenFailingRepository implements SupportRepository {
-  const SupportTicketScreenFailingRepository(this.failure, [this.appFailure]);
+  const SupportTicketScreenFailingRepository(this.failure, this.appFailure);
 
   final SupportFailure failure;
 
   /// The classified failure the screen actually renders through.
-  final AppFailure? appFailure;
+  final AppFailure appFailure;
 
   @override
   Future<SupportTicket> submitTicket(SupportTicketDraft draft) async {
     throw SupportRepositoryException.classified(
       failure,
       message: 'fixture',
-      appFailure: appFailure ?? const UnknownFailure(),
+      appFailure: appFailure,
     );
   }
 }
@@ -154,12 +154,15 @@ abstract final class SupportTicketScreenPreviewFixtures {
     return cubit;
   }
 
-  /// CATALOG · "Error — network failure". The phone is offline.
+  /// CATALOG · "Error — network failure". The service is unreachable.
   /// Note the category the catalog chose: [SupportCategory.payment], which a
   static SupportCubit get networkError {
     final SupportCubit cubit =
         SupportCubit(
-            const SupportTicketScreenFailingRepository(SupportFailure.network),
+            const SupportTicketScreenFailingRepository(
+              SupportFailure.network,
+              NetworkFailure(),
+            ),
           )
           ..setCategory(SupportCategory.payment)
           ..setBody('I was charged twice for the same delivery.');
@@ -174,6 +177,7 @@ abstract final class SupportTicketScreenPreviewFixtures {
         SupportCubit(
             const SupportTicketScreenFailingRepository(
               SupportFailure.unauthorized,
+              UnauthorizedFailure(),
             ),
           )
           ..setCategory(SupportCategory.delivery)

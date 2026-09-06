@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/network/network_reachability_signals.dart';
 import 'package:jeeb_mobile/features/offers/domain/offer_submission_repository.dart';
 import 'package:jeeb_mobile/features/offers/presentation/offer_submission_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -66,6 +67,8 @@ Future<void> _submitValidDraft(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() => NetworkReachabilitySignals.instance.debugObserve(online: false));
+  tearDown(NetworkReachabilitySignals.debugReset);
   group('Offer composer error snack — localized + draft survives', () {
     testWidgets('network failure shows the EN localized snack, not the old '
         'hardcoded string; draft survives (JEBV4-246/243)', (tester) async {

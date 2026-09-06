@@ -3,6 +3,7 @@ library;
 import 'package:dio/dio.dart' show DioExceptionType;
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import 'entities/rating_status.dart';
 
 enum RatingFailure {
@@ -56,7 +57,7 @@ RatingFailure ratingFailureOf(Object error) =>
 
 /// The copy-family failure a [RatingFailure] renders as.
 AppFailure ratingAppFailure(RatingFailure failure) => switch (failure) {
-  RatingFailure.network => const NetworkFailure(),
+  RatingFailure.network => networkFailureFromReachability(),
   RatingFailure.timeout =>
     const TimeoutFailure(phase: DioExceptionType.receiveTimeout),
   RatingFailure.forbidden => const ForbiddenFailure(),

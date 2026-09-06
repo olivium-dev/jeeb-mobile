@@ -136,10 +136,10 @@ class JeeberFeedEmptyBlock extends StatelessWidget {
       // gateway returns no zone.
       headline: isOnline
           ? l10n.jeeberFeedQuietStreetTitle
-          : l10n.availabilityDutyOffTitle,
+          : l10n.jeeberFeedDutyOffEmptyHeadline,
       body: isOnline
           ? l10n.jeeberFeedQuietStreetBody
-          : l10n.availabilityDutyOffSubtitle,
+          : l10n.jeeberFeedDutyOffEmptyBody,
       // TODO(midnight): omitted — E3's second pill "Widen my zone": the app has
       // no service-zone surface and the gateway parses no zone back.
       action: !isOnline || onRefresh == null
@@ -159,7 +159,7 @@ class _RefreshPill extends StatelessWidget {
     return IntrinsicWidth(
       child: JeebCtaButton.outline(
         label: AppLocalizations.of(context).jeeberFeedPullToRefreshAction,
-        identifier: 'jeeber_feed_empty_refresh_cta',
+        identifier: 'jeeber_feed_empty_retry_cta',
         expand: false,
         onTap: onRefresh,
       ),

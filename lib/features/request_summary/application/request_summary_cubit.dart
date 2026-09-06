@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/idempotency/operation_id.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../domain/request_draft.dart';
 import '../domain/request_submission_service.dart';
 
@@ -128,7 +129,7 @@ class RequestSummaryCubit extends Cubit<RequestSummaryState> {
 
   /// Only for a legacy exception raised without a classified failure.
   AppFailure _fallbackFor(RequestSubmissionFailure failure) => switch (failure) {
-        RequestSubmissionFailure.network => const NetworkFailure(),
+        RequestSubmissionFailure.network => networkFailureFromReachability(),
         RequestSubmissionFailure.unauthorized => const UnauthorizedFailure(),
         RequestSubmissionFailure.invalidInput => const ValidationFailure(),
         RequestSubmissionFailure.server => const ServerFailure(status: 500),

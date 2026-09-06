@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../features/reviews/domain/reviews_repository.dart';
 
@@ -50,7 +51,12 @@ class ReviewsListScreenFailingRepository implements ReviewsRepository {
   }) async {
     throw ReviewsRepositoryException.classified(
       failure,
-      appFailure: appFailure ?? const UnknownFailure(),
+      appFailure: appFailure ?? switch (failure) {
+        ReviewsFailure.network => const NetworkFailure(),
+        ReviewsFailure.notFound => const NotFoundFailure(),
+        ReviewsFailure.unauthorized => const UnauthorizedFailure(),
+        ReviewsFailure.unknown => const UnknownFailure(),
+      },
     );
   }
 
@@ -96,7 +102,16 @@ class ReviewsListScreenLoadMoreFailingRepository implements ReviewsRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
-    if (page == 1) return firstPage;
+    if (page == 1) {
+      return ReviewsPage(
+      reviews: firstPage.reviews,
+      page: 1,
+      totalPages: 2,
+      coldStart: firstPage.coldStart,
+      reviewCount: firstPage.reviewCount,
+      averageScore: firstPage.averageScore,
+      );
+    }
     throw const ReviewsRepositoryException.classified(
       ReviewsFailure.unknown,
       appFailure: ServerFailure(status: 500),
@@ -122,9 +137,13 @@ class ReviewsListScreenReportConflictRepository implements ReviewsRepository {
 
   @override
   Future<void> reportReview(String reviewId) async =>
-      throw const ReviewsRepositoryException.classified(
+      throw ReviewsRepositoryException.classified(
         ReviewsFailure.unknown,
-        appFailure: ConflictFailure(),
+        appFailure: ConflictFailure(problem: GatewayProblem.tryParse({
+          'type': 'https://jeeb.app/errors/already-rated',
+          'title': 'already-rated',
+          'status': 409,
+        })),
       );
 }
 

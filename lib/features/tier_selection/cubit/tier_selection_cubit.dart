@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 import 'tier_selection_state.dart';
@@ -30,7 +31,7 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     } on TierLoadException catch (e) {
       _emitFailure(
         e.failure == TierLoadFailure.network
-            ? const NetworkFailure()
+            ? networkFailureFromReachability()
             : const ServerFailure(status: 500),
         legacy: e.failure,
       );

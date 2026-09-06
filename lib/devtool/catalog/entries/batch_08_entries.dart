@@ -384,11 +384,11 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               cubitFactory: passwordSecurityScreenMismatchCubit,
             ),
           ),
-          // The loading state had no capture before M3-26.
+          // Valid submission cannot save: there is no change-password API.
           CatalogState(
-            'Submitting',
+            'Unavailable — valid submission (nothing saved)',
             (_) => const PasswordSecurityScreen(
-              cubitFactory: passwordSecurityScreenSubmittingCubit,
+              cubitFactory: passwordSecurityScreenUnavailableCubit,
             ),
           ),
         ],
