@@ -5,7 +5,15 @@ Reviewer: fresh Fable 5.1 principal. Inputs read in full: `CONFLICT-REVIEW.md` (
 `jeeb-mobile-worktrees/ux-api-errors/docs/ux-failure-states/DECISIONS.md`. Plan only — no repo file changed, no commit.
 Wording in this file is forward-only-policy safe (no prior-state git verbs), so it can be committed under `docs/` later.
 
-## 0a. Current execution amendment (2026-09-06 review-fix wave)
+## 0b. Full-work continuation (2026-09-06, after the review-fix handoff)
+
+The user subsequently instructed Codex to resume the **full work**, superseding §0a's restriction to the nine review regressions. Local continuation starts from `c5603c38` on the existing #335 branch. P12-A, P11, P08, P13, P06, P05, P07, P02 mobile and P03 mobile are being implemented with isolated file ownership and serialized localization/identifier handoffs; P04-B is tooling-only. The 35-minute CI limit and earlier nine regression fixes are preserved, not counted as new work.
+
+See [the full continuation report](../reviews/FULL-WORK-RESUME-2026-09-06.md) for measured status. No device run is implied by source changes, fixtures or proxy tests. P09 S1.6 still gates P12-B deletion. Formal gateway/builder branches and integration require a fresh source check; offline preparation now exists in isolated cached snapshots (gateway `6679f6e`, builder `801ef01`) under workspace `full-resume-local/`. Those are not freshly verified remote heads. Deployment, migration, release, merge and upstream filing gates remain intact. No audit bypass.
+
+Current root-session restrictions prevent GitHub access and Flutter's local test-server bind. Independently assigned lanes report only checks their tools actually executed; a root runner-start failure is not a test pass. Whole-program runtime/coverage, current CI and device acceptance remain pending. Changes must not be pushed or marked ready on the strength of historical checks.
+
+## 0a. Prior execution amendment (2026-09-06 review-fix wave)
 
 This section supersedes the historical 07:10 snapshot below and any conflicting old batch instructions. The latest stopped Claude workflow is the review-fix wave against PR335-REVIEW-050051d6 plus INVENTORY-REVIEW-2026-09-06, not a fresh execution of all P01–P13 work. Resume design → implementation → scoped verification → integration gate → factual handoff.
 

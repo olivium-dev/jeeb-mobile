@@ -24,3 +24,7 @@
 | OD-17 | Wi-Fi hint wording (`wifi`) | Yes |
 
 Decided between 2026-09-06 06:54 and 07:05 UTC. Source of truth: artifact db `decisions/<OD>`.
+
+## OD-7 implementation disposition — this wave's new AR keys (recorded 2026-09-07)
+
+OD-7 chose Levantine for system copy. `plans/EXECUTION-PLAN-2026-09-06.md:231-238` implements that choice as "P07 F4 dropped + a WP-9 ticket converts the ~505-key MSA failure family", with this wave's new AR keys (P05 ×3, P13 ×2, P02 ×2, P03 ×3) authored MSA like their siblings and appended to the WP-9 list. The owner-ask at `:267` item 5 (one Levantine reference sentence) is still open, and authoring only the new keys in register would ship the mix `plans/PLAN-P07-arabic-failure-states.md:70` forbids. The P03 triple `composeDescriptionTooShort` / `composeDescriptionTooLong` / `composeDescriptionProhibited` (`lib/l10n/app_ar.arb:510-512`) therefore stays MSA and is tracked in `WP-9-AR-REGISTER-BACKLOG.md`.
