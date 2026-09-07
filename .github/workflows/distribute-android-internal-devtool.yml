@@ -304,6 +304,29 @@ jobs:
             printf 'metadata_path=%s\n' "${root}/output-metadata.json"
             printf 'provenance_path=%s\n' "${root}/provenance.json"
           } >>"${GITHUB_OUTPUT}"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Upload exact retained R8 mapping to existing Firebase app
+        env:
+          ANDROID_AAB_PATH: ${{ steps.candidate.outputs.aab_path }}
+          ANDROID_PROVENANCE_PATH: ${{ steps.candidate.outputs.provenance_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf -- "${tmp_dir}"' EXIT HUP INT TERM
+          jar="${tmp_dir}/firebase-crashlytics-buildtools-3.0.2.jar"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
+            https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-crashlytics-buildtools/3.0.2/firebase-crashlytics-buildtools-3.0.2.jar \
+            --output "${jar}"
+          python3 tool/android_crashlytics_mapping.py upload \
+            --aab "${ANDROID_AAB_PATH}" \
+            --mapping "$(dirname "${ANDROID_AAB_PATH}")/mapping.txt" \
+            --provenance "${ANDROID_PROVENANCE_PATH}" --buildtools "${jar}"
       - name: Upload provenance-verified AAB to Internal Testing only
         working-directory: android
         env:
@@ -349,6 +372,7 @@ jobs:
             --arg version_name '${{ inputs.build_name }}' \
             --arg version_code '${{ inputs.build_number }}' \
             '{platform:"android", destination:"google-play-internal",
+              crashlytics_mapping_uploaded:true,
               artifact_sha256:$artifact_sha256,
               source_run_id:$source_run_id,
               source_run_attempt:$source_run_attempt,
