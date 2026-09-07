@@ -140,6 +140,7 @@ run_release_build() {
     --build-name="${BUILD_NAME}" \
     --build-number="${BUILD_NUMBER}" \
     --dart-define=APP_FLAVOR=staging \
+    --dart-define=JEEB_DIAG=true \
     --dart-define=JEEB_DEVTOOL_ENABLED=true \
     --dart-define=JEEB_STAGING_DEVTOOL=true \
     --dart-define=JEEB_OBS_OVERLAY=true \

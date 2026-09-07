@@ -314,7 +314,47 @@ jobs:
             printf 'archive_sha256=%s\n' "${archive_sha}"
             printf 'provenance_sha256=%s\n' "${provenance_sha}"
             printf 'dsym_sha256=%s\n' "${dsym_sha}"
+            printf 'dsym_path=%s\n' "${dsym}"
           } >>"${GITHUB_OUTPUT}"
+
+      - name: Read locked Firebase symbol uploader revision
+        id: firebase_symbols
+        run: |
+          set -euo pipefail
+          revision="$(jq -er '.pins[] | select(.identity == "firebase-ios-sdk") | .state.revision' ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved)"
+          [[ "${revision}" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          printf 'revision=%s\n' "${revision}" >>"${GITHUB_OUTPUT}"
+
+      - name: Fetch exact locked Firebase symbol uploader
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: firebase/firebase-ios-sdk
+          ref: ${{ steps.firebase_symbols.outputs.revision }}
+          path: .firebase-symbol-sdk
+          sparse-checkout: Crashlytics
+          persist-credentials: false
+
+      - name: Upload verified retained dSYMs to existing Firebase app
+        env:
+          DSYM_PATH: ${{ steps.verify_ios.outputs.dsym_path }}
+          IPA_PATH: ${{ steps.verify_ios.outputs.artifact_path }}
+          EXPECTED_IPA_SHA256: ${{ steps.verify_ios.outputs.artifact_sha256 }}
+          EXPECTED_DSYM_SHA256: ${{ steps.verify_ios.outputs.dsym_sha256 }}
+          IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+          IOS_FIREBASE_EXPECTED_APP_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_APP_ID }}
+          IOS_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_CLIENT_ID }}
+          IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          config_dir="$(mktemp -d)"
+          trap 'rm -rf -- "${config_dir}"' EXIT HUP INT TERM
+          [[ -n "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64}" ]] || exit 1
+          printf '%s' "${IOS_GOOGLE_SERVICE_INFO_PLIST_B64}" | base64 --decode >"${config_dir}/GoogleService-Info.plist"
+          unset IOS_GOOGLE_SERVICE_INFO_PLIST_B64
+          bash tool/upload_ios_crashlytics_symbols.sh "${DSYM_PATH}" \
+            "${config_dir}/GoogleService-Info.plist" .firebase-symbol-sdk "${IPA_PATH}"
 
       - name: Set up repository Ruby
         uses: ./.github/actions/setup-ruby
@@ -350,6 +390,7 @@ jobs:
             --arg distribution_run_id "${GITHUB_RUN_ID}" \
             --arg build_number '${{ inputs.build_number }}' \
             '$ARGS.named + {stage: "internal_distribution",
+              crashlytics_symbols: "uploader_completed",
               physical_device_verification: "pending",
               final_release_go: false}' \
             >build/distribution-receipts/ios.json

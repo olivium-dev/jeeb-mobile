@@ -248,6 +248,7 @@ void _registerIosContracts() {
     _expectContainsAll(signedBuilder, [
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
+      '--dart-define=JEEB_DIAG=true',
       'https://app.jeeb.fds-1.com',
       'IOS_EXPORT_OPTIONS_PATH',
       'APP_STORE_CONNECT_API_KEY_PATH',
