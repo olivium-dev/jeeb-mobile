@@ -145,14 +145,17 @@ run_release_build() {
     --build-name="${BUILD_NAME}" \
     --build-number="${BUILD_NUMBER}" \
     --dart-define=APP_FLAVOR=staging \
+    --dart-define=JEEB_INTERNAL_RELEASE=true \
     --dart-define=JEEB_DIAG=true \
     --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
     --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
     --dart-define=JEEB_DEVTOOL_ENABLED=true \
     --dart-define=JEEB_STAGING_DEVTOOL=true \
     --dart-define=JEEB_OBS_OVERLAY=true \
-    --dart-define=JEEB_CLARITY_ENABLED=false \
+    --dart-define=JEEB_CLARITY_ENABLED=true \
     --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+    --dart-define=JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+    --dart-define=JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
     --dart-define="JEEB_REALTIME_SOCKET_URL=${REALTIME_SOCKET_URL}" \
     --dart-define="GATEWAY_BASE_URL=${GATEWAY_URL}"
 

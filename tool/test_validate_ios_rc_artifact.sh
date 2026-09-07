@@ -65,7 +65,11 @@ jq -n \
       source_workflow_path: ".github/workflows/trusted-mobile-rc.yml",
       source_workflow_ref:
         "olivium-dev/jeeb-mobile/.github/workflows/trusted-mobile-rc.yml@refs/heads/main",
-      clarity_enabled: false,
+      clarity_enabled: true,
+      clarity_privacy_approved: false,
+      clarity_staging_internal_approved: true,
+      clarity_project_id: "y6laxxj143",
+      clarity_capture_policy: "staging-internal-consent-masked-v1",
       retained: true,
       store_uploaded: false
     }
@@ -94,6 +98,15 @@ assert_rejected_provenance '.reviewed_sha = ("3" * 40)' wrong-reviewed-sha
 assert_rejected_provenance '.source_run_attempt = "9"' wrong-run-attempt
 assert_rejected_provenance '.source_workflow_path = "Trusted mobile release candidate"' display-name-source
 assert_rejected_provenance '.source_workflow_ref = "refs/heads/main"' wrong-workflow-ref
+assert_rejected_provenance '.runtime = "production"' production-runtime
+assert_rejected_provenance '.clarity_enabled = false' disabled-capture
+assert_rejected_provenance '.clarity_privacy_approved = true' production-approval
+assert_rejected_provenance '.clarity_staging_internal_approved = false' missing-staging-approval
+assert_rejected_provenance '.clarity_project_id = "anotherproject"' wrong-clarity-project
+assert_rejected_provenance '.clarity_capture_policy = "unmasked"' wrong-capture-policy
+assert_rejected_provenance 'del(.clarity_staging_internal_approved)' omitted-staging-approval
+assert_rejected_provenance 'del(.clarity_privacy_approved)' omitted-production-policy
+assert_rejected_provenance '.clarity_enabled = "true"' non-boolean-capture
 
 if EXPECTED_IPA_SHA256="$(printf 'f%.0s' {1..64})" \
   bash "${validator}" "${ipa_path}" "${provenance_path}" "${dsym_path}" \
