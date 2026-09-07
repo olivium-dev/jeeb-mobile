@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/analytics/clarity/application/clarity_controller.dart';
 import 'package:jeeb_mobile/core/analytics/clarity/domain/clarity_analytics_port.dart';
 import 'package:jeeb_mobile/core/analytics/clarity/domain/clarity_consent.dart';
 import 'package:jeeb_mobile/core/analytics/clarity/domain/clarity_consent_store.dart';
+import 'package:jeeb_mobile/devtool/shake/devtool_shake.dart';
 
 void main() {
   Future<BuildContext> contextFor(WidgetTester tester) async {
@@ -86,6 +88,58 @@ void main() {
     subject.didCloseDevTool();
     await tester.pump();
     expect(subject.isCaptureActive, isTrue);
+  });
+
+  testWidgets('Dev Tool resumes SDK only after its closing frame', (
+    tester,
+  ) async {
+    final analytics = _FakeAnalytics();
+    final subject = ClarityController(
+      available: true,
+      consentStore: _FakeStore(ClarityConsent.unknown),
+      analytics: analytics,
+    );
+    addTearDown(subject.dispose);
+    late BuildContext productContext;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
+        builder: (context, child) {
+          productContext = context;
+          return DevToolShakeHost(
+            prepareOpen: subject.prepareDevToolOpen,
+            onClosed: subject.didCloseDevTool,
+            layerBuilder: (_) => const SizedBox(),
+            child: child!,
+          );
+        },
+        home: const SizedBox(),
+      ),
+    );
+    subject.attachContext(productContext);
+    subject.updateAuthentication(true);
+    await subject.grant();
+    await tester.pump();
+    expect(subject.isCaptureActive, isTrue);
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      kDevToolLauncherChannelName,
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall(kDevToolShakeOpenMethod),
+      ),
+      (_) {},
+    );
+    await tester.pump();
+    expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+    expect(subject.isCaptureActive, isFalse);
+    final resumesBeforeClose = analytics.resumeCalls;
+    await tester.tap(find.byKey(kDevToolShakeCloseKey));
+    await tester.idle();
+    expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+    expect(analytics.resumeCalls, resumesBeforeClose);
+    await tester.pump();
+    expect(find.byKey(kDevToolShakeLayerKey), findsNothing);
+    await tester.idle();
+    expect(analytics.resumeCalls, resumesBeforeClose + 1);
   });
 
   testWidgets('concurrent grants initialize at most once', (tester) async {
@@ -343,8 +397,11 @@ void main() {
     await tester.pump();
     analytics.pauseSucceeds = false;
 
+    expect(subject.prepareDevToolOpen(), isFalse);
+    expect(subject.isCaptureActive, isFalse);
+    final pausesBeforeRevoke = analytics.pauseCalls;
     expect(await subject.revoke(), isFalse);
-    expect(analytics.pauseCalls, 2);
+    expect(analytics.pauseCalls, pausesBeforeRevoke + 2);
     expect(subject.privacyOperationFailed, isTrue);
     expect(subject.isCaptureActive, isFalse);
   });

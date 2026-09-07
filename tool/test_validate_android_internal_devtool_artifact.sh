@@ -27,6 +27,9 @@ metadata_path="${TMP_DIR}/output-metadata.json"
 provenance_path="${TMP_DIR}/provenance.json"
 mapping_path="${TMP_DIR}/mapping.txt"
 mkdir -p "${TMP_DIR}/aab/base/manifest"
+mkdir -p "${TMP_DIR}/aab/base/lib/arm64-v8a"
+printf '%s\n' 'y6laxxj143 jeeb-clarity-sdk' \
+  >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
 printf '%s\n' \
   'com.olivium.jeeb com.olivium.jeeb.MainActivity' \
   'com.olivium.jeeb.DevToolLauncher android.intent.action.MAIN' \
@@ -175,6 +178,24 @@ assert_rejected_provenance '.clarity_staging_internal_approved = false' missing-
 assert_rejected_provenance '.clarity_project_id = "other"' wrong-clarity-project
 assert_rejected_provenance '.clarity_capture_policy = "other"' wrong-clarity-policy
 assert_rejected_provenance '.clarity_privacy_approved = true' false-production-approval
+
+for missing_marker in y6laxxj143 jeeb-clarity-sdk; do
+  marker_aab="${TMP_DIR}/missing-${missing_marker}.aab"
+  cp "${aab_path}" "${marker_aab}"
+  printf '%s\n' "${missing_marker/y6laxxj143/jeeb-clarity-sdk}" \
+    >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
+  if [[ "${missing_marker}" == jeeb-clarity-sdk ]]; then
+    printf '%s\n' y6laxxj143 >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
+  fi
+  (cd "${TMP_DIR}/aab" && zip -q "${marker_aab}" base/lib/arm64-v8a/libapp.so)
+  if bash "${validator}" "${marker_aab}" "${provenance_path}" "${metadata_path}" \
+    >"${TMP_DIR}/marker-rejection.log" 2>&1; then
+    printf 'Validator accepted absent actual marker: %s\n' "${missing_marker}" >&2
+    exit 1
+  fi
+  grep -Fq "staging Clarity payload marker is absent: ${missing_marker}" \
+    "${TMP_DIR}/marker-rejection.log"
+done
 assert_rejected_provenance '.reviewed_sha = ("2" * 40)' wrong-reviewed-sha
 assert_rejected_provenance '.source_run_id = "654321"' wrong-run
 assert_rejected_provenance '.source_run_attempt = "9"' wrong-run-attempt

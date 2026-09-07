@@ -78,6 +78,18 @@ validate_archive() {
     LC_ALL=C grep -aFq "${launcher_marker}" "${manifest}" ||
       fail "required launcher marker is missing: ${launcher_marker}"
   done
+  local app_entry app_count=0
+  while IFS= read -r app_entry; do
+    [[ "${app_entry}" =~ ^base/lib/[^/]+/libapp\.so$ ]] || continue
+    app_count=$((app_count + 1))
+    unzip -p "${AAB_PATH}" "${app_entry}" >"${VALIDATION_TMP}/libapp.so" ||
+      fail 'Dart application payload is missing'
+    for marker in y6laxxj143 jeeb-clarity-sdk; do
+      LC_ALL=C grep -aFq "${marker}" "${VALIDATION_TMP}/libapp.so" ||
+        fail "staging Clarity payload marker is absent: ${marker}"
+    done
+  done < <(unzip -Z1 "${AAB_PATH}")
+  (( app_count > 0 )) || fail 'AAB contains no Dart application payload'
 }
 
 validate_metadata() {

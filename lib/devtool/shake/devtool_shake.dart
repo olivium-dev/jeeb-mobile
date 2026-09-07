@@ -265,7 +265,9 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _close() {
     if (!_open) return;
     setState(() => _open = false);
-    widget.onClosed?.call();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_open) widget.onClosed?.call();
+    });
   }
 
   /// Dismiss AND restart, so settings edited in the Dev Tool take effect.
@@ -279,7 +281,8 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _apply() {
     if (!_open) return;
     setState(() => _open = false);
-    widget.onClosed?.call();
+    // The restarted app owns a fresh analytics context. Keep this context
+    // blocked while its outgoing Dev Tool layer is still being removed.
     AppRestarter.restart(context);
   }
 
