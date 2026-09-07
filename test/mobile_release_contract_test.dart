@@ -248,6 +248,12 @@ void _registerIosContracts() {
     _expectContainsAll(signedBuilder, [
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
+      '--dart-define=JEEB_DIAG=true',
+      r'--dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}"',
+      r'--dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}"',
+      'BUILD_NUMBER REVIEWED_SHA GATEWAY_URL',
+      'REVIEWED_SHA must be an explicit immutable commit',
+      'diagnostic source revision differs from checked-out candidate',
       'https://app.jeeb.fds-1.com',
       'IOS_EXPORT_OPTIONS_PATH',
       'APP_STORE_CONNECT_API_KEY_PATH',

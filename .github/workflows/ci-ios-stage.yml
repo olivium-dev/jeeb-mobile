@@ -55,6 +55,9 @@ jobs:
       - name: Validate protected iOS Firebase injection contract
         run: bash tool/test_ios_firebase_config.sh
 
+      - name: Verify Crashlytics symbol distribution failure controls
+        run: python3 tool/test_upload_ios_crashlytics_symbols.py
+
       - name: Validate signed iOS inspector negative contracts
         run: bash tool/test_inspect_signed_ios_release.sh
 

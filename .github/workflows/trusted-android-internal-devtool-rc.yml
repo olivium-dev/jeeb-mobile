@@ -134,6 +134,15 @@ jobs:
           bash tool/test_inspect_android_internal_release_payload.sh
           bash tool/test_inspect_android_release_payload.sh
 
+      - name: Verify Crashlytics mapping with real Android resource tools
+        run: |
+          set -euo pipefail
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+          export AAPT2_BIN="${ANDROID_HOME}/build-tools/36.0.0/aapt2"
+          export ANDROID_PLATFORM_JAR="${ANDROID_HOME}/platforms/android-36/android.jar"
+          test -x "${AAPT2_BIN}" && test -s "${ANDROID_PLATFORM_JAR}"
+          python3 -m unittest discover -s tool -p 'test_android_crashlytics_mapping.py'
+
       - name: Build, inspect, encrypt, and retain signed internal candidate
         id: candidate
         env:
@@ -205,6 +214,9 @@ jobs:
                 --build-name="${BUILD_NAME}" \
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
+                --dart-define=JEEB_DIAG=true \
+                --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
+                --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
                 --dart-define=JEEB_INTERNAL_RELEASE=true \
                 --dart-define=JEEB_DEVTOOL_ENABLED=true \
                 --dart-define=JEEB_STAGING_DEVTOOL=true \
@@ -282,8 +294,11 @@ jobs:
           artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
           metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
+          crashlytics_identity="$(python3 tool/android_crashlytics_mapping.py inspect --aab "${aab}")"
+          [[ "$(jq -r .firebase_app_id <<<"${crashlytics_identity}")" == "${ANDROID_FIREBASE_EXPECTED_APP_ID}" ]]
           provenance="${tmp_dir}/provenance.json"
           jq -n \
+            --argjson crashlytics_identity "${crashlytics_identity}" \
             --arg reviewed_sha "${REVIEWED_SHA}" \
             --arg dependency_sha "${OMDS_SHA}" \
             --arg build_name "${BUILD_NAME}" \
@@ -325,8 +340,10 @@ jobs:
               devtool:true, super_login:true, shake_to_open:false,
               clarity_enabled:false,
               clarity_privacy_approved:false, retained:true,
-              store_uploaded:false}' >"${provenance}"
+              store_uploaded:false} + $crashlytics_identity' >"${provenance}"
           chmod 0600 "${provenance}"
+          python3 tool/android_crashlytics_mapping.py verify \
+            --aab "${aab}" --mapping "${mapping}" --provenance "${provenance}"
           ANDROID_PACKAGE_NAME=com.olivium.jeeb \
           MOBILE_BUILD_NAME="${BUILD_NAME}" \
           MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
