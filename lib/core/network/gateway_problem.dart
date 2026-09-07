@@ -98,8 +98,10 @@ final class GatewayProblem {
   String? get currency => _string('currency');
 
   Duration? get retryAfter {
-    final seconds = _number('retryAfter');
-    if (seconds == null || seconds <= 0) return null;
+    final seconds = extensions.containsKey('retryAfter')
+        ? _number('retryAfter')
+        : _number('retry_after');
+    if (seconds == null || !seconds.isFinite || seconds <= 0) return null;
     return Duration(milliseconds: (seconds * 1000).round());
   }
 

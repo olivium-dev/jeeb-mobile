@@ -42,6 +42,10 @@ Widget _host(
         child: JeeberHomeScreen(
           requestFeedCubit: feed,
           profileName: 'Kamal',
+          activeDeliveriesBanner: Semantics(
+            identifier: 'jeeber_active_deliveries',
+            child: const Text('Active delivery'),
+          ),
           onOpenFeedRequest: (_) {},
         ),
       ),
@@ -85,6 +89,11 @@ void main() {
       );
       // The lie this fix exists to kill.
       expect(find.bySemanticsIdentifier('jeeber_feed_empty_state'), findsNothing);
+      expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('jeeber_active_deliveries'), findsOneWidget);
+      await tester.tap(find.bySemanticsIdentifier('availability_switch'));
+      await tester.pumpAndSettle();
+      expect(availability.state.status.state, AvailabilityState.offline);
     });
 
     testWidgets('[$tag] a WARM feed failure keeps the rows and raises the '
@@ -125,6 +134,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.reads, 1);
+    await tester.ensureVisible(find.bySemanticsIdentifier('jeeber_home_feed_retry_cta'));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.bySemanticsIdentifier('jeeber_home_feed_retry_cta'),
     );

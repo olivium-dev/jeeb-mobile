@@ -11,6 +11,7 @@ import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_profile_header.dart';
 import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/client_home_display_clock.dart';
 
 /// Customer home header (redesign-2026-08 screen 04, `04-client-home.html`
 /// tpl 158-165): `[Ø46 avatar] [eyebrow / Hello, {name}]`.
@@ -91,12 +92,9 @@ class ClientHomeGreeting extends StatelessWidget {
         0,
       ),
       child: JeebProfileHeader(
-        name: failed
-            ? l10n.customerProfileLoadErrorTitle
-            : pending
-            ? ''
-            : greeting,
-        eyebrow: _eyebrow(l10n),
+        // Failure copy belongs in the wrapping strip, not the one-line name.
+        name: (failed || pending) ? '' : greeting,
+        eyebrow: _eyebrow(context, l10n),
         // TODO(redesign-24): the board draws an unread dot on this avatar.
         // There is no unread source on this surface (NotificationsListState
         // lives behind the notifications route) — omitted rather than faked;
@@ -152,8 +150,9 @@ class ClientHomeGreeting extends StatelessWidget {
 
   /// Time-of-day eyebrow, derived from the DEVICE clock — it is a greeting, not
   /// server data, so there is nothing to fetch and nothing to be stale.
-  String _eyebrow(AppLocalizations l10n) {
-    final hour = DateTime.now().hour;
+  String _eyebrow(BuildContext context, AppLocalizations l10n) {
+    final hour =
+        (context.read<ClientHomeDisplayClock?>()?.now() ?? DateTime.now()).hour;
     if (hour < _afternoonHour) return l10n.homeGreetingEyebrowMorning;
     if (hour < _eveningHour) return l10n.homeGreetingEyebrowAfternoon;
     return l10n.homeGreetingEyebrowEvening;
@@ -190,7 +189,7 @@ class _GreetingFailedStrip extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final copy = failureCopy(l10n, failure);
     final scheme = Theme.of(context).colorScheme;
-    final canRetry = copy.retryable && failure.isRetryable;
+    final canRetry = copy.retryable;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
@@ -200,12 +199,13 @@ class _GreetingFailedStrip extends StatelessWidget {
       ),
       child: Semantics(
         identifier: ClientHomeGreeting.failedIdentifier,
-        label: copy.body,
+        label: '${l10n.customerProfileLoadErrorTitle}. ${copy.body}',
         liveRegion: true,
         container: true,
         explicitChildNodes: true,
         child: JeebInfoNote.error(
           icon: Icons.sync_problem,
+          title: l10n.customerProfileLoadErrorTitle,
           text: copy.body,
           trailing: canRetry
               ? Semantics(

@@ -6,7 +6,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
+import 'package:jeeb_mobile/features/jeeber_home/domain/entities/availability_status.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
+import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_feed_tab_view.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
@@ -45,7 +47,80 @@ void main() {
   for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
     final tag = locale.languageCode;
 
-    testWidgets('[$tag] the duty-off banner and empty body speak DUTY, never '
+    testWidgets('[$tag] the real off-duty home shows duty copy and controls', (
+      tester,
+    ) async {
+      final availability = AvailabilityCubit(
+        gateway: InMemoryAvailabilityGateway(),
+        tickerFactory: () => const Stream<DateTime>.empty(),
+      );
+      addTearDown(availability.close);
+      final feed = RequestFeedCubit(repository: const _InertFeedRepository());
+      addTearDown(feed.close);
+
+      useReduceMotion(tester);
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          wrapForTest(
+            BlocProvider<AvailabilityCubit>.value(
+              value: availability,
+              child: JeeberHomeScreen(
+                requestFeedCubit: feed,
+                profileName: 'Kamal',
+                onOpenFeedRequest: (_) {},
+              ),
+            ),
+            locale: locale,
+          ),
+        );
+        await availability.load();
+        await feed.refresh();
+        await tester.pumpAndSettle();
+
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(JeeberHomeScreen)),
+        );
+        final empty = find.bySemanticsIdentifier('jeeber_feed_empty_state');
+        expect(empty, findsOneWidget);
+        for (final text in [
+          l10n.jeeberFeedDutyOffEmptyHeadline,
+          l10n.jeeberFeedDutyOffEmptyBody,
+        ]) {
+          expect(
+            find.descendant(of: empty, matching: find.text(text)),
+            findsOneWidget,
+          );
+        }
+        for (final text in [
+          l10n.availabilityDutyOffTitle,
+          l10n.jeeberFeedOfflineBannerSubtitle,
+        ]) {
+          expect(
+            find.descendant(of: empty, matching: find.text(text)),
+            findsNothing,
+          );
+        }
+        expect(
+          find.bySemanticsIdentifier('jeeber_feed_offline_empty_state'),
+          findsNothing,
+        );
+        expect(find.byType(JeeberFeedTabView), findsNothing);
+        final dutySwitch = find.bySemanticsIdentifier('availability_switch');
+        expect(dutySwitch, findsOneWidget);
+        expect(
+          tester.widget<Semantics>(dutySwitch).properties.toggled,
+          isFalse,
+        );
+        expect(find.text(l10n.availabilityStatusOffline), findsOneWidget);
+        expect(availability.state.status.state, AvailabilityState.offline);
+        expect(find.byIcon(Icons.wifi_off), findsNothing);
+      } finally {
+        semantics.dispose();
+      }
+    });
+
+    testWidgets('[$tag] the direct leaf banner and empty body speak DUTY, never '
         'connectivity', (tester) async {
       // Cold start resolves OFFLINE — the jeeber's own switch, not the network.
       final availability = AvailabilityCubit(

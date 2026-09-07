@@ -26,8 +26,7 @@ import '../../core/role/role_cubit.dart';
 import '../../core/router/app_route_observer.dart';
 import '../../core/router/app_router.dart';
 import '../../core/role/user_role.dart';
-import '../../core/widgets/jeeb/jeeb_cta_button.dart';
-import '../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../l10n/app_localizations.dart';
@@ -296,6 +295,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// a retry and NEVER constructs a gateway — so no downstream read can turn the
   /// failure into a claim about the conversation.
   bool _resolutionUnavailable = false;
+  AppFailure? _resolutionFailure;
+
+  bool get _canRetryResolution => switch (_resolutionFailure) {
+    UnauthorizedFailure(:final recovering) => recovering,
+    final failure? => failure.isRetryable,
+    null => false,
+  };
 
   /// Test/E2E hook: true while the resolution-error body is the rendered state.
   @visibleForTesting
@@ -646,6 +652,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // the historical bug that wrongly stranded this screen in compose, where a
     // "send" would create a brand-new request instead of posting to the
     // existing conversation.
+    AppFailure? lookupFailure;
+    ConversationLookup recordLookupFailure(Object error) {
+      final lookup = classifyLookupFailure(error);
+      if (lookup == ConversationLookup.unavailable) {
+        lookupFailure ??= AppFailure.of(error);
+      }
+      return lookup;
+    }
+
     Future<ConversationLookup> resolveByCorrelationKey() async {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
@@ -679,9 +694,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         // the fallback lookup runs next and compose is the truthful landing).
         // A timeout / connection error / 5xx means we DO NOT KNOW, and must
         // not be reported as either. See [classifyLookupFailure].
-        return classifyLookupFailure(e);
+        return recordLookupFailure(e);
       } catch (e) {
-        return classifyLookupFailure(e);
+        return recordLookupFailure(e);
       }
     }
 
@@ -702,9 +717,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         // conversation yet; the first message creates + broadcasts, JM-025 AC1)
         // or a request id resolved by the correlationKey lookup instead.
         // Anything else → we could not find out.
-        return classifyLookupFailure(e);
+        return recordLookupFailure(e);
       } catch (e) {
-        return classifyLookupFailure(e);
+        return recordLookupFailure(e);
       }
     }
 
@@ -756,6 +771,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // and offer a retry.
       setState(() {
         _resolutionUnavailable = true;
+        _resolutionFailure = lookupFailure;
         _gateway = null;
         _loading = false;
       });
@@ -1477,6 +1493,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // A resolution that produced a gateway retires the error body (the retry
       // CTA re-enters here).
       _resolutionUnavailable = false;
+      _resolutionFailure = null;
     });
     // Success is the retry's terminating condition. This is the single line that
     // keeps the recovery from being a poll.
@@ -1634,6 +1651,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _cancelResolutionRetry();
     setState(() {
       _resolutionUnavailable = false;
+      _resolutionFailure = null;
       _loading = true;
     });
     unawaited(_resolveAndBuild());
@@ -1675,7 +1693,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// A retry is silent: the error body stays on screen while it runs, so the
   /// screen never flickers between an error and a spinner behind the user's back.
   void _scheduleResolutionRetry() {
-    if (!mounted || !_resolutionUnavailable) return;
+    if (!mounted || !_resolutionUnavailable || !_canRetryResolution) return;
     _resolutionRetryTimer?.cancel();
     final step = _resolutionRetryAttempt < kChatResolutionRetryBackoff.length
         ? _resolutionRetryAttempt
@@ -1689,7 +1707,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// own backoff step (a 15 s timeout inside a 5 s step), and two overlapping
   /// resolutions would race to `_finalize` and could paint the older answer.
   void _retryResolutionSilently() {
-    if (!mounted || !_resolutionUnavailable) return;
+    if (!mounted || !_resolutionUnavailable || !_canRetryResolution) return;
     if (_resolutionRetryInFlight) {
       _scheduleResolutionRetry();
       return;
@@ -1770,20 +1788,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   /// THE THIRD STATE, rendered. We do not know whether this conversation
   /// exists, so we assert nothing about it — no "Waiting for Jeebers", no empty
-  /// thread, no composer that would broadcast a duplicate request. The copy is
-  /// the same `chatHistoryError*` family the #186 history-read error body uses,
-  /// because it is the same statement to the user ("couldn't load this chat —
-  /// check your connection and try again"); the redesign-2026-08 rendering of
-  /// it lives in [ChatResolutionErrorView].
+  /// thread, no composer that would broadcast a duplicate request.
   Widget _buildResolutionError(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isJeeber = _readRole(context) == UserRole.jeeber;
-    return Semantics(
-      identifier: 'chat_resolution_error',
-      child: ChatResolutionErrorView(
-        title: _headerTitle(l10n, isJeeber),
-        onRetry: _retryResolution,
-      ),
+    return ChatResolutionErrorView(
+      title: _headerTitle(l10n, isJeeber),
+      failure: _resolutionFailure!,
+      onRetry: _retryResolution,
     );
   }
 
@@ -1877,11 +1889,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // F44: an unavailable skeleton with tap-to-retry, never a vanished strip.
       pinnedSummaryFallback:
           _summary == null && _summaryFailure != null && isClientAccepted
-              ? OrderChatSummaryUnavailableStrip(
-                  failure: _summaryFailure!,
-                  onRetry: () => unawaited(_refreshSummary()),
-                )
-              : null,
+          ? OrderChatSummaryUnavailableStrip(
+              failure: _summaryFailure!,
+              onRetry: () => unawaited(_refreshSummary()),
+            )
+          : null,
       // DEFECT (live COD run, 2026-07-31): `order_summary_status` read "Matched"
       // at 21:44 and still at 21:46, while the jeeber had marked Picked at
       // 21:43:43 and InTransit at 21:44:16. The chip is on the PUSH-ONLY status
@@ -1957,26 +1969,18 @@ class _ChatResolvingView extends StatelessWidget {
   }
 }
 
-/// The `/chat/:id` resolution-error surface in the redesign-2026-08 language.
-///
-/// Screen 21's board draws no error state, so this borrows the kit's two error
-/// primitives instead of inventing a third: [JeebInfoNote.error] carries the
-/// statement (soft `errorContainer` panel, not the legacy full-bleed red slab)
-/// and the retry is the standard navy [JeebCtaButton] pill. It replaces
-/// `OmdsErrorStatePage`, whose Ø80 red glyph + Material `FilledButton.icon`
-/// was the last pre-redesign surface this route could show.
-///
-/// The `chat_resolution_error` identifier stays on the caller's wrapper — this
-/// widget adds only the new retry id.
+/// The `/chat/:id` resolution failure, with copy selected from its cause.
 class ChatResolutionErrorView extends StatelessWidget {
   const ChatResolutionErrorView({
     super.key,
     required this.title,
+    required this.failure,
     required this.onRetry,
   });
 
   /// Header title — the resolved counterpart name or the order reference.
   final String title;
+  final AppFailure failure;
 
   /// Re-runs the conversation lookup. Never null: an error page whose only
   /// affordance is dead is the same dead end the old blank loader was.
@@ -2000,24 +2004,19 @@ class ChatResolutionErrorView extends StatelessWidget {
                 horizontal: Spacing.xLarge,
                 vertical: Spacing.xLarge,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  JeebInfoNote.error(
-                    // The failure this screen can actually name: the lookup
-                    // could not reach the gateway. Never a generic "error".
-                    icon: Icons.wifi_off_rounded,
-                    title: l10n.chatHistoryErrorTitle,
-                    text: l10n.chatHistoryErrorMessage,
-                  ),
-                  const SizedBox(height: Spacing.large),
-                  JeebCtaButton.primary(
-                    label: l10n.chatHistoryErrorRetry,
-                    onTap: onRetry,
-                    identifier: 'chat_detail_resolution_retry',
-                  ),
-                ],
+              child: JeebFailureBlock(
+                failure: failure,
+                identifier: 'chat_resolution_error',
+                retryIdentifier: 'chat_detail_resolution_retry',
+                onRetry: onRetry,
+                exitLabel: l10n.actionBack,
+                onExit: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
               ),
             ),
           ),

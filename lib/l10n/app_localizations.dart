@@ -3404,13 +3404,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String otpHandoverAttemptsRemaining(int count) => _cldrPlural('otpHandoverAttemptsRemaining', count);
 
   // WP-1 chat
-  String get chatTabEmptyTitle => _get('chatTabEmptyTitle');
-  String get chatTabEmptyBody => _get('chatTabEmptyBody');
-  String get chatConversationFallbackTitle => _get('chatConversationFallbackTitle');
   String get chatMessageRetryA11y => _get('chatMessageRetryA11y');
   String get chatRefreshFailedBody => _get('chatRefreshFailedBody');
   String get chatImageRetry => _get('chatImageRetry');
-  String get chatPartialLoadBody => _get('chatPartialLoadBody');
 
   // WP-2 jeeber home, feed, pending offers, active deliveries, request detail
   String get requestFeedLoadingHeadline => _get('requestFeedLoadingHeadline');
@@ -3720,7 +3716,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get notificationsNewRequestFallbackTitle => _get('notificationsNewRequestFallbackTitle');
   String get notificationsNewRequestFallbackBody => _get('notificationsNewRequestFallbackBody');
 
-  String get chatTabLoadingHeadline => _get('chatTabLoadingHeadline');
   String get chatAuthorSelf => _get('chatAuthorSelf');
   String get orderChatSummaryUnavailableBody =>
       _get('orderChatSummaryUnavailableBody');

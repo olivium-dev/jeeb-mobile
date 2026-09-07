@@ -2348,13 +2348,9 @@
   "otpHandoverAttemptsRemainingMany": "تبقّت {count} محاولة.",
   "otpHandoverAttemptsRemainingOther": "تبقّت {count} محاولة.",
 
-  "chatTabEmptyTitle": "لا توجد محادثات بعد",
-  "chatTabEmptyBody": "تُفتح المحادثة عند مطابقتك مع جيبر.",
-  "chatConversationFallbackTitle": "محادثة",
   "chatMessageRetryA11y": "إعادة إرسال هذه الرسالة",
   "chatRefreshFailedBody": "تعذّر تحديث المحادثة. تشاهد آخر الرسائل.",
   "chatImageRetry": "إعادة تحميل الصورة",
-  "chatPartialLoadBody": "تعذّر تحميل بعض الرسائل.",
 
   "requestFeedLoadingHeadline": "جارٍ البحث عن طلبات قريبة",
   "pendingOffersLoadingHeadline": "جارٍ تحميل عروضك",
@@ -2654,7 +2650,6 @@
   "notificationsUnreadLabel": "غير مقروء",
   "notificationsNewRequestFallbackTitle": "طلب جديد بالقرب منك",
   "notificationsNewRequestFallbackBody": "أحد الزبائن يبحث عن جيب. اضغط لعرض الطلب.",
-  "chatTabLoadingHeadline": "جارٍ تحميل محادثاتك…",
   "chatAuthorSelf": "أنت",
   "orderChatSummaryUnavailableBody": "تعذّر تحميل تفاصيل الطلب.",
   "orderChatSummaryRetry": "إعادة تحميل التفاصيل",

@@ -20,8 +20,10 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
     required String? Function() greetingNameProvider,
     Stream<void>? refreshSignals,
     Stream<String>? cancelledRequestSignals,
+    DateTime Function()? now,
   }) : _repository = repository,
        _greetingNameProvider = greetingNameProvider,
+       _now = now ?? DateTime.now,
        super(const ClientHomeState()) {
     _refreshGate = DeferredRefreshGate(
       onRefresh: refresh,
@@ -37,6 +39,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
 
   final ClientHomeRepository _repository;
   final String? Function() _greetingNameProvider;
+  final DateTime Function() _now;
   late final DeferredRefreshGate _refreshGate;
   late final StreamSubscription<String> _cancelledSubscription;
 
@@ -72,6 +75,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
 
   Future<void> load() async {
     if (state.status == ClientHomeStatus.loading) return;
+    if (_deferRateLimitedRead()) return;
     emit(
       state.copyWith(
         status: ClientHomeStatus.loading,
@@ -92,11 +96,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
       _refreshQueued = true;
       return;
     }
-    final backoffUntil = _rateLimitedUntil;
-    if (backoffUntil != null && DateTime.now().isBefore(backoffUntil)) {
-      _scheduleRateLimitedRefresh(backoffUntil);
-      return;
-    }
+    if (_deferRateLimitedRead()) return;
     _refreshInFlight = true;
     try {
       await _fetch();
@@ -114,17 +114,21 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
     await refresh();
   }
 
+  bool _deferRateLimitedRead() {
+    final until = _rateLimitedUntil;
+    if (until == null || !_now().isBefore(until)) return false;
+    _scheduleRateLimitedRefresh(until);
+    return true;
+  }
+
   void _scheduleRateLimitedRefresh(DateTime until) {
     if (_rateLimitRetryTimer?.isActive ?? false) return;
-    final delay = until.difference(DateTime.now());
-    _rateLimitRetryTimer = Timer(
-      delay.isNegative ? Duration.zero : delay,
-      () {
-        _rateLimitRetryTimer = null;
-        if (isClosed) return;
-        unawaited(refresh());
-      },
-    );
+    final delay = until.difference(_now());
+    _rateLimitRetryTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      _rateLimitRetryTimer = null;
+      if (isClosed) return;
+      _refreshGate.signal();
+    });
   }
 
   /// Optimistic truth: the row goes the moment its DELETE lands, without
@@ -135,7 +139,8 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
     final pending = state.pending.where(keep).toList();
     final replies = state.replies.where(keep).toList();
     final offerStatus = state.offerStatusRequests.where(keep).toList();
-    final removedAny = pending.length != state.pending.length ||
+    final removedAny =
+        pending.length != state.pending.length ||
         replies.length != state.replies.length ||
         offerStatus.length != state.offerStatusRequests.length;
     _cancelledIds.add(requestId);
@@ -171,10 +176,9 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
       _pruneConvergedCancellations(snapshot);
 
       if (snapshot.rateLimited) {
-        _rateLimitedUntil = DateTime.now().add(
+        _rateLimitedUntil = _now().add(
           snapshot.retryAfter ?? kClientHomeRateLimitFallbackWindow,
         );
-        if (state.status == ClientHomeStatus.ready) return;
       } else {
         _rateLimitedUntil = null;
       }
@@ -224,6 +228,15 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
                 : offerStatusRows,
             clearError: true,
             clearBucketErrors: true,
+            inProgressError: state.inProgressError != null
+                ? snapshot.inProgressFailure
+                : null,
+            pendingError: state.pendingError != null
+                ? snapshot.requestsFailure
+                : null,
+            repliesError: state.repliesError != null
+                ? snapshot.requestsFailure
+                : null,
             refreshError: snapshot.firstFailure,
           ),
         );
@@ -255,9 +268,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
         emit(state.copyWith(refreshError: failure));
         return;
       }
-      emit(
-        state.copyWith(status: ClientHomeStatus.failed, error: failure),
-      );
+      emit(state.copyWith(status: ClientHomeStatus.failed, error: failure));
     }
   }
 

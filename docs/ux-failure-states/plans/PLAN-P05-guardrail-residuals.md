@@ -115,33 +115,36 @@ Leave `_OfflineBanner` (`:439-461`) untouched.
 so the duty-off empty copy is single-sourced.
 
 **Tests**
-- `test/features/jeeber_home/availability_duty_off_copy_test.dart` (EN+AR loop already there): after the
-  existing `jeeber_feed_offline_empty_state` expectation add
+- `test/features/jeeber_home/availability_duty_off_copy_test.dart` mounts the real `JeeberHomeScreen`
+  with real availability/feed cubits in EN+AR. Its off-duty body uses `jeeber_feed_empty_state`:
   ```dart
       expect(
         find.descendant(
-          of: find.bySemanticsIdentifier('jeeber_feed_offline_empty_state'),
+          of: find.bySemanticsIdentifier('jeeber_feed_empty_state'),
           matching: find.text(l10n.jeeberFeedDutyOffEmptyHeadline),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
-          of: find.bySemanticsIdentifier('jeeber_feed_offline_empty_state'),
+          of: find.bySemanticsIdentifier('jeeber_feed_empty_state'),
           matching: find.text(l10n.jeeberFeedDutyOffEmptyBody),
         ),
         findsOneWidget,
       );
-      // The banner still owns the duty-off title; the body must not repeat it.
+      // The empty body must not repeat the alternate banner's title.
       expect(
         find.descendant(
-          of: find.bySemanticsIdentifier('jeeber_feed_offline_empty_state'),
+          of: find.bySemanticsIdentifier('jeeber_feed_empty_state'),
           matching: find.text(l10n.availabilityDutyOffTitle),
         ),
         findsNothing,
       );
   ```
-  The existing `find.text(l10n.availabilityDutyOffTitle), findsWidgets` stays true (banner).
+  Assert the off-duty `availability_switch`, localized duty status, and no connectivity blame.
+  `jeeber_feed_offline_empty_state` belongs to the alternate `JeeberFeedTabView` leaf; the real
+  off-duty screen does not mount it. Keep direct leaf banner/title/subtitle assertions separately
+  as copy coverage, not proof of product reachability. The shared view and both sets of copy stay intact.
 - `test/jeeber_feed_tier_filter_test.dart:326` asserts the title `findsWidgets` — still satisfied by the banner; no edit.
 
 ### WI-2 — Obs overlay export feedback → `showJeebErrorSnack` / `showJeebSuccessSnack`
@@ -422,8 +425,12 @@ Cold-start twice after install (secure-storage race). Evidence → `$SCRATCH/dev
 | V2 | Scenario Users action snack | With the bad URL, tap `devtool.scenarioUsers.create` | `devtool_scenario_users_action_error` snack in `errorContainer` colours, auto-dismisses ≤ ~5 s (no action ⇒ 4 s `kJeebSnackDuration`) |
 | V3 | Fund-wallet picker failure + retry | Bad URL → Dev Tool → Fund Jeeber wallet | `devtool_wallet_funding_picker_error` + `devtool_wallet_funding_picker_retry_cta`; restore URL → tap retry → jeeber rows (`devtool.walletFunding.jeeber.*`) |
 | V4 | Session Logs export error | Dev Tool → Session Logs → do NOT start recording → tap `devtool.session_logs.export` | `devtool_session_logs_export_error` snack "No session file yet — start recording first."; then Start → Stop → Export → share sheet → `devtool_session_logs_export_success` |
-| V5 | Duty-off empty body (EN + AR) | Super-login as an approved jeeber (Karim TestJeeber, or Scenario Users → jeeber + "Approve KYC") → Requests tab → toggle Offline | banner `JeeberFeedTabView.offlineBannerKey` shows "You're off duty"; `jeeber_feed_offline_empty_state` shows "No requests while you're off duty / Go online and nearby requests will show up here." — the two lines are NOT repeated. Settings → Language → العربية → same node shows "لا طلبات أثناء توقفك عن الدوام" |
+| V5 | Duty-off empty body (EN + AR) | Using the current execution plan's authorized account and device gates → Requests tab → toggle off duty | Real `JeeberHomeScreen` shows `jeeber_feed_empty_state` with localized `jeeberFeedDutyOffEmptyHeadline` / `jeeberFeedDutyOffEmptyBody`; `availability_switch` remains off and duty status stays visible. No connectivity blame or duplicate banner title in the body. Repeat in Arabic. The alternate leaf's `jeeber_feed_offline_empty_state` and `offlineBannerKey` are not product selectors for this state. |
 | V6 | Internal-release blocked screen | Not a user flow (build-policy mismatch in the android-internal flavour only); covered by the new widget test. Optional: `flutter build apk --flavor internal` with a deliberately mismatched policy → `internal_release_blocked_error` node | widget test green |
+
+These are historical runbook instructions. The current execution plan's account and owner gates
+override older account creation, KYC approval, session, device, and network suggestions here;
+this contract correction authorizes none of those operations.
 
 ---
 

@@ -1037,28 +1037,15 @@ class _LoadHealthTracker {
   void record(DioException error, {bool primary = true, _Bucket? bucket}) {
     if (error.response?.statusCode != 429) {
       if (primary) transportFailures++;
-      // A 429 is a THROTTLE, not a dead bucket: the pinned contract is that a
-      // rate-limited load still lands on READY.
       if (bucket != null) recordFailure(bucket, AppFailure.of(error));
       return;
     }
     rateLimited = true;
-    final advertised = _parseRetryAfter(
-      error.response?.headers.value('retry-after'),
-    );
+    final failure = AppFailure.of(error);
+    if (bucket != null) recordFailure(bucket, failure);
+    final advertised = failure is RateLimitedFailure ? failure.retryAfter : null;
     if (advertised == null) return;
     final current = retryAfter;
     if (current == null || advertised > current) retryAfter = advertised;
-  }
-
-  /// Parses an HTTP `Retry-After` value. Supports the common delta-seconds form
-  /// (`Retry-After: 30`); an HTTP-date form or an unparseable value yields
-  /// `null`, so the cubit falls back to its own poll-cadence backoff. Negative
-  /// values are clamped away (treated as absent).
-  static Duration? _parseRetryAfter(String? raw) {
-    if (raw == null) return null;
-    final seconds = int.tryParse(raw.trim());
-    if (seconds == null || seconds < 0) return null;
-    return Duration(seconds: seconds);
   }
 }

@@ -26,4 +26,6 @@ AppFailure devGatewayFailure(Object error) {
 
 /// Gateway-authored hints are preserved; arbitrary exception strings are not.
 String? devGatewayMessage(Object error) =>
-    error is DevGatewayException ? error.message : null;
+    error is DevGatewayException && error.hasActionableMessage
+    ? error.message
+    : null;

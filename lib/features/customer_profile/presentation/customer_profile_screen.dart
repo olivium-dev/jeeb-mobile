@@ -46,6 +46,7 @@ class CustomerProfileScreen extends StatelessWidget {
     required this.data,
     this.repository,
     this.reviewLauncher,
+    this.onExit,
   });
 
   static const Key rootKey = Key('customer-profile-screen-root');
@@ -55,6 +56,7 @@ class CustomerProfileScreen extends StatelessWidget {
   final CustomerProfileRepository? repository;
 
   final AppReviewLauncher? reviewLauncher;
+  final VoidCallback? onExit;
 
   CustomerProfileRepository? _resolveRepository() {
     if (repository != null) return repository;
@@ -89,15 +91,19 @@ class CustomerProfileScreen extends StatelessWidget {
       create: (_) =>
           CustomerProfileCubit(seed: data, repository: _resolveRepository())
             ..load(),
-      child: _CustomerProfileView(reviewLauncher: _resolveReviewLauncher()),
+      child: _CustomerProfileView(
+        reviewLauncher: _resolveReviewLauncher(),
+        onExit: onExit,
+      ),
     );
   }
 }
 
 class _CustomerProfileView extends StatelessWidget {
-  const _CustomerProfileView({required this.reviewLauncher});
+  const _CustomerProfileView({required this.reviewLauncher, this.onExit});
 
   final AppReviewLauncher reviewLauncher;
+  final VoidCallback? onExit;
 
   @override
   Widget build(BuildContext context) {
@@ -112,8 +118,11 @@ class _CustomerProfileView extends StatelessWidget {
           backgroundColor: Colors.transparent,
           body: SafeArea(
             child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
-              builder: (context, state) =>
-                  _Body(state: state, reviewLauncher: reviewLauncher),
+              builder: (context, state) => _Body(
+                state: state,
+                reviewLauncher: reviewLauncher,
+                onExit: onExit,
+              ),
             ),
           ),
         ),
@@ -123,10 +132,11 @@ class _CustomerProfileView extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.state, required this.reviewLauncher});
+  const _Body({required this.state, required this.reviewLauncher, this.onExit});
 
   final CustomerProfileState state;
   final AppReviewLauncher reviewLauncher;
+  final VoidCallback? onExit;
 
   /// RATE-01: a store-review API that cannot open must not be a silent no-op.
   Future<void> _rateApp(BuildContext context) async {
@@ -166,6 +176,7 @@ class _Body extends StatelessWidget {
         children: [
           CustomerProfileStatusBlock(
             state: state,
+            onExit: onExit,
             onRetry: () =>
                 unawaited(context.read<CustomerProfileCubit>().retry()),
           ),
@@ -206,6 +217,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: Spacing.small),
           CustomerProfileStatusBlock(
             state: state,
+            onExit: onExit,
             onRetry: () =>
                 unawaited(context.read<CustomerProfileCubit>().refresh()),
             onDismissRefreshError: () =>

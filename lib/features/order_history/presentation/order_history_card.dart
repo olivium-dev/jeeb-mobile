@@ -319,21 +319,21 @@ class _MetaRow extends StatelessWidget {
         ? context.jeebRoles.onAccentContainer
         : metaInk;
 
-    if (!showTier && usesLargeText) {
+    if (!showTier && (usesLargeText || rebroadcast != null)) {
       return Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
         runSpacing: Spacing.twoXSmall,
         children: <Widget>[
           Text(dateLabel, style: metaStyle.copyWith(color: metaInk)),
-          _MetaDot(ink: metaInk),
-          Text(
-            orderStatusLabel(order.status, l10n),
-            style: metaStyle.copyWith(color: statusInk),
+          _SeparatedMetaItem(
+            ink: metaInk,
+            child: Text(
+              orderStatusLabel(order.status, l10n),
+              style: metaStyle.copyWith(color: statusInk),
+            ),
           ),
-          if (rebroadcast != null) ...<Widget>[
-            _MetaDot(ink: metaInk),
-            rebroadcast,
-          ],
+          if (rebroadcast != null)
+            _SeparatedMetaItem(ink: metaInk, child: rebroadcast),
           if (pill != null) ...<Widget>[
             const SizedBox(width: Spacing.xSmall),
             pill,
@@ -465,6 +465,23 @@ class _MetaRow extends StatelessWidget {
         return l10n.tierSelectionTierEco;
     }
   }
+}
+
+/// Keep punctuation with the following item while preserving its wrap width.
+class _SeparatedMetaItem extends StatelessWidget {
+  const _SeparatedMetaItem({required this.ink, required this.child});
+
+  final Color ink;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      _MetaDot(ink: ink),
+      Flexible(child: IntrinsicWidth(child: child)),
+    ],
+  );
 }
 
 /// The Ø3 meta separator with its own breathing room on both sides.

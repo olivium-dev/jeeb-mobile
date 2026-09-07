@@ -571,10 +571,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     }
     // The voice door lands on the SAME merged "New request" screen;
     // `resume=1` keeps the just-seeded session instead of starting fresh.
-    GoRouter.maybeOf(context)?.pushNamed(
-      'client-location',
-      queryParameters: const {'resume': '1'},
-    );
+    GoRouter.maybeOf(
+      context,
+    )?.pushNamed('client-location', queryParameters: const {'resume': '1'});
     if (transcript == null || transcript.isEmpty) {
       showJeebSnack(
         context,
@@ -700,27 +699,34 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  JeebPullToRefresh(
-                    onRefresh: () {
-                      _retryGreetingIfFailed(context);
-                      return context.read<ClientHomeCubit>().refresh();
-                    },
-                    child: _ClientHomeBody(
-                      state: state,
-                      filter: _filter,
-                      firstRequest: firstRequest,
-                      onFilterChanged: (filter) =>
-                          setState(() => _filter = filter),
-                      onOpenFilterSheet: () => unawaited(_openFilterSheet()),
-                      onTrack: widget.onTrack,
-                    ),
-                  ),
-                  // Before the scrim, so recording dims the typed door too.
-                  _PinnedCreateCta(
-                    onCreateRequest: widget.onCreateRequest == null
-                        ? null
-                        : _openTyped,
-                    firstRequest: firstRequest,
+                  Column(
+                    children: [
+                      Expanded(
+                        child: JeebPullToRefresh(
+                          onRefresh: () {
+                            _retryGreetingIfFailed(context);
+                            return context.read<ClientHomeCubit>().refresh();
+                          },
+                          child: _ClientHomeBody(
+                            state: state,
+                            filter: _filter,
+                            firstRequest: firstRequest,
+                            onFilterChanged: (filter) =>
+                                setState(() => _filter = filter),
+                            onOpenFilterSheet: () =>
+                                unawaited(_openFilterSheet()),
+                            onTrack: widget.onTrack,
+                          ),
+                        ),
+                      ),
+                      // The capsule's rendered height bounds the scroll viewport.
+                      _PinnedCreateCta(
+                        onCreateRequest: widget.onCreateRequest == null
+                            ? null
+                            : _openTyped,
+                        firstRequest: firstRequest,
+                      ),
+                    ],
                   ),
                   // Under the dock and the disc, over everything else: the
                   // focus wash is what raises their contrast while recording.
@@ -816,9 +822,8 @@ const double _kFloatingMicGap = Spacing.xLarge;
 const double _kFloatingMicReserve =
     JeebMicHero.sizeCompact + _kFloatingMicGap + Spacing.medium;
 
-/// Tail the lists reserve so the last card clears BOTH pinned surfaces — the
-/// mic's halo box and the create capsule — by a Spacing.medium breather.
-final double _kScrollTailReserve =
+/// The action band's floor clears the mic halo; taller capsules grow the band.
+final double _kPinnedActionMinHeight =
     math.max(
       _kFloatingMicGap +
           JeebMicHero.sizeCompact +
@@ -852,20 +857,33 @@ class _PinnedCreateCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PositionedDirectional(
-      start: Spacing.xLarge,
-      end: _kCreateCtaEnd,
-      bottom: context.scrollBodyBottomInset + _kCreateCtaBottom,
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        // Effective only because the capsule carries no `BackdropFilter`: a
-        // filter re-samples the scrolling backdrop whatever boundary wraps it.
-        child: RepaintBoundary(
-          child: ClientHomeRequestHero(
-            onCreateRequest: onCreateRequest,
-            showPrompt: false,
-            firstRequest: firstRequest,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: context.scrollBodyBottomInset + _kPinnedActionMinHeight,
+      ),
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: Spacing.xLarge,
+          end: _kCreateCtaEnd,
+          top: Spacing.medium,
+          bottom: context.scrollBodyBottomInset + _kCreateCtaBottom,
+        ),
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              RepaintBoundary(
+                child: ClientHomeRequestHero(
+                  onCreateRequest: onCreateRequest,
+                  showPrompt: false,
+                  firstRequest: firstRequest,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -909,7 +927,10 @@ class _RecordingScrimState extends State<_RecordingScrim>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _sync(context.read<VoiceRecordingCubit>().state.isRecording, rebuild: false);
+    _sync(
+      context.read<VoiceRecordingCubit>().state.isRecording,
+      rebuild: false,
+    );
     // A muted ticker never advances the fade, so a tab switch mid-recording
     // would otherwise replay a full-screen wash on the way back.
     // Flutter 3.38 CI does not expose TickerMode.valuesOf yet.
@@ -1519,9 +1540,8 @@ class _MicCancelTarget extends StatelessWidget {
             return Opacity(
               key: const Key('client-home-mic-cancel-chip'),
               opacity:
-                  reveal.clamp(0.0, 1.0) * _kChipCommitOpacity.transform(
-                    commit.value,
-                  ),
+                  reveal.clamp(0.0, 1.0) *
+                  _kChipCommitOpacity.transform(commit.value),
               child: Transform.translate(
                 offset: Offset(-sign * _kChipOffset, 0),
                 child: Transform.scale(
@@ -1641,11 +1661,7 @@ class _LoadingLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the last item
-      // clears them in edge-to-edge mode. See [BottomInsetX].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
@@ -1670,11 +1686,7 @@ class _FailedLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the retry CTA
-      // clears them in edge-to-edge mode. See [BottomInsetX].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
@@ -1727,11 +1739,7 @@ class _ReadyLayout extends StatelessWidget {
     return ListView(
       key: const Key('client-home-ready-list'),
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the last order
-      // card clears them. See [BottomInsetX.scrollBodyBottomInset].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: _scrollChildren(),
     );
   }
@@ -1888,7 +1896,6 @@ class _ReadyContent extends StatelessWidget {
     ).pushNamed('waiting-no-coverage', pathParameters: {'id': request.id});
   }
 }
-
 
 /// The section header: title, neutral total, accent replies badge, filter disc.
 /// Mounted only by [_ReadyLayout._showFilterChrome].

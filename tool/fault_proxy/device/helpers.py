@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 
 LOCAL = "http://127.0.0.1:8089"
 UPSTREAM = "https://msi.olivium.space"
+DEVICE_USER_AGENT = "JeebDeviceValidation/1.0"
 WIRE_LEDGER = re.compile(r"\[http(?:\u2192|\u2190|\u2717)\]")
 CREDENTIAL = re.compile(r"bearer\s+\S+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|(?:access|refresh)[_-]?token\s*[:=]\s*\S+", re.I)
 
@@ -23,6 +24,9 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def open_url(request, timeout):
+    if isinstance(request, str):
+        request = Request(request)
+    request.add_header("User-Agent", DEVICE_USER_AGENT)
     return build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=timeout)
 
 
@@ -126,7 +130,8 @@ def logcat(serial, prefix):
     descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         stream.write("\n".join(lines) + "\n")
-    print(f"{len(lines)} wire-ledger lines, {sum('[http\u2717]' in line for line in lines)} failed reads")
+    failed_reads = sum("[http\u2717]" in line for line in lines)
+    print(f"{len(lines)} wire-ledger lines, {failed_reads} failed reads")
 
 
 def main():

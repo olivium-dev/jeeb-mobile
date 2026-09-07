@@ -149,6 +149,11 @@ class MockGatewayClient {
         scopedToSubtrees: const <String>['/v1/auth'],
       ),
     );
+    if (kDebugMode) {
+      refreshClient.interceptors.add(
+        const RedactingLogInterceptor(metadataOnly: true),
+      );
+    }
 
     // Retries must NOT replay through `dio`: its queued error lane is still
     // held by the refresh task, so a failing retry would deadlock the client.

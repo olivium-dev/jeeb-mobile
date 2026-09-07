@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -8,7 +7,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
-import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -62,6 +60,7 @@ Widget _harness({
   void Function(Tier?)? onCreateRequest,
   Locale locale = const Locale('en'),
   ClientHomeTab initialTab = ClientHomeTab.inProgress,
+  double textScale = 1,
 }) {
   final screen = ClientHomeScreen(
     initialTab: initialTab,
@@ -82,7 +81,10 @@ Widget _harness({
     // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
     // terminates under reduce motion.
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      data: MediaQuery.of(context).copyWith(
+        disableAnimations: true,
+        textScaler: TextScaler.linear(textScale),
+      ),
       child: child!,
     ),
     home: Scaffold(
@@ -168,10 +170,12 @@ Future<void> _applyStatus(WidgetTester tester, ClientOfferStatus status) async {
   await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
   await tester.pumpAndSettle();
   final row = find.bySemanticsIdentifier('offer_status_filter_${status.name}');
-  await tester.ensureVisible(row);
+  await Scrollable.ensureVisible(tester.element(row), alignment: 0.5);
   await tester.pumpAndSettle();
+  expect(row.hitTestable(), findsOneWidget);
   await tester.tap(row);
   await tester.pumpAndSettle();
+  expect(tester.widget<Semantics>(row).properties.selected, isTrue);
   await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
   await tester.pumpAndSettle();
 }
@@ -311,7 +315,10 @@ void main() {
       handle.dispose();
 
       expect(find.text('Your requests'), findsNothing);
-      expect(find.byKey(const Key('client-home-requests-header')), findsNothing);
+      expect(
+        find.byKey(const Key('client-home-requests-header')),
+        findsNothing,
+      );
       expect(find.byKey(const Key('client-home-filter-pills')), findsNothing);
       // NOT the hero prompt's question: the prompt is permanent now, so an
       // E1 tile that repeated it would print the same words twice.
@@ -589,7 +596,10 @@ void main() {
         ]) {
           expect(find.bySemanticsIdentifier(id), findsNothing);
         }
-        expect(find.bySemanticsIdentifier('orders_filter_open'), findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('orders_filter_open'),
+          findsOneWidget,
+        );
         expect(find.text('Your requests'), findsOneWidget);
         // JM-023 / JM-027's coined alias, re-homed onto the replies badge.
         expect(
@@ -601,34 +611,42 @@ void main() {
       },
     );
 
-    testWidgets('the replies badge is tappable and applies the replies bucket', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'the replies badge is tappable and applies the replies bucket',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
+        );
+        await tester.pumpAndSettle();
 
-      final badge = find.bySemanticsIdentifier('orders_home_replies_tab');
-      expect(
-        tester.getSemantics(badge).getSemanticsData().hasAction(
-          SemanticsAction.tap,
-        ),
-        isTrue,
-      );
-      // Both lists are on screen before the tap.
-      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+        final badge = find.bySemanticsIdentifier('orders_home_replies_tab');
+        expect(
+          tester
+              .getSemantics(badge)
+              .getSemanticsData()
+              .hasAction(SemanticsAction.tap),
+          isTrue,
+        );
+        // Both lists are on screen before the tap.
+        expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+        expect(
+          find.byKey(const Key('pending-requests-tab-list')),
+          findsOneWidget,
+        );
 
-      await tester.tap(badge);
-      await tester.pumpAndSettle();
+        await tester.tap(badge);
+        await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
-      expect(find.text('Has replies'), findsOneWidget);
-      handle.dispose();
-    });
+        expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+        expect(
+          find.byKey(const Key('pending-requests-tab-list')),
+          findsNothing,
+        );
+        expect(find.text('Has replies'), findsOneWidget);
+        handle.dispose();
+      },
+    );
   });
 
   // JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the ON-HOLD surface
@@ -763,50 +781,143 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('populated status lists reserve bottom navigation clearance', (
-      tester,
-    ) async {
-      const navInset = 48.0;
-      final dpr = tester.view.devicePixelRatio;
-      tester.view.viewPadding = FakeViewPadding(bottom: navInset * dpr);
-      tester.view.padding = FakeViewPadding(bottom: navInset * dpr);
-      addTearDown(tester.view.reset);
-
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
-      );
-      await tester.pumpAndSettle();
-
-      await _applyStatus(tester, ClientOfferStatus.expired);
-      handle.dispose();
-
-      final list = tester.widget<ListView>(
-        find.byKey(const Key('client-home-ready-list')),
-      );
-      // Nav inset + the tail that clears BOTH pinned surfaces: the mic's halo
-      // box and the create capsule, plus a Spacing.medium breather.
-      final micExtent = JeebMicHero.extentFor(
-        size: JeebMicHero.sizeCompact,
-        halo: true,
-        arc: true,
-      );
-      final tailReserve =
-          math.max(
-            Spacing.xLarge +
-                JeebMicHero.sizeCompact +
-                (micExtent - JeebMicHero.sizeCompact) / 2,
-            Spacing.xLarge +
-                (JeebMicHero.sizeCompact - kMinInteractiveDimension) / 2 +
-                kMinInteractiveDimension +
-                2,
-          ) +
-          Spacing.medium;
-      expect(
-        list.padding?.resolve(TextDirection.ltr).bottom,
-        navInset + tailReserve,
-      );
-    });
+    for (final locale in const [Locale('en'), Locale('ar')]) {
+      for (final scenario in const [
+        (size: Size(320, 568), scale: 1.0),
+        (size: Size(360, 780), scale: 2.0),
+      ]) {
+        testWidgets('expired last card clears controls and system navigation '
+            '${locale.languageCode} ${scenario.size} text ${scenario.scale}', (
+          tester,
+        ) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = scenario.size;
+          tester.view.padding = const FakeViewPadding(top: 24, bottom: 48);
+          tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 48);
+          addTearDown(tester.view.reset);
+          final semantics = tester.ensureSemantics();
+          try {
+            var createCalls = 0;
+            final repo = InMemoryClientHomeRepository.fromSnapshot(
+              ClientHomeSnapshot(
+                pending: const [
+                  ClientHomeRequest(
+                    id: 'pending-control',
+                    title: 'ORD-PENDING',
+                    destinationLabel: 'Hamra',
+                    status: ClientRequestStatus.searching,
+                  ),
+                ],
+                offerStatusRequests: [
+                  for (var index = 0; index < 8; index++)
+                    ClientHomeRequest(
+                      id: 'clearance-expired-$index',
+                      title: 'ORD-0000$index',
+                      displayId: 'ORD-0000$index',
+                      destinationLabel: 'Ashrafieh to Hamra',
+                      itemsSummary: 'Documents and carefully packed groceries',
+                      status: ClientRequestStatus.searching,
+                      offerStatuses: const {ClientOfferStatus.expired},
+                    ),
+                  const ClientHomeRequest(
+                    id: 'withdrawn-control',
+                    title: 'ORD-WITHDRAWN',
+                    destinationLabel: 'Hamra',
+                    status: ClientRequestStatus.searching,
+                    offerStatuses: {ClientOfferStatus.withdrawn},
+                  ),
+                ],
+              ),
+              latency: Duration.zero,
+            );
+            await tester.pumpWidget(
+              _harness(
+                repo: repo,
+                locale: locale,
+                textScale: scenario.scale,
+                initialTab: ClientHomeTab.all,
+                onCreateRequest: (_) => createCalls++,
+              ),
+            );
+            await tester.pumpAndSettle();
+            await _applyStatus(tester, ClientOfferStatus.expired);
+            expect(
+              find.bySemanticsIdentifier('orders_filter_pill_status_clear'),
+              findsOneWidget,
+            );
+            final list = find.byKey(const Key('client-home-ready-list'));
+            final scrollable = tester.state<ScrollableState>(
+              find.descendant(of: list, matching: find.byType(Scrollable)),
+            );
+            final position = scrollable.position;
+            expect(
+              position.maxScrollExtent,
+              greaterThan(position.viewportDimension),
+            );
+            position.jumpTo(position.maxScrollExtent);
+            await tester.pumpAndSettle();
+            expect(position.pixels, closeTo(position.maxScrollExtent, 0.01));
+            final viewport = tester.getRect(list);
+            final card = tester.getRect(
+              find.bySemanticsIdentifier(
+                'offer_status_request_clearance-expired-7',
+              ),
+            );
+            expect(
+              find.bySemanticsIdentifier(
+                'offer_status_request_withdrawn-control',
+              ),
+              findsNothing,
+            );
+            expect(
+              find.byKey(const Key('pending-requests-tab-list')),
+              findsNothing,
+            );
+            final create = find.bySemanticsIdentifier(
+              'orders_create_request_button',
+            );
+            final mic = find.byKey(const Key('client-home-floating-mic'));
+            final micRect = tester.getRect(mic);
+            final halo = tester.getRect(
+              find
+                  .ancestor(
+                    of: mic,
+                    matching: find.byWidgetPredicate(
+                      (widget) =>
+                          widget is SizedBox &&
+                          widget.width != null &&
+                          widget.width == widget.height &&
+                          widget.width! > micRect.width,
+                    ),
+                  )
+                  .first,
+            );
+            expect(halo.contains(micRect.center), isTrue);
+            final ring = tester.getRect(
+              find.byKey(const Key('client-home-mic-idle-ring')),
+            );
+            expect(halo.intersect(ring), ring);
+            expect(viewport.intersect(card), card);
+            for (final control in [tester.getRect(create), micRect, halo]) {
+              expect(viewport.overlaps(control), isFalse);
+              expect(card.overlaps(control), isFalse);
+              expect(
+                control.bottom,
+                lessThanOrEqualTo(scenario.size.height - 48),
+              );
+            }
+            expect(tester.takeException(), isNull);
+            await tester.tapAt(tester.getCenter(create));
+            await tester.pumpAndSettle();
+            expect(createCalls, 1);
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox.shrink());
+          } finally {
+            semantics.dispose();
+          }
+        });
+      }
+    }
 
     testWidgets('expired status cards stretch to consistent list width', (
       tester,
@@ -853,7 +964,9 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('مُستبدل'), findsNothing);
-        final row = find.bySemanticsIdentifier('offer_status_filter_superseded');
+        final row = find.bySemanticsIdentifier(
+          'offer_status_filter_superseded',
+        );
         await tester.ensureVisible(row);
         await tester.pumpAndSettle();
         await tester.tap(row);
@@ -955,7 +1068,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('client-home-requests-header')), findsNothing);
+      expect(
+        find.byKey(const Key('client-home-requests-header')),
+        findsNothing,
+      );
       expect(find.bySemanticsIdentifier('orders_filter_open'), findsNothing);
       expect(find.byKey(const Key('client-home-filter-pills')), findsNothing);
       // The create hero owns the screen instead.
@@ -982,7 +1098,9 @@ void main() {
       expect(find.text('Your requests'), findsOneWidget);
       // One reply + one pending = two rows in the merged list.
       expect(
-        tester.widget<Text>(find.byKey(const Key('client-home-requests-count'))).data,
+        tester
+            .widget<Text>(find.byKey(const Key('client-home-requests-count')))
+            .data,
         '2',
       );
       expect(find.bySemanticsIdentifier('orders_filter_open'), findsOneWidget);
@@ -1014,9 +1132,7 @@ void main() {
         expect(
           find.descendant(
             of: row0,
-            matching: find.bySemanticsIdentifier(
-              'pending_requests_item_pen-1',
-            ),
+            matching: find.bySemanticsIdentifier('pending_requests_item_pen-1'),
           ),
           findsOneWidget,
           reason: 'row 0 must wrap the pending card, never the replies card',
@@ -1056,7 +1172,10 @@ void main() {
       await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('replies-card-rep-1')), findsNothing);
       expect(find.text('Awaiting offers'), findsOneWidget);
 
@@ -1065,7 +1184,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('orders_filter_pill_bucket'),
@@ -1271,30 +1393,47 @@ void main() {
 
   group('the screen-level rungs carry the identifier triple (WP-3)', () {
     for (final locale in <Locale>[const Locale('en'), const Locale('ar')]) {
-      testWidgets('unreachable home has honest copy and Retry · ${locale.languageCode}', (tester) async {
-        final semantics = tester.ensureSemantics();
-        try {
-          await tester.pumpWidget(_harness(repo: const _UnreachableClientHome(), locale: locale));
-          await tester.pumpAndSettle();
-          final l10n = AppLocalizations.of(tester.element(find.byType(ClientHomeScreen)));
-          expect(find.bySemanticsIdentifier('client_home_error'), findsOneWidget);
-          expect(find.bySemanticsIdentifier('client_home_retry_cta'), findsOneWidget);
-          expect(tester.getSemantics(find.bySemanticsIdentifier('client_home_error_body')).label, l10n.errorUnreachableBody);
-          expect(find.text(l10n.errorNetworkBody), findsNothing);
-          expect(find.bySemanticsIdentifier('offline_banner'), findsNothing);
-        } finally {
-          semantics.dispose();
-        }
-      });
+      testWidgets(
+        'unreachable home has honest copy and Retry · ${locale.languageCode}',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await tester.pumpWidget(
+              _harness(repo: const _UnreachableClientHome(), locale: locale),
+            );
+            await tester.pumpAndSettle();
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ClientHomeScreen)),
+            );
+            expect(
+              find.bySemanticsIdentifier('client_home_error'),
+              findsOneWidget,
+            );
+            expect(
+              find.bySemanticsIdentifier('client_home_retry_cta'),
+              findsOneWidget,
+            );
+            expect(
+              tester
+                  .getSemantics(
+                    find.bySemanticsIdentifier('client_home_error_body'),
+                  )
+                  .label,
+              l10n.errorUnreachableBody,
+            );
+            expect(find.text(l10n.errorNetworkBody), findsNothing);
+            expect(find.bySemanticsIdentifier('offline_banner'), findsNothing);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
     }
     testWidgets('loading → client_home_loading', (tester) async {
       final _StalledClientHome repo = _StalledClientHome();
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pump();
-      expect(
-        find.bySemanticsIdentifier('client_home_loading'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsIdentifier('client_home_loading'), findsOneWidget);
 
       repo.fail();
       await tester.pumpAndSettle();
@@ -1306,8 +1445,9 @@ void main() {
       );
     });
 
-    testWidgets('a warm refresh failure shows the dismissible band',
-        (tester) async {
+    testWidgets('a warm refresh failure shows the dismissible band', (
+      tester,
+    ) async {
       final _ColdOkThenFailingHome repo = _ColdOkThenFailingHome();
       final ClientHomeCubit cubit = ClientHomeCubit(
         repository: repo,
@@ -1364,10 +1504,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        find.bySemanticsIdentifier('pending_error_state'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsIdentifier('pending_error_state'), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('_request_empty_state_avatar'),
         findsNothing,

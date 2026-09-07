@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/app_failure.dart';
@@ -55,14 +56,28 @@ class _Pending implements CustomerProfileRepository {
   Future<CustomerProfileViewData> fetchProfile() => next.future;
 }
 
-Widget _host(GreetingProfileCubit cubit, Locale locale, {String? name}) =>
-    wrapForTest(
-      BlocProvider<GreetingProfileCubit>.value(
-        value: cubit,
-        child: Scaffold(body: ClientHomeGreeting(name: name)),
+Widget _host(
+  GreetingProfileCubit cubit,
+  Locale locale, {
+  String? name,
+  double textScale = 1,
+}) => wrapForTest(
+  BlocProvider<GreetingProfileCubit>.value(
+    value: cubit,
+    child: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        // Production's loading, failed and ready layouts all scroll it.
+        child: Scaffold(
+          body: ListView(children: [ClientHomeGreeting(name: name)]),
+        ),
       ),
-      locale: locale,
-    );
+    ),
+  ),
+  locale: locale,
+);
 
 AppLocalizations _copy(WidgetTester tester) =>
     AppLocalizations.of(tester.element(find.byType(ClientHomeGreeting)));
@@ -70,6 +85,61 @@ AppLocalizations _copy(WidgetTester tester) =>
 void main() {
   for (final locale in const [Locale('en'), Locale('ar')]) {
     final tag = locale.languageCode;
+
+    for (final scale in [1.0, 1.1, 2.0]) {
+      testWidgets('$tag: full profile failure title at text $scale', (
+        tester,
+      ) async {
+        useReduceMotion(tester);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(320, 640);
+        addTearDown(tester.view.reset);
+        final cubit = GreetingProfileCubit(repository: _ThrowsThenPends());
+        addTearDown(cubit.close);
+        await tester.pumpWidget(_host(cubit, locale, textScale: scale));
+        await cubit.load();
+        await tester.pumpAndSettle();
+        final title = find.text(_copy(tester).customerProfileLoadErrorTitle);
+        expect(title, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(title);
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason: 'The failure title must be fully visible, not only semantic',
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
+    for (final failure in const <AppFailure>[
+      ConflictFailure(),
+      ValidationFailure(),
+    ]) {
+      testWidgets(
+        '$tag: ${failure.kind.name} offers a working profile read retry',
+        (tester) async {
+          useReduceMotion(tester);
+          final repo = _ThrowsThenPends(failure: failure);
+          final cubit = GreetingProfileCubit(repository: repo);
+          addTearDown(cubit.close);
+          await tester.pumpWidget(_host(cubit, locale));
+          await cubit.load();
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.bySemanticsIdentifier('client_home_greeting_retry_cta'),
+          );
+          await tester.pump();
+          expect(repo.reads, 2);
+          repo.next.complete(const CustomerProfileViewData(name: 'Sami Fawaz'));
+          await tester.pumpAndSettle();
+          expect(
+            find.bySemanticsIdentifier('client_home_greeting_error'),
+            findsNothing,
+          );
+        },
+      );
+    }
 
     testWidgets('$tag: a cold read in flight greets nobody', (tester) async {
       useReduceMotion(tester);
@@ -90,7 +160,10 @@ void main() {
 
       repo.next.complete(const CustomerProfileViewData(name: 'Sami Fawaz'));
       await tester.pumpAndSettle();
-      expect(find.text(_copy(tester).homeGreetingNamed('Sami')), findsOneWidget);
+      expect(
+        find.text(_copy(tester).homeGreetingNamed('Sami')),
+        findsOneWidget,
+      );
       semantics.dispose();
     });
 
@@ -121,7 +194,10 @@ void main() {
       expect(find.text(copy.customerProfileLoadErrorTitle), findsOneWidget);
       expect(find.text(copy.errorNetworkBody), findsOneWidget);
       final node = tester.getSemantics(error);
-      expect(node.label, copy.errorNetworkBody);
+      expect(
+        node.label,
+        '${copy.customerProfileLoadErrorTitle}. ${copy.errorNetworkBody}',
+      );
       expect(node.flagsCollection.isLiveRegion, isTrue);
       semantics.dispose();
     });
@@ -155,7 +231,10 @@ void main() {
 
       repo.next.complete(const CustomerProfileViewData(name: 'Sami Fawaz'));
       await tester.pumpAndSettle();
-      expect(find.text(_copy(tester).homeGreetingNamed('Sami')), findsOneWidget);
+      expect(
+        find.text(_copy(tester).homeGreetingNamed('Sami')),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsIdentifier('client_home_greeting_error'),
         findsNothing,
@@ -201,7 +280,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repo.reads, 2);
-      expect(find.text(_copy(tester).homeGreetingNamed('Sami')), findsOneWidget);
+      expect(
+        find.text(_copy(tester).homeGreetingNamed('Sami')),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsIdentifier('client_home_greeting_error'),
         findsNothing,

@@ -49,6 +49,15 @@ void _retryGreetingIfFailed(BuildContext context) {
   }
 }
 
+Future<void> _refreshHomeData(BuildContext context) async {
+  final feed = context.read<RequestFeedCubit>();
+  final greeting = context.read<GreetingProfileCubit?>();
+  await Future.wait<void>([
+    feed.refresh(),
+    if (greeting != null) greeting.retryIfFailed(),
+  ]);
+}
+
 class JeeberHomeScreen extends StatefulWidget {
   const JeeberHomeScreen({
     super.key,
@@ -306,8 +315,9 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
           message: l10n.availabilityLocationFixFailedBody,
           identifier: 'jeeber_home_location_fix_snack',
           retryLabel: l10n.availabilityLocationRetry,
-          onRetry: () =>
-              unawaited(context.read<AvailabilityCubit>().retryLocationAttach()),
+          onRetry: () => unawaited(
+            context.read<AvailabilityCubit>().retryLocationAttach(),
+          ),
         );
       case GoOnlineLocationOutcome.attached:
       case GoOnlineLocationOutcome.notApplicable:
@@ -437,19 +447,35 @@ class _AvailableBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!hasFeedCubit || view.status.state != AvailabilityState.online) {
-      return _NoRequestsScope(
+      final body = _NoRequestsScope(
         view: view,
         profileName: profileName,
         activeDeliveriesBanner: activeDeliveriesBanner,
       );
+      if (!hasFeedCubit) return body;
+      return JeebPullToRefresh(
+        onRefresh: () => _refreshHomeData(context),
+        child: body,
+      );
     }
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
       builder: (context, feedState) {
-        final refresh = context.read<RequestFeedCubit>().refresh;
+        Future<void> refresh() => _refreshHomeData(context);
         // JHOME-01: the error rung comes strictly before the empty one.
         if (feedState.status == RequestFeedStatus.error &&
             feedState.requests.isEmpty) {
-          return _FeedFailureView(failure: feedState.error, onRetry: refresh);
+          return JeebPullToRefresh(
+            onRefresh: refresh,
+            child: _NoRequestsScope(
+              view: view,
+              profileName: profileName,
+              activeDeliveriesBanner: activeDeliveriesBanner,
+              feedBody: _FeedFailureView(
+                failure: feedState.error,
+                onRetry: refresh,
+              ),
+            ),
+          );
         }
         // ES-08: a cold read is not an empty feed.
         if (feedState.requests.isEmpty &&
@@ -490,11 +516,13 @@ class _NoRequestsScope extends StatelessWidget {
     required this.view,
     required this.profileName,
     required this.activeDeliveriesBanner,
+    this.feedBody,
   });
 
   final AvailabilityViewState view;
   final String? profileName;
   final Widget? activeDeliveriesBanner;
+  final Widget? feedBody;
 
   @override
   Widget build(BuildContext context) {
@@ -502,6 +530,7 @@ class _NoRequestsScope extends StatelessWidget {
     final feed = context.read<RequestFeedCubit?>();
     return JeeberNoRequestsView(
       view: view,
+      feedBody: feedBody,
       profileName: profileName,
       activeDeliveriesBanner:
           activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
@@ -509,7 +538,7 @@ class _NoRequestsScope extends StatelessWidget {
       onExtendActivity: cubit.extendActivity,
       // Null with no feed cubit above (the unregistered / bare-test path):
       // E3's refresh pill is omitted rather than shipped inert.
-      onRefresh: feed?.refresh,
+      onRefresh: feed == null ? null : () => _refreshHomeData(context),
     );
   }
 }
@@ -642,21 +671,19 @@ class _FeedFailureView extends StatelessWidget {
       AppLocalizations.of(context),
       onReload: onRetry,
     );
-    return JeebStateHost(
-      onRefresh: onRetry,
-      child: JeebFailureBlock(
-        failure: resolved,
-        identifier: 'jeeber_home_feed_error',
-        retryIdentifier: 'jeeber_home_feed_retry_cta',
-        exitIdentifier: 'jeeber_home_feed_exit_cta',
-        variant: JeebEmptyStateVariant.street,
-        onRetry: () => unawaited(onRetry()),
-        onExit: exit.onExit,
-        exitLabel: exit.label,
-      ),
+    return JeebFailureBlock(
+      failure: resolved,
+      identifier: 'jeeber_home_feed_error',
+      retryIdentifier: 'jeeber_home_feed_retry_cta',
+      exitIdentifier: 'jeeber_home_feed_exit_cta',
+      variant: JeebEmptyStateVariant.street,
+      onRetry: () => unawaited(onRetry()),
+      onExit: exit.onExit,
+      exitLabel: exit.label,
     );
   }
 }
+
 // ============================== JEEB PREVIEWS ==============================
 const Size _jeeberHomeScreenPhoneBox = Size(390, 844);
 

@@ -28,6 +28,7 @@ class JeeberNoRequestsView extends StatelessWidget {
     this.profileName,
     this.activeDeliveriesBanner,
     this.onRefresh,
+    this.feedBody,
   });
 
   static const Key rootKey = Key('jeeber-no-requests-view-root');
@@ -51,6 +52,8 @@ class JeeberNoRequestsView extends StatelessWidget {
   /// has no feed contract to refresh (offline / no cubit) — the pill is then
   /// omitted rather than shipped inert.
   final VoidCallback? onRefresh;
+
+  final Widget? feedBody;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +82,7 @@ class JeeberNoRequestsView extends StatelessWidget {
                 top: Spacing.twoXLarge,
                 bottom: Spacing.large + context.scrollBodyBottomInset,
               ),
-              child: JeeberFeedEmptyBlock(
+              child: feedBody ?? JeeberFeedEmptyBlock(
                 isOnline: isOnline,
                 onRefresh: isOnline ? onRefresh : null,
               ),

@@ -141,7 +141,7 @@ class _GreetingFailedStrip extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final copy = failureCopy(l10n, failure);
     final scheme = Theme.of(context).colorScheme;
-    final canRetry = copy.retryable && failure.isRetryable;
+    final canRetry = copy.retryable;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,

@@ -6,8 +6,6 @@ import '../../../core/network/app_failure.dart';
 import '../../../features/home_client/data/dev_client_home_fixtures.dart';
 import '../../../features/home_client/data/in_memory_client_home_repository.dart';
 import '../../../features/shell/shell_screen.dart';
-import '../../../features/chat/application/chat_conversations_cubit.dart';
-import '../../../features/shell/tabs/chat_tab.dart';
 import '../../../features/shell/tabs/earnings_tab.dart';
 import '../../../features/shell/tabs/home_tab.dart';
 import '../../../features/shell/tabs/orders_tab.dart';
@@ -34,7 +32,6 @@ import '../../../features/wallet/presentation/wallet_activity_list_screen.dart';
 import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
-import '../fixtures/chat_tab_fixtures.dart';
 import '../fixtures/shell_screen_fixtures.dart';
 import '../fixtures/support_ticket_detail_screen_fixtures.dart';
 import '../fixtures/support_ticket_screen_fixtures.dart';
@@ -53,7 +50,6 @@ List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _jeeberTabFailureStateEntry,
   _shellHeaderActionsEntry,
   _homeTabEntry,
-  _chatTabEntry,
   _ordersTabEntry,
   _earningsTabEntry,
   _shellScreenEntry,
@@ -162,50 +158,6 @@ final CatalogEntry _homeTabEntry = CatalogEntry(
     ),
   ],
 );
-
-final CatalogEntry _chatTabEntry = CatalogEntry(
-  feature: 'shell',
-  screen: 'ChatTab',
-  states: [
-    CatalogState(
-      'Rows — 3 conversations, one unroutable',
-      (_) => _tabPreview(ChatTab(repository: ChatTabPreviewFixtures.rows())),
-    ),
-    CatalogState(
-      'Loading — cold read in flight',
-      (_) => _tabPreview(ChatTab(repository: ChatTabPreviewFixtures.loading())),
-    ),
-    CatalogState(
-      'Empty — a real 200 with zero rows',
-      (_) => _tabPreview(ChatTab(repository: ChatTabPreviewFixtures.empty())),
-    ),
-    CatalogState(
-      'Error — gateway down (503)',
-      (_) =>
-          _tabPreview(ChatTab(repository: ChatTabPreviewFixtures.failed503())),
-    ),
-    CatalogState(
-      'Error — offline',
-      (_) => _tabPreview(ChatTab(repository: ChatTabPreviewFixtures.offline())),
-    ),
-    CatalogState(
-      'Partial load — 1 row unroutable',
-      (_) => _tabPreview(
-        ChatTab(repository: ChatTabPreviewFixtures.partialLoad()),
-      ),
-    ),
-    CatalogState('Refresh failed — rows stay up', (_) => _chatTabRefreshed()),
-  ],
-);
-
-/// The warm rung needs a driven refresh, so the cubit is built here.
-Widget _chatTabRefreshed() {
-  final ChatConversationsCubit cubit = ChatConversationsCubit(
-    ChatTabPreviewFixtures.refreshFailed(),
-  );
-  unawaited(cubit.load().then((_) => cubit.refresh()));
-  return _tabPreview(ChatTab(cubit: cubit));
-}
 
 final CatalogEntry _ordersTabEntry = CatalogEntry(
   feature: 'shell',

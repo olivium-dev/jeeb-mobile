@@ -59,6 +59,24 @@ AppLocalizations _copy(WidgetTester tester) =>
 void main() {
   for (final locale in const [Locale('en'), Locale('ar')]) {
     final tag = locale.languageCode;
+
+    for (final failure in const <AppFailure>[ConflictFailure(), ValidationFailure()]) {
+      testWidgets('$tag: ${failure.kind.name} offers a working profile read retry', (tester) async {
+        useReduceMotion(tester);
+        final repo = _Repository(failure: failure);
+        final cubit = GreetingProfileCubit(repository: repo);
+        addTearDown(cubit.close);
+        await tester.pumpWidget(_host(cubit, locale));
+        await cubit.load();
+        await tester.pumpAndSettle();
+        await tester.tap(find.bySemanticsIdentifier('jeeber_home_greeting_retry_cta'));
+        await tester.pump();
+        expect(repo.reads, 2);
+        repo.next.complete(const CustomerProfileViewData(name: 'Sami Fawaz'));
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsIdentifier('jeeber_home_greeting_error'), findsNothing);
+      });
+    }
     testWidgets('$tag: failed cold profile is honest and announces its body', (
       tester,
     ) async {

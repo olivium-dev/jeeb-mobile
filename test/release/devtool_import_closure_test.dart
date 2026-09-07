@@ -171,14 +171,8 @@ void main() {
     });
 
     test('the catalog-fixture crossings are the audited set', () {
-      // Baseline captured from `origin/main`: twelve product screens imported
-      // their catalog fixtures. `chat_tab.dart` is the thirteenth, admitted
-      // deliberately: previewing a screen requires pointing BOTH the catalog
-      // entry and the preview section at one fixture library, which is what
-      // `lib/core/previews/README.md` mandates. Pinned as an exact set — a
-      // count alone lets one crossing swap for another, and pinning it here is
-      // also what stops the test above from being relaxed by moving code under
-      // `lib/devtool/catalog/`.
+      // Twelve product screens import their catalog fixtures, as
+      // `lib/core/previews/README.md` mandates. Pinned as an exact set.
       const Set<String> audited = <String>{
         'lib/core/diagnostics/diagnostics_screen.dart',
         'lib/core/previews/jeeb_preview.dart',
@@ -191,7 +185,6 @@ void main() {
         'lib/features/order_summary/presentation/order_summary_screen.dart',
         'lib/features/settings/presentation/screens/notification_preferences_screen.dart',
         'lib/features/settings/presentation/screens/saved_addresses_screen.dart',
-        'lib/features/shell/tabs/chat_tab.dart',
         'lib/features/tier_selection/presentation/tier_selection_screen.dart',
       };
 

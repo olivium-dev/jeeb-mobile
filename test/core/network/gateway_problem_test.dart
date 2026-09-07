@@ -172,6 +172,32 @@ void main() {
   });
 
   group('GatewayProblem — typed getters', () {
+    test('retryAfter accepts the gateway snake_case wire member', () {
+      for (final seconds in <Object>[30, '30']) {
+        final problem = GatewayProblem.tryParse(<String, Object?>{
+          'status': 429,
+          'retry_after': seconds,
+        });
+        expect(problem!.retryAfter, const Duration(seconds: 30));
+      }
+    });
+
+    test('retryAfter rejects malformed and nonfinite advertised windows', () {
+      for (final seconds in <Object>['NaN', 'Infinity', -1, 'invalid']) {
+        final problem = GatewayProblem.tryParse(<String, Object?>{
+          'status': 429,
+          'retry_after': seconds,
+        });
+        expect(problem!.retryAfter, isNull);
+      }
+      final problem = GatewayProblem.tryParse(<String, Object?>{
+        'status': 429,
+        'retryAfter': 'invalid',
+        'retry_after': 30,
+      });
+      expect(problem!.retryAfter, isNull);
+    });
+
     test('retryAfter accepts seconds sent as a number or a string', () {
       final numeric = GatewayProblem.tryParse(const <String, Object?>{
         'type': 'https://jeeb.dev/errors/rate-limited',

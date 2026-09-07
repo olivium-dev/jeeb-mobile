@@ -17,6 +17,27 @@ LOGCAT = (
 
 
 class HelperTests(unittest.TestCase):
+    def test_readiness_uses_the_named_validation_client(self):
+        with patch.object(helpers, "build_opener") as build:
+            helpers.open_url(helpers.UPSTREAM + "/gateway/health/ready", timeout=20)
+            request = build.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url, helpers.UPSTREAM + "/gateway/health/ready")
+            self.assertEqual(request.get_header("User-agent"), "JeebDeviceValidation/1.0")
+            self.assertEqual(build.return_value.open.call_args.kwargs, {"timeout": 20})
+            self.assertIsInstance(build.call_args.args[1], helpers.NoRedirect)
+
+    def test_named_client_preserves_control_method_body_and_headers(self):
+        request = helpers.Request(helpers.LOCAL + "/__fault/rules", data=b"{}",
+                                  headers={"Content-Type": "application/json"}, method="PUT")
+        with patch.object(helpers, "build_opener") as build:
+            helpers.open_url(request, timeout=5)
+            actual = build.return_value.open.call_args.args[0]
+            self.assertIs(actual, request)
+            self.assertEqual(actual.method, "PUT")
+            self.assertEqual(actual.data, b"{}")
+            self.assertEqual(actual.get_header("Content-type"), "application/json")
+            self.assertEqual(actual.get_header("User-agent"), "JeebDeviceValidation/1.0")
+
     def test_sensitive_hierarchy_is_refused(self):
         for content in [
             b'<node resource-id="access_token" text="hidden"/>',

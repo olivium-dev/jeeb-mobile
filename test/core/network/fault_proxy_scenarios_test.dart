@@ -8,19 +8,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/network/auth_interceptor.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/app_failure_copy.dart';
+import 'package:jeeb_mobile/features/customer_profile/data/dio_customer_profile_repository.dart';
+import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_view_data.dart';
+import 'package:jeeb_mobile/features/customer_profile/presentation/customer_profile_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import '../../support/midnight_test_harness.dart';
+import '../../support/sync_app_localizations.dart';
 
 class _ScenarioAdapter implements HttpClientAdapter {
   _ScenarioAdapter(this.response);
 
   final Map<String, dynamic> response;
+  int calls = 0;
 
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) async => ResponseBody.fromString(
+  ) async {
+    calls++;
+    return ResponseBody.fromString(
     response['body'] as String,
     response['status'] as int,
     headers: <String, List<String>>{
@@ -28,6 +37,7 @@ class _ScenarioAdapter implements HttpClientAdapter {
         entry.key.toLowerCase(): <String>[entry.value as String],
     },
   );
+  }
 
   @override
   void close({bool force = false}) {}
@@ -69,6 +79,34 @@ void main() {
       final arb = jsonDecode(rawArb) as Map<String, dynamic>;
       final l10n = debugLoadAppLocalizationsSync(Locale(locale), rawArb);
       for (var index = 0; index < responses.length; index++) {
+        if (document['scenario'] == 'S11' || document['scenario'] == 'S12') {
+          testWidgets('${document['scenario']} mounts real profile and retries $locale', (
+            tester,
+          ) async {
+            useReduceMotion(tester);
+            final adapter = _ScenarioAdapter(responses[index]);
+            final dio = Dio(BaseOptions(baseUrl: 'https://offline-fixture.invalid'))
+              ..httpClientAdapter = adapter;
+            addTearDown(() => dio.close(force: true));
+            await tester.pumpWidget(wrapForTest(
+              CustomerProfileScreen(
+                data: const CustomerProfileViewData(),
+                repository: DioCustomerProfileRepository(dio),
+              ),
+              locale: Locale(locale),
+            ));
+            await tester.pumpAndSettle();
+            final device = document['device'] as Map<String, dynamic>;
+            for (final id in device['requiredIds'] as List<dynamic>) {
+              expect(find.bySemanticsIdentifier(id as String), findsOneWidget);
+            }
+            expect(find.bySemanticsIdentifier('customer_profile_load_exit_cta'), findsNothing);
+            expect(adapter.calls, 1);
+            await tester.tap(find.bySemanticsIdentifier('customer_profile_retry_cta'));
+            await tester.pumpAndSettle();
+            expect(adapter.calls, 2);
+          });
+        }
         test(
           '${document['scenario']} variant $index transforms/maps/copies $locale',
           () async {

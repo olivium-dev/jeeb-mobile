@@ -372,11 +372,18 @@ class JeebEmptyState extends StatelessWidget {
     ).scale(1).clamp(1.0, 1.6);
 
     final bool announce = liveRegion ?? (rung == JeebEmptyStateStatus.error);
+    final bool bodyIncludesHeadline =
+        bodyText != null &&
+        (bodyText == headline ||
+            (headline.isNotEmpty && bodyText.startsWith('$headline. ')));
     // explicitChildNodes leaves this node text-less, so an announced block has
     // to carry its own copy or the reader says nothing at all.
-    final String? label = semanticLabel ??
+    final String? label =
+        semanticLabel ??
         (announce
-            ? <String?>[headline, bodyText].whereType<String>().join('. ')
+            ? bodyIncludesHeadline
+                  ? bodyText
+                  : <String?>[headline, bodyText].whereType<String>().join('. ')
             : null);
 
     return Semantics(

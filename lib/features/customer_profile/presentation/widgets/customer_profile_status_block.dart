@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/app_failure.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/customer_profile_state.dart';
-import '../../domain/customer_profile_repository.dart';
 
 /// The two `GET /users/me` states the identity card cannot carry on its own,
 /// drawn by the Midnight empty family (`JeebEmptyState`, kit ruling 1: loading
@@ -26,6 +26,7 @@ class CustomerProfileStatusBlock extends StatelessWidget {
     super.key,
     required this.state,
     required this.onRetry,
+    this.onExit,
     this.onDismissRefreshError,
   });
 
@@ -37,6 +38,7 @@ class CustomerProfileStatusBlock extends StatelessWidget {
 
   final CustomerProfileState state;
   final VoidCallback onRetry;
+  final VoidCallback? onExit;
 
   /// Clears `refreshError`; null renders the strip without a dismiss act.
   final VoidCallback? onDismissRefreshError;
@@ -62,20 +64,21 @@ class CustomerProfileStatusBlock extends StatelessWidget {
     // Error before the refresh strip: a failed cold read owns the body.
     final AppFailure? failure = coldFailure(state);
     if (failure != null) {
-      final unauthorized = state.error == CustomerProfileFailure.unauthorized;
+      final unauthorized = failure is UnauthorizedFailure;
       // A terminal kind gets an exit, never an inert block with no CTA at all.
-      final exit = !failure.isRetryable;
+      final canRetry = failureCopy(l10n, failure).retryable;
+      final exit = !canRetry;
       return JeebFailureBlock.compact(
         failure: failure,
         identifier: errorIdentifier,
         variant: JeebEmptyStateVariant.radar,
         retryIdentifier: retryIdentifier,
-        onRetry: failure.isRetryable ? onRetry : null,
+        onRetry: canRetry ? onRetry : null,
         onExit: !exit
             ? null
-            : () => unauthorized
-                  ? context.goNamed('login')
-                  : context.goNamed('shell'),
+            : unauthorized
+            ? () => context.goNamed('login')
+            : onExit ?? () => context.goNamed('shell'),
         exitLabel: !exit
             ? null
             : (unauthorized ? l10n.actionSignIn : l10n.actionBack),

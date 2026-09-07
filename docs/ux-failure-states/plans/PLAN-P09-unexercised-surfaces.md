@@ -21,7 +21,7 @@ Deploys are never executed. Device hygiene: `adb install -r` only, never uninsta
 |---|---|---|
 | Chat inbox (`ChatTab`) | Not mounted anywhere in the product: `grep -rn "ChatTab" lib` → only `lib/devtool/catalog/entries/batch_11_entries.dart:168-200` + fixtures. Shell tabs are `home/orders/dashboard/earnings/profile` (`lib/features/shell/tabs/`). Its read is `GET /v1/requests` (`lib/features/chat/data/dio_chat_conversations_repository.dart:15`), not a conversations endpoint. | code |
 | Chat detail error/empty | Reachable (jeeber dashboard active-delivery banner `onOpenChat` → `/chat/<deliveryId>` at `lib/features/shell/tabs/dashboard_tab.dart:166`; client In-Progress row → `chat-detail` at `lib/features/home_client/presentation/tabs/in_progress_tab.dart:62`) but no run opened a chat. Karim has two 0-message threads. | code + probe |
-| Jeeber feed error | Feed is only read when availability is ONLINE (`lib/features/jeeber_home/presentation/widgets/jeeber_feed_tab_view.dart:379-383` → `jeeber_feed_offline_empty_state`), and in a total outage the availability read fails first and replaces the tab with `jeeber_home_error` (`jeeber_home_screen.dart:556-575`). Needs a *path-selective* fault. | code |
+| Jeeber feed error | Real `JeeberHomeScreen` shows feed errors when on duty; its off-duty branch shows the shared `jeeber_feed_empty_state` regardless of feed rows/status, with duty-specific copy. `jeeber_feed_offline_empty_state` is an alternate leaf selector, not reachable through that off-duty branch. An availability read failure takes precedence as `jeeber_home_error`, so isolating a feed failure needs a *path-selective* fault. | code |
 | Pending-offers error | Same: needs `/v1/offers` to fail while availability succeeds. | code |
 | `wallet_activity_empty` | Jeeber-only (client → `customer-wallet` stub; ledger 403 for a client). Karim TestJeeber has 1 ledger row → never empty. Needs a KYC-verified jeeber with 0 ledger rows. | probe `karim-test-v1_jeeb_wallet_ledger.json` items=1; `client-…` 403 |
 | `reviews_empty` | Only product entry = client → offers → jeeber profile → "View all reviews" (`client_offers_screen.dart:499` → `delivery_man_profile_screen.dart:200`). Needs a jeeber with 0 reviews to have offered on the client's request. Karim has 2 reviews. | code + probe |
@@ -96,7 +96,13 @@ Stop: restore Server URL to `https://msi.olivium.space/gateway` → Apply & Rest
 
 Session switching on the phone: Dev Tool → Super Login → **Super Login Plus** → search name → tap row → force-stop → `am start -n app.jeeb.mobile.dev/com.olivium.jeeb.MainActivity`. Trap (run-2 report): the "Scenario Users" row sits under the nav bar — scroll the Dev Tool list first, tap at y≈2020.
 
-### 2.1 Mint the empty jeeber (once; ~10 min real UI, or ~2 min curl fallback)
+### 2.1 Historical empty-jeeber setup (superseded by current account gates)
+
+This section records historical instructions, not current authorization. The current execution
+plan's account and owner gates override its account creation, forced-token, KYC, and probe
+suggestions. Its curl fallback conflicts with OD-10's real-UI-only decision and must not be
+executed. Apply current gates before any device/session/network work; this contract correction
+does not execute or authorize the historical steps below.
 Mechanism verified in gateway `origin/main@6679f6ee`: `POST /dev/seed/user {role,phone,displayName}` (`src/JeebGateway/Controllers/DevController.cs:97-111`) creates a UM user with `roles=[customer]`; `GET /v1/kyc/status` → 404 `No KYC submission` → dashboard gate `JeeberKycStatus.none → registerPrompt` (`lib/core/session/jeeber_kyc_status_gate.dart:43`) i.e. "Become a Jeeber", no feed/earn. `POST /v1/kyc/submit` (JSON, `KycSubmissionBffController.cs:239-241`) requires only `id_document_front_url`, `id_document_back_url`, `selfie_with_liveness_url` refs (:44-54) and, with `FeatureFlags:Kyc:AutoApprove` ON on MSI (:47-50, :325-327), returns `state="Verified"` and composes the driver role grant (:375-378).
 
 1. Dev Tool → **Scenario Users** → Scenario "Jeeber" → **Create user**. Record `displayName`/`userId` from the result card (`$SP/device-evidence-4/accounts.md`).
@@ -104,7 +110,7 @@ Mechanism verified in gateway `origin/main@6679f6ee`: `POST /dev/seed/user {role
 3. Force-stop → launch product → Profile tab → the "Register as a delivery" row → `kyc-status` (`lib/features/shell/tabs/profile_tab.dart:105`) → KYC wizard: `kyc_tos_accept` → `kyc_id_front_upload`, `kyc_id_back_upload`, `kyc_selfie_upload` (camera only: `lib/features/kyc/application/kyc_wizard_cubit.dart:357`) → `kyc_submit_cta` → `kyc_submitting_state` → status view shows Verified (`kyc_status_feed_cta`). Photograph anything (a card on the desk); the dev gateway does not inspect content.
    **Curl fallback (data seeding via super-login, allowed by the task):** mint `POST $G/auth/tokens {"userId":"<id>","roles":["customer","driver"]}` (OpenMode ON, no key needed — proven in `$SP/p09-probe/mint-*.json`), then
    `curl -X POST $G/v1/kyc/submit -H "Authorization: Bearer $T" -H 'content-type: application/json' -d '{"id_type":"national_id","id_number":"P09-0001","id_document_front_url":"seed://p09/front","id_document_back_url":"seed://p09/back","selfie_with_liveness_url":"seed://p09/selfie","tos_accepted_version":"jeeb_tos_v1"}'` → expect 201 with `state:"Verified"`; then `GET $G/v1/kyc/status` → `Verified`. If the submit 4xxs on the ref format, fall back to the real-UI path.
-4. Cold-start the product app once (gateway authority-first `active_role` self-heals the session). Assert: Requests tab shows `jeeber_home_root` + `jeeber_feed_offline_empty_state` (duty offline), Earn tab `earnings_empty`, Profile shows the new name. Probe with its token: ledger `items=0`, reviews `totalCount=0`, offers `items=0`, notifications `items=0` → save as `$SP/device-evidence-4/accounts/emptyjeeber-*.json`.
+4. Historical cold-start check: Requests tab shows `jeeber_home_root` + `jeeber_feed_empty_state` (off duty), localized duty-off headline/body, and off `availability_switch`; Earn tab `earnings_empty`, Profile shows the authorized account name. The old token-probe instructions are superseded by current account/owner gates and OD-10; do not execute them as part of this contract correction.
 
 ---
 
@@ -196,7 +202,7 @@ Matrix (each = radios OFF → action → dump; then radios ON → assert clearan
 | Earn (jeeber) | `earnings_error` + `earnings_retry_cta` | `earnings_refresh_failed_note` (:248/309) | not `earnings_empty` |
 | Wallet hub (jeeber) | `wallet_load_error` + `wallet_load_retry_cta` | `wallet_refresh_failed_note` (:307) | |
 | Wallet activity (jeeber) | `wallet_activity_error` | `wallet_activity_refresh_failed_note` (:275/385) | |
-| Requests (jeeber, online duty) | `jeeber_home_error` (availability read) | `jeeber_feed_refresh_failed_note` only if ≥1 row | duty-offline shows `jeeber_feed_offline_empty_state` — do not confuse with connectivity |
+| Requests (jeeber, online duty) | `jeeber_home_error` (availability read) | `jeeber_feed_refresh_failed_note` only if ≥1 row | Off duty shows the real screen's `jeeber_feed_empty_state` with duty-specific copy and off `availability_switch`; this is independent of connectivity. The alternate leaf selector is not reachable here. |
 | Chat detail (jeeber) | `chat_resolution_error` | send → `chat_detail_message_failed` | S1.5 |
 For every row: `offline_banner` present while offline; after radios ON: banner gone ≤10 s, any `*_refresh_failed_snack` gone (F6), `<screen>_retry_cta` recovers. Machine-grep every dump for `Exception|Dio|Socket|10.255|127.0.0.1|status ?code` → must be empty.
 

@@ -167,7 +167,7 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   double? _numOrNull(Object? value) => value is num ? value.toDouble() : null;
 
   CustomerProfileFailure _map(DioException e) {
-    if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+    if (e.response?.statusCode == 401) {
       return CustomerProfileFailure.unauthorized;
     }
     switch (e.type) {

@@ -50,10 +50,13 @@ class ClientHomeSnapshot {
   AppFailure? get firstFailure =>
       requestsFailure ?? inProgressFailure ?? recentFailure;
 
-  /// True iff both TAB-BEARING reads failed — an honest "nothing loaded".
+  /// Both tab reads failed; pure throttling keeps READY with per-bucket errors.
   /// `recent` is a supporting rail, never on its own a failed home.
   bool get allPrimaryFailed =>
-      requestsFailure != null && inProgressFailure != null;
+      requestsFailure != null &&
+      inProgressFailure != null &&
+      !(requestsFailure is RateLimitedFailure &&
+          inProgressFailure is RateLimitedFailure);
 
   /// Legacy alias kept so existing callers and fixtures compile unchanged.
   bool get loadFailed => allPrimaryFailed;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import 'package:jeeb_mobile/features/order_history/domain/order_summary.dart';
 import 'package:jeeb_mobile/features/order_history/presentation/order_history_card.dart';
@@ -33,8 +34,10 @@ Future<void> _pump(
   OrderSummary order, {
   double textScale = 2,
   Locale locale = const Locale('en'),
+  double width = 360,
+  VoidCallback? onReorder,
 }) async {
-  tester.view.physicalSize = const Size(1080, 2400);
+  tester.view.physicalSize = Size(width * 3, 2400);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -64,7 +67,7 @@ Future<void> _pump(
             child: OrderHistoryCard(
               order: order,
               onTap: () {},
-              onReorder: () {},
+              onReorder: onReorder ?? () {},
             ),
           ),
         ),
@@ -80,6 +83,82 @@ bool _isTruncated(WidgetTester tester, Finder finder) =>
     tester.renderObject<RenderParagraph>(finder).didExceedMaxLines;
 
 void main() {
+  for (final double width in <double>[320, 360]) {
+    for (final String language in <String>['en', 'ar']) {
+      for (final double scale in <double>[1, 1.1, 2]) {
+        testWidgets(
+          '$language @$scale: separators follow their item at ${width}px',
+          (tester) async {
+            final semantics = tester.ensureSemantics();
+            try {
+              int reorderCalls = 0;
+              final order = _cancelled();
+              await _pump(
+                tester,
+                order,
+                locale: Locale(language),
+                textScale: scale,
+                width: width,
+                onReorder: () => reorderCalls++,
+              );
+              final l10n = AppLocalizations.of(
+                tester.element(find.byType(OrderHistoryCard)),
+              );
+              final action = find.text(l10n.orderHistoryRebroadcastCta);
+              final status = find.text(language == 'en' ? 'Cancelled' : 'ملغى');
+              final dots = find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.maxWidth ==
+                        OrderHistoryCard.metaDotSize &&
+                    widget.constraints?.maxHeight ==
+                        OrderHistoryCard.metaDotSize,
+              );
+              expect(dots, findsNWidgets(2));
+              final following = <Finder>[status, action];
+              for (int index = 0; index < following.length; index++) {
+                final dotRect = tester.getRect(dots.at(index));
+                final itemRect = tester.getRect(following[index]);
+                expect(
+                  dotRect.center.dy,
+                  inInclusiveRange(itemRect.top, itemRect.bottom),
+                  reason:
+                      'separator $index at $dotRect must stay with $itemRect',
+                );
+                expect(_isTruncated(tester, following[index]), isFalse);
+              }
+              final date = find.text(
+                DateFormat.MMMd(language).format(order.createdAt.toLocal()),
+              );
+              expect(_isTruncated(tester, date), isFalse);
+              final cardRect = tester.getRect(find.byType(OrderHistoryCard));
+              for (final item in <Finder>[date, status, action]) {
+                final rect = tester.getRect(item);
+                expect(rect.left, greaterThanOrEqualTo(cardRect.left));
+                expect(rect.right, lessThanOrEqualTo(cardRect.right));
+              }
+              expect(tester.takeException(), isNull);
+              final cta = find.bySemanticsIdentifier(
+                'order_history_reorder_cta_${order.id}',
+              );
+              expect(cta, findsOneWidget);
+              expect(cta.hitTestable(), findsOneWidget);
+              final actionRect = tester.getRect(action);
+              final ctaRect = tester.getRect(cta);
+              expect(actionRect.top, greaterThanOrEqualTo(ctaRect.top));
+              expect(actionRect.bottom, lessThanOrEqualTo(ctaRect.bottom));
+              await tester.tap(cta);
+              await tester.pump();
+              expect(reorderCalls, 1);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
+  }
+
   testWidgets('EN @2.0: the date is not ellipsized to "Se…"', (tester) async {
     await _pump(tester, _cancelled());
 
