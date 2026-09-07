@@ -17,6 +17,8 @@ dsym_path="${TMP_DIR}/Jeeb-dSYMs.zip"
 provenance_path="${TMP_DIR}/provenance.json"
 
 mkdir -p "${TMP_DIR}/ipa/Payload/Runner.app"
+mkdir -p "${TMP_DIR}/ipa/Payload/Runner.app/Frameworks/App.framework"
+printf '%s\n' 'y6laxxj143 jeeb-clarity-sdk' >"${TMP_DIR}/ipa/Payload/Runner.app/Frameworks/App.framework/App"
 printf '%s\n' 'signed-app-fixture' >"${TMP_DIR}/ipa/Payload/Runner.app/fixture"
 (
   cd "${TMP_DIR}/ipa"

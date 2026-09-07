@@ -216,6 +216,15 @@ export JEEB_IOS_RELEASE_PROFILE=staging
 ipa_path="$(find "${EXPORT_PATH}" -maxdepth 1 -type f -name '*.ipa' -print -quit)"
 [[ -n "${ipa_path}" && -s "${ipa_path}" ]] || fail 'exported IPA is missing'
 
+# This capture-enabled candidate has a stronger payload contract than the
+# independent capture-off unsigned staging CI build.
+capture_binary="$(mktemp)"
+trap 'rm -f -- "${capture_binary}"' EXIT HUP INT TERM
+unzip -p "${ipa_path}" Payload/Runner.app/Frameworks/App.framework/App >"${capture_binary}"
+bash "${REPO_ROOT}/tool/inspect_ios_staging_clarity_payload.sh" "${capture_binary}"
+rm -f -- "${capture_binary}"
+trap - EXIT HUP INT TERM
+
 IOS_BUILD_NAME="${BUILD_NAME}" IOS_BUILD_NUMBER="${BUILD_NUMBER}" \
   bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh" \
   "${ipa_path}" "${FIREBASE_CONFIG}" "${MAPS_KEY_FILE}" "${GATEWAY_URL}" \
