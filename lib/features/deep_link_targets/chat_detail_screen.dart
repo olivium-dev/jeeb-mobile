@@ -128,6 +128,7 @@ class ChatDetailScreen extends StatefulWidget {
     this.debugSummary,
     this.debugSummaryFailure,
     this.debugCounterpartName = '',
+    this.debugClock,
     this.refreshSignals,
   });
 
@@ -165,6 +166,10 @@ class ChatDetailScreen extends StatefulWidget {
 
   /// Paired with [debugGateway]; seeds the resolved header title.
   final String debugCounterpartName;
+
+  /// DEVTOOL-ONLY seam: the instant the countdown is measured against. Null
+  /// keeps the device clock; a fixture pins it (X3).
+  final DateTime Function()? debugClock;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -1836,6 +1841,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return ChatScreen(
       deliveryId: _resolvedConversationId,
       counterpartName: _headerTitle(AppLocalizations.of(context), isJeeber),
+      clock: widget.debugClock ?? DateTime.now,
       counterpartAvatarUrl: _counterpartAvatarUrl(isJeeber),
       gateway: _gateway!,
       pickerService: _resolvePicker(),

@@ -67,6 +67,7 @@ Widget _chatDetail(ChatDetailScreenPreviewState state) => ChatDetailScreen(
       debugCounterpartName: state.counterpartName,
       debugSummary: state.summary,
       debugSummaryFailure: state.summaryFailure,
+      debugClock: state.clock,
     );
 
 final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[

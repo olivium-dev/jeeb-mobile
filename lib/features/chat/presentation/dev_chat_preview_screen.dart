@@ -53,6 +53,9 @@ class DevChatPreviewScreen extends StatelessWidget {
       counterpartName: requestFeed ? 'ORD-23748' : 'Kamal Hajj',
       gateway: DevChatFixtureGateway(phase: phase, sending: sending),
       pickerService: StubPhotoPickerService(),
+      // The thread is pinned to the fixture anchor, so the countdown has to be
+      // measured against it too — otherwise the chip renders the hour (X3).
+      clock: DevChatFixtureGateway.fixtureNow,
     );
   }
 }
@@ -108,6 +111,7 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
         deliveryMan: true,
       ),
       pickerService: StubPhotoPickerService(),
+      clock: DevChatFixtureGateway.fixtureNow,
     );
   }
 }

@@ -181,6 +181,7 @@ class ChatScreen extends StatelessWidget {
     this.initialTrackingDeliveryId,
     this.outbox,
     this.currentUserId = '',
+    this.clock = DateTime.now,
   }) : assert(
          cubit == null || (gateway == null && pickerService == null),
          'Provide either a cubit or the (gateway, pickerService) pair, not both.',
@@ -298,6 +299,10 @@ class ChatScreen extends StatelessWidget {
   /// Sender id stamped on outbox rows, resolved by the host from the session.
   final String currentUserId;
 
+  /// The instant the broadcast countdown is measured against. Fixture hosts
+  /// pin it so the chip's render is not a function of the hour (X3).
+  final DateTime Function() clock;
+
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
@@ -330,6 +335,7 @@ class ChatScreen extends StatelessWidget {
           isOrderChat: isOrderChat,
           viewerIsJeeber: viewerIsJeeber,
           onFirstMessageBroadcast: onFirstMessageBroadcast,
+          clock: clock,
         ),
       );
     }
@@ -382,6 +388,7 @@ class ChatScreen extends StatelessWidget {
         isOrderChat: isOrderChat,
         viewerIsJeeber: viewerIsJeeber,
         onFirstMessageBroadcast: onFirstMessageBroadcast,
+        clock: clock,
       ),
     );
   }
@@ -421,6 +428,7 @@ class _ChatScaffold extends StatefulWidget {
     this.isOrderChat = false,
     this.viewerIsJeeber = false,
     this.onFirstMessageBroadcast,
+    this.clock = DateTime.now,
   });
 
   final String deliveryId;
@@ -450,6 +458,9 @@ class _ChatScaffold extends StatefulWidget {
   /// re-arm so the user can retry (e.g. a failed create).
   final Future<bool> Function(String requestId, String firstMessage)?
   onFirstMessageBroadcast;
+
+  /// See [ChatScreen.clock].
+  final DateTime Function() clock;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -609,6 +620,7 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
           state.phase == ConversationPhase.closed &&
           state.messages.any((m) => m.kind == MessageKind.offerRejected),
       broadcastExpiresAt: state.broadcastExpiresAt,
+      clock: widget.clock,
       pinnedSummary: showPinnedSummary ? widget.pinnedSummary : null,
       pinnedSummaryFallback: widget.pinnedSummaryFallback,
       counterpartName: widget.counterpartName,
@@ -772,6 +784,7 @@ class _ChatBody extends StatelessWidget {
     this.onTrackOrder,
     this.showRemovedBanner = false,
     this.broadcastExpiresAt,
+    this.clock = DateTime.now,
     this.pinnedSummary,
     this.pinnedSummaryFallback,
     this.counterpartName = '',
@@ -795,6 +808,9 @@ class _ChatBody extends StatelessWidget {
   final VoidCallback? onTrackOrder;
   final bool showRemovedBanner;
   final DateTime? broadcastExpiresAt;
+
+  /// See [ChatScreen.clock].
+  final DateTime Function() clock;
   final OrderChatSummary? pinnedSummary;
 
   /// F44 stand-in shown in the header slot when the summary read failed.
@@ -905,7 +921,7 @@ class _ChatBody extends StatelessWidget {
         ),
       if (showRemovedBanner) const JeeberRemovedBanner(),
       if (state.phase == ConversationPhase.broadcasting)
-        BroadcastTtlIndicator(expiresAt: broadcastExpiresAt),
+        BroadcastTtlIndicator(expiresAt: broadcastExpiresAt, now: clock),
     ];
     // b02 — "BOTTOM OVERFLOWED BY 16 PIXELS", fixed at its cause.
     //

@@ -22,6 +22,7 @@ class ChatDetailScreenPreviewState {
     this.counterpartName = '',
     this.summary,
     this.summaryFailure,
+    this.clock,
   });
 
   /// The `/chat/:id` route param. Reaches the header through
@@ -48,6 +49,10 @@ class ChatDetailScreenPreviewState {
 
   /// F44: why [summary] is missing. Non-null mounts the unavailable strip.
   final AppFailure? summaryFailure;
+
+  /// The instant the countdown is measured against. Pinned wherever the
+  /// gateway stamps rows at [DevChatFixtureGateway.fixtureAnchor] (X3).
+  final DateTime Function()? clock;
 }
 
 /// The designed states of `ChatDetailScreen`.
@@ -93,6 +98,7 @@ class ChatDetailScreenPreviewFixtures {
     chatId: composeChatId,
     gateway: _composeGateway,
     phase: ConversationPhase.broadcasting,
+    clock: DevChatFixtureGateway.fixtureNow,
   );
 
   static ChatGateway _composeGateway() => DevChatFixtureGateway(
@@ -106,6 +112,7 @@ class ChatDetailScreenPreviewFixtures {
     chatId: broadcastingChatId,
     gateway: _broadcastingGateway,
     phase: ConversationPhase.broadcasting,
+    clock: DevChatFixtureGateway.fixtureNow,
   );
 
   static ChatGateway _broadcastingGateway() =>
