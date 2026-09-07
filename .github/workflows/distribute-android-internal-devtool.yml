@@ -372,7 +372,7 @@ jobs:
             --arg version_name '${{ inputs.build_name }}' \
             --arg version_code '${{ inputs.build_number }}' \
             '{platform:"android", destination:"google-play-internal",
-              crashlytics_mapping_uploaded:true,
+              crashlytics_mapping:"uploader_completed",
               artifact_sha256:$artifact_sha256,
               source_run_id:$source_run_id,
               source_run_attempt:$source_run_attempt,

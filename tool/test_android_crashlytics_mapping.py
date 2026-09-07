@@ -110,6 +110,26 @@ class MappingTest(unittest.TestCase):
                 subject.main()
             run.assert_not_called()
 
+    def test_upload_exact_arguments_and_failure_propagation(self):
+        jar = self.root / "fixture.jar"
+        jar.write_bytes(b"offline fixture")
+        real_sha256 = subject.sha256
+        def fixture_sha256(path):
+            return subject.BUILDTOOLS_SHA256 if str(path) == str(jar) else real_sha256(path)
+        args = ["tool", "upload", "--aab", str(self.aab), "--mapping", str(self.mapping),
+                "--provenance", str(self.provenance), "--buildtools", str(jar)]
+        expected = ["java", "-jar", str(jar), "-uploadMappingFile", str(self.mapping),
+                    "-mappingFileId", self.record["crashlytics_mapping_id"],
+                    "-googleAppId", self.record["firebase_app_id"], "-quiet"]
+        with patch("sys.argv", args), patch.object(subject, "sha256", fixture_sha256), \
+                patch.object(subject.subprocess, "run") as run:
+            subject.main()
+            run.assert_called_once_with(expected, check=True)
+            run.side_effect = subprocess.CalledProcessError(17, expected)
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                subject.main()
+            self.assertEqual(raised.exception.returncode, 17)
+
     @unittest.skipUnless(os.environ.get("AAPT2_BIN") and os.environ.get("ANDROID_PLATFORM_JAR"),
                          "set AAPT2_BIN and ANDROID_PLATFORM_JAR for real AAPT2 validation")
     def test_real_aapt2_output(self):
