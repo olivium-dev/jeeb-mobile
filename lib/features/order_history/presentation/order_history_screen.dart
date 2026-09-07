@@ -143,9 +143,8 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
                   // board (tpl 1422) is a plain `flex; gap:8` with no indicator and
                   // no 48px row. The TabController/TabBarView stay — they carry
                   // swipe, keep-alive retention and `cubit.selectTab`.
-                  JeebChipRow.scrollable(
-                    padding: _kBandPadding,
-                    children: [
+                  _TabPills(
+                    tabs: <Widget>[
                       for (final (index, tab) in OrderHistoryTab.values.indexed)
                         Semantics(
                           // FROZEN: order_history_{active,completed,cancelled}_tab.
@@ -211,6 +210,32 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
       case OrderHistoryTab.cancelled:
         return l10n.orderHistoryTabCancelled;
     }
+  }
+}
+
+/// The three filter pills. F5: the scrolling row left the SELECTED pill off the
+/// viewport at accessible sizes (`Cancelled 4` clipped to `Car`), so they wrap.
+class _TabPills extends StatelessWidget {
+  const _TabPills({required this.tabs});
+
+  final List<Widget> tabs;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool usesLargeText =
+        MediaQuery.textScalerOf(context).scale(1) >
+        _kLargeFilterTextScaleThreshold;
+    if (!usesLargeText) {
+      return JeebChipRow.scrollable(padding: _kBandPadding, children: tabs);
+    }
+    return Padding(
+      padding: _kBandPadding,
+      child: Wrap(
+        spacing: JeebChipRow.defaultSpacing,
+        runSpacing: Spacing.xSmall,
+        children: tabs,
+      ),
+    );
   }
 }
 
@@ -423,6 +448,9 @@ class _OrderTabViewState extends State<_OrderTabView>
         final Widget list = ListView.separated(
           key: Key('order-history-list-${widget.tab.name}'),
           controller: _scrollController,
+          // X2: a list shorter than the viewport is not scrollable under the
+          // default physics, so the drag never reached the RefreshIndicator.
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsetsDirectional.only(
             start: Spacing.xLarge,
             end: Spacing.xLarge,

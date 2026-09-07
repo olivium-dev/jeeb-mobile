@@ -109,11 +109,15 @@ class DioOrderRepository implements OrderRepository {
   }
 
   static OrderSummary _parseOrder(Map<String, dynamic> json) {
-    final amount = json['amount'];
+    // X1: the wire's price token is not always `amount` — the offer surface
+    // sends the same money as `fee`, the receipt shape as `price`.
+    final Object? amount = json['amount'] ?? json['price'] ?? json['fee'];
     final pickup = json['pickup'];
     final dropoff = json['dropoff'];
     return OrderSummary(
       id: _str(json['id']) ?? '',
+      displayId: _str(json['displayId']) ?? '',
+      title: _str(json['title']) ?? '',
       createdAt:
           ServerTime.parse(_str(json['createdAt'])) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
