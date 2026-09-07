@@ -22,6 +22,30 @@ InternalReleasePolicyInput _validInput() => const InternalReleasePolicyInput(
 );
 
 void main() {
+  test('staging heatmaps require separate authorization and exact project', () {
+    final enabled = _copy(
+      _validInput(),
+      clarityEnabled: true,
+      clarityStagingInternalApproved: true,
+      clarityProjectId: 'y6laxxj143',
+    );
+    expect(
+      InternalReleasePolicy.evaluate(enabled),
+      InternalReleasePolicyFailure.none,
+    );
+    for (final input in [
+      _copy(enabled, clarityStagingInternalApproved: false),
+      _copy(enabled, clarityPrivacyApproved: true),
+      _copy(enabled, clarityProjectId: 'other'),
+      _copy(enabled, appFlavor: 'production'),
+      _copy(enabled, dartFlag: false),
+    ]) {
+      expect(
+        InternalReleasePolicy.evaluate(input),
+        isNot(InternalReleasePolicyFailure.none),
+      );
+    }
+  });
   test('exact internal release staging policy passes', () {
     expect(
       InternalReleasePolicy.evaluate(_validInput()),
@@ -116,6 +140,7 @@ InternalReleasePolicyInput _copy(
   String? gatewayOrigin,
   String? realtimeSocket,
   bool? clarityEnabled,
+  bool? clarityStagingInternalApproved,
   bool? clarityPrivacyApproved,
   String? clarityProjectId,
   NativeInternalReleasePolicy? native,
@@ -127,6 +152,8 @@ InternalReleasePolicyInput _copy(
   gatewayOrigin: gatewayOrigin ?? source.gatewayOrigin,
   realtimeSocket: realtimeSocket ?? source.realtimeSocket,
   clarityEnabled: clarityEnabled ?? source.clarityEnabled,
+  clarityStagingInternalApproved:
+      clarityStagingInternalApproved ?? source.clarityStagingInternalApproved,
   clarityPrivacyApproved:
       clarityPrivacyApproved ?? source.clarityPrivacyApproved,
   clarityProjectId: clarityProjectId ?? source.clarityProjectId,

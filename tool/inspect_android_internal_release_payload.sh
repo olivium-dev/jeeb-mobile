@@ -30,7 +30,11 @@ done
   fail 'staging gateway contract drifted'
 [[ "${EXPECTED_REALTIME_SOCKET_URL}" == wss://app.jeeb.fds-1.com/socket/websocket ]] ||
   fail 'staging realtime contract drifted'
-[[ "${CLARITY_ENABLED}" == false ]] || fail 'Clarity must be explicitly off'
+[[ "${CLARITY_ENABLED}" == true ]] || fail 'staging Clarity must be explicitly on'
+[[ "${JEEB_CLARITY_STAGING_INTERNAL_APPROVED:-}" == true ]] ||
+  fail 'internal staging Clarity authorization is missing'
+[[ "${JEEB_CLARITY_PROJECT_ID:-}" == y6laxxj143 ]] ||
+  fail 'staging Clarity project drifted'
 [[ "${CLARITY_PRIVACY_APPROVED}" == false ]] ||
   fail 'Clarity privacy approval must be explicitly off'
 [[ "${INTERNAL_RELEASE}" == true ]] ||
@@ -51,6 +55,8 @@ done
 LC_ALL=C grep -aFq 'Jeeber Dev Tool' "${RESOURCES_PAYLOAD}" ||
   fail 'full Dev Tool launcher label is absent'
 for required in \
+  'y6laxxj143' \
+  'jeeb-clarity-sdk' \
   "${EXPECTED_GATEWAY_URL}" \
   "${EXPECTED_REALTIME_SOCKET_URL}" \
   'Jeeber Dev Tool' \
@@ -93,4 +99,4 @@ if LC_ALL=C grep -aEiq \
 fi
 
 printf '%s\n' \
-  'Android internal release contains the full Dev Tool, is staging-only, and is Clarity-off.'
+  'Android internal release contains the full Dev Tool and staging Clarity SDK markers; runtime consent/masking acceptance remains required.'

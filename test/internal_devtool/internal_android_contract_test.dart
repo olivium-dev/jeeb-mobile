@@ -342,7 +342,7 @@ const _workflowMarkers = <String>[
   '--dart-define=JEEB_DEVTOOL_SHAKE=false',
   'dart analyze --fatal-infos',
   'test/devtool',
-  '--dart-define=JEEB_CLARITY_ENABLED=false',
+  '--dart-define=JEEB_CLARITY_ENABLED=true',
   '--dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false',
   'devtool:true',
   'super_login:true',
@@ -413,7 +413,9 @@ const _distributionWorkflowMarkers = <String>[
   'super_login:true',
   'shake_to_open:false',
   "JEEB_DEVTOOL_SHAKE_ENABLED: 'false'",
-  'clarity_enabled:false',
+  'clarity_enabled:true',
+  'clarity_staging_internal_approved:true',
+  'staging-internal-consent-masked-v1',
 ];
 
 const _distributionReceiptVariableBindings = <String>[

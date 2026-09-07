@@ -133,8 +133,10 @@ jobs:
           JEEB_DEVTOOL_BUILD=true \
           JEEB_SUPER_LOGIN_ENABLED=true \
           JEEB_DEVTOOL_SHAKE_ENABLED=false \
-          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_ENABLED=true \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+          JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
           JEEB_RELEASE_PROFILE=release \
             bash tool/validate_encrypted_android_internal_candidate.sh \
               "${ciphertext}" "${recipient_cert}" "${private_key}" \
@@ -278,8 +280,10 @@ jobs:
           JEEB_DEVTOOL_BUILD=true \
           JEEB_SUPER_LOGIN_ENABLED=true \
           JEEB_DEVTOOL_SHAKE_ENABLED=false \
-          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_ENABLED=true \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+          JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
           JEEB_RELEASE_PROFILE=release \
             bash tool/validate_encrypted_android_internal_candidate.sh \
               "${ciphertext}" "${recipient_cert}" "${private_key}" "${root}"
@@ -343,8 +347,10 @@ jobs:
           JEEB_DEVTOOL_BUILD: 'true'
           JEEB_SUPER_LOGIN_ENABLED: 'true'
           JEEB_DEVTOOL_SHAKE_ENABLED: 'false'
-          JEEB_CLARITY_ENABLED: 'false'
+          JEEB_CLARITY_ENABLED: 'true'
           JEEB_CLARITY_PRIVACY_APPROVED: 'false'
+          JEEB_CLARITY_STAGING_INTERNAL_APPROVED: 'true'
+          JEEB_CLARITY_PROJECT_ID: y6laxxj143
           JEEB_RELEASE_PROFILE: release
           GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
         run: bundle exec fastlane android internal_devtool
@@ -379,7 +385,9 @@ jobs:
               reviewed_sha:$reviewed_sha, version_name:$version_name,
               version_code:$version_code, devtool:true, super_login:true,
               shake_to_open:false,
-              clarity_enabled:false, release_profile:true}' \
+              clarity_enabled:true, clarity_staging_internal_approved:true,
+              clarity_project_id:"y6laxxj143",
+              clarity_capture_policy:"staging-internal-consent-masked-v1", release_profile:true}' \
             >build/distribution-receipts/android-internal-devtool.json
       - name: Retain internal distribution receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

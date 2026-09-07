@@ -2,6 +2,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/config/app_config.dart';
 
 void main() {
+  test('internal staging authorization cannot enable any other runtime', () {
+    bool staging({
+      AppBuildMode mode = AppBuildMode.release,
+      bool approved = true,
+      bool internal = true,
+      String flavor = 'staging',
+      String gateway = 'https://app.jeeb.fds-1.com',
+      String realtime = 'wss://app.jeeb.fds-1.com/socket/websocket',
+      String project = 'y6laxxj143',
+    }) => AppConfig.clarityPolicyAllowsCapture(
+      buildMode: mode,
+      enabled: true,
+      privacyApproved: false,
+      projectId: project,
+      stagingInternalApproved: approved,
+      internalRelease: internal,
+      flavor: flavor,
+      gateway: gateway,
+      realtime: realtime,
+    );
+    expect(staging(), isTrue);
+    expect(staging(approved: false), isFalse);
+    expect(staging(internal: false), isFalse);
+    expect(staging(flavor: 'production'), isFalse);
+    expect(staging(flavor: 'dev'), isFalse);
+    expect(staging(gateway: 'https://example.com'), isFalse);
+    expect(staging(realtime: 'wss://example.com'), isFalse);
+    expect(staging(project: 'abc123'), isFalse);
+    expect(staging(mode: AppBuildMode.debug), isFalse);
+    expect(staging(mode: AppBuildMode.profile), isFalse);
+  });
   const validProjectId = 'y6laxxj143';
 
   bool allows({

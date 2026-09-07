@@ -74,10 +74,21 @@ class AppConfig {
     defaultValue: false,
   );
 
+  /// Owner-authorized internal staging validation only; this is not production
+  /// privacy, minor-use or store-disclosure approval. Consent remains required.
+  static const bool clarityStagingInternalApproved = bool.fromEnvironment(
+    'JEEB_CLARITY_STAGING_INTERNAL_APPROVED',
+    defaultValue: false,
+  );
+  static const bool _internalRelease = bool.fromEnvironment(
+    'JEEB_INTERNAL_RELEASE',
+    defaultValue: false,
+  );
+
   /// Whether all release-owner gates form a valid Clarity configuration.
   static bool get clarityBuildConfigured =>
       clarityEnabled &&
-      clarityPrivacyApproved &&
+      (clarityPrivacyApproved || _stagingClarityConfigured) &&
       _isValidClarityProjectId(clarityProjectId);
 
   /// Runtime availability is release-only. Debug, profile, test, CI and the
@@ -87,7 +98,36 @@ class AppConfig {
     enabled: clarityEnabled,
     privacyApproved: clarityPrivacyApproved,
     projectId: clarityProjectId,
+    stagingInternalApproved: clarityStagingInternalApproved,
+    internalRelease: _internalRelease,
+    flavor: appFlavor,
+    gateway: gatewayBaseUrl,
+    realtime: realtimeSocketUrl,
   );
+
+  static bool get _stagingClarityConfigured => stagingClarityPolicyAllows(
+    approved: clarityStagingInternalApproved,
+    internalRelease: _internalRelease,
+    flavor: appFlavor,
+    gateway: gatewayBaseUrl,
+    realtime: realtimeSocketUrl,
+    projectId: clarityProjectId,
+  );
+
+  static bool stagingClarityPolicyAllows({
+    required bool approved,
+    required bool internalRelease,
+    required String flavor,
+    required String gateway,
+    required String realtime,
+    required String projectId,
+  }) =>
+      approved &&
+      internalRelease &&
+      flavor == 'staging' &&
+      gateway == 'https://app.jeeb.fds-1.com' &&
+      realtime == 'wss://app.jeeb.fds-1.com/socket/websocket' &&
+      projectId == 'y6laxxj143';
 
   /// Pure policy seam used by production and its privacy truth-table tests.
   static bool clarityPolicyAllowsCapture({
@@ -95,10 +135,23 @@ class AppConfig {
     required bool enabled,
     required bool privacyApproved,
     required String projectId,
+    bool stagingInternalApproved = false,
+    bool internalRelease = false,
+    String flavor = 'production',
+    String gateway = '',
+    String realtime = '',
   }) =>
       buildMode == AppBuildMode.release &&
       enabled &&
-      privacyApproved &&
+      (privacyApproved ||
+          stagingClarityPolicyAllows(
+            approved: stagingInternalApproved,
+            internalRelease: internalRelease,
+            flavor: flavor,
+            gateway: gateway,
+            realtime: realtime,
+            projectId: projectId,
+          )) &&
       _isValidClarityProjectId(projectId);
 
   static AppBuildMode get _currentBuildMode => kReleaseMode

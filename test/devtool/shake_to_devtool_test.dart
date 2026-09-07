@@ -102,11 +102,13 @@ Widget _hostUnderTest(
   _FakeClock clock, {
   bool initiallyOpen = false,
   bool shakeEnabled = true,
+  bool Function()? prepareOpen,
 }) => MaterialApp(
   theme: AppTheme.light(),
   builder: (context, child) => DevToolShakeHost(
     initiallyOpen: initiallyOpen,
     shakeEnabled: shakeEnabled,
+    prepareOpen: prepareOpen,
     clock: clock.call,
     layerBuilder: (_) => const Scaffold(
       body: Center(child: Text('DEV TOOL', key: _layerContentKey)),
@@ -430,6 +432,21 @@ void main() {
   });
 
   group('DevToolShakeHost', () {
+    testWidgets(
+      'privacy pause failure prevents initial and native tool mount',
+      (tester) async {
+        final clock = _FakeClock();
+        await tester.pumpWidget(
+          _hostUnderTest(clock, initiallyOpen: true, prepareOpen: () => false),
+        );
+        expect(find.byKey(_layerContentKey), findsNothing);
+        await _deliverLauncherOpen(tester);
+        expect(find.byKey(_layerContentKey), findsNothing);
+        await _deliverShake(tester);
+        expect(find.byKey(_layerContentKey), findsNothing);
+      },
+    );
+
     testWidgets('initiallyOpen mounts the Dev Tool over the product UI', (
       tester,
     ) async {

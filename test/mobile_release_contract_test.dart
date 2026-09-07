@@ -677,7 +677,10 @@ void _registerCiContracts() {
       '.elements[0].versionCode == \$build_number',
       'build/provenance/android-rc.json',
       'build/provenance/ios-rc.json',
-      r'$ARGS.named + {clarity_enabled: false, retained: true,',
+      r'$ARGS.named + {clarity_enabled: true,',
+      'clarity_privacy_approved: false',
+      'clarity_staging_internal_approved: true',
+      'staging-internal-consent-masked-v1',
       'uses: ./.github/actions/run-build-runner',
       'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
       'retention-days: 7',
@@ -697,10 +700,9 @@ void _registerCiContracts() {
     expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
   });
 
-  test('every release build keeps Clarity explicitly disabled', () {
+  test('production remains off; internal staging uses separate approval', () {
     for (final path in [
       '.github/workflows/trusted-mobile-rc.yml',
-      'tool/build_signed_ios_internal_candidate.sh',
       'tool/build_unsigned_ios_release_contract.sh',
     ]) {
       final source = _source(path);
@@ -712,6 +714,16 @@ void _registerCiContracts() {
       );
       expect(source, isNot(contains('JEEB_CLARITY_ENABLED=true')));
       expect(source, isNot(contains('JEEB_CLARITY_PROJECT_ID=')));
+    }
+    final internal = _source('tool/build_signed_ios_internal_candidate.sh');
+    for (final flag in [
+      'JEEB_CLARITY_ENABLED=true',
+      'JEEB_CLARITY_PRIVACY_APPROVED=false',
+      'JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true',
+      'JEEB_CLARITY_PROJECT_ID=y6laxxj143',
+      'JEEB_INTERNAL_RELEASE=true',
+    ]) {
+      expect(internal, contains(flag));
     }
   });
 

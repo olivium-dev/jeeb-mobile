@@ -62,6 +62,12 @@ validate_expected_hash() {
 
 validate_zip "${IPA_PATH}"
 validate_zip "${DSYM_PATH}"
+capture_binary="$(mktemp)"
+trap 'rm -f -- "${capture_binary}"' EXIT HUP INT TERM
+unzip -p "${IPA_PATH}" Payload/Runner.app/Frameworks/App.framework/App >"${capture_binary}"
+bash "$(dirname "${BASH_SOURCE[0]}")/inspect_ios_staging_clarity_payload.sh" "${capture_binary}"
+rm -f -- "${capture_binary}"
+trap - EXIT HUP INT TERM
 ipa_sha256="$(sha256_file "${IPA_PATH}")"
 provenance_sha256="$(sha256_file "${PROVENANCE_PATH}")"
 dsym_sha256="$(sha256_file "${DSYM_PATH}")"
@@ -94,7 +100,11 @@ jq -e \
     and .source_workflow_path == ".github/workflows/trusted-mobile-rc.yml"
     and .source_workflow_ref ==
       "olivium-dev/jeeb-mobile/.github/workflows/trusted-mobile-rc.yml@refs/heads/main"
-    and .clarity_enabled == false
+    and .clarity_enabled == true
+    and .clarity_privacy_approved == false
+    and .clarity_staging_internal_approved == true
+    and .clarity_project_id == "y6laxxj143"
+    and .clarity_capture_policy == "staging-internal-consent-masked-v1"
     and .retained == true
     and .store_uploaded == false
   ' "${PROVENANCE_PATH}" >/dev/null ||

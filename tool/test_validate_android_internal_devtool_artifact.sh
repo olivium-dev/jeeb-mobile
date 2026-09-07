@@ -16,7 +16,9 @@ export SOURCE_WORKFLOW_REF='olivium-dev/jeeb-mobile/.github/workflows/trusted-an
 export JEEB_DEVTOOL_BUILD=true
 export JEEB_SUPER_LOGIN_ENABLED=true
 export JEEB_DEVTOOL_SHAKE_ENABLED=false
-export JEEB_CLARITY_ENABLED=false
+export JEEB_CLARITY_ENABLED=true
+export JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true
+export JEEB_CLARITY_PROJECT_ID=y6laxxj143
 export JEEB_CLARITY_PRIVACY_APPROVED=false
 export JEEB_RELEASE_PROFILE=release
 
@@ -25,6 +27,9 @@ metadata_path="${TMP_DIR}/output-metadata.json"
 provenance_path="${TMP_DIR}/provenance.json"
 mapping_path="${TMP_DIR}/mapping.txt"
 mkdir -p "${TMP_DIR}/aab/base/manifest"
+mkdir -p "${TMP_DIR}/aab/base/lib/arm64-v8a"
+printf '%s\n' 'y6laxxj143 jeeb-clarity-sdk' \
+  >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
 printf '%s\n' \
   'com.olivium.jeeb com.olivium.jeeb.MainActivity' \
   'com.olivium.jeeb.DevToolLauncher android.intent.action.MAIN' \
@@ -101,7 +106,10 @@ jq -n \
       gateway_origin:"https://app.jeeb.fds-1.com",
       realtime_socket:"wss://app.jeeb.fds-1.com/socket/websocket",
       devtool:true, super_login:true, shake_to_open:false,
-      clarity_enabled:false,
+      clarity_enabled:true,
+      clarity_staging_internal_approved:true,
+      clarity_project_id:"y6laxxj143",
+      clarity_capture_policy:"staging-internal-consent-masked-v1",
       clarity_privacy_approved:false, retained:true, store_uploaded:false}
   ' >"${provenance_path}"
 
@@ -165,7 +173,29 @@ assert_rejected_provenance '.build_profile = "debug"' wrong-profile
 assert_rejected_provenance '.devtool = false' wrong-devtool
 assert_rejected_provenance '.super_login = false' wrong-super-login
 assert_rejected_provenance '.shake_to_open = true' wrong-shake-policy
-assert_rejected_provenance '.clarity_enabled = true' wrong-clarity
+assert_rejected_provenance '.clarity_enabled = false' wrong-clarity
+assert_rejected_provenance '.clarity_staging_internal_approved = false' missing-staging-approval
+assert_rejected_provenance '.clarity_project_id = "other"' wrong-clarity-project
+assert_rejected_provenance '.clarity_capture_policy = "other"' wrong-clarity-policy
+assert_rejected_provenance '.clarity_privacy_approved = true' false-production-approval
+
+for missing_marker in y6laxxj143 jeeb-clarity-sdk; do
+  marker_aab="${TMP_DIR}/missing-${missing_marker}.aab"
+  cp "${aab_path}" "${marker_aab}"
+  printf '%s\n' "${missing_marker/y6laxxj143/jeeb-clarity-sdk}" \
+    >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
+  if [[ "${missing_marker}" == jeeb-clarity-sdk ]]; then
+    printf '%s\n' y6laxxj143 >"${TMP_DIR}/aab/base/lib/arm64-v8a/libapp.so"
+  fi
+  (cd "${TMP_DIR}/aab" && zip -q "${marker_aab}" base/lib/arm64-v8a/libapp.so)
+  if bash "${validator}" "${marker_aab}" "${provenance_path}" "${metadata_path}" \
+    >"${TMP_DIR}/marker-rejection.log" 2>&1; then
+    printf 'Validator accepted absent actual marker: %s\n' "${missing_marker}" >&2
+    exit 1
+  fi
+  grep -Fq "staging Clarity payload marker is absent: ${missing_marker}" \
+    "${TMP_DIR}/marker-rejection.log"
+done
 assert_rejected_provenance '.reviewed_sha = ("2" * 40)' wrong-reviewed-sha
 assert_rejected_provenance '.source_run_id = "654321"' wrong-run
 assert_rejected_provenance '.source_run_attempt = "9"' wrong-run-attempt

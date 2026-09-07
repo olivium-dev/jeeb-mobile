@@ -47,6 +47,7 @@ final class InternalReleasePolicyInput {
     required this.clarityEnabled,
     required this.clarityPrivacyApproved,
     required this.clarityProjectId,
+    this.clarityStagingInternalApproved = false,
     required this.native,
   });
 
@@ -59,6 +60,7 @@ final class InternalReleasePolicyInput {
   final bool clarityEnabled;
   final bool clarityPrivacyApproved;
   final String clarityProjectId;
+  final bool clarityStagingInternalApproved;
   final NativeInternalReleasePolicy native;
 }
 
@@ -85,6 +87,7 @@ abstract final class InternalReleasePolicy {
     clarityEnabled: AppConfig.clarityEnabled,
     clarityPrivacyApproved: AppConfig.clarityPrivacyApproved,
     clarityProjectId: AppConfig.clarityProjectId,
+    clarityStagingInternalApproved: AppConfig.clarityStagingInternalApproved,
     native: native,
   );
 
@@ -105,7 +108,9 @@ abstract final class InternalReleasePolicy {
     if (input.realtimeSocket != realtimeSocket) {
       return InternalReleasePolicyFailure.realtime;
     }
-    if (!_clarityIsOff(input)) return InternalReleasePolicyFailure.clarity;
+    if (!_clarityIsOff(input) && !_stagingClarityAllowed(input)) {
+      return InternalReleasePolicyFailure.clarity;
+    }
     if (!input.native.allowsInternalBuild) {
       return InternalReleasePolicyFailure.native;
     }
@@ -114,8 +119,21 @@ abstract final class InternalReleasePolicy {
 
   static bool _clarityIsOff(InternalReleasePolicyInput input) =>
       !input.clarityEnabled &&
+      !input.clarityStagingInternalApproved &&
       !input.clarityPrivacyApproved &&
       input.clarityProjectId.isEmpty;
+
+  static bool _stagingClarityAllowed(InternalReleasePolicyInput input) =>
+      input.clarityEnabled &&
+      !input.clarityPrivacyApproved &&
+      AppConfig.stagingClarityPolicyAllows(
+        approved: input.clarityStagingInternalApproved,
+        internalRelease: input.dartFlag,
+        flavor: input.appFlavor,
+        gateway: input.gatewayOrigin,
+        realtime: input.realtimeSocket,
+        projectId: input.clarityProjectId,
+      );
 
   static InternalReleaseBuildMode get _currentBuildMode => kReleaseMode
       ? InternalReleaseBuildMode.release

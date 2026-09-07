@@ -842,6 +842,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                           initiallyOpen:
                               widget.consumeDevToolInitialOpen?.call() ?? false,
                           shakeEnabled: kShakeToDevToolEnabled,
+                          prepareOpen: _clarity.prepareDevToolOpen,
+                          onClosed: _clarity.didCloseDevTool,
                           child: routed,
                         )
                       : routed;

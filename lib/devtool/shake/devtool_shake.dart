@@ -145,6 +145,8 @@ class DevToolShakeHost extends StatefulWidget {
     required this.child,
     super.key,
     this.initiallyOpen = false,
+    this.prepareOpen,
+    this.onClosed,
     this.shakeEnabled = true,
     this.channel = kDevToolShakeChannel,
     this.launcherChannel = kDevToolLauncherChannel,
@@ -158,6 +160,8 @@ class DevToolShakeHost extends StatefulWidget {
 
   /// Whether the Dev Tool layer is visible on the host's first frame.
   final bool initiallyOpen;
+  final bool Function()? prepareOpen;
+  final VoidCallback? onClosed;
 
   /// Whether this host owns the optional native shake channel.
   final bool shakeEnabled;
@@ -188,7 +192,7 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   @override
   void initState() {
     super.initState();
-    _open = widget.initiallyOpen;
+    _open = widget.initiallyOpen && (widget.prepareOpen?.call() ?? true);
     _claimNativeHandlers();
   }
 
@@ -248,6 +252,7 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
     if (call.method != kDevToolShakeOpenMethod) return;
     if (!mounted) return;
     if (!_gate.shouldOpen(alreadyOpen: _open, now: widget.clock())) return;
+    if (!(widget.prepareOpen?.call() ?? true)) return;
     setState(() => _open = true);
   }
 
@@ -260,6 +265,9 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _close() {
     if (!_open) return;
     setState(() => _open = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_open) widget.onClosed?.call();
+    });
   }
 
   /// Dismiss AND restart, so settings edited in the Dev Tool take effect.
@@ -273,6 +281,8 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _apply() {
     if (!_open) return;
     setState(() => _open = false);
+    // The restarted app owns a fresh analytics context. Keep this context
+    // blocked while its outgoing Dev Tool layer is still being removed.
     AppRestarter.restart(context);
   }
 
