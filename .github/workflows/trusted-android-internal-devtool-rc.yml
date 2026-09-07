@@ -215,6 +215,8 @@ jobs:
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
                 --dart-define=JEEB_DIAG=true \
+                --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
+                --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
                 --dart-define=JEEB_INTERNAL_RELEASE=true \
                 --dart-define=JEEB_DEVTOOL_ENABLED=true \
                 --dart-define=JEEB_STAGING_DEVTOOL=true \

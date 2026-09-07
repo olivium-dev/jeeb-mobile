@@ -127,6 +127,16 @@ void main() {
     );
     final fastfile = _source('android/fastlane/Fastfile');
     expect(buildWorkflow, contains('--dart-define=JEEB_DIAG=true'));
+    expect(
+      buildWorkflow,
+      contains(
+        r'--dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}"',
+      ),
+    );
+    expect(
+      buildWorkflow,
+      contains(r'--dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}"'),
+    );
     expect(buildWorkflow, contains('--dart-define=APP_FLAVOR=staging'));
     expect(buildWorkflow, contains('android_crashlytics_mapping.py verify'));
     expect(
