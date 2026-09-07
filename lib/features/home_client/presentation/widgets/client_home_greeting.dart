@@ -3,9 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/friendly_reference.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_profile_header.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Customer home header (redesign-2026-08 screen 04, `04-client-home.html`
@@ -44,6 +48,11 @@ class ClientHomeGreeting extends StatelessWidget {
   static const double avatarCenterFromSafeTop =
       Spacing.medium + JeebAvatar.headerDiameter / 2;
 
+  /// The band while `GET /v1/users/me` is still out — it greets nobody.
+  static const String loadingIdentifier = 'client_home_greeting_loading';
+  static const String failedIdentifier = 'client_home_greeting_error';
+  static const String retryIdentifier = 'client_home_greeting_retry_cta';
+
   final String? name;
   final String? avatarSemanticsIdentifier;
 
@@ -68,8 +77,12 @@ class ClientHomeGreeting extends StatelessWidget {
     final greeting = (firstName == null || firstName.isEmpty)
         ? l10n.homeGreetingFallback
         : l10n.homeGreetingNamed(firstName);
+    // F1: with no landed read there is no person — "Welcome back" over a '?'
+    // disc is a fabricated identity, not a fallback.
+    final pending = _readPending(profile, rawName);
+    final failed = !pending && _readFailed(profile, rawName);
 
-    return Padding(
+    final Widget band = Padding(
       // HTML tpl 158: `16px 24px 0`.
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
@@ -78,19 +91,25 @@ class ClientHomeGreeting extends StatelessWidget {
         0,
       ),
       child: JeebProfileHeader(
-        name: greeting,
+        name: failed
+            ? l10n.customerProfileLoadErrorTitle
+            : pending
+            ? ''
+            : greeting,
         eyebrow: _eyebrow(l10n),
         // TODO(redesign-24): the board draws an unread dot on this avatar.
         // There is no unread source on this surface (NotificationsListState
         // lives behind the notifications route) — omitted rather than faked;
         // the shell's bell is the notification affordance.
-        avatar: JeebAvatar.header(
-          // The board's own-user disc is grey + periwinkle, not a navy fill.
-          fill: JeebAvatarFill.dormant,
-          initial: firstName ?? '',
-          imageUrl: avatarUrl,
-          avatarKey: const Key('client-home-greeting-avatar'),
-        ),
+        avatar: (pending || failed)
+            ? const _UnreadIdentityDisc()
+            : JeebAvatar.header(
+                // The board's own-user disc is grey + periwinkle, not navy.
+                fill: JeebAvatarFill.dormant,
+                initial: firstName ?? '',
+                imageUrl: avatarUrl,
+                avatarKey: const Key('client-home-greeting-avatar'),
+              ),
         avatarIdentifier: avatarSemanticsIdentifier,
         // The shell overlays its wallet chip + bell on top of this row
         // (`shell_screen.dart:301-325`), so the end gutter is reserved rather
@@ -98,6 +117,37 @@ class ClientHomeGreeting extends StatelessWidget {
         trailingReserve: Spacing.fourXLarge * 2,
       ),
     );
+
+    if (failed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          band,
+          _GreetingFailedStrip(
+            failure: profile!.failure ?? const UnknownFailure(),
+            onRetry: () => context.read<GreetingProfileCubit>().load(),
+          ),
+        ],
+      );
+    }
+    if (!pending) return band;
+    return Semantics(
+      identifier: loadingIdentifier,
+      container: true,
+      child: band,
+    );
+  }
+
+  /// A threaded name keeps the band identified even while a read is pending.
+  static bool _readPending(GreetingProfileState? profile, String? rawName) {
+    if (profile == null || !profile.isLoading) return false;
+    return (rawName ?? '').trim().isEmpty;
+  }
+
+  static bool _readFailed(GreetingProfileState? profile, String? rawName) {
+    if (profile == null || !profile.isFailed) return false;
+    return (rawName ?? '').trim().isEmpty;
   }
 
   /// Time-of-day eyebrow, derived from the DEVICE clock — it is a greeting, not
@@ -124,5 +174,76 @@ class ClientHomeGreeting extends StatelessWidget {
     } on Object {
       return null;
     }
+  }
+}
+
+/// F1: a failed `/v1/users/me` read is stated, not papered over, and carries
+/// its own retry so the greeting recovers without leaving the tab.
+class _GreetingFailedStrip extends StatelessWidget {
+  const _GreetingFailedStrip({required this.failure, required this.onRetry});
+
+  final AppFailure failure;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final copy = failureCopy(l10n, failure);
+    final scheme = Theme.of(context).colorScheme;
+    final canRetry = copy.retryable && failure.isRetryable;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.small,
+        Spacing.xLarge,
+        0,
+      ),
+      child: Semantics(
+        identifier: ClientHomeGreeting.failedIdentifier,
+        label: copy.body,
+        liveRegion: true,
+        container: true,
+        explicitChildNodes: true,
+        child: JeebInfoNote.error(
+          icon: Icons.sync_problem,
+          text: copy.body,
+          trailing: canRetry
+              ? Semantics(
+                  identifier: ClientHomeGreeting.retryIdentifier,
+                  button: true,
+                  container: true,
+                  child: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    color: scheme.onErrorContainer,
+                    tooltip: l10n.actionRetry,
+                    onPressed: onRetry,
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// The identity disc before any profile has landed: the dormant fill with no
+/// letter — [JeebAvatar] normalises an empty name to '?', which is a claim.
+class _UnreadIdentityDisc extends StatelessWidget {
+  const _UnreadIdentityDisc();
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = JeebSurfaceTone.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: JeebAvatar.headerDiameter,
+      height: JeebAvatar.headerDiameter,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: tone.onNavy ? tone.chipFill : scheme.surfaceContainerHighest,
+        ),
+      ),
+    );
   }
 }

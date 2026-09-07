@@ -14,6 +14,7 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_visibility.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/motion/jeeb_motion.dart';
 import '../../../core/accessibility/accessibility.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
@@ -51,6 +52,16 @@ import 'widgets/client_home_request_hero.dart';
 import 'widgets/client_home_voice_dock.dart';
 import 'widgets/client_request_filter.dart';
 import 'widgets/offer_status_info_sheet.dart';
+
+/// F1: the home reload owns `/requests` + `/deliveries` only, so the greeting's
+/// own failed read has to be re-issued here or it never recovers in place.
+void _retryGreetingIfFailed(BuildContext context) {
+  try {
+    unawaited(context.read<GreetingProfileCubit>().retryIfFailed());
+  } on ProviderNotFoundException {
+    return;
+  }
+}
 
 /// Client home screen — MIDNIGHT R1 (`01-r1-client-home.png`) and its E1 empty
 /// (`27-e1-empty-no-requests.png`), on the hero `JeebMidnightField`.
@@ -690,7 +701,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                 fit: StackFit.expand,
                 children: [
                   JeebPullToRefresh(
-                    onRefresh: () => context.read<ClientHomeCubit>().refresh(),
+                    onRefresh: () {
+                      _retryGreetingIfFailed(context);
+                      return context.read<ClientHomeCubit>().refresh();
+                    },
                     child: _ClientHomeBody(
                       state: state,
                       filter: _filter,
@@ -1669,7 +1683,10 @@ class _FailedLayout extends StatelessWidget {
           identifier: 'client_home_error',
           variant: JeebEmptyStateVariant.e1,
           headlineOverride: AppLocalizations.of(context).homeLoadFailedTitle,
-          onRetry: () => context.read<ClientHomeCubit>().load(),
+          onRetry: () {
+            _retryGreetingIfFailed(context);
+            unawaited(context.read<ClientHomeCubit>().load());
+          },
           retryIdentifier: 'client_home_retry_cta',
         ),
       ],
@@ -1780,7 +1797,10 @@ class _ClientHomeRefreshBand extends StatelessWidget {
       identifier: 'client_home_refresh_failed_note',
       onDismiss: () =>
           context.read<ClientHomeCubit>().acknowledgeRefreshError(),
-      onRetry: () => context.read<ClientHomeCubit>().refresh(),
+      onRetry: () {
+        _retryGreetingIfFailed(context);
+        unawaited(context.read<ClientHomeCubit>().refresh());
+      },
     ),
   );
 }
