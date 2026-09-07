@@ -147,26 +147,19 @@ class JeebSelectChip extends StatelessWidget {
 
     Widget content = Padding(
       padding: metrics.padding,
-      child: Row(
-        // `min` shrink-wraps a free-standing pill; under `JeebChipRow.expanded`
-        // the constraints are tight and `center` is what does the work.
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Wrap(
+        // Wrap respects finite widths and keeps natural sizing in scroll rows.
+        alignment: WrapAlignment.center,
+        runAlignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: contentSpacing,
+        runSpacing: contentSpacing,
         children: <Widget>[
-          if (leading != null) ...<Widget>[
-            leading!,
-            const SizedBox(width: contentSpacing),
-          ],
-          Text(
-            label,
-            style: labelStyle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          ?leading,
+          Text(label, style: labelStyle, textAlign: TextAlign.center),
           if (count != null) ...<Widget>[
-            const SizedBox(width: contentSpacing),
             if (selected)
-              Text('$count', style: labelStyle, maxLines: 1)
+              Text('$count', style: labelStyle, textAlign: TextAlign.center)
             else
               _JeebChipCountBadge(count: count!),
           ],
@@ -235,8 +228,8 @@ class JeebChipRow extends StatelessWidget {
     this.spacing = defaultSpacing,
     this.padding = EdgeInsetsDirectional.zero,
     this.identifier,
-  })  : expanded = false,
-        scrollable = false;
+  }) : expanded = false,
+       scrollable = false;
 
   /// 17's ETA row: equal-width pills, no horizontal padding of their own.
   const JeebChipRow.expanded({
@@ -245,8 +238,8 @@ class JeebChipRow extends StatelessWidget {
     this.spacing = defaultSpacing,
     this.padding = EdgeInsetsDirectional.zero,
     this.identifier,
-  })  : expanded = true,
-        scrollable = false;
+  }) : expanded = true,
+       scrollable = false;
 
   /// 09 / 16 / 24: horizontally scrollable, non-lazy, direction-inheriting.
   const JeebChipRow.scrollable({
@@ -255,8 +248,8 @@ class JeebChipRow extends StatelessWidget {
     this.spacing = defaultSpacing,
     this.padding = EdgeInsetsDirectional.zero,
     this.identifier,
-  })  : expanded = false,
-        scrollable = true;
+  }) : expanded = false,
+       scrollable = true;
 
   /// `Spacing.xSmall` — 8px, the measured inter-chip gap on 11, 16, 19 and 24.
   /// (04's board gap is 10; it passes that explicitly.)
@@ -290,9 +283,7 @@ class JeebChipRow extends StatelessWidget {
       if (i > 0) {
         spaced.add(SizedBox(width: spacing));
       }
-      spaced.add(
-        expanded ? Expanded(child: children[i]) : children[i],
-      );
+      spaced.add(expanded ? Expanded(child: children[i]) : children[i]);
     }
 
     Widget row = Row(
@@ -340,23 +331,24 @@ class _JeebChipCountBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Container(
-      height: 18,
-      constraints: const BoxConstraints(minWidth: 18),
-      alignment: AlignmentDirectional.center,
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHigh,
         borderRadius: jeebPillRadius,
       ),
-      child: Text(
-        // 11/w800 has no ramp entry; `badge` is the nearest (10.5/w800) and the
-        // kit is exempt from the `fontSize:` ban (§4.4).
-        '$count',
-        style: context.jeebText.badge.copyWith(
-          fontSize: 11,
-          color: scheme.onSurface,
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: Text(
+          // 11/w800 has no ramp entry; `badge` is the nearest (10.5/w800).
+          '$count',
+          style: context.jeebText.badge.copyWith(
+            fontSize: 11,
+            color: scheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
         ),
-        maxLines: 1,
       ),
     );
   }
@@ -364,8 +356,9 @@ class _JeebChipCountBadge extends StatelessWidget {
 
 /// `border-radius: 999px` — the board's pill, shared by every chip here and by
 /// `JeebTierChip`.
-const BorderRadius jeebPillRadius =
-    BorderRadius.all(Radius.circular(JeebRadii.pill));
+const BorderRadius jeebPillRadius = BorderRadius.all(
+  Radius.circular(JeebRadii.pill),
+);
 
 /// Read defensively: a bare `!` crashes under harnesses that theme with a
 /// bare `ThemeData`, and every kit widget must survive that.

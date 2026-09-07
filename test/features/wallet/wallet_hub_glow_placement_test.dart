@@ -21,12 +21,12 @@ class _LoadedWalletRepository implements WalletRepository {
 
   @override
   Future<WalletBalance> fetchBalance() async => const WalletBalance(
-        availableBalance: 40,
-        affordabilityState: WalletAffordability.enough,
-        reservedNow: 4,
-        giftCredit: 5,
-        currency: 'USD',
-      );
+    availableBalance: 40,
+    affordabilityState: WalletAffordability.enough,
+    reservedNow: 4,
+    giftCredit: 5,
+    currency: 'USD',
+  );
 }
 
 class _NeverWalletRepository implements WalletRepository {
@@ -80,7 +80,8 @@ void main() {
       expect(
         field.glowPlacement,
         JeebFieldGlowPlacement.topStart,
-        reason: 'board 04-r4-wallet measures (0.199, -0.080); leaving it null '
+        reason:
+            'board 04-r4-wallet measures (0.199, -0.080); leaving it null '
             'inherits the hero default `topEnd` (0.88), a MIRRORED anchor',
       );
       expect(field.variant, JeebFieldVariant.hero);

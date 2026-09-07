@@ -32,8 +32,18 @@ class LocalAuthBiometricGateway implements BiometricGateway {
           useErrorDialogs: true,
         ),
       );
-    } on PlatformException {
-      return false;
+    } on PlatformException catch (e) {
+      // UX-24: swallowing these made lockout/not-enrolled indistinguishable
+      // from a wrong finger, so the screen kept offering a futile Retry.
+      throw BiometricAuthException(_mapPlatformCode(e.code));
     }
   }
+
+  static BiometricFailure _mapPlatformCode(String code) => switch (code) {
+    'LockedOut' || 'PermanentlyLockedOut' => BiometricFailure.lockedOut,
+    'NotEnrolled' => BiometricFailure.notEnrolled,
+    'NotAvailable' || 'OtherOperatingSystem' => BiometricFailure.unavailable,
+    'PasscodeNotSet' => BiometricFailure.noDeviceCredential,
+    _ => BiometricFailure.unknown,
+  };
 }

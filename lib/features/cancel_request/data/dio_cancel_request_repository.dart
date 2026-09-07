@@ -14,7 +14,7 @@ class DioCancelRequestRepository implements CancelRequestRepository {
         '/v1/requests/${Uri.encodeComponent(requestId)}',
       );
     } on DioException catch (e) {
-      throw CancelRequestException(_classify(e), e.message);
+      throw CancelRequestException(_classify(e));
     }
   }
 

@@ -60,6 +60,26 @@ class BiometricLockScreenFakeGateway implements BiometricGateway {
   }
 }
 
+/// A gateway that THROWS the way `LocalAuthBiometricGateway` now does for an
+/// OS refusal — the R3 proof that no signature had to widen (UX-24).
+class BiometricLockScreenThrowingGateway implements BiometricGateway {
+  BiometricLockScreenThrowingGateway(this.failure, {this.available = true});
+
+  final BiometricFailure failure;
+  final bool available;
+
+  int authenticateCalls = 0;
+
+  @override
+  Future<bool> isAvailable() async => available;
+
+  @override
+  Future<bool> authenticate({required String reason}) async {
+    authenticateCalls += 1;
+    throw BiometricAuthException(failure);
+  }
+}
+
 /// An in-memory stand-in for [SharedPreferences].
 /// [BiometricLockCubit] REQUIRES a [BiometricPreferenceRepositoryImpl] and a
 /// [SharedPrefsPinRepository], both of which require a `SharedPreferences`. The
@@ -177,6 +197,25 @@ class BiometricLockScreenSeededCubit extends BiometricLockCubit {
   final BiometricLockScreenFakeGateway fakeGateway;
 }
 
+/// A cubit over ANY gateway (including the throwing one), with the in-memory
+/// preference + PIN stores behind it.
+BiometricLockCubit biometricLockScreenCubitOver(
+  BiometricGateway gateway, {
+  bool enrolled = true,
+  String? pin,
+}) {
+  final SharedPreferences prefs =
+      BiometricLockScreenInMemoryPrefs(<String, Object>{
+    BiometricPreferenceRepositoryImpl.kEnabledKey: enrolled,
+    SharedPrefsPinRepository.kPinKey: ?pin,
+  });
+  return BiometricLockCubit(
+    preference: BiometricPreferenceRepositoryImpl(prefs: prefs),
+    gateway: gateway,
+    pinRepository: SharedPrefsPinRepository(prefs: prefs),
+  );
+}
+
 /// The base every fixture starts from: the router gate is holding this user on
 /// `/lock` and the authenticate action has not run.
 const BiometricLockState _biometricLockScreenLocked = BiometricLockState(
@@ -218,6 +257,27 @@ BiometricLockCubit biometricLockScreenPinOnlyCubit() =>
     BiometricLockScreenSeededCubit(
       _biometricLockScreenLocked,
       gateway: BiometricLockScreenFakeGateway(available: false),
+      pin: '1234',
+    );
+
+/// The sensor is cooling down: the OS will refuse every further attempt, so the
+/// Retry pill must be dead and the password fallback promoted.
+BiometricLockCubit biometricLockScreenLockedOutCubit() =>
+    BiometricLockScreenSeededCubit(
+      _biometricLockScreenLocked.copyWith(
+        prompt: BiometricPromptStatus.failed,
+        failure: BiometricFailure.lockedOut,
+      ),
+      pin: '1234',
+    );
+
+/// Nothing is enrolled on this device — same terminal shape, different copy.
+BiometricLockCubit biometricLockScreenNotEnrolledCubit() =>
+    BiometricLockScreenSeededCubit(
+      _biometricLockScreenLocked.copyWith(
+        prompt: BiometricPromptStatus.failed,
+        failure: BiometricFailure.notEnrolled,
+      ),
       pin: '1234',
     );
 

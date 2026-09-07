@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../background_gps/domain/gps_sample.dart';
@@ -45,10 +46,11 @@ class DioAvailabilityGateway implements AvailabilityGateway {
       final response = await _dio.get<Map<String, dynamic>>(await _fetchPath());
       return _parse(response.data ?? {});
     } on DioException catch (e) {
+      // JHOME-05: 404 means un-onboarded, NOT offline.
       if (e.response?.statusCode == 404) {
-        return AvailabilityStatus.initial;
+        throw const AvailabilityGatewayException.notRegistered();
       }
-      throw AvailabilityGatewayException(e.message ?? 'fetch failed');
+      throw AvailabilityGatewayException.from(AppFailure.of(e));
     }
   }
 
@@ -79,7 +81,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
         location: outcome,
       );
     } on DioException catch (e) {
-      throw AvailabilityGatewayException(e.message ?? 'toggle failed');
+      throw AvailabilityGatewayException.from(AppFailure.of(e));
     }
   }
 
@@ -97,7 +99,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
       );
       return GoOnlineLocationOutcome.attached;
     } on DioException catch (e) {
-      throw AvailabilityGatewayException(e.message ?? 'refresh failed');
+      throw AvailabilityGatewayException.from(AppFailure.of(e));
     }
   }
 
@@ -127,6 +129,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
       } on LocationCaptureDeniedException {
         return (null, GoOnlineLocationOutcome.permissionDenied);
       } catch (_) {
+        // Typed outcome, not a swallow: the loop falls through to fixFailed.
         if (attempt < attempts - 1) await Future<void>.delayed(_retryBackoff);
       }
     }
@@ -138,7 +141,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
           return (sample, GoOnlineLocationOutcome.attached);
         }
       } catch (_) {
-        // fall through to fixFailed
+        // Typed outcome, not a swallow: falls through to fixFailed.
       }
     }
     return (null, GoOnlineLocationOutcome.fixFailed);
@@ -152,7 +155,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
   Future<String> _requiredId() async {
     final id = await _id();
     if (id == null || id.isEmpty) {
-      throw const AvailabilityGatewayException('missing session user id');
+      throw const AvailabilityGatewayException.from(UnauthorizedFailure());
     }
     return id;
   }

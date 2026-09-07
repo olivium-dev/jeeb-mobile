@@ -16,6 +16,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
+import '../../support/midnight_test_harness.dart';
 
 /// Offline until [healed] is flipped, then serves the live accepted-conversation
 class _HealingDio {
@@ -131,6 +132,7 @@ void main() {
     'DoD: the resolution error HEALS ITSELF when connectivity returns — no tap, '
     'no re-entry',
     (tester) async {
+      useReduceMotion(tester);
       final healing = _HealingDio();
       _register(healing.dio);
       final role = await _roleCubit(UserRole.client);
@@ -165,6 +167,7 @@ void main() {
     'NEGATIVE: while the network stays down the retry is a BACKOFF, not a poll '
     '— a bounded number of attempts across a full minute',
     (tester) async {
+      useReduceMotion(tester);
       final healing = _HealingDio();
       _register(healing.dio);
       final role = await _roleCubit(UserRole.client);

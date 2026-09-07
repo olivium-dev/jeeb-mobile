@@ -126,5 +126,121 @@ void main() {
       );
       handle.dispose();
     });
+
+    // TEST-07: the upload-failure surface and its two acts were addressable
+    // only by Key, so no uiautomator step could reach them.
+    testWidgets('a RETRYABLE upload failure exposes the surface, the retry '
+        'and the discard', (tester) async {
+      final handle = tester.ensureSemantics();
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(wrapForTest(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(
+        cubit.state.copyWith(
+          phase: VoiceRecordingPhase.recorded,
+          clip: _clip(),
+          error: VoiceRecordingError.uploadServer,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('voice_request_upload_error_state'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('voice_request_retry_upload_button'),
+        findsOneWidget,
+      );
+      expect(find.byKey(VoiceRecordingKeys.discardButton), findsOneWidget);
+      handle.dispose();
+    });
+
+    // R6: 413/415 can never succeed on a retry of the SAME clip.
+    testWidgets('a TERMINAL upload failure hides the retry and keeps only '
+        'record-again', (tester) async {
+      final handle = tester.ensureSemantics();
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(wrapForTest(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(
+        cubit.state.copyWith(
+          phase: VoiceRecordingPhase.recorded,
+          clip: _clip(),
+          error: VoiceRecordingError.uploadTooLarge,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('voice_request_upload_error_state'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('voice_request_retry_upload_button'),
+        findsNothing,
+      );
+      expect(find.byKey(VoiceRecordingKeys.discardButton), findsOneWidget);
+      handle.dispose();
+    });
+
+    // VOICE-02: "Try again" cannot grant a permanently denied OS permission.
+    testWidgets('the permission-denied surface exposes an Open Settings CTA',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(wrapForTest(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(
+        cubit.state.copyWith(error: VoiceRecordingError.permissionDenied),
+      );
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('voice_request_blocked_state'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('voice_request_open_settings_cta'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the recorder-unavailable surface has NO Open Settings CTA',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(wrapForTest(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(
+        cubit.state.copyWith(error: VoiceRecordingError.recorderUnavailable),
+      );
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('voice_request_open_settings_cta'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+
+    // EP-20: the transient snack was an unlabelled `showOmdsErrorSnackbar`.
+    testWidgets('a transient error surfaces the identified Jeeb snack',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(wrapForTest(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(cubit.state.copyWith(error: VoiceRecordingError.tooShort));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('voice_request_transient_error'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
   });
 }

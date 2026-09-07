@@ -1,11 +1,18 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
-import 'prohibited_item_report_l10n.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../photo_attachment/domain/photo_picker_service.dart';
+import '../domain/prohibited_item_report_draft.dart';
 
 // ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live path is ProhibitedItemReportService in jeeber_request_detail — see docs/project-understanding/reconciliation/orphans.md
 
@@ -15,16 +22,19 @@ import 'prohibited_item_report_l10n.dart';
 /// one docked [JeebCtaFooter] under a real spacer. The flow is unchanged: one
 /// description field, one optional photo, one report action.
 ///
-/// Copy moved off the five hardcoded English literals onto
-/// [ProhibitedItemReportL10n], the feature-local stopgap; the shared ARB batch
-/// is queued in `docs/redesign-2026-08/wiring/w4-prohibited-item.md`.
+/// Copy reads through `AppLocalizations`; the screen pops a
+/// [ProhibitedItemReportDraft], never a bare `true` (PIR-01).
 class ProhibitedItemReportScreen extends StatefulWidget {
   const ProhibitedItemReportScreen({
     super.key,
     required this.requestId,
     this.initialDescription,
+    this.photoPicker,
   });
   final String requestId;
+
+  /// Photo capture seam (defaults to [ImagePickerPhotoPickerService]).
+  final PhotoPickerService? photoPicker;
 
   /// Catalog/test seam: pre-fills the description field so the "ready to
   /// report" (CTA-enabled) designed state can be previewed without a live
@@ -38,8 +48,30 @@ class ProhibitedItemReportScreen extends StatefulWidget {
 
 class _ProhibitedItemReportScreenState
     extends State<ProhibitedItemReportScreen> {
-  late final _descriptionController =
-      TextEditingController(text: widget.initialDescription);
+  late final _descriptionController = TextEditingController(
+    text: widget.initialDescription,
+  );
+  late final PhotoPickerService _photoPicker =
+      widget.photoPicker ?? ImagePickerPhotoPickerService();
+  Uint8List? _photoBytes;
+
+  Future<void> _pickPhoto() async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final photo = await _photoPicker.pickFromGallery();
+      if (!mounted) return;
+      setState(() => _photoBytes = Uint8List.fromList(photo.bytes));
+    } on PhotoPickException catch (e) {
+      if (!mounted || e.failure == PhotoPickFailure.cancelled) return;
+      showJeebErrorSnack(
+        context,
+        identifier: 'prohibited_item_report_photo_error',
+        message: e.failure == PhotoPickFailure.permissionDenied
+            ? l10n.photoAttachmentPermissionDenied
+            : l10n.photoAttachmentUnavailable,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -49,8 +81,8 @@ class _ProhibitedItemReportScreenState
 
   @override
   Widget build(BuildContext context) {
-    final ProhibitedItemReportL10n copy = ProhibitedItemReportL10n.of(context);
-    final bool canReport = _descriptionController.text.isNotEmpty;
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final bool canReport = _descriptionController.text.trim().isNotEmpty;
     return Semantics(
       identifier: 'prohibited_item_report_root',
       container: true,
@@ -62,7 +94,7 @@ class _ProhibitedItemReportScreenState
           child: Column(
             children: [
               JeebTopBar.back(
-                title: copy.title,
+                title: l10n.prohibitedItemReportTitle,
                 identifier: 'prohibited_item_report_back',
               ),
               Expanded(
@@ -79,12 +111,12 @@ class _ProhibitedItemReportScreenState
                       children: [
                         JeebInfoNote.warning(
                           icon: Icons.warning,
-                          text: copy.guidanceNote,
+                          text: l10n.prohibitedItemReportGuidance,
                         ),
                         const SizedBox(height: Spacing.large),
                         OmdsTextField(
                           controller: _descriptionController,
-                          labelText: copy.descriptionLabel,
+                          labelText: l10n.prohibitedItemReportDescriptionLabel,
                           maxLines: 4,
                           // Aligns the field with the 16px note/card radius
                           // rather than OMDS's 12px default (§4.4).
@@ -94,11 +126,29 @@ class _ProhibitedItemReportScreenState
                         ),
                         const SizedBox(height: Spacing.small),
                         JeebCtaButton.outline(
-                          label: copy.attachPhotoCta,
+                          label: l10n.prohibitedItemReportAttachPhotoCta,
                           leadingIcon: Icons.camera_alt,
                           identifier: 'prohibited_item_report_attach_photo',
-                          onTap: () {},
+                          onTap: _pickPhoto,
                         ),
+                        if (_photoBytes != null) ...[
+                          const SizedBox(height: Spacing.small),
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Semantics(
+                              identifier: 'prohibited_item_report_photo_chip',
+                              button: true,
+                              container: true,
+                              child: JeebSelectChip(
+                                role: JeebChipRole.inlineAction,
+                                label: l10n.prohibitedItemReportPhotoAttached,
+                                selected: true,
+                                leading: const Icon(Icons.close, size: 14),
+                                onTap: () => setState(() => _photoBytes = null),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -108,10 +158,18 @@ class _ProhibitedItemReportScreenState
                     // (orange is rationed to decaying actions) — the caution
                     // now reads from the warning note above, not a red slab.
                     child: JeebCtaButton.primary(
-                      label: copy.reportCta,
+                      label: l10n.prohibitedItemReportSubmitCta,
                       isEnabled: canReport,
                       identifier: 'prohibited_item_report_submit',
-                      onTap: () => Navigator.of(context).pop(true),
+                      // A typed draft, so no caller can read this as a
+                      // completed report (PIR-01).
+                      onTap: () => Navigator.of(context).pop(
+                        ProhibitedItemReportDraft(
+                          requestId: widget.requestId,
+                          description: _descriptionController.text.trim(),
+                          photoBytes: _photoBytes,
+                        ),
+                      ),
                     ),
                   ),
                 ),

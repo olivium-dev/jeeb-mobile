@@ -127,7 +127,11 @@ class OrderHistoryCard extends StatelessWidget {
     // it replaces, plus the child-id protection the nested pills need.
     final Key cardKey = Key('order-history-card-${order.id}');
     final String identifier = 'order_history_card_${order.id}';
-    final String semanticLabel = l10n.orderHistoryCardSemanticLabel(order.id);
+    // F4b: the label carries the wire's own display id, never the raw uuid, so
+    // four cancelled rows read `Order defb1f07` / `Order dc5d0f2e` apart.
+    final String semanticLabel = l10n.orderHistoryCardSemanticLabel(
+      order.referenceLabel,
+    );
 
     if (isLive) {
       return JeebAccentFrameCard(
@@ -184,11 +188,13 @@ class _IdentityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    // TODO(midnight): the board's `Medicine — Pharmacie du Musée` needs an item
-    // title on GET /v1/requests; pickup is the honest slot — omitted, not faked.
-    final String title = order.pickupAddress.isEmpty
-        ? l10n.orderHistoryAddressMissing
-        : order.pickupAddress;
+    // F4b: the row's own `title` off GET /v1/requests is what names an order.
+    // Pickup stays the honest second choice when the wire carries no title.
+    final String title = order.title.isNotEmpty
+        ? order.title
+        : (order.pickupAddress.isEmpty
+              ? l10n.orderHistoryAddressMissing
+              : order.pickupAddress);
 
     return Row(
       children: <Widget>[
@@ -302,8 +308,39 @@ class _MetaRow extends StatelessWidget {
     final Color metaInk = isLive
         ? scheme.onSecondaryContainer
         : scheme.onSurfaceVariant;
+    // F5: past the tier-chip threshold one line cannot hold the run (device
+    // showed `Se… · Ca…`), so the group WRAPS instead of clipping.
+    final bool usesLargeText =
+        MediaQuery.textScalerOf(context).scale(1) >
+        OrderHistoryCard.largeTextScaleThreshold;
     final Widget? pill = _pill(context, l10n);
-    final Widget? rebroadcast = _rebroadcast(context, l10n);
+    final Widget? rebroadcast = _rebroadcast(context, l10n, usesLargeText);
+    final Color statusInk = isLive
+        ? context.jeebRoles.onAccentContainer
+        : metaInk;
+
+    if (!showTier && (usesLargeText || rebroadcast != null)) {
+      return Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: Spacing.twoXSmall,
+        children: <Widget>[
+          Text(dateLabel, style: metaStyle.copyWith(color: metaInk)),
+          _SeparatedMetaItem(
+            ink: metaInk,
+            child: Text(
+              orderStatusLabel(order.status, l10n),
+              style: metaStyle.copyWith(color: statusInk),
+            ),
+          ),
+          if (rebroadcast != null)
+            _SeparatedMetaItem(ink: metaInk, child: rebroadcast),
+          if (pill != null) ...<Widget>[
+            const SizedBox(width: Spacing.xSmall),
+            pill,
+          ],
+        ],
+      );
+    }
 
     return Row(
       children: <Widget>[
@@ -343,13 +380,9 @@ class _MetaRow extends StatelessWidget {
                   orderStatusLabel(order.status, l10n),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: metaStyle.copyWith(
-                    // #FFB499, tile-measured: solid accent is unreadable on
-                    // the frame's own orange-lit fill.
-                    color: isLive
-                        ? context.jeebRoles.onAccentContainer
-                        : metaInk,
-                  ),
+                  // #FFB499, tile-measured: solid accent is unreadable on
+                  // the frame's own orange-lit fill.
+                  style: metaStyle.copyWith(color: statusInk),
                 ),
               ),
               // TODO(midnight): the board's `· Karim · ★ 4` (completed) and
@@ -396,7 +429,11 @@ class _MetaRow extends StatelessWidget {
 
   /// The expired row's orange text spark. FROZEN id re-homed off the pill: the
   /// board draws no pill here, and `order_history_reorder_cta_<id>` is pinned.
-  Widget? _rebroadcast(BuildContext context, AppLocalizations l10n) {
+  Widget? _rebroadcast(
+    BuildContext context,
+    AppLocalizations l10n,
+    bool usesLargeText,
+  ) {
     final bool isExpired =
         order.status == OrderRequestStatus.cancelled ||
         order.status == OrderRequestStatus.disputed;
@@ -404,7 +441,10 @@ class _MetaRow extends StatelessWidget {
     return JeebCtaButton.accentText(
       label: l10n.orderHistoryRebroadcastCta,
       onTap: onReorder,
-      height: OrderHistoryCard.metaActionHeight,
+      // F5: at accessible sizes the label is wider than the card, so the kit's
+      // own `wrapLabel` grows the spark instead of clipping it to `Re-broadcas`.
+      height: usesLargeText ? null : OrderHistoryCard.metaActionHeight,
+      wrapLabel: usesLargeText,
       labelStyle: context.jeebText.bodySmall,
       contentPadding: EdgeInsetsDirectional.zero,
       identifier: 'order_history_reorder_cta_${order.id}',
@@ -425,6 +465,23 @@ class _MetaRow extends StatelessWidget {
         return l10n.tierSelectionTierEco;
     }
   }
+}
+
+/// Keep punctuation with the following item while preserving its wrap width.
+class _SeparatedMetaItem extends StatelessWidget {
+  const _SeparatedMetaItem({required this.ink, required this.child});
+
+  final Color ink;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      _MetaDot(ink: ink),
+      Flexible(child: IntrinsicWidth(child: child)),
+    ],
+  );
 }
 
 /// The Ø3 meta separator with its own breathing room on both sides.

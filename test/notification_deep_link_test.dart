@@ -903,4 +903,41 @@ void main() {
       });
     }
   });
+
+  // F8: the ':' sentinel `/` is a REFUSAL, not a destination — callers that
+  // navigate on any non-null target sent the tap to client home instead.
+  group('deepLinkRefusedForRole', () {
+    const refusedForClient = <NotificationCategory>[
+      NotificationCategory.newRequest,
+      NotificationCategory.offerAccepted,
+      NotificationCategory.offerLost,
+    ];
+
+    for (final category in NotificationCategory.values) {
+      for (final role in <UserRole?>[null, UserRole.client, UserRole.jeeber]) {
+        test('${category.name} / ${role?.name ?? 'no role'} agrees with the '
+            'resolver', () {
+          final message = _msg(category: category);
+          final refused = deepLinkRefusedForRole(message, role: role);
+          expect(
+            refused,
+            role == UserRole.client && refusedForClient.contains(category),
+          );
+          if (refused) {
+            expect(deepLinkForMessage(message, role: role), '/',
+                reason: 'the refusal is exactly the resolver home fallback');
+          }
+        });
+      }
+    }
+
+    test('an explicit deepLink cannot override the refusal', () {
+      final message = _msg(
+        category: NotificationCategory.newRequest,
+        data: const {'deepLink': '/jeeber/requests/req-1'},
+      );
+      expect(deepLinkRefusedForRole(message, role: UserRole.client), isTrue);
+      expect(deepLinkRefusedForRole(message, role: UserRole.jeeber), isFalse);
+    });
+  });
 }

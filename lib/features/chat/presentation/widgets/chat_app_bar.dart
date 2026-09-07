@@ -5,7 +5,6 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../chat_redesign_l10n.dart';
 
 /// Chat header — the redesign-2026-08 screen-21 identity bar.
 ///
@@ -154,7 +153,7 @@ class _RatingLine extends StatelessWidget {
       color: colors.onSecondaryContainer,
     );
     return Semantics(
-      label: ChatRedesignL10n.of(context).counterpartRatingA11y(value),
+      label: AppLocalizations.of(context).chatCounterpartRatingA11y(value),
       child: ExcludeSemantics(
         child: Row(
           mainAxisSize: MainAxisSize.min,

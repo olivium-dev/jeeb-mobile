@@ -22,6 +22,34 @@ class VoiceRecordingScreenPendingRepository implements VoiceRecordingRepository 
       Completer<TranscriptionResult>().future;
 }
 
+/// An upload that fails with a specific classified kind — the four AE-15
+/// buckets (413 / 415 / 503 / receive-timeout) the screen must tell apart.
+class VoiceRecordingScreenFailingRepository implements VoiceRecordingRepository {
+  const VoiceRecordingScreenFailingRepository(this.failure);
+
+  /// 413 — the clip is larger than the gateway accepts. Terminal.
+  const VoiceRecordingScreenFailingRepository.tooLarge()
+      : failure = VoiceUploadFailure.tooLarge;
+
+  /// 415 — the container/codec is refused. Terminal.
+  const VoiceRecordingScreenFailingRepository.unsupportedFormat()
+      : failure = VoiceUploadFailure.unsupportedFormat;
+
+  /// 503 — transcription is down; retrying later can win.
+  const VoiceRecordingScreenFailingRepository.unavailable()
+      : failure = VoiceUploadFailure.unavailable;
+
+  /// The transcribe call or its poll budget ran out.
+  const VoiceRecordingScreenFailingRepository.timeout()
+      : failure = VoiceUploadFailure.timeout;
+
+  final VoiceUploadFailure failure;
+
+  @override
+  Future<TranscriptionResult> upload(VoiceClip clip) async =>
+      throw VoiceUploadException(failure);
+}
+
 /// The cubit both dev surfaces drive, wired to the shipped in-memory fakes.
 /// [startFailure] is thrown by the recorder on `start()` — the mic
 VoiceRecordingCubit voiceRecordingScreenCubit({

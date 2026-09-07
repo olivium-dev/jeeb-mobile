@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/support_repository.dart';
 
@@ -18,6 +19,7 @@ class SupportState extends Equatable {
     this.ticketId,
     this.ticket,
     this.failure,
+    this.appFailure,
     this.uploads = const <String, CaseAttachmentProgress>{},
     this.operationId = '',
   });
@@ -37,6 +39,9 @@ class SupportState extends Equatable {
   final SupportTicket? ticket;
 
   final SupportFailure? failure;
+
+  /// The classified failure behind [failure].
+  final AppFailure? appFailure;
   final Map<String, CaseAttachmentProgress> uploads;
   final String operationId;
 
@@ -58,6 +63,7 @@ class SupportState extends Equatable {
     String? ticketId,
     SupportTicket? ticket,
     SupportFailure? failure,
+    AppFailure? appFailure,
     bool clearFailure = false,
     Map<String, CaseAttachmentProgress>? uploads,
     String? operationId,
@@ -72,6 +78,7 @@ class SupportState extends Equatable {
       ticketId: ticketId ?? this.ticketId,
       ticket: ticket ?? this.ticket,
       failure: clearFailure ? null : (failure ?? this.failure),
+      appFailure: clearFailure ? null : (appFailure ?? this.appFailure),
       uploads: uploads ?? this.uploads,
       operationId: operationId ?? this.operationId,
     );
@@ -88,6 +95,7 @@ class SupportState extends Equatable {
     ticketId,
     ticket,
     failure,
+    appFailure,
     uploads.entries
         .map(
           (entry) =>

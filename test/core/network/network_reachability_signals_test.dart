@@ -250,4 +250,65 @@ void main() {
       );
     });
   });
+
+  group('OFF-18: the offline edge and the isOnline snapshot', () {
+    test('isOnline reads true until the source says otherwise', () {
+      final bus = NetworkReachabilitySignals();
+      addTearDown(bus.dispose);
+
+      expect(bus.isOnline, isTrue, reason: 'unknown must never blame the user');
+      bus.debugObserve(online: false);
+      expect(bus.isOnline, isFalse);
+      bus.debugObserve(online: true);
+      expect(bus.isOnline, isTrue);
+    });
+
+    test('the online -> offline edge emits exactly once per outage', () async {
+      final bus = NetworkReachabilitySignals();
+      addTearDown(bus.dispose);
+      final offline = <void>[];
+      bus.offlineStream.listen(offline.add);
+
+      bus.debugObserve(online: true);
+      expect(offline, isEmpty);
+
+      bus.debugObserve(online: false);
+      bus.debugObserve(online: false);
+      expect(offline, hasLength(1), reason: 'a repeat is not a new outage');
+
+      bus.debugObserve(online: true);
+      bus.debugObserve(online: false);
+      expect(offline, hasLength(2));
+      expect(bus.offlineEmitCount, 2);
+    });
+
+    test('an offline seed reports the outage without a reconnect edge',
+        () async {
+      final bus = NetworkReachabilitySignals();
+      addTearDown(bus.dispose);
+      final offline = <void>[];
+      bus.offlineStream.listen(offline.add);
+
+      bus.bindSource(const Stream<bool>.empty(), seed: Future<bool>.value(false));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(offline, hasLength(1));
+      expect(bus.emitCount, 0, reason: 'no reconnect happened');
+      expect(bus.isOnline, isFalse);
+    });
+
+    test('an online seed is silent on both edges', () async {
+      final bus = NetworkReachabilitySignals();
+      addTearDown(bus.dispose);
+      final offline = <void>[];
+      bus.offlineStream.listen(offline.add);
+
+      bus.bindSource(const Stream<bool>.empty(), seed: Future<bool>.value(true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(offline, isEmpty);
+      expect(bus.emitCount, 0);
+      expect(bus.isOnline, isTrue);
+    });
+  });
 }

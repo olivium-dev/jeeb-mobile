@@ -15,6 +15,7 @@ import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/biometric_lock_cubit.dart';
 import '../application/biometric_lock_state.dart';
+import '../domain/biometric_gateway.dart';
 
 /// The hero glass disc carrying the fingerprint mark. 118 is the kit's own
 /// large hero-disc diameter (`JeebMicHero.sizeLarge`).
@@ -150,7 +151,7 @@ class _LockBody extends StatelessWidget {
                         const SizedBox(height: Spacing.medium),
                         JeebInfoNote.error(
                           icon: Icons.error_outline,
-                          text: l10n.biometricLockFailure,
+                          text: _lockFailureCopy(state, l10n),
                         ),
                       ],
                     ],
@@ -211,24 +212,33 @@ class _LockActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // R6: the OS will never accept another attempt for a terminal kind, so the
+    // Retry pill is dead and the password fallback becomes the primary act.
+    final terminal = state.isTerminalFailure;
+    final canRetry = !state.isPrompting && !terminal;
     return JeebCtaFooter.single(
       below: Semantics(
         identifier: 'biometric_unlock_use_password_link',
         button: true,
-        child: JeebCtaButton.text(
-          label: l10n.biometricUnlockUsePasswordLink,
-          onTap: () => _usePasswordFallback(context),
-        ),
+        child: terminal
+            ? JeebCtaButton.primary(
+                label: l10n.biometricUnlockUsePasswordLink,
+                onTap: () => _usePasswordFallback(context),
+              )
+            : JeebCtaButton.text(
+                label: l10n.biometricUnlockUsePasswordLink,
+                onTap: () => _usePasswordFallback(context),
+              ),
       ),
       child: Semantics(
         identifier: 'biometric_unlock_authenticate_cta',
         button: true,
-        enabled: !state.isPrompting,
+        enabled: canRetry,
         child: JeebCtaButton.primary(
           label: state.hasFailed
               ? l10n.biometricLockRetry
               : l10n.biometricUnlockAuthenticateCta,
-          isEnabled: !state.isPrompting,
+          isEnabled: canRetry,
           onTap: () => context.read<BiometricLockCubit>().authenticate(),
         ),
       ),
@@ -242,3 +252,14 @@ void _usePasswordFallback(BuildContext context) {
   // email/password `/login` funnel was removed in JEBV4-199 (Q-044).
   context.goNamed('register');
 }
+
+/// UX-24: one string used to cover a wrong finger, a cooling-down sensor, an
+/// unenrolled device and a passcode-less one alike.
+String _lockFailureCopy(BiometricLockState state, AppLocalizations l10n) =>
+    switch (state.failure) {
+      BiometricFailure.lockedOut => l10n.biometricLockedOut,
+      BiometricFailure.notEnrolled => l10n.biometricNotEnrolled,
+      BiometricFailure.unavailable ||
+      BiometricFailure.noDeviceCredential => l10n.biometricNotAvailable,
+      BiometricFailure.unknown || null => l10n.biometricLockFailure,
+    };

@@ -22,8 +22,8 @@ void main() {
 
     expect(find.textContaining('Kamal'), findsOneWidget);
     expect(find.text('Accept orders'), findsOneWidget);
-    expect(find.text('No Requests yet'), findsOneWidget);
-    expect(find.text('All requests will show up here'), findsOneWidget);
+    // ES-25: the shared quiet-street block, not a third copy of one condition.
+    expect(find.text('Quiet street right now'), findsOneWidget);
     expect(find.byType(OmdsSwitchTile), findsOneWidget);
   });
 
@@ -59,7 +59,7 @@ void main() {
       tester.element(find.byType(JeeberFeedEmptyView)),
     );
     expect(dir, TextDirection.rtl);
-    expect(find.text('لا توجد طلبات بعد'), findsOneWidget);
+    expect(find.text('الشارع هادئ الآن'), findsOneWidget);
     expect(find.text('قبول الطلبات'), findsOneWidget);
   });
 }

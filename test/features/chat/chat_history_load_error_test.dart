@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_state.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
@@ -128,6 +129,8 @@ void main() {
       expect(cubit.state.historyLoadFailed, isTrue);
       expect(cubit.state.error, ChatError.historyLoadFailed);
       expect(cubit.state.isLoadingHistory, isFalse);
+      // The screen needs a CLASSIFIED failure to render, not just a flag.
+      expect(cubit.state.historyFailure, isA<UnknownFailure>());
     });
 
     test('an EMPTY (successful) history is still the empty state — the fix '
@@ -211,7 +214,12 @@ void main() {
       expect(find.text('No conversation yet'), findsNothing);
       // The affordance, not just the copy: an error the user cannot act on is
       expect(_retryButton, findsOneWidget);
-      expect(find.text("Couldn't load this chat"), findsOneWidget);
+      // The block now carries the shared failure copy, addressed by identifier.
+      expect(find.bySemanticsIdentifier('chat_history_error'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('chat_history_error_retry'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
 

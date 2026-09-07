@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../profile_name/domain/display_name_repository.dart';
@@ -10,6 +12,7 @@ import '../domain/account_service.dart';
 import '../domain/avatar_cache_evictor.dart';
 import '../domain/avatar_repository.dart';
 import '../domain/jeeber_unregister_service.dart';
+import '../domain/notification_preferences.dart';
 import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 import 'settings_state.dart';
@@ -28,6 +31,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     CustomerProfileRepository? remoteProfileRepository,
     ProfileRefreshSignals? refreshSignals,
     JeeberUnregisterService? jeeberUnregisterService,
+    SettingsNotificationPrefsStore? notificationStore,
     String fallbackPhoneE164 = '',
   })  : _profileRepository = profileRepository,
         _accountService = accountService,
@@ -37,6 +41,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         _remoteProfileRepository = remoteProfileRepository,
         _refreshSignals = refreshSignals,
         _jeeberUnregisterService = jeeberUnregisterService,
+        _notificationStore = notificationStore,
         _fallbackPhoneE164 = fallbackPhoneE164,
         super(const SettingsState());
 
@@ -54,14 +59,61 @@ class SettingsCubit extends Cubit<SettingsState> {
   /// shows here. Optional so a bare/test cubit degrades to local-only.
   final CustomerProfileRepository? _remoteProfileRepository;
 
+  /// F11: device-local persistence for the four toggles. Optional so a bare
+  /// cubit degrades to the pre-F11 in-memory behaviour.
+  final SettingsNotificationPrefsStore? _notificationStore;
+
   final ProfileRefreshSignals? _refreshSignals;
   final String _fallbackPhoneE164;
 
-  Future<void> load() async {
+  Future<void> load() => _load(silent: false);
+
+  /// R6: a warm re-read keeps the loaded rows on screen — it never flips the
+  /// screen back to the loading rung, and reports failure as a refresh note.
+  Future<void> refresh() =>
+      _load(silent: state.status == SettingsStatus.loaded);
+
+  Future<void> _load({required bool silent}) async {
     if (state.isLoading) return;
-    emit(state.copyWith(isLoading: true, banner: SettingsBanner.none));
-    final loaded = await _profileRepository.load();
+    emit(silent
+        ? state.copyWith(
+            isLoading: true,
+            banner: SettingsBanner.none,
+            clearRefreshError: true,
+          )
+        : state.copyWith(
+            status: SettingsStatus.loading,
+            isLoading: true,
+            banner: SettingsBanner.none,
+            clearError: true,
+            clearRefreshError: true,
+          ));
+    final UserProfile? loaded;
+    try {
+      loaded = await _profileRepository.load();
+    } catch (e) {
+      emit(silent
+          ? state.copyWith(isLoading: false, refreshError: AppFailure.of(e))
+          : state.copyWith(
+              status: SettingsStatus.failed,
+              isLoading: false,
+              error: AppFailure.of(e),
+            ));
+      return;
+    }
     var resolved = loaded ?? UserProfile(phoneE164: _fallbackPhoneE164);
+    NotificationPreferences? storedNotifications;
+    final store = _notificationStore;
+    if (store != null) {
+      try {
+        storedNotifications = await store.read();
+      } catch (e) {
+        Diag.event('settings_notification_prefs_read_failed', {
+          'kind': AppFailure.of(e).kind.name,
+        });
+      }
+    }
+    AppFailure? refreshError;
     final remoteRepo = _remoteProfileRepository;
     if (remoteRepo != null) {
       try {
@@ -76,11 +128,25 @@ class SettingsCubit extends Cubit<SettingsState> {
         if (remoteName != null && remoteName.trim().isNotEmpty) {
           resolved = resolved.copyWith(name: remoteName.trim());
         }
-      } on Object {
-        // Best-effort — the local/fallback profile above still renders.
+      } catch (e) {
+        // Best-effort — the local/fallback profile above still renders, but
+        // the screen says so rather than pretending the read succeeded.
+        refreshError = AppFailure.of(e);
       }
     }
-    emit(state.copyWith(profile: resolved, isLoading: false));
+    emit(state.copyWith(
+      status: SettingsStatus.loaded,
+      profile: resolved,
+      notifications: storedNotifications,
+      isLoading: false,
+      refreshError: refreshError,
+      clearRefreshError: refreshError == null,
+    ));
+  }
+
+  void dismissRefreshError() {
+    if (state.refreshError == null) return;
+    emit(state.copyWith(clearRefreshError: true));
   }
 
   void dismissBanner() {
@@ -98,14 +164,34 @@ class SettingsCubit extends Cubit<SettingsState> {
         nameProvided ? _cleanName(name as String?) : state.profile.name;
     final resolvedPhoto =
         photoProvided ? photoUrl as String? : state.profile.photoUrl;
+    final previous = state.profile;
     final next = state.profile.copyWith(name: cleanedName, photoUrl: resolvedPhoto);
     emit(state.copyWith(
       profile: next,
       isSavingProfile: true,
       banner: SettingsBanner.none,
+      clearError: true,
     ));
-    await _profileRepository.save(next);
-    await _syncDisplayNameRemote(cleanedName);
+    final bool remoteAccepted;
+    try {
+      await _profileRepository.save(next);
+      remoteAccepted = await _syncDisplayNameRemote(cleanedName, previous);
+    } catch (e) {
+      emit(state.copyWith(
+        profile: previous,
+        isSavingProfile: false,
+        banner: SettingsBanner.profileSaveFailed,
+        error: AppFailure.of(e),
+      ));
+      return;
+    }
+    if (!remoteAccepted) {
+      emit(state.copyWith(
+        isSavingProfile: false,
+        banner: SettingsBanner.profileSaveFailed,
+      ));
+      return;
+    }
     emit(state.copyWith(
       isSavingProfile: false,
       banner: SettingsBanner.profileSaved,
@@ -115,14 +201,29 @@ class SettingsCubit extends Cubit<SettingsState> {
   String? _cleanName(String? name) =>
       (name == null || name.trim().isEmpty) ? null : name.trim();
 
-  Future<void> _syncDisplayNameRemote(String? name) async {
+  /// False when the remote name write was rejected, so `saveProfile` never
+  /// reports "Profile saved" for a name the backend refused (LR-15).
+  Future<bool> _syncDisplayNameRemote(String? name, UserProfile previous) async {
     final repo = _displayNameRepository;
-    if (repo == null || name == null || name.isEmpty) return;
+    if (repo == null || name == null || name.isEmpty) return true;
     try {
       await repo.submitDisplayName(name);
       _refreshSignals?.signalProfileChanged();
-    } on Object {
-      // Pre-existing contract: the caller re-reads state to see the result.
+      return true;
+    } on DisplayNameRepositoryException catch (e) {
+      if (e.failure == DisplayNameFailure.unauthorized) {
+        // A rejected identity change: the local edit must not stand.
+        emit(state.copyWith(
+          profile: state.profile.copyWith(name: previous.name),
+          error: const UnauthorizedFailure(),
+        ));
+      }
+      return false;
+    } catch (e) {
+      Diag.event('settings_display_name_sync_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
+      return false;
     }
   }
 
@@ -190,8 +291,22 @@ class SettingsCubit extends Cubit<SettingsState> {
       try {
         await repo.removeAvatar();
         _refreshSignals?.signalProfileChanged();
-      } on Object {
-        // Fail-soft: local clear already committed; self-heals on next mutation.
+      } catch (e) {
+        // The remote avatar still exists, so the screen must not claim it is
+        // gone: put it back and say so.
+        final restored = state.profile.copyWith(photoUrl: previousUrl);
+        try {
+          await _profileRepository.save(restored);
+        } catch (_) {
+          // The local write is best-effort; the screen still has to report.
+        }
+        emit(state.copyWith(
+          profile: restored,
+          isSavingProfile: false,
+          banner: SettingsBanner.avatarRemoveFailed,
+          error: AppFailure.of(e),
+        ));
+        return;
       }
     }
     if (previousUrl.isNotEmpty) {
@@ -203,7 +318,11 @@ class SettingsCubit extends Cubit<SettingsState> {
     ));
   }
 
-  void setNotification(NotificationCategory category, bool enabled) {
+  Future<void> setNotification(
+    NotificationCategory category,
+    bool enabled,
+  ) async {
+    final previous = state.notifications;
     final next = switch (category) {
       NotificationCategory.offers =>
         state.notifications.copyWith(offers: enabled),
@@ -214,7 +333,18 @@ class SettingsCubit extends Cubit<SettingsState> {
       NotificationCategory.ratingReminders =>
         state.notifications.copyWith(ratingReminders: enabled),
     };
-    emit(state.copyWith(notifications: next));
+    emit(state.copyWith(notifications: next, banner: SettingsBanner.none));
+    final store = _notificationStore;
+    if (store == null) return;
+    try {
+      await store.write(next);
+    } catch (e) {
+      emit(state.copyWith(
+        notifications: previous,
+        banner: SettingsBanner.notificationSaveFailed,
+        error: AppFailure.of(e),
+      ));
+    }
   }
 
   Future<void> requestAccountDeletion() async {
@@ -236,6 +366,16 @@ class SettingsCubit extends Cubit<SettingsState> {
         emit(state.copyWith(
           isDeletingAccount: false,
           banner: SettingsBanner.networkError,
+        ));
+      case AccountActionOutcome.notSignedIn:
+        emit(state.copyWith(
+          isDeletingAccount: false,
+          banner: SettingsBanner.accountDeleteNotSignedIn,
+        ));
+      case AccountActionOutcome.serverError:
+        emit(state.copyWith(
+          isDeletingAccount: false,
+          banner: SettingsBanner.accountDeleteFailed,
         ));
     }
   }
@@ -284,6 +424,11 @@ class SettingsCubit extends Cubit<SettingsState> {
           isUnregisteringJeeber: false,
           banner: SettingsBanner.networkError,
         ));
+      case JeeberUnregisterOutcome.serverError:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
+          banner: SettingsBanner.jeeberUnregisterUnavailable,
+        ));
     }
   }
 
@@ -292,18 +437,27 @@ class SettingsCubit extends Cubit<SettingsState> {
     emit(state.copyWith(isSigningOut: true, banner: SettingsBanner.none));
     final outcome = await _accountService.signOut();
     switch (outcome) {
+      // Every outcome clears the local session — never trap a user inside a
+      // signed-in shell — but the banner only claims success once it did.
       case AccountActionOutcome.success:
       case AccountActionOutcome.alreadyPending:
-        await _profileRepository.clear();
+      case AccountActionOutcome.notSignedIn:
+      case AccountActionOutcome.serverError:
+      case AccountActionOutcome.networkError:
+        try {
+          await _profileRepository.clear();
+        } catch (e) {
+          emit(state.copyWith(
+            isSigningOut: false,
+            banner: SettingsBanner.networkError,
+            error: AppFailure.of(e),
+          ));
+          return;
+        }
         emit(state.copyWith(
           isSigningOut: false,
           banner: SettingsBanner.signedOut,
           profile: UserProfile(phoneE164: _fallbackPhoneE164),
-        ));
-      case AccountActionOutcome.networkError:
-        emit(state.copyWith(
-          isSigningOut: false,
-          banner: SettingsBanner.networkError,
         ));
     }
   }

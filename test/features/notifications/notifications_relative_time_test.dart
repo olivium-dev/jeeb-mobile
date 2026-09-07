@@ -4,20 +4,30 @@ import 'package:jeeb_mobile/features/notifications/presentation/notifications_l1
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 void main() {
-  final en = NotificationsL10n(
-    AppLocalizations(const Locale('en'), const {}),
-    false,
-  );
-  final ar = NotificationsL10n(
-    AppLocalizations(const Locale('ar'), const {}),
-    true,
-  );
+  // The relative-time units now read real ARB keys, so the seeded maps carry
+  // exactly those four.
+  const enStrings = <String, String>{
+    'timeJustNow': 'Just now',
+    'timeMinutesAgo': '{count}m ago',
+    'timeHoursAgo': '{count}h ago',
+    'timeDaysAgo': '{count}d ago',
+  };
+  const arStrings = <String, String>{
+    'timeJustNow': 'الآن',
+    'timeMinutesAgo': 'قبل {count} د',
+    'timeHoursAgo': 'قبل {count} س',
+    'timeDaysAgo': 'قبل {count} ي',
+  };
+  final en = NotificationsL10n(AppLocalizations(const Locale('en'), enStrings));
+  final ar = NotificationsL10n(AppLocalizations(const Locale('ar'), arStrings));
 
   group('relativeTime — UTC instants, device-local age (SW-03)', () {
     test('Z-marked timestamp diffs exactly against a UTC now', () {
       expect(
-        en.relativeTime('2026-07-03T10:00:00Z',
-            now: DateTime.utc(2026, 7, 3, 10, 5)),
+        en.relativeTime(
+          '2026-07-03T10:00:00Z',
+          now: DateTime.utc(2026, 7, 3, 10, 5),
+        ),
         '5m ago',
       );
     });
@@ -25,26 +35,35 @@ void main() {
     test('zone-less timestamp is treated as UTC — never device-local '
         '(the "2h stale" leak)', () {
       expect(
-        en.relativeTime('2026-07-03T10:00:00',
-            now: DateTime.utc(2026, 7, 3, 10, 5)),
+        en.relativeTime(
+          '2026-07-03T10:00:00',
+          now: DateTime.utc(2026, 7, 3, 10, 5),
+        ),
         '5m ago',
       );
     });
 
-    test('mixing a LOCAL now with a UTC timestamp stays exact (epoch diff)',
-        () {
-      final localNow =
-          DateTime.utc(2026, 7, 3, 12, 0).toLocal(); // same instant, local zone
-      expect(
-        en.relativeTime('2026-07-03T10:00:00Z', now: localNow),
-        '2h ago',
-      );
-      expect(
-        en.relativeTime('2026-07-03T10:00:00', now: localNow),
-        '2h ago',
-        reason: 'zone-less server strings must age identically to Z-marked',
-      );
-    });
+    test(
+      'mixing a LOCAL now with a UTC timestamp stays exact (epoch diff)',
+      () {
+        final localNow = DateTime.utc(
+          2026,
+          7,
+          3,
+          12,
+          0,
+        ).toLocal(); // same instant, local zone
+        expect(
+          en.relativeTime('2026-07-03T10:00:00Z', now: localNow),
+          '2h ago',
+        );
+        expect(
+          en.relativeTime('2026-07-03T10:00:00', now: localNow),
+          '2h ago',
+          reason: 'zone-less server strings must age identically to Z-marked',
+        );
+      },
+    );
 
     test('buckets: just now / minutes / hours / days', () {
       final now = DateTime.utc(2026, 7, 3, 12, 0);

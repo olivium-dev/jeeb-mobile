@@ -20,6 +20,19 @@ class _ExplosiveOtpBody {
   String toString() => throw StateError('OTP body must not be inspected');
 }
 
+class _ExplosiveRefreshValue {
+  @override
+  String toString() => throw StateError('Refresh value must not be inspected');
+}
+
+class _ExplosiveRefreshError extends DioException {
+  _ExplosiveRefreshError({required super.requestOptions, super.response})
+    : super(error: _ExplosiveRefreshValue(), message: 'private-error-DETAILS');
+
+  @override
+  String toString() => throw StateError('Refresh error must not be inspected');
+}
+
 void _expectNoOtpCanaryMaterial(String output) {
   for (final secret in <String>[_phoneCanary, _otpCanary]) {
     final handle = DiagRedaction.redactToken(secret);
@@ -285,6 +298,129 @@ void main() {
         expect(line, contains('body='));
         expect(line, contains('safe-control'));
       }
+    });
+  });
+
+  group('refresh metadata-only logging', () {
+    const logger = RedactingLogInterceptor(metadataOnly: true);
+    const secrets = <String>[
+      'refresh-request-private-RQ71',
+      'refresh-response-private-RS82',
+      'refresh-header-private-HD93',
+      'refresh-query-private-QU64',
+      'private-error-DETAILS',
+    ];
+
+    for (final path in <String>[
+      '/v1/auth/refresh',
+      '/auth/refresh',
+      '/auth-service/auth/refresh',
+      '/v1/diagnostics/control',
+    ]) {
+      test('$path never formats payloads, headers, queries, or errors', () {
+        final payloads = <Object>[
+          _ExplosiveRefreshValue(),
+          <String, Object?>{
+            'refreshToken': secrets[0],
+            'accessToken': secrets[1],
+            'arbitrary': <Object>[
+              <String, Object?>{'nested': secrets[0]},
+              _ExplosiveRefreshValue(),
+            ],
+          },
+          'raw request ${secrets[0]} response ${secrets[1]}',
+        ];
+        for (final payload in payloads) {
+          printed.clear();
+          final options = RequestOptions(
+            path: '$path?credential=${secrets[3]}#${secrets[0]}',
+            method: 'POST',
+            headers: <String, dynamic>{
+              'Authorization': 'Bearer ${secrets[2]}',
+              'x-private': secrets[2],
+              'x-poison': _ExplosiveRefreshValue(),
+            },
+            data: payload,
+          );
+          final response = Response<dynamic>(
+            requestOptions: options,
+            statusCode: 503,
+            headers: Headers()..add('x-private', secrets[2]),
+            data: payload,
+          );
+          final error = _ExplosiveRefreshError(
+            requestOptions: options,
+            response: response,
+          );
+
+          logger.onRequest(options, RequestInterceptorHandler());
+          logger.onResponse(response, ResponseInterceptorHandler());
+          logger.onError(error, _SilentErrorHandler());
+          logger.onError(
+            _ExplosiveRefreshError(requestOptions: options),
+            _SilentErrorHandler(),
+          );
+
+          expect(printed, <String>[
+            '[http→] POST $path',
+            '[http←] 503 POST $path',
+            '[http✗] POST $path',
+            '[http✗] POST $path',
+          ]);
+          final output = printed.join('\n');
+          for (final secret in secrets) {
+            final handle = DiagRedaction.redactToken(secret);
+            expect(output, isNot(contains(secret)));
+            expect(output, isNot(contains(handle.split('~').first)));
+            expect(
+              output,
+              isNot(contains(secret.substring(secret.length - 4))),
+            );
+          }
+          expect(output, isNot(contains(_prohibitedSuppressionMarker)));
+          expect(options.data, same(payload));
+          expect(response.data, same(payload));
+          expect(error.response, same(response));
+        }
+      });
+    }
+
+    test('default logger retains ordinary refresh diagnostics', () {
+      expect(interceptor.metadataOnly, isFalse);
+      final options = RequestOptions(
+        path: '/v1/auth/refresh?private=${secrets[3]}',
+        method: 'POST',
+        headers: <String, dynamic>{'Authorization': 'Bearer ${secrets[0]}'},
+        data: <String, Object?>{'note': 'safe-control'},
+      );
+      final response = Response<dynamic>(
+        requestOptions: options,
+        statusCode: 401,
+        data: <String, Object?>{'note': 'safe-control'},
+      );
+
+      interceptor.onRequest(options, RequestInterceptorHandler());
+      interceptor.onResponse(response, ResponseInterceptorHandler());
+      interceptor.onError(
+        DioException(requestOptions: options, response: response),
+        _SilentErrorHandler(),
+      );
+
+      expect(printed[0], contains('headers='));
+      expect(
+        printed[0],
+        contains(DiagRedaction.redactToken('Bearer ${secrets[0]}')),
+      );
+      expect(printed[0], contains('body={note: safe-control}'));
+      expect(
+        printed[1],
+        '[http←] 401 POST /v1/auth/refresh body={note: safe-control}',
+      );
+      expect(
+        printed[2],
+        '[http✗] 401 POST /v1/auth/refresh body={note: safe-control}',
+      );
+      expect(printed.join('\n'), isNot(contains(secrets[3])));
     });
   });
 

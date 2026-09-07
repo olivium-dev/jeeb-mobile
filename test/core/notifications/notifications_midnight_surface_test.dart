@@ -3,7 +3,9 @@
 // assertions read the paint off the widgets; the goldens cannot see a 320px
 // ink swap (wave-C standing finding).
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/core/notifications/application/badge_count_cubit.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_notification_handler.dart';
 import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
@@ -16,6 +18,8 @@ import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 
+import '../../support/sync_app_localizations.dart';
+
 /// `colorScheme.primary` under Midnight. Named so a failure reads as the
 /// budget violation it is rather than as an opaque hex mismatch.
 const Color _orange = Color(0xFFD73B00);
@@ -24,6 +28,13 @@ JeebSemanticColors get _semantics => JeebSemanticColors.midnight();
 
 Widget _host(Widget child) => MaterialApp(
       theme: AppTheme.midnight(),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const <LocalizationsDelegate<Object>>[
+        SyncAppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: Scaffold(body: child),
     );
 

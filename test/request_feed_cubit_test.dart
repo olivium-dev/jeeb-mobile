@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/request_feed_state.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
@@ -93,7 +94,7 @@ void main() {
     );
 
     blocTest<RequestFeedCubit, RequestFeedState>(
-      'surfaces an error key when the snapshot fetch throws and feed is empty',
+      'surfaces a classified error when the fetch throws and the feed is empty',
       build: () {
         when(() => repo.refresh()).thenThrow(Exception('boom'));
         return build();
@@ -104,7 +105,32 @@ void main() {
         predicate<RequestFeedState>(
           (s) =>
               s.status == RequestFeedStatus.error &&
-              s.errorMessageKey == 'requestFeedErrorLoad',
+              s.error is UnknownFailure &&
+              s.refreshError == null,
+        ),
+      ],
+    );
+
+    blocTest<RequestFeedCubit, RequestFeedState>(
+      'a WARM failure keeps status ready and the rows, on refreshError',
+      build: () {
+        when(() => repo.refresh()).thenAnswer((_) async => [_req()]);
+        return build();
+      },
+      act: (c) async {
+        c.start();
+        await Future<void>.delayed(Duration.zero);
+        when(() => repo.refresh()).thenThrow(const NetworkFailure());
+        await c.refresh();
+      },
+      skip: 2,
+      expect: () => [
+        predicate<RequestFeedState>(
+          (s) =>
+              s.status == RequestFeedStatus.ready &&
+              s.requests.length == 1 &&
+              s.refreshError is NetworkFailure &&
+              s.error == null,
         ),
       ],
     );

@@ -167,39 +167,43 @@ class DevToolShell extends StatelessWidget {
         .toList(growable: false);
     return Scaffold(
       appBar: const OMDSAppBar(title: 'Jeeber Dev Tool', centerTitle: false),
-      body: Column(
-        children: [
-          const DevBaseUrlBanner(),
-          const _GestureLoggingSwitch(),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: sections.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final section = sections[i];
-                final l10n = AppLocalizations.of(context);
-                return OmdsSettingsRow(
-                  identifier: section == DevToolSection.walletFunding
-                      ? 'devtool.walletFunding.home'
-                      : null,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.medium,
-                  ),
-                  leadingIcon: section.icon,
-                  title: section == DevToolSection.walletFunding
-                      ? l10n.walletFundingTitle
-                      : section.title,
-                  subtitle: section == DevToolSection.walletFunding
-                      ? l10n.walletFundingHomeSubtitle
-                      : section.subtitle,
-                  onTap: () => _openSection(context, section),
-                );
-              },
+      // Scroll the full URL notice with the menu so large text cannot hide
+      // destinations above the Apply/Close control band.
+      body: ListView.separated(
+        padding: const EdgeInsets.only(bottom: 8),
+        itemCount: sections.length + 1,
+        separatorBuilder: (_, i) =>
+            i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
+        itemBuilder: (context, i) {
+          if (i == 0) {
+            return const Column(
+              children: [
+                DevBaseUrlBanner(),
+                _GestureLoggingSwitch(),
+                Divider(height: 1),
+                SizedBox(height: 8),
+              ],
+            );
+          }
+          final section = sections[i - 1];
+          final l10n = AppLocalizations.of(context);
+          return OmdsSettingsRow(
+            identifier: section == DevToolSection.walletFunding
+                ? 'devtool.walletFunding.home'
+                : null,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: Spacing.medium,
             ),
-          ),
-        ],
+            leadingIcon: section.icon,
+            title: section == DevToolSection.walletFunding
+                ? l10n.walletFundingTitle
+                : section.title,
+            subtitle: section == DevToolSection.walletFunding
+                ? l10n.walletFundingHomeSubtitle
+                : section.subtitle,
+            onTap: () => _openSection(context, section),
+          );
+        },
       ),
     );
   }

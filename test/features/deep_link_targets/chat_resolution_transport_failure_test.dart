@@ -9,6 +9,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_failure_block.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
@@ -17,6 +19,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
+import '../../support/midnight_test_harness.dart';
 
 /// THE OFFLINE WIRE. Every request fails with NO response at all — Dio's
 /// `connectionError`, which is precisely what an unreachable gateway looks
@@ -86,17 +89,29 @@ class _PreAcceptDio {
 /// wire. Drives the retry CTA: the SAME route that could not be resolved
 /// resolves once connectivity returns, with no app restart.
 class _HealingDio {
-  _HealingDio() {
+  _HealingDio({this.statusCode, this.failureOnPrimary, this.timeout = false}) {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
           requests.add(options);
           if (!healed) {
+            final isPrimary = options.path == '/v1/conversations';
+            final status =
+                failureOnPrimary != null && isPrimary != failureOnPrimary
+                ? 404
+                : statusCode;
             handler.reject(
-              DioException.connectionError(
+              DioException(
                 requestOptions: options,
-                reason: 'Network is unreachable',
+                response: status == null
+                    ? null
+                    : Response(statusCode: status, requestOptions: options),
+                type: status != null
+                    ? DioExceptionType.badResponse
+                    : timeout
+                    ? DioExceptionType.receiveTimeout
+                    : DioExceptionType.connectionError,
               ),
             );
             return;
@@ -138,6 +153,9 @@ class _HealingDio {
   }
 
   bool healed = false;
+  int? statusCode;
+  final bool? failureOnPrimary;
+  final bool timeout;
 
   static const conversationId = '2896ca8d-88f8-4bb0-bc4d-be3c1e8fa3d4';
   static const requestId = '92fb0b67-e056-42c8-968d-36b5c6e77f3f';
@@ -155,7 +173,20 @@ class _StubAuthTokenStore extends AuthTokenStore {
 
 const _sessionUserId = 'd1000000-0000-4000-8000-000000000001';
 
-Widget _host(RoleCubit role, String chatId) => MaterialApp(
+Widget _host(
+  RoleCubit role,
+  String chatId, {
+  String locale = 'en',
+  bool withExitRoute = false,
+}) => MaterialApp(
+  locale: Locale(locale),
+  initialRoute: withExitRoute ? '/chat-test' : '/',
+  routes: {
+    '/chat-test': (_) => BlocProvider<RoleCubit>.value(
+      value: role,
+      child: ChatDetailScreen(chatId: chatId),
+    ),
+  },
   localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
     SyncAppLocalizationsDelegate(),
     GlobalMaterialLocalizations.delegate,
@@ -163,10 +194,12 @@ Widget _host(RoleCubit role, String chatId) => MaterialApp(
     GlobalCupertinoLocalizations.delegate,
   ],
   supportedLocales: AppLocalizations.supportedLocales,
-  home: BlocProvider<RoleCubit>.value(
-    value: role,
-    child: ChatDetailScreen(chatId: chatId),
-  ),
+  home: withExitRoute
+      ? const Scaffold(body: Text('outside-chat'))
+      : BlocProvider<RoleCubit>.value(
+          value: role,
+          child: ChatDetailScreen(chatId: chatId),
+        ),
 );
 
 Future<RoleCubit> _roleCubit(UserRole role) async {
@@ -190,12 +223,153 @@ void main() {
     if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
   });
 
+  for (final locale in ['en', 'ar']) {
+    for (final primary in [true, false]) {
+      for (final fault in ['503', 'network', 'timeout', '401', '403']) {
+        testWidgets('$locale $fault on ${primary ? 'primary' : 'fallback'} '
+            'survives alternate 404 and recovers', (tester) async {
+          useReduceMotion(tester);
+          final status = int.tryParse(fault);
+          final auth = status == 401 || status == 403;
+          final wire = _HealingDio(
+            statusCode: status,
+            failureOnPrimary: primary,
+            timeout: fault == 'timeout',
+          );
+          _register(wire.dio);
+          final role = await _roleCubit(UserRole.client);
+          addTearDown(role.close);
+          await tester.pumpWidget(
+            _host(
+              role,
+              _HealingDio.requestId,
+              locale: locale,
+              withExitRoute: auth,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final block = tester.widget<JeebFailureBlock>(
+            find.byType(JeebFailureBlock),
+          );
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(ChatResolutionErrorView)),
+          );
+          final expectedKind = switch (fault) {
+            '503' => AppFailureKind.server,
+            'network' => AppFailureKind.network,
+            'timeout' => AppFailureKind.timeout,
+            '401' => AppFailureKind.unauthorized,
+            _ => AppFailureKind.forbidden,
+          };
+          expect(block.failure.kind, expectedKind);
+          final body = switch (fault) {
+            '503' => l10n.errorServiceUnavailableBody,
+            'network' =>
+              (block.failure as NetworkFailure).offline
+                  ? l10n.errorNetworkBody
+                  : l10n.errorUnreachableBody,
+            'timeout' => l10n.errorTimeoutBody,
+            '401' => l10n.errorSessionExpiredBody,
+            _ => l10n.errorForbiddenBody,
+          };
+          expect(
+            find.bySemanticsIdentifier('chat_resolution_error'),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: find.bySemanticsIdentifier('chat_resolution_error_body'),
+              matching: find.text(body),
+            ),
+            findsOneWidget,
+          );
+          expect(find.byIcon(Icons.wifi_off_rounded), findsNothing);
+          expect(find.byType(ChatScreen), findsNothing);
+          expect(wire.requests.map((r) => r.path), [
+            '/v1/conversations',
+            '/v1/conversations/${_HealingDio.requestId}/messages',
+          ]);
+          if (auth) {
+            expect(
+              find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+              findsNothing,
+            );
+            final attempts = wire.requests.length;
+            await tester.pump(const Duration(seconds: 35));
+            expect(wire.requests.length, attempts);
+            await tester.tap(
+              find.bySemanticsIdentifier('chat_resolution_exit_cta'),
+            );
+            await tester.pumpAndSettle();
+            expect(find.text('outside-chat'), findsOneWidget);
+            wire.healed = true;
+            Navigator.of(
+              tester.element(find.text('outside-chat')),
+            ).pushNamed('/chat-test');
+          } else {
+            wire.healed = true;
+            await tester.tap(
+              find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(
+            find.bySemanticsIdentifier('chat_resolution_error'),
+            findsNothing,
+          );
+          expect(
+            tester.widget<ChatScreen>(find.byType(ChatScreen)).deliveryId,
+            _HealingDio.conversationId,
+          );
+          // Complete the newly entered chat's deferred history and phase loads.
+          await tester.pump();
+          await tester.pumpAndSettle();
+          await tester.pumpWidget(const SizedBox.shrink());
+        });
+      }
+    }
+    testWidgets('$locale retry replaces network failure with server failure', (
+      tester,
+    ) async {
+      useReduceMotion(tester);
+      final wire = _HealingDio(failureOnPrimary: true);
+      _register(wire.dio);
+      final role = await _roleCubit(UserRole.client);
+      addTearDown(role.close);
+      await tester.pumpWidget(
+        _host(role, _HealingDio.requestId, locale: locale),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<JeebFailureBlock>(find.byType(JeebFailureBlock)).failure,
+        isA<NetworkFailure>(),
+      );
+      wire.statusCode = 503;
+      await tester.tap(
+        find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<JeebFailureBlock>(find.byType(JeebFailureBlock)).failure,
+        isA<ServerFailure>(),
+      );
+      wire.healed = true;
+      await tester.tap(
+        find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   group('ChatDetailScreen — the network is DOWN (we could not find out)', () {
     testWidgets(
       'DoD: cold-entering chat on an in-transit delivery with the network down '
       'shows an error + retry — NOT "Waiting for Jeebers", NOT an empty thread',
       (tester) async {
         final offline = _OfflineDio();
+        useReduceMotion(tester);
         _register(offline.dio);
         final role = await _roleCubit(UserRole.client);
         addTearDown(role.close);
@@ -209,8 +383,17 @@ void main() {
           findsOneWidget,
           reason: 'a transport failure must surface as an error with retry',
         );
-        expect(find.text('Couldn\'t load this chat'), findsOneWidget);
-        expect(find.text('Try again'), findsOneWidget);
+        expect(find.byType(JeebFailureBlock), findsOneWidget);
+        // By identifier, not by copy: the ids are what Maestro and the
+        // screen reader address, and what a copy change must not break.
+        expect(
+          find.bySemanticsIdentifier('chat_resolution_error'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+          findsOneWidget,
+        );
 
         // 2. THE LAUNDERING IS GONE. Not one word of the broadcasting copy.
         expect(
@@ -239,6 +422,7 @@ void main() {
       'app restart, and the resolved thread renders',
       (tester) async {
         final healing = _HealingDio();
+        useReduceMotion(tester);
         _register(healing.dio);
         final role = await _roleCubit(UserRole.client);
         addTearDown(role.close);
@@ -249,7 +433,9 @@ void main() {
 
         // Connectivity comes back; the user taps retry.
         healing.healed = true;
-        await tester.tap(find.text('Try again'));
+        await tester.tap(
+          find.bySemanticsIdentifier('chat_detail_resolution_retry'),
+        );
         await tester.pumpAndSettle();
 
         expect(find.byType(ChatResolutionErrorView), findsNothing);
@@ -268,6 +454,7 @@ void main() {
       (tester) async {
         // The correlationKey lookup answers 404 (a request-id param the
         final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        useReduceMotion(tester);
         dio.interceptors.add(
           InterceptorsWrapper(
             onRequest: (options, handler) {

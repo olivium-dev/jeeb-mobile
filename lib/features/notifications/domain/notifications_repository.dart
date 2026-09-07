@@ -1,3 +1,5 @@
+import '../../../core/network/app_failure.dart';
+
 enum NotificationKind {
   offer,
   offerAccepted,
@@ -15,6 +17,8 @@ enum NotificationKind {
   newRequest,
   dispute,
   support,
+  chat,
+  availability,
   unknown,
 }
 
@@ -53,10 +57,22 @@ class NotificationItem {
 enum NotificationsFailure { network, unauthorized, unknown }
 
 class NotificationsRepositoryException implements Exception {
-  const NotificationsRepositoryException(this.failure, [this.message]);
+  const NotificationsRepositoryException(this.failure, [this.message])
+    : appFailure = null;
+
+  const NotificationsRepositoryException.classified(
+    this.failure, {
+    this.message,
+    required this.appFailure,
+  });
 
   final NotificationsFailure failure;
+
+  /// DIAGNOSTIC ONLY — never rendered.
   final String? message;
+
+  /// The classified transport failure, when the thrower could produce one.
+  final AppFailure? appFailure;
 
   @override
   String toString() => 'NotificationsRepositoryException($failure, $message)';
@@ -66,4 +82,18 @@ abstract class NotificationsRepository {
   Future<List<NotificationItem>> fetchNotifications();
 
   Future<void> markRead(String id);
+}
+
+/// What a partial read actually returned: [degraded] means the list is a
+/// subset, not a complete inbox (NOTIF-02).
+typedef NotificationsSnapshot = ({
+  List<NotificationItem> items,
+  bool degraded,
+  AppFailure? failure,
+});
+
+/// The honest-read lane: only a repository that can serve a partial inbox
+/// implements it, and the cubit `is`-checks before falling back.
+abstract class DegradableNotificationsRepository {
+  Future<NotificationsSnapshot> fetchSnapshot();
 }

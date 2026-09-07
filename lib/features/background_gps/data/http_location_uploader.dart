@@ -42,8 +42,11 @@ class HttpLocationUploader implements LocationUploader {
         case DioExceptionType.connectionError:
           return LocationUploadOutcome.transientFailure;
         case DioExceptionType.badCertificate:
-        case DioExceptionType.cancel:
           return LocationUploadOutcome.permanentFailure;
+        // A cancel is a LOCAL abort, not a server verdict — tearing the whole
+        // loop down on one is how a single cancelled request killed tracking.
+        case DioExceptionType.cancel:
+          return LocationUploadOutcome.transientFailure;
         case DioExceptionType.badResponse:
           return _outcomeForStatus(e.response?.statusCode ?? 0);
         case DioExceptionType.transformTimeout:

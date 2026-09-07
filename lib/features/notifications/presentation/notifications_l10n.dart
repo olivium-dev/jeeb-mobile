@@ -3,21 +3,15 @@ import 'package:flutter/widgets.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/notifications_repository.dart';
 
+/// Notifications copy accessors. Failure copy never lives here — it comes
+/// from `failureCopy`.
 class NotificationsL10n {
-  NotificationsL10n(this._l10n, this._isArabic);
+  NotificationsL10n(this._l10n);
 
-  factory NotificationsL10n.of(BuildContext context) {
-    final locale = Localizations.localeOf(context);
-    return NotificationsL10n(
-      AppLocalizations.of(context),
-      locale.languageCode == 'ar',
-    );
-  }
+  factory NotificationsL10n.of(BuildContext context) =>
+      NotificationsL10n(AppLocalizations.of(context));
 
   final AppLocalizations _l10n;
-  final bool _isArabic;
-
-  String _pick(String en, String ar) => _isArabic ? ar : en;
 
   String get title => _l10n.notificationsTitle;
   String get emptyTitle => _l10n.notificationsEmptyTitle;
@@ -25,57 +19,53 @@ class NotificationsL10n {
   String get loadingHeadline => _l10n.notificationsLoadingHeadline;
   String get errorTitle => _l10n.notificationsErrorTitle;
 
-  String get networkError => _pick(
-    'No connection. Check your network and try again.',
-    'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
-  );
-  String get retry => _pick('Retry', 'إعادة المحاولة');
-
   String categoryLabel(NotificationKind kind) {
     switch (kind) {
       case NotificationKind.offer:
-        return _pick('New offer', 'عرض جديد');
+        return _l10n.notificationsCategoryLabelOffer;
       case NotificationKind.offerAccepted:
-        return _pick('Offer accepted', 'تم قبول العرض');
+        return _l10n.notificationsCategoryLabelOfferAccepted;
       case NotificationKind.status:
-        return _pick('Order update', 'تحديث الطلب');
+        return _l10n.notificationsCategoryLabelStatus;
       case NotificationKind.lowBalance:
-        return _pick('Low balance', 'رصيد منخفض');
+        return _l10n.notificationsCategoryLabelLowBalance;
       case NotificationKind.feeWon:
-        return _pick('Fee captured', 'تم خصم الرسوم');
+        return _l10n.notificationsCategoryLabelFeeWon;
       case NotificationKind.refundPenalty:
-        return _pick('Dispute outcome', 'نتيجة النزاع');
+        return _l10n.notificationsCategoryLabelRefundPenalty;
       case NotificationKind.topup:
-        return _pick('Top-up received', 'تم شحن الرصيد');
+        return _l10n.notificationsCategoryLabelTopup;
       case NotificationKind.kycApproved:
-        return _pick('KYC approved', 'تمت الموافقة على التحقق');
+        return _l10n.notificationsCategoryLabelKycApproved;
       case NotificationKind.kycRejected:
-        return _pick('KYC rejected', 'تم رفض التحقق');
+        return _l10n.notificationsCategoryLabelKycRejected;
       case NotificationKind.requestExpired:
-        return _pick('Request expired', 'انتهت صلاحية الطلب');
+        return _l10n.notificationsCategoryLabelRequestExpired;
       case NotificationKind.newRequest:
-        return _pick('New request', 'طلب جديد');
+        return _l10n.notificationsCategoryLabelNewRequest;
       case NotificationKind.confirmReceipt:
-        return _pick('Confirm receipt', 'تأكيد الاستلام');
+        return _l10n.notificationsCategoryLabelConfirmReceipt;
       case NotificationKind.marketing:
-        return _pick('Jeeb', 'جيب');
+        return _l10n.notificationsCategoryLabelMarketing;
       case NotificationKind.dispute:
-        return _pick('Dispute', 'نزاع');
+        return _l10n.notificationsCategoryLabelDispute;
       case NotificationKind.support:
-        return _pick('Support', 'الدعم');
+        return _l10n.notificationsCategoryLabelSupport;
       case NotificationKind.unknown:
-        return _pick('Notification', 'إشعار');
+        return _l10n.notificationsCategoryLabelUnknown;
+      case NotificationKind.chat:
+        return _l10n.notificationsCategoryLabelChat;
+      case NotificationKind.availability:
+        return _l10n.notificationsCategoryLabelAvailability;
     }
   }
 
-  String get unreadLabel => _pick('Unread', 'غير مقروء');
+  String get unreadLabel => _l10n.notificationsUnreadLabel;
 
   String get newRequestFallbackTitle =>
-      _pick('New request nearby', 'طلب جديد بالقرب منك');
-  String get newRequestFallbackBody => _pick(
-    'A customer is looking for a jeeber. Tap to view.',
-    'أحد الزبائن يبحث عن جيب. اضغط لعرض الطلب.',
-  );
+      _l10n.notificationsNewRequestFallbackTitle;
+  String get newRequestFallbackBody =>
+      _l10n.notificationsNewRequestFallbackBody;
 
   String relativeTime(String timestamp, {DateTime? now}) {
     var ts = DateTime.tryParse(timestamp);
@@ -94,17 +84,9 @@ class NotificationsL10n {
     }
     final reference = now ?? DateTime.now();
     final diff = reference.difference(ts);
-    if (diff.isNegative) return _pick('Just now', 'الآن');
-    if (diff.inMinutes < 1) return _pick('Just now', 'الآن');
-    if (diff.inMinutes < 60) {
-      final m = diff.inMinutes;
-      return _pick('${m}m ago', 'قبل $m د');
-    }
-    if (diff.inHours < 24) {
-      final h = diff.inHours;
-      return _pick('${h}h ago', 'قبل $h س');
-    }
-    final d = diff.inDays;
-    return _pick('${d}d ago', 'قبل $d ي');
+    if (diff.isNegative || diff.inMinutes < 1) return _l10n.timeJustNow;
+    if (diff.inMinutes < 60) return _l10n.timeMinutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return _l10n.timeHoursAgo(diff.inHours);
+    return _l10n.timeDaysAgo(diff.inDays);
   }
 }

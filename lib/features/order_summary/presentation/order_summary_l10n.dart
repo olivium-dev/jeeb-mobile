@@ -24,15 +24,15 @@ class OrderSummaryL10n {
 
   String get track => _l10n.orderSummaryTrack;
 
-  String get priceLabel => _pick('Price', 'السعر');
+  String get priceLabel => _l10n.orderSummaryPriceLabel;
 
-  String get cashLabel => _pick('Pay cash on delivery', 'ادفع نقداً عند التسليم');
+  String get cashLabel => _l10n.orderSummaryCashLabel;
 
   String get etaLabel => _l10n.trackingEtaLabel;
 
   String etaMinutes(int minutes) => _l10n.trackingEtaMinutes(minutes);
 
-  String get etaPending => _pick('ETA pending', 'الوقت المقدّر قيد التحديد');
+  String get etaPending => _l10n.orderSummaryValuePending;
 
   String get tierLabel => _l10n.deliveryTierLabel;
 
@@ -49,6 +49,14 @@ class OrderSummaryL10n {
   String get errorNetworkBody => _l10n.orderHistoryErrorNetwork;
 
   String get errorServerBody => _l10n.orderHistoryErrorServer;
+
+  String get loadingHeadline => _l10n.orderSummaryLoadingHeadline;
+
+  String get priceUnavailable => _l10n.orderSummaryPriceUnavailable;
+
+  String get partialLoadBody => _l10n.errorPartialLoadBody;
+
+  String get refreshFailedBody => _l10n.errorRefreshFailedBody;
 
   String get retryLabel => _l10n.trackingGpsLostRetry;
 

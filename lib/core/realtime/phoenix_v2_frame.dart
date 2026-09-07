@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../diagnostics/diag.dart';
+
 class PhoenixV2Frame {
   const PhoenixV2Frame({
     required this.topic,
@@ -38,7 +40,12 @@ class PhoenixV2Frame {
         event: decoded[3] as String?,
         payload: payload is Map ? payload.cast<String, Object?>() : null,
       );
-    } catch (_) {
+    } catch (error) {
+      // The transport twin of F34: a frame nobody can decode is a message the
+      // thread will never show. `null` still means "not a frame" to callers.
+      Diag.event('phoenix_frame_decode_failed', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
       return null;
     }
   }

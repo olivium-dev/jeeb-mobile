@@ -197,6 +197,7 @@ class DeliveryChatMessage extends Equatable {
     this.longitude,
     this.offerPayload,
     this.systemOfferPayload,
+    this.imageLoadFailed = false,
   });
 
   factory DeliveryChatMessage.text({
@@ -387,6 +388,10 @@ class DeliveryChatMessage extends Equatable {
   final OfferCardPayload? offerPayload;
   final SystemOfferPayload? systemOfferPayload;
 
+  /// The bytes behind [imageUrl] could not be fetched — the tile offers a
+  /// reload instead of a permanent placeholder (F36).
+  final bool imageLoadFailed;
+
   bool get isMine => author == ChatAuthor.me;
   bool get isPhoto => kind == MessageKind.photo;
   bool get isText => kind == MessageKind.text;
@@ -398,6 +403,7 @@ class DeliveryChatMessage extends Equatable {
     String? voiceTranscription,
     DateTime? sentAt,
     Uint8List? photoBytes,
+    bool? imageLoadFailed,
   }) {
     return DeliveryChatMessage._(
       id: id,
@@ -419,6 +425,7 @@ class DeliveryChatMessage extends Equatable {
       longitude: longitude,
       offerPayload: offerPayload,
       systemOfferPayload: systemOfferPayload,
+      imageLoadFailed: imageLoadFailed ?? this.imageLoadFailed,
     );
   }
 
@@ -442,6 +449,7 @@ class DeliveryChatMessage extends Equatable {
         longitude: longitude,
         offerPayload: offerPayload,
         systemOfferPayload: systemOfferPayload,
+        imageLoadFailed: imageLoadFailed,
       );
 
   @override
@@ -464,5 +472,6 @@ class DeliveryChatMessage extends Equatable {
         longitude,
         offerPayload,
         systemOfferPayload,
+        imageLoadFailed,
       ];
 }

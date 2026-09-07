@@ -5,13 +5,15 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/idempotency/operation_id.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/support/application/support_cubit.dart';
 import 'package:jeeb_mobile/features/support/application/support_state.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
 
 class _RecordingRepo implements SupportRepository {
-  _RecordingRepo({this.failWith});
+  _RecordingRepo({this.failWith, this.appFailure});
   SupportFailure? failWith;
+  AppFailure? appFailure;
   SupportTicketDraft? lastDraft;
   final List<SupportTicketDraft> drafts = <SupportTicketDraft>[];
 
@@ -20,7 +22,10 @@ class _RecordingRepo implements SupportRepository {
     lastDraft = draft;
     drafts.add(draft);
     if (failWith != null) {
-      throw SupportRepositoryException(failWith!);
+      throw SupportRepositoryException.classified(
+        failWith!,
+        appFailure: appFailure,
+      );
     }
     return const SupportTicket(id: 'ticket-001', status: 'open');
   }
@@ -108,21 +113,25 @@ void main() {
     });
 
     test(
-      'typed failure → error phase, then retry returns to inputting',
+      'typed failure → error phase, then retry actually re-submits',
       () async {
-        final cubit = SupportCubit(
-          _RecordingRepo(failWith: SupportFailure.network),
-        );
+        final repo = _RecordingRepo(failWith: SupportFailure.network);
+        final cubit = SupportCubit(repo);
         cubit.setCategory(SupportCategory.payment);
         cubit.setBody('charge issue');
 
         await cubit.submit();
         expect(cubit.state.phase, SupportPhase.error);
         expect(cubit.state.failure, SupportFailure.network);
+        // The classified failure rides alongside the feature enum.
+        expect(cubit.state.appFailure, isNotNull);
 
-        cubit.retryFromError();
-        expect(cubit.state.phase, SupportPhase.inputting);
+        repo.failWith = null;
+        await cubit.retryFromError();
+        expect(cubit.state.phase, SupportPhase.success);
         expect(cubit.state.failure, isNull);
+        expect(cubit.state.appFailure, isNull);
+        expect(repo.drafts, hasLength(2));
         // The form fields survive the retry.
         expect(cubit.state.category, SupportCategory.payment);
         expect(cubit.state.body, 'charge issue');
@@ -131,33 +140,54 @@ void main() {
     );
 
     test(
-      'operation id survives submit → error → retry → submit',
+      'a terminal failure returns to the form WITHOUT re-submitting',
       () async {
-        final repo = _RecordingRepo(failWith: SupportFailure.network);
+        final repo = _RecordingRepo(
+          failWith: SupportFailure.unauthorized,
+          appFailure: const UnauthorizedFailure(),
+        );
         final cubit = SupportCubit(repo);
         cubit.setCategory(SupportCategory.payment);
-        cubit.setBody('charged twice for one delivery');
-        final operationId = cubit.state.operationId;
-        expect(isOperationId(operationId), isTrue);
+        cubit.setBody('charge issue');
 
         await cubit.submit();
         expect(cubit.state.phase, SupportPhase.error);
 
-        cubit.retryFromError();
-        repo.failWith = null;
-        await cubit.submit();
-        expect(cubit.state.phase, SupportPhase.success);
-
-        expect(cubit.state.operationId, operationId);
-        expect(repo.drafts, hasLength(2));
+        await cubit.retryFromError();
+        expect(cubit.state.phase, SupportPhase.inputting);
         expect(
-          repo.drafts.map((draft) => draft.operationId),
-          everyElement(operationId),
-          reason: 'the retry must reuse the first attempt Idempotency-Key',
+          repo.drafts,
+          hasLength(1),
+          reason: 'a 401 is never re-POSTed by the Retry CTA',
         );
         cubit.close();
       },
     );
+
+    test('operation id survives submit → error → retry → submit', () async {
+      final repo = _RecordingRepo(failWith: SupportFailure.network);
+      final cubit = SupportCubit(repo);
+      cubit.setCategory(SupportCategory.payment);
+      cubit.setBody('charged twice for one delivery');
+      final operationId = cubit.state.operationId;
+      expect(isOperationId(operationId), isTrue);
+
+      await cubit.submit();
+      expect(cubit.state.phase, SupportPhase.error);
+
+      repo.failWith = null;
+      await cubit.retryFromError();
+      expect(cubit.state.phase, SupportPhase.success);
+
+      expect(cubit.state.operationId, operationId);
+      expect(repo.drafts, hasLength(2));
+      expect(
+        repo.drafts.map((draft) => draft.operationId),
+        everyElement(operationId),
+        reason: 'the retry must reuse the first attempt Idempotency-Key',
+      );
+      cubit.close();
+    });
 
     test(
       'submit ignores reentrant taps and does not emit after close',

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/account_status.dart';
 import '../domain/account_status_repository.dart';
 
@@ -30,20 +31,17 @@ class DioAccountStatusRepository implements AccountStatusRepository {
         reasonCode: code,
       );
     } on DioException catch (e) {
-      throw AccountStatusRepositoryException(_map(e));
+      final AppFailure failure = AppFailure.of(e);
+      throw AccountStatusRepositoryException(_map(failure), null, failure);
     }
   }
 
-  AccountStatusFailure _map(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      return AccountStatusFailure.network;
-    }
-    if (e.response?.statusCode == 401) {
-      return AccountStatusFailure.unauthorized;
-    }
-    return AccountStatusFailure.unknown;
-  }
+  static AccountStatusFailure _map(AppFailure failure) => switch (failure.kind) {
+    AppFailureKind.network ||
+    AppFailureKind.timeout => AccountStatusFailure.network,
+    AppFailureKind.unauthorized => AccountStatusFailure.unauthorized,
+    AppFailureKind.forbidden => AccountStatusFailure.forbidden,
+    AppFailureKind.server => AccountStatusFailure.serverError,
+    _ => AccountStatusFailure.unknown,
+  };
 }

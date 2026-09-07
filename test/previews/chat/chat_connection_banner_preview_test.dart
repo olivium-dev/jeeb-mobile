@@ -19,6 +19,8 @@ void main() {
       'Reconnecting + outbox': chatConnectionBannerReconnecting,
       'Offline + full outbox': chatConnectionBannerOfflineFullOutbox,
       'Offline + one pending': chatConnectionBannerOfflineOnePending,
+      'Disconnected + reconnect CTA':
+          chatConnectionBannerDisconnectedReconnect,
     },
     expectedText: const <String, String>{
       'Connected': 'Connected',
@@ -27,10 +29,38 @@ void main() {
       'Reconnecting + outbox': '3 pending messages',
       'Offline + full outbox': '12 pending messages',
       'Offline + one pending': '1 pending message',
+      'Disconnected + reconnect CTA': 'Reconnect',
     },
   );
 
   group('ChatConnectionBanner preview specifics', () {
+    // EP-11: the strip is addressable and announces itself.
+    testWidgets('the strip carries its identifier and a reconnect CTA', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, chatConnectionBannerDisconnectedReconnect);
+
+      expect(
+        find.bySemanticsIdentifier('chat_connection_banner'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('chat_connection_reconnect'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a healthy strip offers no Reconnect the user cannot win', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, chatConnectionBannerConnected);
+
+      expect(
+        find.bySemanticsIdentifier('chat_connection_reconnect'),
+        findsNothing,
+      );
+    });
+
     testWidgets('the outbox badge is absent while the outbox is empty', (
       WidgetTester tester,
     ) async {

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/order_summary.dart';
 import '../domain/order_summary_repository.dart';
@@ -37,25 +38,33 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
         deliveryId; // mock convention: deliveryId == accepted-request-id.
     final jeeberId = _str(delivery['jeeberId'] ?? delivery['jeeber_id']);
 
-    final request = await _tryFetch('/v1/requests/$requestId');
-    final acceptedEta = await _tryAcceptedOfferEta(requestId);
-    final jeeber =
-        jeeberId == null ? null : await _tryFetch('/v1/users/$jeeberId');
+    final requestRead = await _tryFetch('/v1/requests/$requestId');
+    final request = requestRead.data;
+    final offersRead = await _tryAcceptedOfferEta(requestId);
+    final jeeberRead = jeeberId == null
+        ? const (data: null, failed: false)
+        : await _tryFetch('/v1/users/$jeeberId');
+    final jeeber = jeeberRead.data;
 
-    final conversationId = _str(
-          delivery['conversationId'] ??
-              delivery['conversation_id'] ??
-              request?['conversationId'] ??
-              request?['conversation_id'],
-        ) ??
-        '';
+    // A failed secondary read is not an absent field: the screen says so.
+    final partial = <OrderSummarySection>{
+      if (requestRead.failed) OrderSummarySection.request,
+      if (offersRead.failed) OrderSummarySection.offers,
+      if (jeeberRead.failed) OrderSummarySection.jeeber,
+    };
 
     return OrderSummary(
       deliveryId: _str(delivery['id']) ?? deliveryId,
       requestId: requestId,
-      conversationId: conversationId,
-      price: _money(delivery['amount'] ?? request?['amount']) ?? 0.0,
-      currency: _currency(delivery['amount'] ?? request?['amount']) ?? 'USD',
+      conversationId: _str(
+        delivery['conversationId'] ??
+            delivery['conversation_id'] ??
+            request?['conversationId'] ??
+            request?['conversation_id'],
+      ),
+      partialSections: partial,
+      price: _money(delivery['amount'] ?? request?['amount']),
+      currency: _currency(delivery['amount'] ?? request?['amount']),
       jeeberName: _str(
             delivery['jeeberName'] ??
                 delivery['jeeber_name'] ??
@@ -74,7 +83,7 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
           '',
       jeeberRating: _toDouble(jeeber?['rating']),
       jeeberRatingCount: _toInt(jeeber?['ratingCount'] ?? jeeber?['rating_count']),
-      etaMinutes: acceptedEta ??
+      etaMinutes: offersRead.data ??
           _toInt(delivery['etaMinutes'] ?? request?['etaMinutes']),
       itemSummary: _str(delivery['title'] ?? request?['title']),
       jeeberAvatarUrl:
@@ -82,18 +91,20 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     );
   }
 
-  Future<Map<String, dynamic>?> _tryFetch(String path) async {
+  Future<({Map<String, dynamic>? data, bool failed})> _tryFetch(
+    String path,
+  ) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(path);
-      return res.data;
-    } on DioException {
-      return null;
+      return (data: res.data, failed: false);
     } catch (_) {
-      return null;
+      return (data: null, failed: true);
     }
   }
 
-  Future<int?> _tryAcceptedOfferEta(String requestId) async {
+  Future<({int? data, bool failed})> _tryAcceptedOfferEta(
+    String requestId,
+  ) async {
     try {
       final res = await _dio.get<dynamic>(
         '/v1/offers',
@@ -106,21 +117,24 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
       } else if (data is Map<String, dynamic>) {
         items = (data['items'] as List?) ?? (data['offers'] as List?) ?? const [];
       } else {
-        return null;
+        return (data: null, failed: false);
       }
       final maps = items.whereType<Map<String, dynamic>>();
       final accepted = maps.where((o) => _str(o['status']) == 'accepted');
       final chosen = accepted.isNotEmpty ? accepted.first : null;
-      return _toInt(chosen?['etaMinutes'] ?? chosen?['eta_minutes']);
-    } on DioException {
-      return null;
+      return (
+        data: _toInt(chosen?['etaMinutes'] ?? chosen?['eta_minutes']),
+        failed: false,
+      );
     } catch (_) {
-      return null;
+      return (data: null, failed: true);
     }
   }
 
+  /// Only a real String: `raw?.toString()` rendered a decoded List or Map
+  /// literal straight onto the screen.
   static String? _str(Object? raw) {
-    if (raw is! String) return raw?.toString();
+    if (raw is! String) return null;
     final trimmed = raw.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
@@ -147,15 +161,19 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
   static int? _toInt(Object? raw) => raw is num ? raw.toInt() : null;
 
   Never _rethrowDelivery(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      throw const OrderSummaryRepositoryException(OrderSummaryFailure.network);
-    }
-    if (e.response?.statusCode == 404) {
-      throw const OrderSummaryRepositoryException(OrderSummaryFailure.notFound);
-    }
-    throw const OrderSummaryRepositoryException(OrderSummaryFailure.unknown);
+    throw OrderSummaryRepositoryException(
+      switch (AppFailure.of(e).kind) {
+        AppFailureKind.network ||
+        AppFailureKind.timeout =>
+          OrderSummaryFailure.network,
+        AppFailureKind.notFound ||
+        AppFailureKind.gone =>
+          OrderSummaryFailure.notFound,
+        AppFailureKind.unauthorized ||
+        AppFailureKind.forbidden =>
+          OrderSummaryFailure.forbidden,
+        _ => OrderSummaryFailure.unknown,
+      },
+    );
   }
 }

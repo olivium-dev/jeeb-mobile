@@ -40,8 +40,8 @@ Widget _harness(LiveTrackingCubit cubit) => MaterialApp(
 
 void main() {
   testWidgets(
-      '404 renders the OMDS error state with a distinct "Delivery not found" '
-      'heading and a retry — no crash, no "Server error"', (tester) async {
+      '404 renders the error rung with a distinct "not found" heading and an '
+      'EXIT — never a Retry that cannot win', (tester) async {
     final repo = _MockRepo();
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.notFound));
@@ -57,13 +57,31 @@ void main() {
     // MIDNIGHT error state (JeebEmptyState at `error` status), keyed for QA.
     expect(find.byType(JeebEmptyState), findsOneWidget);
     expect(
-      tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+      tester
+          .widget<JeebEmptyState>(find.byType(JeebEmptyState))
+          .effectiveStatus,
       JeebEmptyStateStatus.error,
     );
+    // The frozen key stays: `mb1` and QA both pin it.
     expect(find.byKey(const Key('live-tracking-error-state')), findsOneWidget);
-    expect(find.text('Delivery not found'), findsOneWidget);
-    // Retry affordance present; generic "Server error" absent.
-    expect(find.text('Refresh now'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('tracking_error_state'),
+      findsOneWidget,
+    );
+
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(JeebEmptyState)),
+    );
+    expect(find.text(l10n.errorNotFoundTitle), findsOneWidget);
+    // Refetching a delivery that is not there cannot succeed: exit, not Retry.
+    expect(
+      find.bySemanticsIdentifier('tracking_error_state_exit_cta'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('tracking_error_state_retry_cta'),
+      findsNothing,
+    );
     expect(find.textContaining('Server error'), findsNothing);
 
     await cubit.close();

@@ -13,9 +13,10 @@ import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/offer_accept_cubit.dart';
 import '../../application/offer_accept_state.dart';
-import '../../data/fake_offers_repository.dart';
+import '../../data/unavailable_offers_repository.dart';
 import '../../domain/offer.dart';
 import '../../domain/offers_repository.dart';
+import '../offers_failure_copy.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
@@ -48,7 +49,7 @@ class OfferAcceptSheet extends StatelessWidget {
     final explicit = repository;
     if (explicit != null) return explicit;
     if (sl.isRegistered<OffersRepository>()) return sl<OffersRepository>();
-    return FakeOffersRepository();
+    return UnavailableOffersRepository();
   }
 
   static Future<void> show(
@@ -122,8 +123,8 @@ class _OfferAcceptView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final feeFormatted = MoneyFormat.format(
       offer.fee,
       currency: offer.currency,
@@ -214,7 +215,12 @@ class _OfferAcceptView extends StatelessWidget {
                               const SizedBox(width: Spacing.small),
                               Expanded(
                                 child: Text(
-                                  _failureCopy(l10n, state.error!),
+                                  offersFailureCopy(
+                                    l10n,
+                                    state.error,
+                                    phase: OffersErrorPhase.accept,
+                                    appFailure: state.appFailure,
+                                  ),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: theme.colorScheme.onErrorContainer,
                                   ),
@@ -231,7 +237,7 @@ class _OfferAcceptView extends StatelessWidget {
                       container: true,
                       button: true,
                       label: l10n.chatOfferAccept,
-                      onTap: state.isSubmitting
+                      onTap: !state.canConfirm
                           ? null
                           : () => context.read<OfferAcceptCubit>().confirm(),
                       // The accent fill is board-legitimate here: this sheet
@@ -243,6 +249,7 @@ class _OfferAcceptView extends StatelessWidget {
                               ? l10n.chatOfferAccepting
                               : l10n.chatOfferAccept,
                           isLoading: state.isSubmitting,
+                          isEnabled: state.canConfirm,
                           onTap: () =>
                               context.read<OfferAcceptCubit>().confirm(),
                         ),
@@ -274,22 +281,6 @@ class _OfferAcceptView extends StatelessWidget {
       },
     );
   }
-
-  static String _failureCopy(AppLocalizations l10n, OffersFailure failure) {
-    switch (failure) {
-      case OffersFailure.network:
-        return l10n.offersErrorNetwork;
-      case OffersFailure.requestNotOpen:
-        return l10n.offersErrorRequestNotOpen;
-      case OffersFailure.offerNotPending:
-        return l10n.offersErrorOfferNotPending;
-      case OffersFailure.jeeberAtCapacity:
-        return l10n.offersErrorJeeberAtCapacity;
-      case OffersFailure.rateLimited:
-      case OffersFailure.unknown:
-        return l10n.offersErrorGeneric;
-    }
-  }
 }
 
 class _SheetDragHandle extends StatelessWidget {
@@ -299,7 +290,8 @@ class _SheetDragHandle extends StatelessWidget {
   Widget build(BuildContext context) {
     // Inert chrome takes the .22 glass rung, never the accent — the shared
     // grabber decision (settings sign-out sheet, confirm-delivery sheet).
-    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     return Center(
       child: Container(
@@ -327,8 +319,7 @@ const Size _offerAcceptSheetBox = Size(390, 400);
 const Size _offerAcceptSheetErrorBox = Size(390, 500);
 
 /// A repository with no transport at all.
-/// The sheet resolves its repository as "the explicit one, else the
-/// DI-registered `OffersRepository`, else a `FakeOffersRepository`". Passing
+/// Passed explicitly by previews; missing production DI remains unavailable.
 class _OfferAcceptSheetCannedRepository implements OffersRepository {
   const _OfferAcceptSheetCannedRepository({this.failure});
 
@@ -364,20 +355,19 @@ Offer _offerAcceptSheetOffer({
   String jeeberName = 'Kamal Hajj',
   double fee = 6.0,
   String currency = 'USD',
-}) =>
-    Offer(
-      id: 'offer-001',
-      jeeberId: 'user-jeeber-002',
-      jeeberName: jeeberName,
-      fee: fee,
-      currency: currency,
-      etaMinutes: 20,
-      vehicle: JeeberVehicle.scooter,
-      rating: 4.8,
-      ratingCount: 42,
-      // Fixed, never `DateTime.now()`: a preview that changes between two
-      submittedAt: DateTime(2026, 6, 18, 9, 12),
-    );
+}) => Offer(
+  id: 'offer-001',
+  jeeberId: 'user-jeeber-002',
+  jeeberName: jeeberName,
+  fee: fee,
+  currency: currency,
+  etaMinutes: 20,
+  vehicle: JeeberVehicle.scooter,
+  rating: 4.8,
+  ratingCount: 42,
+  // Fixed, never `DateTime.now()`: a preview that changes between two
+  submittedAt: DateTime(2026, 6, 18, 9, 12),
+);
 
 /// Mounts the sheet the way `showModalBottomSheet` presents it — bottom-anchored
 /// content on the surface colour — without needing a [Navigator] to push onto.
@@ -385,19 +375,18 @@ Widget _offerAcceptSheetHosted(
   Offer offer, {
   OfferAcceptState? initialState,
   OffersFailure? failure,
-}) =>
-    Align(
-      alignment: Alignment.bottomCenter,
-      child: OfferAcceptSheet(
-        offer: offer,
-        requestId: 'req-client-001-offers',
-        repository: _OfferAcceptSheetCannedRepository(failure: failure),
-        initialState: initialState,
-        // No-ops on purpose. Production pops the sheet and navigates to
-        onConfirmed: (OfferAcceptResult _) {},
-        onCancelled: () {},
-      ),
-    );
+}) => Align(
+  alignment: Alignment.bottomCenter,
+  child: OfferAcceptSheet(
+    offer: offer,
+    requestId: 'req-client-001-offers',
+    repository: _OfferAcceptSheetCannedRepository(failure: failure),
+    initialState: initialState,
+    // No-ops on purpose. Production pops the sheet and navigates to
+    onConfirmed: (OfferAcceptResult _) {},
+    onCancelled: () {},
+  ),
+);
 
 /// The default reading: a real Jeeber name, a small USD fee, nothing in flight.
 /// The title must be a **question** — "Accept Kamal Hajj's offer?" — and it is
@@ -417,11 +406,9 @@ Widget offerAcceptSheetIdle() =>
   size: _offerAcceptSheetBox,
 )
 Widget offerAcceptSheetSubmitting() => _offerAcceptSheetHosted(
-      _offerAcceptSheetOffer(),
-      initialState: const OfferAcceptState(
-        status: OfferAcceptStatus.submitting,
-      ),
-    );
+  _offerAcceptSheetOffer(),
+  initialState: const OfferAcceptState(status: OfferAcceptStatus.submitting),
+);
 
 /// sprint-009 scenario #7: the accept race the customer actually loses.
 /// Another accept closed the auction first, so the gateway answers 409
@@ -431,13 +418,13 @@ Widget offerAcceptSheetSubmitting() => _offerAcceptSheetHosted(
   size: _offerAcceptSheetErrorBox,
 )
 Widget offerAcceptSheetFailedRequestClosed() => _offerAcceptSheetHosted(
-      _offerAcceptSheetOffer(),
-      failure: OffersFailure.requestNotOpen,
-      initialState: const OfferAcceptState(
-        status: OfferAcceptStatus.failed,
-        error: OffersFailure.requestNotOpen,
-      ),
-    );
+  _offerAcceptSheetOffer(),
+  failure: OffersFailure.requestNotOpen,
+  initialState: const OfferAcceptState(
+    status: OfferAcceptStatus.failed,
+    error: OffersFailure.requestNotOpen,
+  ),
+);
 
 /// BR-10 `too-many-active-deliveries`, and the longest error copy the sheet can
 /// show.
@@ -447,13 +434,13 @@ Widget offerAcceptSheetFailedRequestClosed() => _offerAcceptSheetHosted(
   size: _offerAcceptSheetErrorBox,
 )
 Widget offerAcceptSheetFailedAtCapacity() => _offerAcceptSheetHosted(
-      _offerAcceptSheetOffer(),
-      failure: OffersFailure.jeeberAtCapacity,
-      initialState: const OfferAcceptState(
-        status: OfferAcceptStatus.failed,
-        error: OffersFailure.jeeberAtCapacity,
-      ),
-    );
+  _offerAcceptSheetOffer(),
+  failure: OffersFailure.jeeberAtCapacity,
+  initialState: const OfferAcceptState(
+    status: OfferAcceptStatus.failed,
+    error: OffersFailure.jeeberAtCapacity,
+  ),
+);
 
 /// W6/SW-08 regression guard: a phone-only Jeeber has no real name, only a
 /// synthetic handle (`jeeb-<hash>`).
@@ -463,8 +450,8 @@ Widget offerAcceptSheetFailedAtCapacity() => _offerAcceptSheetHosted(
   size: _offerAcceptSheetBox,
 )
 Widget offerAcceptSheetSyntheticHandle() => _offerAcceptSheetHosted(
-      _offerAcceptSheetOffer(jeeberName: 'jeeb-e1a35ea8a520'),
-    );
+  _offerAcceptSheetOffer(jeeberName: 'jeeb-e1a35ea8a520'),
+);
 
 /// The content ceiling: the longest plausible name against the longest plausible
 /// fee.
@@ -474,9 +461,9 @@ Widget offerAcceptSheetSyntheticHandle() => _offerAcceptSheetHosted(
   size: _offerAcceptSheetErrorBox,
 )
 Widget offerAcceptSheetLongContent() => _offerAcceptSheetHosted(
-      _offerAcceptSheetOffer(
-        jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
-        fee: 4500000,
-        currency: 'LBP',
-      ),
-    );
+  _offerAcceptSheetOffer(
+    jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
+    fee: 4500000,
+    currency: 'LBP',
+  ),
+);

@@ -56,8 +56,7 @@ class _StaticRepository implements ReviewsRepository {
     required String jeeberId,
     int page = 1,
     int pageSize = 20,
-  }) async =>
-      this.page;
+  }) async => this.page;
 
   @override
   Future<void> reportReview(String reviewId) async {}
@@ -73,8 +72,7 @@ class _FailingRepository implements ReviewsRepository {
     required String jeeberId,
     int page = 1,
     int pageSize = 20,
-  }) async =>
-      throw ReviewsRepositoryException(failure);
+  }) async => throw ReviewsRepositoryException(failure);
 
   @override
   Future<void> reportReview(String reviewId) async {}
@@ -118,15 +116,14 @@ ReviewsPage _loadedPage({
   bool coldStart = false,
   int reviewCount = 12,
   double? averageScore = 4.6,
-}) =>
-    ReviewsPage(
-      reviews: const <ReviewItem>[_review],
-      page: 1,
-      totalPages: 1,
-      coldStart: coldStart,
-      reviewCount: reviewCount,
-      averageScore: averageScore,
-    );
+}) => ReviewsPage(
+  reviews: const <ReviewItem>[_review],
+  page: 1,
+  totalPages: 1,
+  coldStart: coldStart,
+  reviewCount: reviewCount,
+  averageScore: averageScore,
+);
 
 Color _iconColor(WidgetTester tester, Finder finder) =>
     tester.widget<Icon>(finder).color!;
@@ -159,12 +156,14 @@ void main() {
   }
 
   group('field', () {
-    testWidgets('content variant, glow topEnd, wash topStart, decor still',
-        (tester) async {
+    testWidgets('content variant, glow topEnd, wash topStart, decor still', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
-      final JeebMidnightField field =
-          tester.widget<JeebMidnightField>(find.byType(JeebMidnightField));
+      final JeebMidnightField field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
       expect(field.variant, JeebFieldVariant.content);
       // Glow (orange) and wash (periwinkle) are separate layers; the M3 Tier-1
       // pairing for an R21-derived screen is topEnd + topStart.
@@ -188,8 +187,9 @@ void main() {
   });
 
   group('row ink — the orange-budget defect', () {
-    testWidgets('the five row stars are amber, never colorScheme.primary',
-        (tester) async {
+    testWidgets('the five row stars are amber, never colorScheme.primary', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
       final Finder stars = find.descendant(
@@ -209,16 +209,18 @@ void main() {
       }
     });
 
-    testWidgets('the reviewer name is onSurface, never primary',
-        (tester) async {
+    testWidgets('the reviewer name is onSurface, never primary', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
       expect(_styleOf(tester, 'Ahmad').color, scheme.onSurface);
       expect(_styleOf(tester, 'Ahmad').color, isNot(scheme.primary));
     });
 
-    testWidgets('the relative-time meta reads onSurfaceVariant',
-        (tester) async {
+    testWidgets('the relative-time meta reads onSurfaceVariant', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
       final Text meta = tester.widget<Text>(
@@ -248,8 +250,9 @@ void main() {
   });
 
   group('aggregate header', () {
-    testWidgets('the score reads onSurface and its star is amber',
-        (tester) async {
+    testWidgets('the score reads onSurface and its star is amber', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
       final Text score = tester.widget<Text>(
@@ -262,12 +265,16 @@ void main() {
       expect(score.style!.color, isNot(scheme.primary));
 
       // The aggregate star is the first star on the screen (above the rows).
-      final Color aggregateStar = _iconColor(tester, find.byIcon(Icons.star).first);
+      final Color aggregateStar = _iconColor(
+        tester,
+        find.byIcon(Icons.star).first,
+      );
       expect(aggregateStar, semantic.amber);
     });
 
-    testWidgets('the halo is a RadialGradient, not a BoxShadow',
-        (tester) async {
+    testWidgets('the halo is a RadialGradient, not a BoxShadow', (
+      tester,
+    ) async {
       await pumpLoaded(tester);
 
       final Iterable<BoxDecoration> halos = tester
@@ -276,7 +283,8 @@ void main() {
           .whereType<BoxDecoration>()
           .where((d) => d.gradient is RadialGradient);
       final BoxDecoration halo = halos.firstWhere(
-        (d) => (d.gradient! as RadialGradient).colors.first.a > 0 &&
+        (d) =>
+            (d.gradient! as RadialGradient).colors.first.a > 0 &&
             (d.gradient! as RadialGradient).colors.first.r == semantic.amber.r,
       );
       final RadialGradient gradient = halo.gradient! as RadialGradient;
@@ -286,8 +294,9 @@ void main() {
       expect(halo.boxShadow, isNull);
     });
 
-    testWidgets('cold-start (<5) hides the score and shows the note',
-        (tester) async {
+    testWidgets('cold-start (<5) hides the score and shows the note', (
+      tester,
+    ) async {
       await pumpLoaded(tester, coldStart: true, reviewCount: 2);
 
       expect(find.bySemanticsIdentifier('reviews_new_badge'), findsOneWidget);
@@ -300,8 +309,9 @@ void main() {
   });
 
   group('states — all four on the JeebEmptyState family', () {
-    testWidgets('empty mounts the parcel variant on reviews_empty',
-        (tester) async {
+    testWidgets('empty mounts the parcel variant on reviews_empty', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           const _StaticRepository(
@@ -311,47 +321,55 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.identifier, 'reviews_empty');
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.status, JeebEmptyStateStatus.empty);
     });
 
-    testWidgets('first load mounts the loading twin on reviews_loading',
-        (tester) async {
+    testWidgets('first load mounts the loading twin on reviews_loading', (
+      tester,
+    ) async {
       await tester.pumpWidget(_harness(_PendingRepository()));
       await tester.pump();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.identifier, 'reviews_loading');
       expect(state.variant, JeebEmptyStateVariant.parcel);
       expect(state.status, JeebEmptyStateStatus.loading);
     });
 
-    testWidgets('error mounts the error twin and keeps the retry node',
-        (tester) async {
+    testWidgets('error mounts the error twin and keeps the retry node', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(const _FailingRepository(ReviewsFailure.network)),
       );
       await tester.pumpAndSettle();
 
-      final JeebEmptyState state =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState state = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(state.identifier, 'reviews_error');
       expect(state.variant, JeebEmptyStateVariant.parcel);
-      expect(state.status, JeebEmptyStateStatus.error);
+      expect(state.effectiveStatus, JeebEmptyStateStatus.error);
+      expect(state.reason, JeebEmptyStateReason.failed);
 
-      final JeebCtaButton retry =
-          tester.widget<JeebCtaButton>(find.byType(JeebCtaButton));
+      final JeebCtaButton retry = tester.widget<JeebCtaButton>(
+        find.byType(JeebCtaButton),
+      );
       expect(retry.identifier, 'reviews_retry_cta');
-      // Navy/periwinkle retry — a read-only failure does not spend accent.
-      expect(retry.variant, JeebCtaVariant.primary);
+      // The kit's failure block draws Retry as the glass pill.
+      expect(retry.variant, JeebCtaVariant.outline);
     });
 
-    testWidgets('the in-list page footer draws no grey OMDS shimmer',
-        (tester) async {
+    testWidgets('the in-list page footer draws no grey OMDS shimmer', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           const _StaticRepository(
@@ -434,8 +452,7 @@ void main() {
               data: MediaQuery.of(context).copyWith(disableAnimations: true),
               child: child!,
             ),
-            localizationsDelegates:
-                const <LocalizationsDelegate<Object?>>[
+            localizationsDelegates: const <LocalizationsDelegate<Object?>>[
               SyncAppLocalizationsDelegate(),
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
@@ -451,8 +468,9 @@ void main() {
     String location() =>
         router.routerDelegate.currentConfiguration.uri.toString();
 
-    testWidgets('query-param twin — the LIVE inbound from the jeeber profile',
-        (tester) async {
+    testWidgets('query-param twin — the LIVE inbound from the jeeber profile', (
+      tester,
+    ) async {
       await pumpRouter(tester);
       router.goNamed(
         'reviews-list',
@@ -465,8 +483,9 @@ void main() {
       expect(find.bySemanticsIdentifier('reviews_root'), findsOneWidget);
     });
 
-    testWidgets('path-param twin — the one Maestro jm-068 pins',
-        (tester) async {
+    testWidgets('path-param twin — the one Maestro jm-068 pins', (
+      tester,
+    ) async {
       await pumpRouter(tester);
       router.goNamed(
         'reviews-list-by-id',

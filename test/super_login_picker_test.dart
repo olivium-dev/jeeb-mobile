@@ -246,6 +246,16 @@ void main() {
       await tester.pump(); // resolve the (throwing) future
 
       expect(find.byKey(const Key('superLoginPlus.pickerError')), findsOneWidget);
+      // A5: the block is the kit failure primitive now; the frozen key and the
+      // semantics id both survive the swap.
+      expect(
+        find.bySemanticsIdentifier('super_login_plus_picker_error'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('super_login_plus_picker_retry_cta'),
+        findsOneWidget,
+      );
       expect(
         find.text('Could not load demo users. Check your connection.'),
         findsOneWidget,

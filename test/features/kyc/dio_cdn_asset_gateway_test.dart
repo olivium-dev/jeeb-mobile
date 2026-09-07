@@ -35,12 +35,11 @@ void main() {
 
       expect(broker.requests.single.method, 'POST');
       expect(broker.requests.single.path, '/api/cdn/assets');
-      expect(
-        isOperationId(
-          broker.requests.single.headers['Idempotency-Key'] as String,
-        ),
-        isTrue,
-      );
+      // NET-13: the key is scoped `<operationId>:<slot>` so a retried
+      // multi-slot submit replays the same key per slot.
+      final key = broker.requests.single.headers['Idempotency-Key'] as String;
+      expect(key.split(':').last, 'id_document_front');
+      expect(isOperationId(key.split(':').first), isTrue);
       final body = broker.requests.single.data! as Map<String, dynamic>;
       expect(body['slot'], 'id_document_front');
       expect(body['content_type'], 'image/jpeg');
@@ -65,7 +64,14 @@ void main() {
           .toList();
       expect(keys, hasLength(2));
       expect(keys.toSet(), hasLength(2));
-      expect(keys, everyElement(predicate<String>(isOperationId)));
+      expect(
+        keys,
+        everyElement(
+          predicate<String>((k) =>
+              isOperationId(k.split(':').first) &&
+              k.split(':').last == 'proof_of_delivery'),
+        ),
+      );
     });
 
     test('surfaces a broker rejection as CdnUploadException', () async {

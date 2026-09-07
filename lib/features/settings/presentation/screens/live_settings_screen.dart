@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/role/user_role.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
-import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -91,7 +92,12 @@ class _LiveSettingsScreenState extends State<LiveSettingsScreen> {
           return const _LiveSettingsChrome(child: _LiveSettingsLoading());
         }
         if (snapshot.hasError) {
-          return _LiveSettingsChrome(child: _LiveSettingsError(onRetry: _retry));
+          return _LiveSettingsChrome(
+            child: _LiveSettingsError(
+              failure: AppFailure.of(snapshot.error!),
+              onRetry: _retry,
+            ),
+          );
         }
         return _LoadedLiveSettings(snapshot: snapshot.requireData);
       },
@@ -163,7 +169,11 @@ class _LiveSettingsLoading extends StatelessWidget {
 /// only in-UI sign-out for an un-suspended account, so a failed read used to
 /// trap the session until the app's data was cleared from outside the app.
 class _LiveSettingsError extends StatelessWidget {
-  const _LiveSettingsError({required this.onRetry});
+  const _LiveSettingsError({required this.failure, required this.onRetry});
+
+  /// NET-09: the copy follows the KIND. It used to say "check your connection"
+  /// for a 500, a 403 and a parse error alike.
+  final AppFailure failure;
 
   final VoidCallback onRetry;
 
@@ -171,44 +181,29 @@ class _LiveSettingsError extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    return JeebEmptyState(
+    return JeebFailureBlock(
+      failure: failure,
       variant: JeebEmptyStateVariant.radar,
-      status: JeebEmptyStateStatus.error,
-      medallions: const <JeebEmptyMedallion>[],
       identifier: LiveSettingsScreen.errorIdentifier,
-      headline: l10n.settingsNetworkError,
-      action: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Semantics(
-            identifier: LiveSettingsScreen.retryIdentifier,
-            button: true,
-            container: true,
-            child: JeebCtaButton.outline(
-              label: l10n.kycRetry,
-              expand: false,
-              onTap: onRetry,
-            ),
+      retryIdentifier: LiveSettingsScreen.retryIdentifier,
+      onRetry: onRetry,
+      // The exit is the SECONDARY slot so the frozen sign-out identifier is
+      // present on every kind — including the terminal ones with no Retry.
+      secondaryAction: Semantics(
+        identifier: LiveSettingsScreen.signOutIdentifier,
+        button: true,
+        container: true,
+        child: TextButton(
+          key: const Key('live-settings-error-sign-out'),
+          // MIDNIGHT `primary` IS #D73B00, so the default foreground would
+          // paint an orange act R22 does not draw.
+          style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
+          onPressed: () => LogoutDeleteConfirmSheet.show(
+            context,
+            mode: LogoutDeleteMode.logout,
           ),
-          Semantics(
-            identifier: LiveSettingsScreen.signOutIdentifier,
-            button: true,
-            container: true,
-            child: TextButton(
-              key: const Key('live-settings-error-sign-out'),
-              // MIDNIGHT `primary` IS #D73B00, so the default foreground would
-              // paint an orange act R22 does not draw.
-              style: TextButton.styleFrom(
-                foregroundColor: colorScheme.onSurface,
-              ),
-              onPressed: () => LogoutDeleteConfirmSheet.show(
-                context,
-                mode: LogoutDeleteMode.logout,
-              ),
-              child: Text(l10n.appBarSignOut),
-            ),
-          ),
-        ],
+          child: Text(l10n.appBarSignOut),
+        ),
       ),
     );
   }

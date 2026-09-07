@@ -1,9 +1,11 @@
 // Designed states for the chat screen — ONE source of truth, two consumers.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/chat/data/dev_chat_fixture_gateway.dart';
 import '../../../features/chat/domain/chat_gateway.dart';
 import '../../../features/chat/domain/delivery_chat_message.dart';
@@ -12,8 +14,7 @@ import '../../../features/chat/presentation/dev_chat_preview_screen.dart';
 import 'dev_chat_preview_screen_fixtures.dart';
 
 /// Answers one canned thread + phase, with no latency and no inbound stream.
-/// `subscribe` returns `const Stream.empty()` rather than a [StreamController]:
-/// a controller nobody closes outlives the preview, and the fixture has no
+/// `subscribe` is `const Stream.empty()`: a controller nobody closes leaks.
 class SeededChatGateway extends ChatGateway {
   SeededChatGateway({
     required this.phase,
@@ -42,34 +43,8 @@ class SeededChatGateway extends ChatGateway {
       const Stream<ChatEvent>.empty();
 }
 
-/// Gateway whose history read always throws — the b02 cold-load failure.
-/// The COLD read is the only one that reaches the error body:
-/// `ChatCubit.refresh` is non-destructive and keeps a rendered thread, so a
-class FailingChatGateway extends ChatGateway {
-  FailingChatGateway();
-
-  @override
-  Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
-    throw StateError(
-      'fixture: HTTP 500 from GET /v1/conversations/$conversationId/messages',
-    );
-  }
-
-  @override
-  Future<DeliveryChatMessage> send(
-    String conversationId,
-    DeliveryChatMessage message,
-  ) async =>
-      message.copyWith(status: MessageStatus.failed);
-
-  @override
-  Stream<ChatEvent> subscribe(String conversationId) =>
-      const Stream<ChatEvent>.empty();
-}
-
 /// Gateway whose reads never resolve, freezing the screen on
-/// [ChatState.isLoadingHistory] for as long as the host is open.
-/// A [Completer] that is never completed holds no timer and no subscription; it
+/// [ChatState.isLoadingHistory]. An uncompleted [Completer] holds no timer.
 class StalledChatGateway extends ChatGateway {
   StalledChatGateway();
 
@@ -93,9 +68,52 @@ class StalledChatGateway extends ChatGateway {
       const Stream<ChatEvent>.empty();
 }
 
-/// The designed states of `ChatScreen`, as widget builders (the seven Figma
-/// frames, which own their host chrome) plus gateways and canned data (the six
-/// that do not).
+/// Gateway whose FIRST history read succeeds and whose later ones throw — the
+/// only way to reach the WARM failure, which needs rows on screen first (F35).
+class RefreshFailingChatGateway extends ChatGateway {
+  RefreshFailingChatGateway({required this.history});
+
+  final List<DeliveryChatMessage> history;
+  int reads = 0;
+
+  @override
+  Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
+    reads++;
+    if (reads > 1) throw StateError('fixture: HTTP 500 on refresh');
+    return history;
+  }
+
+  @override
+  Future<ConversationPhase> loadPhase(String conversationId) async {
+    if (reads > 1) throw StateError('fixture: HTTP 500 on refresh');
+    return ConversationPhase.accepted;
+  }
+
+  @override
+  Future<DeliveryChatMessage> send(
+    String conversationId,
+    DeliveryChatMessage message,
+  ) async =>
+      message.copyWith(status: MessageStatus.sent);
+
+  @override
+  Stream<ChatEvent> subscribe(String conversationId) =>
+      const Stream<ChatEvent>.empty();
+}
+
+/// Seeded thread whose CDN image read always throws — the F36 degraded tile
+/// with its reload affordance.
+class ImageFailingChatGateway extends SeededChatGateway {
+  ImageFailingChatGateway({required super.phase, super.history});
+
+  @override
+  Future<Uint8List> fetchImageBytes(String objectRef) async {
+    throw StateError('fixture: HTTP 500 from the CDN read proxy');
+  }
+}
+
+/// The designed states of `ChatScreen`: widget builders for the seven Figma
+/// frames, plus gateways and canned data for the six that own no chrome.
 class ChatScreenPreviewFixtures {
   const ChatScreenPreviewFixtures._();
 
@@ -252,6 +270,55 @@ class ChatScreenPreviewFixtures {
           ),
         ],
       );
+
+  /// A rendered thread whose REFRESH fails: the rows stay, a one-shot notice
+  /// says the re-read did not come back (F35).
+  static ChatGateway refreshFailedThread() => RefreshFailingChatGateway(
+        history: <DeliveryChatMessage>[
+          DeliveryChatMessage.text(
+            id: 'fix-refresh-in-1',
+            author: ChatAuthor.them,
+            sentAt: at0941,
+            status: MessageStatus.delivered,
+            text: compactMessage,
+          ),
+        ],
+      );
+
+  /// An OWN message the send could not deliver — the bubble carries the frozen
+  /// failed glyph AND the `chat_detail_message_retry` affordance (OFF-05).
+  static ChatGateway failedOutgoingMessage() => SeededChatGateway(
+        phase: ConversationPhase.accepted,
+        history: <DeliveryChatMessage>[
+          DeliveryChatMessage.text(
+            id: 'fix-failed-out-1',
+            author: ChatAuthor.me,
+            sentAt: at0941,
+            status: MessageStatus.failed,
+            text: 'I am at the gate, take your time.',
+          ),
+        ],
+      );
+
+  /// An inbound image whose bytes never resolve — the tile offers a reload
+  /// instead of a permanent placeholder (F36).
+  static ChatGateway imageLoadFailed() => ImageFailingChatGateway(
+        phase: ConversationPhase.accepted,
+        history: <DeliveryChatMessage>[
+          DeliveryChatMessage.image(
+            id: 'fix-image-in-1',
+            author: ChatAuthor.them,
+            sentAt: at0941,
+            status: MessageStatus.delivered,
+            url: 'chat_attachment/preview.jpg',
+          ),
+        ],
+      );
+
+  /// The transport is DOWN — a NetworkFailure, the one kind allowed to blame
+  /// connectivity — so the thread wears its strip + Reconnect (EP-11 / OFF-30).
+  static ChatGateway connectionOffline() =>
+      FailingChatGateway(error: const NetworkFailure(offline: true));
 
   /// The locked price snapshot the accepted order-chat pins above the thread
   /// (JM-025 AC2). Every optional field is populated on purpose — this is the

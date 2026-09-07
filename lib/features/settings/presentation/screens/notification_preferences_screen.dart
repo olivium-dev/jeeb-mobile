@@ -11,16 +11,25 @@ import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../devtool/catalog/fixtures/notification_preferences_screen_fixtures.dart';
 
 class NotificationPreferencesScreen extends StatelessWidget {
-  const NotificationPreferencesScreen({super.key, this.repository});
+  const NotificationPreferencesScreen({
+    super.key,
+    this.repository,
+    this.cubitFactory,
+  });
 
   final NotificationPrefsRepository? repository;
+
+  /// The provider closes this factory's cubit; the screen still calls load.
+  final NotificationPrefsCubit Function()? cubitFactory;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<NotificationPrefsCubit>(
-      create: (_) => NotificationPrefsCubit(
-        repository: repository ?? sl<NotificationPrefsRepository>(),
-      ),
+      create: (_) =>
+          cubitFactory?.call() ??
+          NotificationPrefsCubit(
+            repository: repository ?? sl<NotificationPrefsRepository>(),
+          ),
       child: const NotificationPrefsScreen(),
     );
   }
@@ -43,12 +52,11 @@ Widget _notificationPreferencesScreenHosted(
   required String caption,
   NotificationPreferencesScreenWindow window =
       NotificationPreferencesScreenWindows.phone,
-}) =>
-    NotificationPreferencesScreenPreviewHost(
-      window: window,
-      caption: caption,
-      screen: NotificationPreferencesScreen(repository: repository),
-    );
+}) => NotificationPreferencesScreenPreviewHost(
+  window: window,
+  caption: caption,
+  screen: NotificationPreferencesScreen(repository: repository),
+);
 
 /// Cold start: `GET /v1/notifications/preferences` is on the wire.
 /// The cubit emits `NotificationPrefsLoading` from `initState`, so this is what

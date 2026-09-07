@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 
@@ -10,14 +11,25 @@ enum RequestActionStatus { idle, accepting, declining }
 class RequestActionEffect extends Equatable {
   const RequestActionEffect({
     required this.requestId,
+    required this.action,
     required this.outcome,
+    this.failure,
   });
 
   final String requestId;
+
+  /// Which act produced this effect. Without it a Retry cannot tell an accept
+  /// from a decline, and a failed decline would be retried as an ACCEPT.
+  final RequestActionStatus action;
+
   final RequestActionOutcome outcome;
 
+  /// The classified accept/decline failure, so the snack can speak the kind
+  /// without widening [RequestActionOutcome] (R3).
+  final AppFailure? failure;
+
   @override
-  List<Object?> get props => [requestId, outcome];
+  List<Object?> get props => [requestId, action, outcome, failure];
 }
 
 class RequestFeedState extends Equatable {
@@ -28,7 +40,8 @@ class RequestFeedState extends Equatable {
     this.expiredIds = const {},
     this.actionStatuses = const {},
     this.lastEffect,
-    this.errorMessageKey,
+    this.error,
+    this.refreshError,
   });
 
   final RequestFeedStatus status;
@@ -43,7 +56,11 @@ class RequestFeedState extends Equatable {
 
   final RequestActionEffect? lastEffect;
 
-  final String? errorMessageKey;
+  /// Cold failure: the read failed with no rows to keep.
+  final AppFailure? error;
+
+  /// Warm failure: rows are on screen and a refresh failed.
+  final AppFailure? refreshError;
 
   RequestActionStatus actionStatusFor(String id) =>
       actionStatuses[id] ?? RequestActionStatus.idle;
@@ -57,7 +74,8 @@ class RequestFeedState extends Equatable {
     Set<String>? expiredIds,
     Map<String, RequestActionStatus>? actionStatuses,
     Object? lastEffect = _sentinel,
-    Object? errorMessageKey = _sentinel,
+    Object? error = _sentinel,
+    Object? refreshError = _sentinel,
   }) {
     return RequestFeedState(
       status: status ?? this.status,
@@ -68,9 +86,10 @@ class RequestFeedState extends Equatable {
       lastEffect: identical(lastEffect, _sentinel)
           ? this.lastEffect
           : lastEffect as RequestActionEffect?,
-      errorMessageKey: identical(errorMessageKey, _sentinel)
-          ? this.errorMessageKey
-          : errorMessageKey as String?,
+      error: identical(error, _sentinel) ? this.error : error as AppFailure?,
+      refreshError: identical(refreshError, _sentinel)
+          ? this.refreshError
+          : refreshError as AppFailure?,
     );
   }
 
@@ -82,7 +101,8 @@ class RequestFeedState extends Equatable {
         expiredIds,
         actionStatuses,
         lastEffect,
-        errorMessageKey,
+        error,
+        refreshError,
       ];
 }
 

@@ -134,10 +134,13 @@ class _PriceText extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final formatted = NumberFormat.simpleCurrency(
-      locale: locale,
-      name: offer.currency,
-    ).format(offer.price);
+    // A fabricated currency would print a real "$" over an unknown unit.
+    final formatted = offer.currencyKnown
+        ? NumberFormat.simpleCurrency(
+            locale: locale,
+            name: offer.currency,
+          ).format(offer.price)
+        : AppLocalizations.of(context).jeeberFeedPriceUnavailable;
     return Semantics(
       identifier: 'pending_offer_${index}_price',
       child: Text(

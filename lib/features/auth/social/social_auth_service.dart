@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/monitoring/crash_reporter.dart';
 import 'social_auth_error.dart';
 import 'social_auth_token.dart';
@@ -148,6 +149,11 @@ class DefaultSocialAuthService implements SocialAuthService {
       return const SocialAuthFailure(SocialAuthError.unknown);
     } on MissingPluginException {
       return const SocialAuthFailure(SocialAuthError.unknown);
+    } catch (e) {
+      // AUTH-01: anything the typed arms miss used to escape into the cubit.
+      CrashReporter.recordError(e, StackTrace.current);
+      Diag.event('social_signin_unhandled', {'provider': provider.wireName});
+      return const SocialAuthFailure(SocialAuthError.unknown);
     }
   }
 
@@ -155,7 +161,9 @@ class DefaultSocialAuthService implements SocialAuthService {
   Future<void> signOut() async {
     try {
       await _google.signOut();
-    } catch (_) {
+    } catch (e) {
+      CrashReporter.recordError(e, StackTrace.current);
+      Diag.event('social_signout_failed');
     }
   }
 
@@ -229,12 +237,9 @@ class DefaultSocialAuthService implements SocialAuthService {
     );
   }
 
-  Future<_SocialCredential?> _signInWithFacebook() async {
-    return const _SocialCredential(
-      socialId: 'facebook',
-      socialToken: 'facebook-oauth-grant',
-    );
-  }
+  // AUTH-04: there is no Facebook SDK wired, so the placeholder credential was
+  // handed to the gateway as if it were real. Null reads upstream as cancelled.
+  Future<_SocialCredential?> _signInWithFacebook() async => null;
 
   Future<SocialAuthResult> _exchangeToken({
     required SocialProvider provider,

@@ -4,20 +4,33 @@ import 'dart:collection';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/formatting/server_time.dart';
+import '../../../core/idempotency/operation_id.dart';
 import '../../../core/lifecycle/polling_source.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
 class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
-  DioRequestFeedRepository({required Dio dio, DateTime Function()? now})
-    : _dio = dio,
-      _now = now ?? DateTime.now;
+  DioRequestFeedRepository({
+    required Dio dio,
+    DateTime Function()? now,
+    OperationIdFactory? newKey,
+  }) : _dio = dio,
+       _now = now ?? DateTime.now,
+       _newKey = newKey ?? newOperationId;
 
   final Dio _dio;
 
   final DateTime Function() _now;
+
+  final OperationIdFactory _newKey;
+
+  /// One key per in-flight act, so a user-driven Retry of accept/decline
+  /// replays the SAME mutation instead of double-firing it.
+  final Map<String, String> _actionKeys = <String, String>{};
 
   static const String _feedPath = '/v1/jeebers/me/feed?status=pending';
 
@@ -37,37 +50,59 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
 
   @override
   Future<List<DeliveryRequest>> refresh() async {
+    // Disposed: the cubit is gone, not a failure.
     if (_disposed) return const <DeliveryRequest>[];
     try {
       final response = await _dio.get<dynamic>(_feedPath);
       return _parseRequests(response.data ?? {});
-    } on DioException {
-      return const <DeliveryRequest>[];
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
     }
   }
 
   @override
   Future<RequestActionOutcome> accept(String id) async {
+    final String slot = 'accept:$id';
     try {
-      await _dio.post<void>('/v1/delivery/requests/$id/accept');
+      await _dio.post<void>(
+        '/v1/delivery/requests/$id/accept',
+        options: _idempotent(slot),
+      );
+      _actionKeys.remove(slot);
       return RequestActionOutcome.accepted;
     } on DioException catch (e) {
       final status = e.response?.statusCode;
-      if (status == 409) return RequestActionOutcome.alreadyTaken;
-      if (status == 410) return RequestActionOutcome.expired;
-      return RequestActionOutcome.networkError;
+      if (status == 409 || status == 410) {
+        _actionKeys.remove(slot);
+        return status == 409
+            ? RequestActionOutcome.alreadyTaken
+            : RequestActionOutcome.expired;
+      }
+      // The key survives: the next Retry must be the same mutation.
+      throw AppFailure.of(e);
     }
   }
 
   @override
   Future<RequestActionOutcome> decline(String id) async {
+    final String slot = 'decline:$id';
     try {
-      await _dio.post<void>('/v1/delivery/requests/$id/decline');
+      await _dio.post<void>(
+        '/v1/delivery/requests/$id/decline',
+        options: _idempotent(slot),
+      );
+      _actionKeys.remove(slot);
       return RequestActionOutcome.declined;
-    } on DioException {
-      return RequestActionOutcome.networkError;
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
     }
   }
+
+  Options _idempotent(String slot) => Options(
+    headers: <String, dynamic>{
+      'Idempotency-Key': _actionKeys.putIfAbsent(slot, _newKey),
+    },
+  );
 
   @override
   void addPollInterest(Object owner) {
@@ -86,6 +121,7 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     if (_disposed) return;
     _disposed = true;
     _interest.clear();
+    _actionKeys.clear();
     await _requestsCtrl.close();
     await _transportCtrl.close();
   }
@@ -111,14 +147,19 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     final id = (json['requestId'] as String?) ?? (json['id'] as String?);
     if (id == null) return null;
 
+    // UX-21: nothing reads a row's coordinates (only `.label`) and the frozen
+    // envelope makes both nullable — degrade and record, never hide the row.
     final pickup =
-        _parseFeedLocation(json['pickup']) ??
-        _parseLiveLocation(json, 'pickup') ??
-        const RequestLocation(label: '', latitude: 0, longitude: 0);
+        _parseFeedLocation(json['pickup']) ?? _parseLiveLocation(json, 'pickup');
     final dropoff =
         _parseFeedLocation(json['dropoff']) ??
-        _parseLiveLocation(json, 'dropoff') ??
-        const RequestLocation(label: '', latitude: 0, longitude: 0);
+        _parseLiveLocation(json, 'dropoff');
+    if (pickup == null || dropoff == null) {
+      Diag.event('feed.row_location_missing', <String, Object?>{
+        'pickup': pickup != null,
+        'dropoff': dropoff != null,
+      });
+    }
     // `tier` is the slug; `tierId` is a UUID that never parses. Slug must win.
     final tier = _parseTier(
       json['tier'] as String? ?? json['tierId'] as String?,
@@ -131,14 +172,17 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
         : JeeberFeedItemStatus.incoming;
 
     final amount = json['amount'];
-    final earnings =
+    final offerFee = hasOffer ? (myOffer['feeCents'] as num?)?.toDouble() : null;
+    final parsedEarnings =
         (json['potentialEarnings'] as num?)?.toDouble() ??
         _amountValue(amount) ??
-        (hasOffer
-            ? ((myOffer['feeCents'] as num?)?.toDouble() ?? 0.0) / 100.0
-            : 0.0);
-    final currency =
-        (json['currency'] as String?) ?? _amountCurrency(amount) ?? 'USD';
+        (offerFee == null ? null : offerFee / 100.0);
+    final earnings = parsedEarnings ?? 0.0;
+    final parsedCurrency =
+        (json['currency'] as String?) ?? _amountCurrency(amount);
+    if (parsedCurrency == null && parsedEarnings != null) {
+      Diag.event('feed.row_currency_missing', const <String, Object?>{});
+    }
 
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
 
@@ -155,13 +199,15 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     final requestStatus = ServerRequestStatus.normalize(json['status']);
     return DeliveryRequest(
       id: id,
-      pickup: pickup,
-      dropoff: dropoff,
+      pickup: pickup ?? _unknownLocation,
+      dropoff: dropoff ?? _unknownLocation,
       tier: tier,
       estimatedDistanceKm:
           (json['estimatedDistanceKm'] as num?)?.toDouble() ?? 0.0,
       potentialEarnings: earnings,
-      currency: currency,
+      earningsKnown: parsedEarnings != null,
+      currency: parsedCurrency ?? 'USD',
+      currencyKnown: parsedCurrency != null,
       expiresAt: expires,
 
       senderName: json['senderName'] as String?,
@@ -181,6 +227,11 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
           ServerRequestStatus.isOpen(requestStatus),
     );
   }
+
+  /// Label-only placeholder: no consumer reads these coordinates, and the row
+  /// must still reach the jeeber.
+  static const RequestLocation _unknownLocation =
+      RequestLocation(label: '', latitude: 0, longitude: 0);
 
   static DateTime? _parseServerTime(String raw) => ServerTime.parse(raw);
 

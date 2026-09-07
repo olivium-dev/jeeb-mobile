@@ -1,0 +1,42 @@
+{
+  "scenario": "S08",
+  "rules": [
+    {
+      "id": "forbidden",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://problems.jeeb.lb/auth/forbidden\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Role mismatch.\",\"reasonCode\":\"role_mismatch\",\"accountStatus\":\"active\",\"instance\":\"/v1/users/me\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "forbidden",
+    "copyTitle": "errorForbiddenTitle",
+    "copyBody": "errorForbiddenBody",
+    "retryable": false,
+    "reasonCode": "role_mismatch"
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_load_exit_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

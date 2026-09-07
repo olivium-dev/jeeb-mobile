@@ -13,14 +13,19 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/motion/jeeb_motion.dart';
 import '../../../core/accessibility/accessibility.dart';
-import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_filter_button.dart';
 import '../../../core/widgets/jeeb/jeeb_filter_pills.dart';
 import '../../../core/widgets/jeeb/jeeb_mic_hero.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -47,6 +52,16 @@ import 'widgets/client_home_request_hero.dart';
 import 'widgets/client_home_voice_dock.dart';
 import 'widgets/client_request_filter.dart';
 import 'widgets/offer_status_info_sheet.dart';
+
+/// F1: the home reload owns `/requests` + `/deliveries` only, so the greeting's
+/// own failed read has to be re-issued here or it never recovers in place.
+void _retryGreetingIfFailed(BuildContext context) {
+  try {
+    unawaited(context.read<GreetingProfileCubit>().retryIfFailed());
+  } on ProviderNotFoundException {
+    return;
+  }
+}
 
 /// Client home screen — MIDNIGHT R1 (`01-r1-client-home.png`) and its E1 empty
 /// (`27-e1-empty-no-requests.png`), on the hero `JeebMidnightField`.
@@ -364,13 +379,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
   void _showHoldHint() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).homeVoiceHoldToRecord),
-        ),
-      );
+    showJeebSnack(
+      context,
+      message: AppLocalizations.of(context).homeVoiceHoldToRecord,
+      identifier: 'client_home_hold_hint_snack',
+    );
   }
 
   /// Re-checks the mic pre-conditions without leaving a runaway recording: a
@@ -464,8 +477,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     final l10n = AppLocalizations.of(context);
     final error = state.error;
     if (error != null && isTransientVoiceError(error)) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      showOmdsErrorSnackbar(context, message: voiceErrorCopy(l10n, error));
+      showJeebErrorSnack(
+        context,
+        message: voiceErrorCopy(l10n, error),
+        identifier: 'client_home_voice_error_snack',
+      );
       _voice.acknowledgeError();
     }
     _announceVoice(context, l10n, state);
@@ -555,20 +571,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     }
     // The voice door lands on the SAME merged "New request" screen;
     // `resume=1` keeps the just-seeded session instead of starting fresh.
-    GoRouter.maybeOf(context)?.pushNamed(
-      'client-location',
-      queryParameters: const {'resume': '1'},
-    );
+    GoRouter.maybeOf(
+      context,
+    )?.pushNamed('client-location', queryParameters: const {'resume': '1'});
     if (transcript == null || transcript.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).homeVoiceTranscriptEmpty,
-            ),
-          ),
-        );
+      showJeebSnack(
+        context,
+        message: AppLocalizations.of(context).homeVoiceTranscriptEmpty,
+        identifier: 'client_home_transcript_empty_snack',
+      );
     }
     unawaited(_voice.reset());
   }
@@ -669,7 +680,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             _filter.offerStatus == null &&
             _filter.bucket != ClientHomeTab.inProgress &&
             state.pending.isEmpty &&
-            state.replies.isEmpty;
+            state.replies.isEmpty &&
+            state.pendingError == null &&
+            state.repliesError == null;
         return Semantics(
           identifier: 'client_home_root',
           container: true,
@@ -686,24 +699,34 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  OmdsPullToRefresh(
-                    onRefresh: () => context.read<ClientHomeCubit>().refresh(),
-                    child: _ClientHomeBody(
-                      state: state,
-                      filter: _filter,
-                      firstRequest: firstRequest,
-                      onFilterChanged: (filter) =>
-                          setState(() => _filter = filter),
-                      onOpenFilterSheet: () => unawaited(_openFilterSheet()),
-                      onTrack: widget.onTrack,
-                    ),
-                  ),
-                  // Before the scrim, so recording dims the typed door too.
-                  _PinnedCreateCta(
-                    onCreateRequest: widget.onCreateRequest == null
-                        ? null
-                        : _openTyped,
-                    firstRequest: firstRequest,
+                  Column(
+                    children: [
+                      Expanded(
+                        child: JeebPullToRefresh(
+                          onRefresh: () {
+                            _retryGreetingIfFailed(context);
+                            return context.read<ClientHomeCubit>().refresh();
+                          },
+                          child: _ClientHomeBody(
+                            state: state,
+                            filter: _filter,
+                            firstRequest: firstRequest,
+                            onFilterChanged: (filter) =>
+                                setState(() => _filter = filter),
+                            onOpenFilterSheet: () =>
+                                unawaited(_openFilterSheet()),
+                            onTrack: widget.onTrack,
+                          ),
+                        ),
+                      ),
+                      // The capsule's rendered height bounds the scroll viewport.
+                      _PinnedCreateCta(
+                        onCreateRequest: widget.onCreateRequest == null
+                            ? null
+                            : _openTyped,
+                        firstRequest: firstRequest,
+                      ),
+                    ],
                   ),
                   // Under the dock and the disc, over everything else: the
                   // focus wash is what raises their contrast while recording.
@@ -769,7 +792,10 @@ class _ClientHomeBody extends StatelessWidget {
       case ClientHomeStatus.loading:
         return _LoadingLayout(name: state.greetingName);
       case ClientHomeStatus.failed:
-        return _FailedLayout(name: state.greetingName);
+        return _FailedLayout(
+          name: state.greetingName,
+          failure: state.error ?? const UnknownFailure(),
+        );
       case ClientHomeStatus.ready:
         return _ReadyLayout(
           state: state,
@@ -796,9 +822,8 @@ const double _kFloatingMicGap = Spacing.xLarge;
 const double _kFloatingMicReserve =
     JeebMicHero.sizeCompact + _kFloatingMicGap + Spacing.medium;
 
-/// Tail the lists reserve so the last card clears BOTH pinned surfaces — the
-/// mic's halo box and the create capsule — by a Spacing.medium breather.
-final double _kScrollTailReserve =
+/// The action band's floor clears the mic halo; taller capsules grow the band.
+final double _kPinnedActionMinHeight =
     math.max(
       _kFloatingMicGap +
           JeebMicHero.sizeCompact +
@@ -832,20 +857,33 @@ class _PinnedCreateCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PositionedDirectional(
-      start: Spacing.xLarge,
-      end: _kCreateCtaEnd,
-      bottom: context.scrollBodyBottomInset + _kCreateCtaBottom,
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        // Effective only because the capsule carries no `BackdropFilter`: a
-        // filter re-samples the scrolling backdrop whatever boundary wraps it.
-        child: RepaintBoundary(
-          child: ClientHomeRequestHero(
-            onCreateRequest: onCreateRequest,
-            showPrompt: false,
-            firstRequest: firstRequest,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: context.scrollBodyBottomInset + _kPinnedActionMinHeight,
+      ),
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: Spacing.xLarge,
+          end: _kCreateCtaEnd,
+          top: Spacing.medium,
+          bottom: context.scrollBodyBottomInset + _kCreateCtaBottom,
+        ),
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              RepaintBoundary(
+                child: ClientHomeRequestHero(
+                  onCreateRequest: onCreateRequest,
+                  showPrompt: false,
+                  firstRequest: firstRequest,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -889,7 +927,10 @@ class _RecordingScrimState extends State<_RecordingScrim>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _sync(context.read<VoiceRecordingCubit>().state.isRecording, rebuild: false);
+    _sync(
+      context.read<VoiceRecordingCubit>().state.isRecording,
+      rebuild: false,
+    );
     // A muted ticker never advances the fade, so a tab switch mid-recording
     // would otherwise replay a full-screen wash on the way back.
     // Flutter 3.38 CI does not expose TickerMode.valuesOf yet.
@@ -1499,9 +1540,8 @@ class _MicCancelTarget extends StatelessWidget {
             return Opacity(
               key: const Key('client-home-mic-cancel-chip'),
               opacity:
-                  reveal.clamp(0.0, 1.0) * _kChipCommitOpacity.transform(
-                    commit.value,
-                  ),
+                  reveal.clamp(0.0, 1.0) *
+                  _kChipCommitOpacity.transform(commit.value),
               child: Transform.translate(
                 offset: Offset(-sign * _kChipOffset, 0),
                 child: Transform.scale(
@@ -1621,17 +1661,14 @@ class _LoadingLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the last item
-      // clears them in edge-to-edge mode. See [BottomInsetX].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
         JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
-          headline: l10n.homeEmptyTitle,
+          identifier: 'client_home_loading',
+          headline: l10n.homeLoadingHeadline,
           illustrationSize: ClientHomeEmptyView.illustrationSize,
         ),
       ],
@@ -1640,36 +1677,29 @@ class _LoadingLayout extends StatelessWidget {
 }
 
 class _FailedLayout extends StatelessWidget {
-  const _FailedLayout({required this.name});
+  const _FailedLayout({required this.name, required this.failure});
 
   final String? name;
+  final AppFailure failure;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the retry CTA
-      // clears them in edge-to-edge mode. See [BottomInsetX].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
-        JeebEmptyState(
-          status: JeebEmptyStateStatus.error,
-          headline: l10n.homeLoadFailedTitle,
-          body: l10n.homeLoadFailedBody,
-          illustrationSize: ClientHomeEmptyView.illustrationSize,
-          action: IntrinsicWidth(
-            child: JeebCtaButton.primary(
-              label: l10n.homeLoadFailedRetry,
-              identifier: 'client_home_retry_cta',
-              expand: false,
-              onTap: () => context.read<ClientHomeCubit>().load(),
-            ),
-          ),
+        JeebFailureBlock(
+          failure: failure,
+          identifier: 'client_home_error',
+          variant: JeebEmptyStateVariant.e1,
+          headlineOverride: AppLocalizations.of(context).homeLoadFailedTitle,
+          onRetry: () {
+            _retryGreetingIfFailed(context);
+            unawaited(context.read<ClientHomeCubit>().load());
+          },
+          retryIdentifier: 'client_home_retry_cta',
         ),
       ],
     );
@@ -1697,6 +1727,8 @@ class _ReadyLayout extends StatelessWidget {
   /// filter, or a filter is on — so there is always a way back out of one.
   bool get _showFilterChrome {
     if (filter.bucket == ClientHomeTab.inProgress) return false;
+    if (state.status == ClientHomeStatus.failed) return false;
+    if (state.pendingError != null || state.repliesError != null) return false;
     return filter.isActive ||
         state.pending.isNotEmpty ||
         state.replies.isNotEmpty;
@@ -1707,11 +1739,7 @@ class _ReadyLayout extends StatelessWidget {
     return ListView(
       key: const Key('client-home-ready-list'),
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND both pinned surfaces so the last order
-      // card clears them. See [BottomInsetX.scrollBodyBottomInset].
-      padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
-      ),
+      padding: const EdgeInsets.only(bottom: Spacing.medium),
       children: _scrollChildren(),
     );
   }
@@ -1725,6 +1753,11 @@ class _ReadyLayout extends StatelessWidget {
             : null,
       ),
       const SizedBox(height: Spacing.medium),
+      if (state.refreshError != null)
+        Padding(
+          padding: _kGutter,
+          child: _ClientHomeRefreshBand(failure: state.refreshError!),
+        ),
       // Either the create prompt or the list chrome owns this slot, never both:
       // the 312px prompt above a populated list pushed content a third of the
       // way down the screen and re-said the greeting's own time-of-day line.
@@ -1748,9 +1781,36 @@ class _ReadyLayout extends StatelessWidget {
         ),
         const SizedBox(height: Spacing.large),
       ],
-      _ReadyContent(state: state, filter: filter, onTrack: onTrack),
+      _ReadyContent(
+        state: state,
+        filter: filter,
+        onTrack: onTrack,
+        onFilterChanged: onFilterChanged,
+      ),
     ];
   }
+}
+
+/// LR-11/OFF-14: a failed refresh over rows keeps the rows and says so.
+class _ClientHomeRefreshBand extends StatelessWidget {
+  const _ClientHomeRefreshBand({required this.failure});
+
+  final AppFailure failure;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: Spacing.medium),
+    child: JeebRefreshFailedNote(
+      failure: failure,
+      identifier: 'client_home_refresh_failed_note',
+      onDismiss: () =>
+          context.read<ClientHomeCubit>().acknowledgeRefreshError(),
+      onRetry: () {
+        _retryGreetingIfFailed(context);
+        unawaited(context.read<ClientHomeCubit>().refresh());
+      },
+    ),
+  );
 }
 
 class _ReadyContent extends StatelessWidget {
@@ -1758,11 +1818,13 @@ class _ReadyContent extends StatelessWidget {
     required this.state,
     required this.filter,
     required this.onTrack,
+    required this.onFilterChanged,
   });
 
   final ClientHomeState state;
   final ClientRequestFilter filter;
   final void Function(ClientHomeRequest)? onTrack;
+  final ValueChanged<ClientRequestFilter> onFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1771,6 +1833,8 @@ class _ReadyContent extends StatelessWidget {
       return OfferStatusRequestsTab(
         status: offerStatus,
         requests: state.offerStatusRequests,
+        onClearFilter: () =>
+            onFilterChanged(filter.copyWith(clearOfferStatus: true)),
       );
     }
     switch (filter.bucket) {
@@ -1832,7 +1896,6 @@ class _ReadyContent extends StatelessWidget {
     ).pushNamed('waiting-no-coverage', pathParameters: {'id': request.id});
   }
 }
-
 
 /// The section header: title, neutral total, accent replies badge, filter disc.
 /// Mounted only by [_ReadyLayout._showFilterChrome].

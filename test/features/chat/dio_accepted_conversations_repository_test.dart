@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_accepted_conversations_repository.dart';
+import 'package:jeeb_mobile/features/chat/domain/accepted_conversation.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockDio extends Mock implements Dio {}
@@ -80,14 +82,43 @@ void main() {
       expect(await repository.fetchAccepted(), hasLength(1));
     });
 
-    test('returns empty on a transport error (push-only fallback)', () async {
+    // F12 — an empty list used to mean BOTH "no accepted orders" and "the
+    // gateway is down", so a total outage rendered as an empty banner.
+    test('THROWS a classified failure on a transport error', () async {
       when(() => dio.get<dynamic>(any(),
               queryParameters: any(named: 'queryParameters')))
-          .thenThrow(DioException(requestOptions: RequestOptions(path: '/requests')));
+          .thenThrow(DioException(
+        requestOptions: RequestOptions(path: '/requests'),
+        type: DioExceptionType.connectionError,
+      ));
 
-      expect(await repository.fetchAccepted(), isEmpty);
+      await expectLater(
+        repository.fetchAccepted(),
+        throwsA(isA<AcceptedConversationsException>()
+            .having((e) => e.failure, 'failure', isA<NetworkFailure>())),
+      );
     });
 
+    test('THROWS on a 503 rather than answering "no accepted orders"',
+        () async {
+      final options = RequestOptions(path: '/requests');
+      when(() => dio.get<dynamic>(any(),
+              queryParameters: any(named: 'queryParameters')))
+          .thenThrow(DioException(
+        requestOptions: options,
+        type: DioExceptionType.badResponse,
+        response: Response<dynamic>(requestOptions: options, statusCode: 503),
+      ));
+
+      await expectLater(
+        repository.fetchAccepted(),
+        throwsA(isA<AcceptedConversationsException>()
+            .having((e) => e.failure, 'failure', isA<ServerFailure>())),
+      );
+    });
+
+    // An unexpected SHAPE is not a failure: the gateway answered, and the
+    // envelope simply held no rows.
     test('returns empty on an unexpected payload shape', () async {
       stub('not-a-list-or-map');
       expect(await repository.fetchAccepted(), isEmpty);

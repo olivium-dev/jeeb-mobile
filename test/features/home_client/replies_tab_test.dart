@@ -1,10 +1,13 @@
 // Tests for T-MOB-008: RepliesTab with stacked avatars and Check Offers CTA.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_avatar.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
@@ -260,4 +263,52 @@ void main() {
       expect(find.textContaining('Current location'), findsNothing);
     });
   });
+
+  group('the three rungs carry the identifier triple', () {
+    testWidgets('loading, empty and error each have their own id',
+        (tester) async {
+      final _StalledRepliesRepo repo = _StalledRepliesRepo();
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pump();
+      expect(
+        find.bySemanticsIdentifier('replies_loading_state'),
+        findsOneWidget,
+      );
+
+      repo.fail();
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('replies_error_state'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('replies_retry_cta'), findsOneWidget);
+      // Error BEFORE empty: a failed read is never "no replies yet".
+      expect(find.bySemanticsIdentifier('replies_empty_state'), findsNothing);
+    });
+
+    testWidgets('a genuine empty carries replies_empty_state', (tester) async {
+      await tester.pumpWidget(
+        _harness(repo: InMemoryClientHomeRepository(latency: Duration.zero)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('replies_empty_state'), findsOneWidget);
+    });
+  });
+}
+
+/// Stalls the cold load until [fail] releases it with a failure.
+class _StalledRepliesRepo implements ClientHomeRepository {
+  _StalledRepliesRepo();
+
+  Completer<ClientHomeSnapshot> _pending = Completer<ClientHomeSnapshot>();
+
+  void fail() => _pending.complete(
+    const ClientHomeSnapshot(
+      requestsFailure: NetworkFailure(offline: true),
+      inProgressFailure: NetworkFailure(offline: true),
+    ),
+  );
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() {
+    if (_pending.isCompleted) _pending = Completer<ClientHomeSnapshot>();
+    return _pending.future;
+  }
 }

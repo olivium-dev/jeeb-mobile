@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'super_login_picker.dart';
@@ -13,24 +14,20 @@ import 'super_login_sheet.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
+/// Dev-Tool operator copy: English on purpose, and never in the customer ARB
+/// (COPY-30). This whole file is `kDebugMode`-gated.
+const String _kMissingPasscodeMessage =
+    'Dev build missing SuperAdmin passcode '
+    '(JEEB_SUPERADMIN_PASSCODE). Cannot super-login.';
+
 /// Debug-only entry points; kDebugMode-gated, dead-code-eliminated from release.
 bool superLoginBlockedByMissingPasscode(BuildContext context) {
   if (!kDebugMode || AppConfig.superAdminPassCode.isNotEmpty) return false;
-  // EXEMPT: OMDS exports no standalone snackbar; ScaffoldMessenger is approved pattern.
-  final colorScheme = Theme.of(context).colorScheme;
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(
-      SnackBar(
-        key: const Key('superLogin.missingPasscode'),
-        content: const Text(
-          'Dev build missing SuperAdmin passcode '
-          '(JEEB_SUPERADMIN_PASSCODE). Cannot super-login.',
-        ),
-        backgroundColor: colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  showJeebSnack(
+    context,
+    message: _kMissingPasscodeMessage,
+    identifier: 'super_login_missing_passcode_snack',
+  );
   return true;
 }
 
@@ -195,10 +192,12 @@ Widget _superLoginEntryPointsHosted(String caption, Widget child) => Center(
         children: <Widget>[
           child,
           const SizedBox(height: Spacing.medium),
-          Text(
-            caption,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          Builder(
+            builder: (BuildContext context) => Text(
+              caption,
+              textAlign: TextAlign.center,
+              style: context.jeebText.caption,
+            ),
           ),
         ],
       ),
@@ -242,12 +241,12 @@ class _SuperLoginEntryPointsMinTargetSquare extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: colorScheme.error),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: OmdsBorderRadius.twoXSmall,
         ),
         child: Center(
           child: Text(
             '48',
-            style: TextStyle(fontSize: 10, color: colorScheme.error),
+            style: context.jeebText.label.copyWith(color: colorScheme.error),
           ),
         ),
       ),

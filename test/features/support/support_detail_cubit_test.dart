@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/case_evidence/domain/case_evidence.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/support/application/support_detail_cubit.dart';
 import 'package:jeeb_mobile/features/support/application/support_detail_state.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
@@ -73,6 +76,155 @@ void main() {
       ]);
     },
   );
+
+  test(
+    'refresh() keeps the loaded thread and lands in refreshError (N5)',
+    () async {
+      final repository = _RefreshFailingThreadRepository();
+      final cubit = SupportDetailCubit(
+        repository: repository,
+        ticketId: 'ticket-1',
+      );
+      await cubit.load();
+      expect(cubit.state.phase, SupportDetailPhase.loaded);
+
+      await cubit.refresh();
+
+      // The phase never returns to loading, so the messages stay on screen.
+      expect(cubit.state.phase, SupportDetailPhase.loaded);
+      expect(cubit.state.ticket, isNotNull);
+      expect(cubit.state.refreshError, isNotNull);
+      expect(cubit.state.appFailure, isNull);
+      cubit.acknowledgeRefreshError();
+      expect(cubit.state.refreshError, isNull);
+      await cubit.close();
+    },
+  );
+
+  test(
+    'refresh() from the conflict phase keeps the thread mounted (N5)',
+    () async {
+      final repository = _ConflictThenSuccessRepository();
+      final cubit = SupportDetailCubit(
+        repository: repository,
+        ticketId: 'ticket-1',
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      cubit.setReplyBody('The issue is still happening.');
+      await cubit.sendReply();
+      expect(cubit.state.phase, SupportDetailPhase.conflict);
+      expect(cubit.state.ticket, isNotNull);
+
+      // A pull-to-refresh over a stale-reply conflict must NOT go through
+      // load(): `_ThreadBody` is mounted and load() would blank it.
+      await cubit.refresh();
+
+      expect(cubit.state.phase, isNot(SupportDetailPhase.loading));
+      expect(
+        cubit.state.ticket,
+        isNotNull,
+        reason: 'support_thread_request stays mounted across the refresh',
+      );
+      expect(cubit.state.replyBody, 'The issue is still happening.');
+    },
+  );
+
+  test('a cold read failure carries the classified failure', () async {
+    final cubit = SupportDetailCubit(
+      repository: const _AlwaysFailingThreadRepository(),
+      ticketId: 'ticket-1',
+    );
+    await cubit.load();
+
+    expect(cubit.state.phase, SupportDetailPhase.failed);
+    expect(cubit.state.appFailure, isA<NetworkFailure>());
+    await cubit.close();
+  });
+
+  test('load() is guarded while a read is already in flight', () async {
+    final repository = _PendingThreadRepository();
+    final cubit = SupportDetailCubit(
+      repository: repository,
+      ticketId: 'ticket-1',
+    );
+    final first = cubit.load();
+    await cubit.load();
+    expect(repository.calls, 1);
+
+    repository.complete();
+    await first;
+    await cubit.close();
+  });
+}
+
+class _RefreshFailingThreadRepository implements SupportThreadRepository {
+  int fetches = 0;
+
+  @override
+  Future<SupportTicket> fetchTicket(String ticketId) async {
+    fetches += 1;
+    if (fetches == 1) {
+      return const SupportTicket(
+        id: 'ticket-1',
+        status: 'pending',
+        version: 1,
+        body: 'Original request',
+      );
+    }
+    throw const SupportRepositoryException.classified(
+      SupportFailure.network,
+      appFailure: NetworkFailure(offline: true),
+    );
+  }
+
+  @override
+  Future<SupportTicket> replyToTicket(
+    String ticketId,
+    SupportReplyDraft draft, {
+    CaseAttachmentProgressCallback? onProgress,
+  }) => throw UnimplementedError();
+}
+
+class _AlwaysFailingThreadRepository implements SupportThreadRepository {
+  const _AlwaysFailingThreadRepository();
+
+  @override
+  Future<SupportTicket> fetchTicket(String ticketId) async =>
+      throw const SupportRepositoryException.classified(
+        SupportFailure.network,
+        appFailure: NetworkFailure(offline: true),
+      );
+
+  @override
+  Future<SupportTicket> replyToTicket(
+    String ticketId,
+    SupportReplyDraft draft, {
+    CaseAttachmentProgressCallback? onProgress,
+  }) => throw UnimplementedError();
+}
+
+class _PendingThreadRepository implements SupportThreadRepository {
+  final Completer<SupportTicket> _held = Completer<SupportTicket>();
+  int calls = 0;
+
+  void complete() => _held.complete(
+    const SupportTicket(id: 'ticket-1', status: 'pending', version: 1),
+  );
+
+  @override
+  Future<SupportTicket> fetchTicket(String ticketId) {
+    calls += 1;
+    return _held.future;
+  }
+
+  @override
+  Future<SupportTicket> replyToTicket(
+    String ticketId,
+    SupportReplyDraft draft, {
+    CaseAttachmentProgressCallback? onProgress,
+  }) => throw UnimplementedError();
 }
 
 class _ConflictThenSuccessRepository implements SupportThreadRepository {

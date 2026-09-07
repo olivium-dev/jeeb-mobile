@@ -89,8 +89,9 @@ class ReviewRow extends StatelessWidget {
                           review.reviewerFirstName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: context.jeebText.cardTitle
-                              .copyWith(color: scheme.onSurface),
+                          style: context.jeebText.cardTitle.copyWith(
+                            color: scheme.onSurface,
+                          ),
                         ),
                       ),
                       const SizedBox(height: Spacing.twoXSmall),
@@ -103,8 +104,9 @@ class ReviewRow extends StatelessWidget {
                 // `onSecondaryContainer` (inkSoft) is reserved for the lit one.
                 Text(
                   copy.relativeTime(review.timestamp),
-                  style: context.jeebText.bodySmall
-                      .copyWith(color: scheme.onSurfaceVariant),
+                  style: context.jeebText.bodySmall.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -156,7 +158,7 @@ class _ReviewStars extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.midnight();
+        JeebSemanticColors.midnight();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -169,8 +171,8 @@ class _ReviewStars extends StatelessWidget {
               score >= position
                   ? Icons.star
                   : score >= position - 0.5
-                      ? Icons.star_half
-                      : Icons.star,
+                  ? Icons.star_half
+                  : Icons.star,
               size: Sizes.medium,
               color: score >= position - 0.5
                   ? semantic.amber

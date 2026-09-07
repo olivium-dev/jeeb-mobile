@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import 'goods_cost.dart';
 
 enum GoodsCostFailure {
@@ -7,16 +8,25 @@ enum GoodsCostFailure {
 
   validation,
 
+  /// The delivery carried no currency, so the amount's unit is unknown.
+  currencyUnavailable,
+
+  /// The write returned no amount, so nothing confirms what was recorded.
+  amountUnconfirmed,
+
   unknown,
 }
 
 class GoodsCostRepositoryException implements Exception {
-  const GoodsCostRepositoryException(this.failure, [this.message]);
+  const GoodsCostRepositoryException(this.failure, {this.cause});
+
   final GoodsCostFailure failure;
-  final String? message;
+
+  /// The classified transport failure; never rendered verbatim.
+  final AppFailure? cause;
 
   @override
-  String toString() => 'GoodsCostRepositoryException($failure, $message)';
+  String toString() => 'GoodsCostRepositoryException(${failure.name})';
 }
 
 abstract class GoodsCostRepository {

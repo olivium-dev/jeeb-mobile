@@ -93,6 +93,71 @@ class RegistrationScreenCannedOtpService implements OtpService {
       OtpVerifyOutcome.networkError;
 }
 
+/// 429 carrying the gateway's own `Retry-After: 45` — the resend CTA must be
+/// dead for the SERVER's window, and the plural copy must count it down.
+class RegistrationScreenRateLimitedOtpService
+    implements OtpService, OtpSendResultService {
+  const RegistrationScreenRateLimitedOtpService({this.retryAfterSeconds = 45});
+
+  final int retryAfterSeconds;
+
+  @override
+  Future<OtpSendResult> requestCode(String e164Phone) async => OtpSendResult(
+        outcome: OtpSendOutcome.rateLimited,
+        retryAfter: Duration(seconds: retryAfterSeconds),
+      );
+
+  @override
+  Future<OtpSendOutcome> sendCode(String e164Phone) async =>
+      OtpSendOutcome.rateLimited;
+
+  @override
+  Future<OtpVerifyOutcome> verifyCode({
+    required String e164Phone,
+    required String code,
+  }) async =>
+      OtpVerifyOutcome.rateLimited;
+}
+
+/// 503 `identity_unavailable` on VERIFY; send has no `serviceUnavailable`
+/// outcome, so the phone step shows the server-error line instead.
+class RegistrationScreenServiceUnavailableOtpService
+    implements OtpService, OtpSendResultService {
+  const RegistrationScreenServiceUnavailableOtpService();
+
+  @override
+  Future<OtpSendResult> requestCode(String e164Phone) async =>
+      const OtpSendResult(outcome: OtpSendOutcome.serverError);
+
+  @override
+  Future<OtpSendOutcome> sendCode(String e164Phone) async =>
+      OtpSendOutcome.serverError;
+
+  @override
+  Future<OtpVerifyOutcome> verifyCode({
+    required String e164Phone,
+    required String code,
+  }) async =>
+      OtpVerifyOutcome.serviceUnavailable;
+}
+
+/// A 200 verify that carried no token pair. F5: this used to report `verified`
+/// into an empty token store.
+class RegistrationScreenNoTokensOtpService implements OtpService {
+  const RegistrationScreenNoTokensOtpService();
+
+  @override
+  Future<OtpSendOutcome> sendCode(String e164Phone) async =>
+      OtpSendOutcome.sent;
+
+  @override
+  Future<OtpVerifyOutcome> verifyCode({
+    required String e164Phone,
+    required String code,
+  }) async =>
+      OtpVerifyOutcome.serverError;
+}
+
 /// Dev-only subclass that parks [RegistrationCubit] on a designed state.
 /// [RegistrationCubit] exposes no seed seam, and every public mutator
 /// normalises what it is given — `phoneChanged` and `sendCode` both run their

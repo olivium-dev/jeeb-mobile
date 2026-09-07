@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/chat/domain/accepted_conversation.dart';
 import '../../../features/jeeber_home/application/availability_cubit.dart';
 import '../../../features/jeeber_home/domain/entities/availability_status.dart';
@@ -31,6 +32,55 @@ class StalledAvailabilityGateway implements AvailabilityGateway {
   @override
   Future<GoOnlineLocationOutcome> refreshLocation() =>
       Completer<GoOnlineLocationOutcome>().future;
+}
+
+/// Every method throws the SAME classified failure, so a preview can pin the
+/// copy family a kind resolves to.
+class FailingAvailabilityGateway implements AvailabilityGateway {
+  const FailingAvailabilityGateway(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Future<AvailabilityStatus> fetch() async =>
+      throw AvailabilityGatewayException.from(failure);
+
+  @override
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) async =>
+      throw AvailabilityGatewayException.from(failure);
+
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() async =>
+      throw AvailabilityGatewayException.from(failure);
+}
+
+/// The 404 rung: this account has no jeeber profile yet (JHOME-05).
+class NotRegisteredAvailabilityGateway implements AvailabilityGateway {
+  const NotRegisteredAvailabilityGateway();
+
+  @override
+  Future<AvailabilityStatus> fetch() async =>
+      throw const AvailabilityGatewayException.notRegistered();
+
+  @override
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) async =>
+      throw const AvailabilityGatewayException.notRegistered();
+
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() async =>
+      throw const AvailabilityGatewayException.notRegistered();
+}
+
+/// Throws the classified failure from `fetchAccepted()` — the active-work
+/// band's cold-failure rung.
+class FailingAcceptedConversationsRepository
+    implements AcceptedConversationsRepository {
+  const FailingAcceptedConversationsRepository(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Future<List<AcceptedConversation>> fetchAccepted() async => throw failure;
 }
 
 /// A submitted-offers fake that never lists anything.
@@ -68,6 +118,26 @@ class SeededRequestFeedCubit extends RequestFeedCubit {
     emit(
       RequestFeedState(status: RequestFeedStatus.ready, requests: requests),
     );
+  }
+}
+
+/// Pinned to a cold failure — never `start()`ed, so no subscriptions exist.
+class FailedRequestFeedCubit extends RequestFeedCubit {
+  FailedRequestFeedCubit(AppFailure failure)
+    : super(repository: SeededRequestFeedRepository(const <DeliveryRequest>[])) {
+    emit(RequestFeedState(status: RequestFeedStatus.error, error: failure));
+  }
+}
+
+/// Pinned to a warm failure: last-good rows plus a `refreshError`.
+class WarmFailureRequestFeedCubit extends RequestFeedCubit {
+  WarmFailureRequestFeedCubit(List<DeliveryRequest> requests, AppFailure failure)
+    : super(repository: SeededRequestFeedRepository(requests)) {
+    emit(RequestFeedState(
+      status: RequestFeedStatus.ready,
+      requests: requests,
+      refreshError: failure,
+    ));
   }
 }
 
@@ -120,6 +190,14 @@ class JeeberHomeScreenPreviewFixtures {
   static AvailabilityCubit stalledAvailability() =>
       _availability(const StalledAvailabilityGateway());
 
+  /// Cold start fails with a KIND, so the failure block's copy family shows.
+  static AvailabilityCubit failingAvailabilityOf(AppFailure failure) =>
+      _availability(FailingAvailabilityGateway(failure));
+
+  /// Cold start 404s — the un-onboarded jeeber, not an offline one.
+  static AvailabilityCubit notRegisteredAvailability() =>
+      _availability(const NotRegisteredAvailabilityGateway());
+
   /// The cubit backing the feed's Pending-Response sub-tab. Passed as the
   /// screen's `submittedOffersCubitFactory`, which owns and closes it.
   static SubmittedOffersCubit submittedOffersCubit() =>
@@ -165,9 +243,22 @@ class JeeberHomeScreenPreviewFixtures {
       SeededRequestFeedCubit(requests);
 
   /// A feed cubit whose snapshot came back EMPTY — a successful read of an
-  /// empty board, not a failed one (the feed has no failure surface at all).
+  /// empty board, not a failed one.
   static RequestFeedCubit emptyFeed() =>
       SeededRequestFeedCubit(const <DeliveryRequest>[]);
+
+  /// The feed's COLD failure: nothing loaded and the read failed.
+  static RequestFeedCubit failedFeed(AppFailure failure) =>
+      FailedRequestFeedCubit(failure);
+
+  /// The feed's WARM failure: rows are on screen and the refresh failed.
+  static RequestFeedCubit refreshFailedFeed(
+    List<DeliveryRequest> requests,
+    AppFailure failure,
+  ) => WarmFailureRequestFeedCubit(requests, failure);
+
+  /// Rows that no active tier filter matches — the filtered-empty rung.
+  static List<DeliveryRequest> filteredEmptyFeed() => incomingFeed();
 
   /// The jeeber has one accepted order in progress.
   static CannedAcceptedConversationsRepository wonOrders() =>

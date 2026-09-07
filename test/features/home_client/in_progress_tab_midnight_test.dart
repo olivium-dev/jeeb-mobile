@@ -10,6 +10,7 @@ import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_text_styles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_failure_block.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
@@ -127,13 +128,17 @@ void main() {
       await tester.pumpWidget(_harness(repo: const _FailingRepo()));
       await tester.pumpAndSettle();
 
-      final block = _stateAt(tester, const Key('in-progress-error'));
-      expect(block.status, JeebEmptyStateStatus.error);
+      final JeebFailureBlock block = tester.widget<JeebFailureBlock>(
+        find.byKey(const Key('in-progress-error')),
+      );
       // Same subject as the empty arm — the tile must not change identity.
       expect(block.variant, JeebEmptyStateVariant.parcel);
-      expect(block.headline, "Couldn't load your home");
-      expect(block.body, 'We could not load your orders. Tap to retry.');
+      expect(block.headlineOverride, "Couldn't load your deliveries in progress");
       expect(block.identifier, 'in_progress_error_state');
+      // COPY-04: the body is the copy family's, not "Tap to retry" over a
+      // Retry button.
+      expect(block.bodyOverride, isNull);
+      expect(find.text('We couldn\'t complete that. Try again.'), findsOneWidget);
       // The OMDS block's stock cloud glyph is gone.
       expect(find.byIcon(Icons.cloud_off_outlined), findsNothing);
     });

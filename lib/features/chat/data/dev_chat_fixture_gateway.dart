@@ -14,10 +14,17 @@ class DevChatFixtureGateway extends ChatGateway {
 
   final _controller = StreamController<ChatEvent>.broadcast();
 
-  static final DateTime _at0941 = () {
+  /// Today at 09:41 — every fixture row is stamped with it, so the thread
+  /// reads "Today" while each bubble's clock stays fixed.
+  static final DateTime fixtureAnchor = () {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, 9, 41);
   }();
+
+  /// Two minutes past [fixtureAnchor], so the derived 5-minute offer window
+  /// always has exactly 180 seconds left whenever the capture runs (X3).
+  static DateTime fixtureNow() =>
+      fixtureAnchor.add(const Duration(minutes: 2));
 
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async => phase;
@@ -51,7 +58,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-out-1',
           author: ChatAuthor.me,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.read,
           text: 'I need 3 kilos of potatoes and water gallon and coffee '
               'from blend',
@@ -62,7 +69,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-out-1',
           author: ChatAuthor.me,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.read,
           text: 'I need 3 kilos of potatoes and water gallon and coffee '
               'from blend',
@@ -70,7 +77,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.offerCard(
           id: 'dev-offer-1',
           author: ChatAuthor.them,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.delivered,
           payload: const OfferCardPayload(
             offerId: 'offer-kamal',
@@ -87,7 +94,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.offerCard(
           id: 'dev-offer-2',
           author: ChatAuthor.them,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.delivered,
           payload: const OfferCardPayload(
             offerId: 'offer-rana',
@@ -107,7 +114,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-a-out-1',
           author: ChatAuthor.me,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.read,
           text: 'I need 3 kilos of potatoes and water gallon and coffee '
               'from blend',
@@ -115,14 +122,14 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-a-in-1',
           author: ChatAuthor.them,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.delivered,
           text: 'Hi i can bring you your order in 3 hours for  20\$',
         ),
         DeliveryChatMessage.text(
           id: 'dev-a-out-2',
           author: ChatAuthor.me,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.read,
           text: 'Hello Kamal please i need the water to be tanourine',
         ),
@@ -132,7 +139,7 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-dm-in-1',
           author: ChatAuthor.them,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.delivered,
           text: 'I need 3 kilos of potatoes and water gallon and coffee '
               'from blend',
@@ -140,9 +147,39 @@ class DevChatFixtureGateway extends ChatGateway {
         DeliveryChatMessage.text(
           id: 'dev-dm-out-1',
           author: ChatAuthor.me,
-          sentAt: _at0941,
+          sentAt: fixtureAnchor,
           status: MessageStatus.read,
           text: 'Hi i can bring you your order in 3 hours for  20\$',
         ),
       ];
+}
+
+/// A gateway whose history read throws — the dev-seam and catalog failure
+/// rung. Lives in the product tree so no product file imports lib/devtool/.
+class FailingChatGateway extends ChatGateway {
+  FailingChatGateway({this.error});
+
+  /// What the read throws. Null is a server-side 500; pass a [NetworkFailure]
+  /// to reach the connectivity rung, which a 500 must never claim.
+  final Object? error;
+
+  @override
+  Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
+    throw error ??
+        StateError(
+          'fixture: HTTP 500 from GET '
+          '/v1/conversations/$conversationId/messages',
+        );
+  }
+
+  @override
+  Future<DeliveryChatMessage> send(
+    String conversationId,
+    DeliveryChatMessage message,
+  ) async =>
+      message.copyWith(status: MessageStatus.failed);
+
+  @override
+  Stream<ChatEvent> subscribe(String conversationId) =>
+      const Stream<ChatEvent>.empty();
 }

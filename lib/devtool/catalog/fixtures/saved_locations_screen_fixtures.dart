@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/cubit/saved_locations_cubit.dart';
@@ -71,6 +72,19 @@ class SavedLocationsScreenFakeRepository implements SavedLocationRepository {
 /// A read that never lands, holding the screen on `SavedLocationsLoading` for
 /// as long as the surface is open.
 /// The cubit emits `SavedLocationsLoading` from `load()` and only leaves it when
+/// A read that throws a classified [AppFailure] — the only way the error
+/// rung's kind-aware copy (403 vs 429 vs 503) becomes reviewable.
+class SavedLocationsScreenFailingRepository
+    extends SavedLocationsScreenFakeRepository {
+  const SavedLocationsScreenFailingRepository(this.failure)
+      : super(const <SavedLocation>[]);
+
+  final AppFailure failure;
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async => throw failure;
+}
+
 class SavedLocationsScreenPendingRepository
     extends SavedLocationsScreenFakeRepository {
   const SavedLocationsScreenPendingRepository()

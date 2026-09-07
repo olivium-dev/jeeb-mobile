@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/realtime/realtime_socket_policy.dart';
 import '../domain/courier_position_channel.dart';
 import 'courier_position_socket.dart';
@@ -34,7 +35,8 @@ class DeliveryPositionChannelDescriptor {
 
 /// Gateway descriptor + Phoenix socket. Gateway mints credential narrowed to
 /// one topic; do not fall back to realtime's open `/api/auth/token`.
-class RealtimeCourierPositionChannel implements CourierPositionChannel {
+class RealtimeCourierPositionChannel
+    implements CourierPositionChannel, CourierPositionChannelOutcome {
   RealtimeCourierPositionChannel(
     this._dio, {
     WebSocketChannel Function(Uri uri)? channelFactory,
@@ -50,12 +52,24 @@ class RealtimeCourierPositionChannel implements CourierPositionChannel {
   final RealtimeSocketPolicy _socketPolicy;
 
   @override
-  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async {
+  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async =>
+      (await openWithOutcome(deliveryId: deliveryId)).positions;
+
+  @override
+  Future<CourierPositionOpenResult> openWithOutcome({
+    required String deliveryId,
+  }) async {
+    _lastResolveFailure = null;
     final descriptor = await resolve(deliveryId);
-    if (descriptor == null) return null;
+    if (descriptor == null) {
+      return CourierPositionOpenResult.failed(_resolveFailureKind());
+    }
     final socketUri = _socketUriOf(descriptor);
-    if (socketUri == null) return null;
-    if (descriptor.token.isEmpty) return null;
+    if (socketUri == null || descriptor.token.isEmpty) {
+      return const CourierPositionOpenResult.failed(
+        CourierPositionOpenFailure.unavailable,
+      );
+    }
     final socket = CourierPositionSocket(
       socketUri: socketUri,
       token: descriptor.token,
@@ -68,21 +82,43 @@ class RealtimeCourierPositionChannel implements CourierPositionChannel {
       await socket.connect();
     } catch (_) {
       await socket.close();
-      return null;
+      return const CourierPositionOpenResult.failed(
+        CourierPositionOpenFailure.connectFailed,
+      );
     }
-    return socket.positions;
+    return CourierPositionOpenResult.opened(socket.positions);
+  }
+
+  AppFailure? _lastResolveFailure;
+
+  CourierPositionOpenFailure _resolveFailureKind() {
+    final AppFailure? failure = _lastResolveFailure;
+    if (failure == null) return CourierPositionOpenFailure.unavailable;
+    return switch (failure.kind) {
+      AppFailureKind.unauthorized ||
+      AppFailureKind.forbidden =>
+        CourierPositionOpenFailure.authRejected,
+      AppFailureKind.network ||
+      AppFailureKind.timeout =>
+        CourierPositionOpenFailure.transport,
+      AppFailureKind.notFound => CourierPositionOpenFailure.unavailable,
+      _ => CourierPositionOpenFailure.unavailable,
+    };
   }
 
   /// Fetch descriptor; null on any failure (tracking screen never faulted).
+  /// The classification is kept aside so [openWithOutcome] can say why.
   Future<DeliveryPositionChannelDescriptor?> resolve(String deliveryId) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/realtime/jeeb:delivery:$deliveryId',
       );
       return _parse(deliveryId, response.data);
-    } on DioException {
+    } on DioException catch (e) {
+      _lastResolveFailure = AppFailure.of(e);
       return null;
-    } catch (_) {
+    } catch (e) {
+      _lastResolveFailure = AppFailure.of(e);
       return null;
     }
   }

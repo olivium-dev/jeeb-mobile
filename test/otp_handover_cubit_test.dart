@@ -105,7 +105,7 @@ void main() {
       expect(cubit.state.mode, OtpHandoverViewMode.ready);
       expect(cubit.state.smsSent, isTrue);
       expect(cubit.state.handoverCode, isNull);
-      expect(cubit.state.errorMessage, isNull);
+      expect(cubit.state.errorKind, isNull);
       await cubit.close();
     });
 

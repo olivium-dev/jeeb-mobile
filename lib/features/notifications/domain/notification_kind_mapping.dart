@@ -19,7 +19,18 @@ NotificationKind notificationKindFromWireType(String? wireType) {
       return NotificationKind.offerAccepted;
     case 'status':
     case 'order_status':
+    case 'delivery':
+    case 'delivery_status_updated':
+    case 'cancellation_decision':
+    case 'delivery_cancelled':
       return NotificationKind.status;
+    case 'chat':
+    case 'chat_message':
+    case 'new_message':
+      return NotificationKind.chat;
+    case 'availability':
+    case 'auto_offline':
+      return NotificationKind.availability;
     case 'low_balance':
     case 'lowbalance':
       return NotificationKind.lowBalance;
@@ -39,6 +50,10 @@ NotificationKind notificationKindFromWireType(String? wireType) {
       return NotificationKind.kycRejected;
     case 'request_expired':
     case 'requestexpired':
+    case 'request.try_expand_tier':
+    case 'request.expired':
+    case 'try_expand_tier':
+    case 'request_expiring':
       return NotificationKind.requestExpired;
     case 'new_request':
     case 'newrequest':

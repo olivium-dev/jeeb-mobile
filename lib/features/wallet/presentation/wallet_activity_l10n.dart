@@ -26,14 +26,13 @@ class WalletActivityL10n {
   String get loadingHeadline => _l10n.walletActivityLoadingHeadline;
   String get errorTitle => _l10n.walletActivityErrorTitle;
 
-  String get networkError => _pick(
-    'No connection. Check your network and try again.',
-    'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
-  );
-  String get retry => _pick('Retry', 'إعادة المحاولة');
+  String get networkError => _l10n.errorNetworkBody;
+  String get retry => _l10n.actionRetry;
 
-  String get loadMoreError =>
-      _pick('Could not load more.', 'تعذّر تحميل المزيد.');
+  String get loadMoreError => _l10n.walletActivityLoadMoreFailed;
+
+  /// Footer line naming rows the gateway sent that could not be read (UX-17).
+  String get unrenderable => _l10n.walletEntryUnrenderable;
 
   String typeLabel(WalletLedgerType type) {
     switch (type) {

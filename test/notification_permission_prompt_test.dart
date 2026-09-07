@@ -3,19 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/presentation/notification_permission_prompt.dart';
 
+import 'support/sync_app_localizations.dart';
+
+/// COPY-18: the copy is l10n-resolved now, so the host must carry the
+/// delegates.
 Future<void> _pump(
   WidgetTester tester, {
   required VoidCallback onEnable,
   required VoidCallback onDismiss,
+  Locale locale = const Locale('en'),
 }) {
   return tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
+    wrapForTest(
+      Scaffold(
         body: NotificationPermissionPrompt(
           onEnable: onEnable,
           onDismiss: onDismiss,
         ),
       ),
+      locale: locale,
     ),
   );
 }
@@ -34,6 +40,20 @@ void main() {
     expect(find.byKey(const Key('notif_perm_enable')), findsOneWidget);
     expect(find.byKey(const Key('notif_perm_dismiss')), findsOneWidget);
     expect(find.text('Turn on notifications'), findsOneWidget);
+  });
+
+  testWidgets('resolves the ARABIC copy from the ARB, not an English default',
+      (tester) async {
+    await _pump(
+      tester,
+      onEnable: () {},
+      onDismiss: () {},
+      locale: const Locale('ar'),
+    );
+
+    expect(find.byKey(const Key('notif_perm_title')), findsOneWidget);
+    expect(find.text('تفعيل الإشعارات'), findsOneWidget);
+    expect(find.text('Turn on notifications'), findsNothing);
   });
 
   testWidgets('Enable invokes onEnable, not onDismiss', (tester) async {
@@ -70,8 +90,8 @@ void main() {
 
   testWidgets('custom copy overrides the defaults', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
+      wrapForTest(
+        Scaffold(
           body: NotificationPermissionPrompt(
             onEnable: () {},
             onDismiss: () {},

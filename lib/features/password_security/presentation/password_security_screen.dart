@@ -9,6 +9,7 @@ import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/password_security_cubit.dart';
@@ -117,7 +118,11 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
   /// so we surface an honest "not available yet" notice and STAY on screen.
   void _onUnavailable(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    showOmdsSnackbar(context, message: l10n.passwordChangeUnavailable);
+    showJeebSnack(
+      context,
+      message: l10n.passwordChangeUnavailable,
+      identifier: 'password_unavailable_snack',
+    );
   }
 
   @override
@@ -152,9 +157,12 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
                 Expanded(
                   child:
                       BlocConsumer<PasswordSecurityCubit, PasswordSecurityState>(
+                    // PS-01: the nonce is what makes a SECOND identical
+                    // `unavailable` emit re-fire the listener.
                     listenWhen: (p, n) =>
-                        p.status != n.status &&
-                        n.status == PasswordSecurityStatus.unavailable,
+                        n.status == PasswordSecurityStatus.unavailable &&
+                        (p.status != n.status ||
+                            p.unavailableNonce != n.unavailableNonce),
                     listener: (context, state) => _onUnavailable(context),
                     builder: (context, state) => _body(context, l10n, state),
                   ),
@@ -195,6 +203,17 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
           const SizedBox(height: Spacing.large),
           JeebSectionLabel(l10n.settingsSecuritySection),
           const SizedBox(height: Spacing.xSmall),
+          // PS-02: the truth used to arrive only AFTER the user typed a valid
+          // password and submitted. It leads now, and the CTA is honest.
+          Semantics(
+            identifier: 'password_unavailable_note',
+            container: true,
+            child: JeebInfoNote.muted(
+              icon: Icons.info_outline,
+              text: l10n.passwordChangeUnavailable,
+            ),
+          ),
+          const SizedBox(height: Spacing.medium),
           Semantics(
             identifier: 'password_current_field',
             textField: true,
@@ -287,7 +306,7 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
             button: true,
             child: JeebCtaButton.primary(
               label: l10n.setpwSubmitCta,
-              isEnabled: !submitting,
+              isEnabled: false,
               isLoading: submitting,
               onTap: _onSubmit,
             ),

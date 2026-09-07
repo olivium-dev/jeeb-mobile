@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          # Full history so the diff-scoped design-token gate can resolve its
+          # merge base against the target branch.
+          fetch-depth: 0
 
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
@@ -42,6 +45,13 @@ jobs:
         # happens while bootstrapping native-assets in CI. --fatal-infos keeps
         # the prior strictness.
         run: dart analyze --fatal-infos .
+
+      - name: Design token compliance gate (diff-scoped)
+        # Scoped to the files this branch changed: the full-tree scan still
+        # fails on pre-existing violations each owning WP clears as it migrates.
+        env:
+          DESIGN_TOKENS_BASE: origin/${{ github.base_ref || github.event.repository.default_branch || 'main' }}
+        run: bash tool/check_design_tokens.sh
 
       - name: Run tests
         # See ci.yml — the `capture` harnesses are host-rendered golden tooling.

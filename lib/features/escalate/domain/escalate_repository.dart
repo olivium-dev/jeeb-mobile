@@ -1,3 +1,4 @@
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 
 class EscalateEvidence {
@@ -45,6 +46,12 @@ abstract class EscalateRepository {
     String? voicePath,
     EscalateEvidence evidence,
   });
+}
+
+/// The evidence-preview lane. A repository implements this ONLY when a real
+/// preview endpoint stands behind it, so an "empty evidence" rung never lies.
+abstract class EscalateEvidencePreviewRepository {
+  Future<EscalateEvidence> previewEvidence({required String deliveryId});
 }
 
 abstract class EscalateV2Repository {
@@ -101,10 +108,19 @@ class EscalateResult {
 }
 
 class EscalateException implements Exception {
-  const EscalateException(this.kind, [this.cause]);
+  const EscalateException(this.kind, [this.cause]) : failure = null;
+
+  const EscalateException.classified(
+    this.kind, {
+    this.cause,
+    required this.failure,
+  });
 
   final EscalateErrorKind kind;
   final Object? cause;
+
+  /// The classified transport failure, when the thrower could produce one.
+  final AppFailure? failure;
 
   @override
   String toString() =>

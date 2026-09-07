@@ -1,3 +1,5 @@
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../location/application/location_select_state.dart';
 import '../../location/data/location_repository.dart' show LocationPoint;
 import '../../location/domain/saved_location.dart';
@@ -23,6 +25,10 @@ class ComposeRequestController {
   /// location step pins what the customer already chose instead of dropping it.
   LocationPoint? _pickupPoint;
 
+  /// One key for a draft's whole retry chain, including the moderation
+  /// acknowledge-then-resubmit, so no retry can create a second request.
+  String _operationId = newOperationId();
+
   void setTier(Tier tier) {
     _tier = tier;
     _clearSession();
@@ -38,6 +44,7 @@ class ComposeRequestController {
   /// Everything except the tier. A session must not outlive its own submit:
   /// `?resume=1` would otherwise re-open the order that was just sent.
   void _clearSession() {
+    _operationId = newOperationId();
     _recipientPhone = null;
     _description = null;
     _transcription = null;
@@ -90,14 +97,33 @@ class ComposeRequestController {
 
   String? get _tierId => _tier?.wireId;
 
+  /// The Idempotency-Key the current draft submits under.
+  String get operationId => _operationId;
+
   Future<String>? _inFlight;
 
-  Future<String> submitFromLocation(LocationSelectState location) =>
-      _inFlight ??= _submitOnce(location);
+  Future<String> submitFromLocation(
+    LocationSelectState location, {
+    required String defaultDescription,
+    required String currentLocationLabel,
+  }) =>
+      _inFlight ??= _submitOnce(
+        location,
+        defaultDescription: defaultDescription,
+        currentLocationLabel: currentLocationLabel,
+      );
 
-  Future<String> _submitOnce(LocationSelectState location) async {
+  Future<String> _submitOnce(
+    LocationSelectState location, {
+    required String defaultDescription,
+    required String currentLocationLabel,
+  }) async {
     try {
-      final id = await _submission.submit(_buildDraft(location));
+      final id = await _submission.submit(_buildDraft(
+        location,
+        defaultDescription: defaultDescription,
+        currentLocationLabel: currentLocationLabel,
+      ));
       _clearSession();
       return id;
     } finally {
@@ -105,13 +131,18 @@ class ComposeRequestController {
     }
   }
 
-  RequestDraft _buildDraft(LocationSelectState location) {
+  RequestDraft _buildDraft(
+    LocationSelectState location, {
+    required String defaultDescription,
+    required String currentLocationLabel,
+  }) {
     final saved = _selectedSaved(location);
     final lat = saved?.latitude ?? location.pinnedLat ?? location.gpsLat;
     final lng = saved?.longitude ?? location.pinnedLng ?? location.gpsLng;
     if (lat == null || lng == null) {
-      throw const RequestSubmissionException(
+      throw const RequestSubmissionException.classified(
         RequestSubmissionFailure.invalidInput,
+        appFailure: ValidationFailure(field: 'pickupLocation'),
       );
     }
     final pinnedAddress = location.choiceKind == LocationChoiceKind.pinned
@@ -121,10 +152,10 @@ class ComposeRequestController {
         saved?.label ??
         (pinnedAddress != null && pinnedAddress.isNotEmpty
             ? pinnedAddress
-            : _currentLocationLabel(lat, lng));
+            : currentLocationLabel);
 
     return RequestDraft(
-      description: _description ?? 'Delivery request',
+      description: _description ?? defaultDescription,
       transcription: _transcription,
       audioUrl: _audioUrl,
       tierId: _tierId,
@@ -136,11 +167,9 @@ class ComposeRequestController {
       pickupAddress: address,
       dropoffAddress: address,
       recipientPhone: _recipientPhone,
+      operationId: _operationId,
     );
   }
-
-  static String _currentLocationLabel(double lat, double lng) =>
-      'Current location (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
 
   SavedLocation? _selectedSaved(LocationSelectState location) {
     if (location.choiceKind != LocationChoiceKind.saved) return null;

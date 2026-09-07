@@ -114,6 +114,10 @@ build with unversioned auth paths, wait out the install tail, remove the server
 routes last. The ~310 `/v1` literals in `lib/` still need migrating — the
 interceptor is a safety net, not the migration.
 
+## Device validation
+
+Device validations: see [the creation-ledger and cleanup rule](docs/device-validation.md).
+
 ## CI
 
 The small `ci.yml` orchestrator calls three reusable stages:

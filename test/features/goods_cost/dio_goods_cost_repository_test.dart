@@ -39,10 +39,20 @@ void main() {
       expect(await repo.fetchCurrency('d-1'), 'EUR');
     });
 
-    test('defaults to USD when the gateway omits currency', () async {
+    test('UX-22: an absent currency is a FAILURE, never a fabricated USD',
+        () async {
       adapter.deliveryBody = const {'id': 'd-1'};
 
-      expect(await repo.fetchCurrency('d-1'), 'USD');
+      await expectLater(
+        repo.fetchCurrency('d-1'),
+        throwsA(
+          isA<GoodsCostRepositoryException>().having(
+            (e) => e.failure,
+            'failure',
+            GoodsCostFailure.currencyUnavailable,
+          ),
+        ),
+      );
     });
 
     test('404 → notFound', () async {
@@ -77,6 +87,32 @@ void main() {
       expect(result.amount, 42.5);
       // Currency is gateway-verbatim, not the client's guess.
       expect(result.currency, 'LBP');
+    });
+
+    test('the client amount is never echoed back as a confirmation', () async {
+      adapter.recordBody = const {'deliveryId': 'd-1'};
+
+      await expectLater(
+        repo.recordGoodsCost(deliveryId: 'd-1', amount: 42.5),
+        throwsA(
+          isA<GoodsCostRepositoryException>().having(
+            (e) => e.failure,
+            'failure',
+            GoodsCostFailure.amountUnconfirmed,
+          ),
+        ),
+      );
+    });
+
+    test('a confirmed amount with no currency yields a null currency, never '
+        'an invented one', () async {
+      adapter.recordBody = const {'deliveryId': 'd-1', 'amount': 42.5};
+
+      final result =
+          await repo.recordGoodsCost(deliveryId: 'd-1', amount: 42.5);
+
+      expect(result.amount, 42.5);
+      expect(result.currency, isNull);
     });
 
     test('422 → validation', () async {

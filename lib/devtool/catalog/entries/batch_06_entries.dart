@@ -15,6 +15,7 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
 
 import '../fixtures/live_tracking_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 
 import 'package:jeeb_mobile/features/location/data/fake_address_form_repository.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart'
@@ -39,13 +40,18 @@ import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_time
 
 import '../fixtures/no_offer_timeout_screen_fixtures.dart';
 
+import '../../../core/network/app_failure.dart';
+import '../../../features/location/domain/saved_location_repository.dart';
+import '../../../features/location/presentation/widgets/saved_locations_chip_row.dart';
 import '../catalog_models.dart';
+import '../fixtures/saved_locations_chip_row_fixtures.dart';
 import '../fixtures/saved_locations_screen_fixtures.dart';
 
 List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _languageEntry,
       _liveTrackingEntry,
       _savedLocationsEntry,
+  _savedLocationsChipRowEntry,
       _addressDetailFormEntry,
       _clientLocationEntry,
       _captureLocationEntry,
@@ -154,7 +160,43 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Warm — refresh failed over a live snapshot',
+      (_) => catalogTrackingFailure(_liveTrackingPreview(
+        LiveTrackingScreenWarmFailingRepository(
+          LiveTrackingScreenFixtures.inTransitInfo,
+        ),
+      )),
+    ),
+    CatalogState(
+      'Warm — position lost, the map goes stale',
+      (_) => catalogTrackingFailure(_liveTrackingPreview(
+        const LiveTrackingScreenSilentPositionRepository(
+          LiveTrackingScreenFixtures.inTransitInfo,
+        ),
+      ), positionLost: true),
+    ),
+    CatalogState(
+      'Error — position stream refused (auth)',
+      (_) => _liveTrackingRefusedStream(),
+    ),
   ],
+);
+
+/// The snapshot lands but the realtime channel refuses: the map says so.
+Widget _liveTrackingRefusedStream() => BlocProvider<LiveTrackingCubit>.value(
+  value: LiveTrackingCubit(
+    repository: const LiveTrackingScreenStaticRepository(
+      LiveTrackingScreenFixtures.inTransitInfo,
+    ),
+    deliveryId: LiveTrackingScreenFixtures.deliveryId,
+    refreshSignals: const Stream<void>.empty(),
+    positionChannel: const LiveTrackingScreenRefusingChannel(),
+  ),
+  child: const LiveTrackingScreen(
+    deliveryId: LiveTrackingScreenFixtures.deliveryId,
+    useLiveMap: false,
+  ),
 );
 
 final CatalogEntry _savedLocationsEntry = CatalogEntry(
@@ -187,11 +229,64 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
       'Mutating — delete in flight (M4 inline wait)',
       (_) => SavedLocationsScreen(cubit: SavedLocationsScreenMutatingCubit()),
     ),
+    CatalogState(
+      'Error — forbidden (403), no inert retry',
+      (_) => const SavedLocationsScreen(
+        repository: SavedLocationsScreenFailingRepository(ForbiddenFailure()),
+      ),
+    ),
+    CatalogState(
+      'Error — rate limited (429)',
+      (_) => const SavedLocationsScreen(
+        repository: SavedLocationsScreenFailingRepository(
+          RateLimitedFailure(retryAfter: Duration(seconds: 30)),
+        ),
+      ),
+    ),
   ],
 );
 
 /// `userId` is injected so the screen skips its session-resolve gate; the
 /// loading state is unreachable from a catalog builder for that reason.
+final CatalogEntry _savedLocationsChipRowEntry = CatalogEntry(
+  feature: 'location',
+  screen: 'Saved Locations Chip Row',
+  states: [
+    CatalogState(
+      'Loaded — Home + Office',
+      (_) => _chipRowHost(
+        const SavedLocationsChipRowFakeRepository(<SavedLocation>[
+          savedLocationsChipRowHome,
+          savedLocationsChipRowOffice,
+        ]),
+      ),
+    ),
+    CatalogState(
+      'Empty — the strip shrinks',
+      (_) => _chipRowHost(
+        const SavedLocationsChipRowFakeRepository(<SavedLocation>[]),
+      ),
+    ),
+    CatalogState(
+      'Loading — the read is still in flight',
+      (_) => _chipRowHost(const SavedLocationsChipRowPendingRepository()),
+    ),
+    CatalogState(
+      'Error — the fetch failed (not "no saved locations")',
+      (_) => _chipRowHost(const SavedLocationsChipRowFailingRepository()),
+    ),
+  ],
+);
+
+Widget _chipRowHost(SavedLocationRepository repository) => Scaffold(
+  body: SafeArea(
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: SavedLocationsChipRow(repository: repository),
+    ),
+  ),
+);
+
 final CatalogEntry _addressDetailFormEntry = CatalogEntry(
   feature: 'location',
   screen: 'Address Detail Form',
@@ -257,6 +352,27 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
         userId: ClientLocationScreenFixtures.userId,
         repository: ClientLocationScreenFixtures.savedAddressesPending,
         currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+      ),
+    ),
+    // Seeded presentation, not a submitted gateway response or device proof.
+    CatalogState(
+      'description_too_short',
+      (_) => const ClientLocationScreen(
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+        initialDescription: 'Milk 2L',
+        initialDescriptionFailure: ClientLocationScreenFixtures.validationTooShort,
+      ),
+    ),
+    CatalogState(
+      'moderation_blocked',
+      (_) => const ClientLocationScreen(
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+        initialDescription: 'Deliver firearms',
+        initialDescriptionFailure: ClientLocationScreenFixtures.moderationBlocked,
       ),
     ),
   ],
@@ -438,6 +554,12 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
       'Terminal (expired)',
       (_) =>
           _waitingPreview(NoOfferTimeoutScreenPreviewFixtures.terminalExpired()),
+    ),
+    CatalogState(
+      'Offer count unavailable',
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.countUnavailableRepository(),
+      ),
     ),
   ],
 );

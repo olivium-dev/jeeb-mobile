@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/wallet_repository.dart';
 
 class DioWalletRepository implements WalletRepository {
@@ -14,25 +15,47 @@ class DioWalletRepository implements WalletRepository {
     try {
       final res = await _dio.get<Map<String, dynamic>>(_path);
       return _parse(res.data ?? const <String, dynamic>{});
+    } on WalletRepositoryException {
+      rethrow;
     } on DioException catch (e) {
-      throw WalletRepositoryException(_map(e), e.message);
+      throw WalletRepositoryException(
+        _map(AppFailure.of(e)),
+        cause: AppFailure.of(e),
+      );
+    } catch (e) {
+      throw WalletRepositoryException(
+        WalletFailure.unknown,
+        cause: AppFailure.of(e),
+      );
     }
   }
 
+  /// UX-16: a missing balance or currency is a FAILURE, never a fabricated
+  /// broke wallet — a $0.00 render disables the offer CTA on real money.
   WalletBalance _parse(Map<String, dynamic> json) {
+    final available = _num(
+      json['availableBalance'] ?? json['available_balance'],
+    );
+    final currency = _str(json['currency']);
+    if (available == null || currency == null) {
+      throw const WalletRepositoryException(
+        WalletFailure.unknown,
+        cause: UnknownFailure(parse: true),
+      );
+    }
     return WalletBalance(
-      availableBalance:
-          _num(json['availableBalance'] ?? json['available_balance']),
+      availableBalance: available,
       affordabilityState: _affordability(
         json['affordabilityState'] ?? json['affordability_state'],
+        available,
       ),
-      reservedNow: _num(json['reservedNow'] ?? json['reserved_now']),
-      giftCredit: _num(json['giftCredit'] ?? json['gift_credit']),
-      currency: _str(json['currency']) ?? 'USD',
+      reservedNow: _num(json['reservedNow'] ?? json['reserved_now']) ?? 0.0,
+      giftCredit: _num(json['giftCredit'] ?? json['gift_credit']) ?? 0.0,
+      currency: currency,
     );
   }
 
-  double _num(Object? v) => (v is num) ? v.toDouble() : 0.0;
+  double? _num(Object? v) => v is num ? v.toDouble() : null;
 
   String? _str(Object? v) {
     if (v is! String) return null;
@@ -40,8 +63,14 @@ class DioWalletRepository implements WalletRepository {
     return t.isEmpty ? null : t;
   }
 
-  WalletAffordability _affordability(Object? v) {
+  /// An absent field is derived from the balance; an UNRECOGNISED one is a
+  /// failure — mapping it onto `empty` claimed the worst state on a guess.
+  WalletAffordability _affordability(Object? v, double available) {
     switch (v) {
+      case null:
+        return available > 0
+            ? WalletAffordability.enough
+            : WalletAffordability.empty;
       case 'enough':
         return WalletAffordability.enough;
       case 'low':
@@ -52,21 +81,16 @@ class DioWalletRepository implements WalletRepository {
       case 'allReserved':
         return WalletAffordability.allReserved;
       default:
-        return WalletAffordability.empty;
+        throw const WalletRepositoryException(
+          WalletFailure.unknown,
+          cause: UnknownFailure(parse: true),
+        );
     }
   }
 
-  WalletFailure _map(DioException e) {
-    final code = e.response?.statusCode;
-    if (code == 401 || code == 403) return WalletFailure.unauthorized;
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return WalletFailure.network;
-      default:
-        return WalletFailure.unknown;
-    }
-  }
+  WalletFailure _map(AppFailure f) => switch (f) {
+    NetworkFailure() || TimeoutFailure() => WalletFailure.network,
+    UnauthorizedFailure() || ForbiddenFailure() => WalletFailure.unauthorized,
+    _ => WalletFailure.unknown,
+  };
 }

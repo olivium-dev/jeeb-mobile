@@ -148,7 +148,7 @@ const CancellationScreenDesignedState cancellationScreenRejectedState =
   label: 'Rejected — 5xx (seeded)',
   isJeeber: false,
   repository: CancellationScreenRejectingRepository(),
-  initialState: CancellationError('gateway 502 (fixture)'),
+  initialState: CancellationError(null, CancellationFailure.server),
 );
 
 /// The 409 lane, seeded — invisible for the same reason as
@@ -159,4 +159,22 @@ const CancellationScreenDesignedState cancellationScreenTooLateState =
   isJeeber: false,
   repository: CancellationScreenTooLateRepository(),
   initialState: CancellationTooLate(),
+);
+
+/// 400 + `cancellation-reason-required` — its own line, not the generic note.
+const CancellationScreenDesignedState cancellationScreenReasonRequiredState =
+    CancellationScreenDesignedState(
+  label: 'Rejected — reason required (seeded)',
+  isJeeber: false,
+  repository: CancellationScreenRejectingRepository(),
+  initialState: CancellationError(null, CancellationFailure.reasonRequired),
+);
+
+/// 403 + `not-a-party`.
+const CancellationScreenDesignedState cancellationScreenNotAPartyState =
+    CancellationScreenDesignedState(
+  label: 'Rejected — not a party (seeded)',
+  isJeeber: false,
+  repository: CancellationScreenRejectingRepository(),
+  initialState: CancellationError(null, CancellationFailure.notAParty),
 );

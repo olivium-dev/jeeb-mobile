@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
@@ -9,6 +10,7 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/client_home_display_clock.dart';
 import 'client_home_typed_hint.dart';
 
 /// MIDNIGHT R1's create surface: prompt, Arabic tagline and the single-line
@@ -79,7 +81,7 @@ class ClientHomeRequestHero extends StatelessWidget {
       children: [
         if (showPrompt) ...[
           Text(
-            _prompt(l10n),
+            _prompt(context, l10n),
             style: context.jeebText.h1.copyWith(color: colorScheme.onSurface),
           ),
           const SizedBox(height: _taglineGap),
@@ -201,8 +203,9 @@ class ClientHomeRequestHero extends StatelessWidget {
   ];
 
   /// Time-of-day prompt off the DEVICE clock, like the greeting eyebrow.
-  String _prompt(AppLocalizations l10n) {
-    final hour = DateTime.now().hour;
+  String _prompt(BuildContext context, AppLocalizations l10n) {
+    final hour =
+        (context.read<ClientHomeDisplayClock?>()?.now() ?? DateTime.now()).hour;
     if (hour < _afternoonHour) return l10n.homeHeroPromptMorning;
     if (hour < _eveningHour) return l10n.homeHeroPromptAfternoon;
     return l10n.homeHeroPromptEvening;

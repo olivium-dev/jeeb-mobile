@@ -9,6 +9,10 @@ class BearerAuthInterceptor extends Interceptor {
 
   final AuthTokenStore _tokenStore;
 
+  /// NET-02: the keystore read failed, so this request carries no bearer. The
+  /// 401 is classified, never logged out on — the store may read again later.
+  static const String storeUnavailableFlag = 'jeeb.auth.store_unavailable';
+
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -23,7 +27,9 @@ class BearerAuthInterceptor extends Interceptor {
           // their own (act-as/admin devtool flows) must never be rotated.
           options.extra[TokenRefreshInterceptor.sessionBearerFlag] = true;
         }
-      } catch (_) {}
+      } catch (_) {
+        options.extra[storeUnavailableFlag] = true;
+      }
     }
     handler.next(options);
   }
@@ -75,6 +81,10 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
   /// must pass through both lanes untouched.
   static const String sessionBearerFlag = 'jeeb.auth.session_bearer';
 
+  /// NET-17: this 401 was raised inside the post-failure cooldown, so the
+  /// session is recovering rather than rejected — retry copy, not sign-in.
+  static const String recoveringFlag = 'jeeb.auth.recovering';
+
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -116,6 +126,14 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     final status = err.response?.statusCode;
     final options = err.requestOptions;
 
+    // NET-02: a local store fault is never a gateway verdict. Keep this explicit
+    // fail-safe even if a caller also stamps the session-bearer flag.
+    if (status == 401 &&
+        options.extra[BearerAuthInterceptor.storeUnavailableFlag] == true) {
+      handler.next(err);
+      return;
+    }
+
     if (status != 401 ||
         options.extra[sessionBearerFlag] != true ||
         options.path.contains('auth/refresh') ||
@@ -152,6 +170,7 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     if (fresh == null || !replayable) {
       // Terminal failures already logged out inside; transient ones keep the
       // tokens. Either way the caller sees the original 401.
+      if (fresh == null && _inCooldown) options.extra[recoveringFlag] = true;
       handler.next(err);
       return;
     }
@@ -174,13 +193,15 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     }
   }
 
+  bool get _inCooldown {
+    final until = _cooldownUntil;
+    return until != null && _clock().toUtc().isBefore(until);
+  }
+
   Future<String?> _refreshSession({required bool allowTerminal}) {
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
-    final until = _cooldownUntil;
-    if (until != null && _clock().toUtc().isBefore(until)) {
-      return Future<String?>.value(null);
-    }
+    if (_inCooldown) return Future<String?>.value(null);
     final started = _doRefresh(
       allowTerminal: allowTerminal,
     ).whenComplete(() => _inFlight = null);

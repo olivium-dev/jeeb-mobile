@@ -461,6 +461,64 @@ void main() {
       );
     });
   });
+
+  group('UX-11 · a run of silent reads synthesises `lost`', () {
+
+    test('three consecutive null reads flip the overlay to lost', () async {
+      final adapter = _TrackingAdapter()..trackingSnapshot = null;
+      final dio = Dio(BaseOptions(baseUrl: 'https://gw.test'))
+        ..httpClientAdapter = adapter;
+      final cubit = LiveTrackingCubit(
+        repository: DioLiveTrackingRepository(dio, originGateway: true),
+        deliveryId: _deliveryId,
+      );
+      // The Dio leg is genuinely async: a single microtask is not enough for
+      // the cold load to settle before the refreshes are issued.
+      await pumpEventQueue();
+
+      // The cold load costs one read; two explicit refreshes complete the run.
+      await cubit.refreshNow();
+      await pumpEventQueue();
+      await cubit.refreshNow();
+      await pumpEventQueue();
+
+      expect(
+        cubit.state.trackingInfo?.positionStatus,
+        PositionFreshness.lost,
+        reason: 'a null read is not "no news" once it repeats',
+      );
+      await cubit.close();
+    });
+
+    test('a landed fix resets the miss counter', () async {
+      final adapter = _TrackingAdapter()..trackingSnapshot = null;
+      final dio = Dio(BaseOptions(baseUrl: 'https://gw.test'))
+        ..httpClientAdapter = adapter;
+      final cubit = LiveTrackingCubit(
+        repository: DioLiveTrackingRepository(dio, originGateway: true),
+        deliveryId: _deliveryId,
+      );
+      await pumpEventQueue();
+
+      adapter.trackingSnapshot = _liveSnapshot();
+      await cubit.refreshNow();
+      await pumpEventQueue();
+      expect(
+        cubit.state.trackingInfo?.positionStatus,
+        isNot(PositionFreshness.lost),
+      );
+
+      adapter.trackingSnapshot = null;
+      await cubit.refreshNow();
+      await pumpEventQueue();
+      expect(
+        cubit.state.trackingInfo?.positionStatus,
+        isNot(PositionFreshness.lost),
+        reason: 'one miss after a good fix is still "no news"',
+      );
+      await cubit.close();
+    });
+  });
 }
 
 ResponseBody _json(Object? body, {int status = 200}) =>

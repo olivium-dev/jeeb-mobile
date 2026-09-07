@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../domain/chat_event.dart';
 import '../domain/chat_message.dart';
 import '../domain/chat_outbox.dart';
@@ -95,8 +96,13 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
         'senderId': _currentUserId,
         'isTyping': isTyping,
       });
-    } catch (_) {
+    } catch (error) {
       // Typing events are best-effort; a transient send failure must not
+      // surface, but it must not be invisible either.
+      Diag.event('chat_typing_send_failed', <String, Object?>{
+        'conversation_id': conversationId,
+        'error': error.runtimeType.toString(),
+      });
     }
   }
 
@@ -123,7 +129,7 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     emit(state.copyWith(
       status: ConnectionStatus.connecting,
       reconnectAttempt: 0,
-      lastError: null,
+      lastFailure: null,
     ));
     await _connect();
   }
@@ -153,13 +159,16 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
       onError: (Object e, StackTrace _) => _onConnectionFailed(e),
       onDone: () => _onConnectionLost(),
     );
-    _errorsSub = socket.errors.listen(
-      (e) => emit(state.copyWith(lastError: e.toString())),
-    );
+    _errorsSub = socket.errors.listen((Object e) {
+      emit(state.copyWith(lastFailure: ChatConnectionFailure.socketError));
+      Diag.event('chat_socket_error', <String, Object?>{
+        'error': e.runtimeType.toString(),
+      });
+    });
     emit(state.copyWith(
       status: ConnectionStatus.connected,
       reconnectAttempt: 0,
-      lastError: null,
+      lastFailure: null,
     ));
     await _flushOutbox();
   }
@@ -180,8 +189,10 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
           senderId: senderId,
           isTyping: isTyping,
         );
-      case ServerErrorEvent(:final code, :final message):
-        emit(state.copyWith(lastError: '$code: $message'));
+      case ServerErrorEvent(:final code, message: _):
+        // Server prose never reaches view state — the code goes to Diag only.
+        emit(state.copyWith(lastFailure: ChatConnectionFailure.serverRejected));
+        Diag.event('chat_server_rejected', <String, Object?>{'code': code});
       case UnknownEvent():
         break;
     }
@@ -249,7 +260,12 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
         final bumped = message.copyWith(attempts: message.attempts + 1);
         await _outbox.update(bumped);
         emit(state.copyWith(pending: _replace(state.pending, bumped)));
-      } catch (_) {
+      } catch (error) {
+        await _outbox.markFailed(message.clientId);
+        emit(state.copyWith(lastFailure: ChatConnectionFailure.sendFailed));
+        Diag.event('chat_outbox_flush_failed', <String, Object?>{
+          'error': error.runtimeType.toString(),
+        });
         return;
       }
     }
@@ -257,7 +273,10 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
 
   Future<void> _onConnectionFailed(Object error) async {
     if (_disposed) return;
-    emit(state.copyWith(lastError: error.toString()));
+    emit(state.copyWith(lastFailure: ChatConnectionFailure.connectFailed));
+    Diag.event('chat_connect_failed', <String, Object?>{
+      'error': error.runtimeType.toString(),
+    });
     await _scheduleReconnect();
   }
 
@@ -293,7 +312,10 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     _errorsSub = null;
     try {
       await _socket?.close();
-    } catch (_) {
+    } catch (error) {
+      Diag.event('chat_socket_close_failed', <String, Object?>{
+        'error': error.runtimeType.toString(),
+      });
     }
     _socket = null;
   }

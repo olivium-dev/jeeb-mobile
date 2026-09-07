@@ -21,10 +21,16 @@ import '../../features/client_offers/data/dio_offers_repository.dart';
 import '../../features/client_offers/domain/offers_repository.dart';
 import '../../features/chat/domain/chat_gateway.dart';
 import '../../features/chat/data/dio_chat_gateway.dart';
+import '../../features/chat/chat_di.dart';
+import '../../features/cancel_request/cancel_request_di.dart';
 import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../../features/delivery_man_profile/delivery_man_profile_di.dart';
+import '../../features/goods_cost/goods_cost_di.dart';
+import '../../features/request_summary/request_summary_di.dart';
+import '../../features/settings/settings_di.dart';
 import '../config/base_url_source.dart';
 import '../config/app_config.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
@@ -36,6 +42,7 @@ import '../session/profile_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
+import '../../features/jeeber_request_detail/jeeber_request_detail_di.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_cdn_asset_gateway.dart';
@@ -140,9 +147,27 @@ import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
 
+/// Cached: a fresh client per call would leak a catch-up timer and two side
+/// clients with no disposer.
+Dio? _fallbackDio;
+
 Dio resolveGatewayDio() {
   if (sl.isRegistered<Dio>()) return sl<Dio>();
-  return MockGatewayClient.createDio();
+  // NET-25: an un-DI'd caller still gets the configured base URL and the one
+  // token store, so its client cannot diverge from the product client.
+  return _fallbackDio ??= MockGatewayClient.createDio(
+    baseUrl: sl.isRegistered<SharedPreferences>()
+        ? DevBaseUrl.read(sl<SharedPreferences>())
+        : null,
+    tokenStore: sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>() : null,
+  );
+}
+
+/// Closes the fallback client; the registered one is disposed by GetIt.
+void disposeFallbackGatewayDio() {
+  final Dio? dio = _fallbackDio;
+  _fallbackDio = null;
+  if (dio != null) MockGatewayClient.disposeDio(dio);
 }
 
 Stream<void>? resolvePushRefreshStream({Set<RefreshTopic>? topics}) {
@@ -178,9 +203,15 @@ void configureDependencies({
         sl<PushRefreshSignals>().signalStatusChange();
       },
     ),
+    // NET-30: the catch-up timer and the two side clients outlive
+    // `sl.reset()` otherwise.
+    dispose: MockGatewayClient.disposeDio,
   );
 
-  sl.registerLazySingleton<SingleFlightGet>(() => SingleFlightGet(sl<Dio>()));
+  sl.registerLazySingleton<SingleFlightGet>(
+    () => SingleFlightGet(sl<Dio>()),
+    dispose: (coalescer) => coalescer.dispose(),
+  );
 
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
@@ -505,4 +536,14 @@ void configureDependencies({
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
   );
+
+  // Stage 2: feature-owned registrations. Each is idempotent and resolves
+  // lazily, so ordering against the block above does not matter.
+  registerChatDependencies(sl);
+  registerCancelRequestDependencies(sl);
+  registerDeliveryManProfileDependencies(sl);
+  registerGoodsCostDependencies(sl);
+  registerJeeberRequestDetailDependencies(sl);
+  registerRequestSummaryDependencies(sl);
+  registerSettingsDependencies(sl);
 }

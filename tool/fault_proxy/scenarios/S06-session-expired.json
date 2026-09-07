@@ -1,0 +1,40 @@
+{
+  "scenario": "S06",
+  "rules": [
+    {
+      "id": "session-expired",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 401,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.2\",\"title\":\"Unauthorized\",\"status\":401,\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "unauthorized",
+    "copyTitle": "errorSessionExpiredTitle",
+    "copyBody": "errorSessionExpiredBody",
+    "retryable": false
+  },
+  "device": {
+    "screen": "registration",
+    "mode": "cold",
+    "expectedHits": "1-2; optional refresh PASS",
+    "requiredIds": [
+      "registration_session_expired_note"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Run last, then approved Super Login Plus re-entry."
+  }
+}

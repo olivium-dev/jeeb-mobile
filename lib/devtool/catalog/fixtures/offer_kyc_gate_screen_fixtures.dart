@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/kyc/domain/kyc_contract_template.dart';
 import '../../../features/kyc/domain/kyc_form_schema.dart';
 import '../../../features/kyc/domain/kyc_gateway.dart';
@@ -281,4 +282,18 @@ class _OfferKycGateScreenPreviewHostState
       ),
     );
   }
+}
+
+/// OKG-01: the status read fails, so the gate strip carries the kind-specific
+/// body AND `offer_kyc_gate_retry_cta`.
+class OfferKycGateScreenThrowingGateway extends OfferKycGateScreenGateway {
+  const OfferKycGateScreenThrowingGateway({
+    this.failure = const NetworkFailure(offline: true),
+  });
+
+  final AppFailure failure;
+
+  @override
+  Future<KycSubmission> fetchStatus() async =>
+      throw KycGatewayException(failure);
 }

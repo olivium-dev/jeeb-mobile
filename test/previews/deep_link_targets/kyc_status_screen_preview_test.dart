@@ -237,24 +237,36 @@ void main() {
         tester,
         kycStatusScreenNotchedLargeText,
       );
-      final Rect column = tester.getRect(
+      // Measure the scroll viewport, not the block: at 200% the wrapped CTA
+      // makes the block taller than the safe area, so the block scrolls.
+      final Rect viewport = tester.getRect(
         find.descendant(
           of: find.byType(KycStatusScreen),
-          matching: find.byType(Column),
+          matching: find.byType(SingleChildScrollView),
         ),
       );
 
       expect(tester.takeException(), isNull);
       expect(
-        column.top - frame.top,
-        greaterThan(59),
+        viewport.top - frame.top,
+        59,
         reason: 'top inset (status bar) is not consumed by anything',
       );
       expect(
-        frame.bottom - column.bottom,
-        greaterThan(34),
+        frame.bottom - viewport.bottom,
+        34,
         reason: 'bottom inset (home indicator) is not consumed by anything',
       );
+
+      final Finder cta = find.bySemanticsIdentifier(
+        'deep_link_kyc_status_open_cta',
+      );
+      await tester.ensureVisible(cta);
+      await tester.pumpAndSettle();
+      final Rect action = tester.getRect(cta);
+      expect(action.top, greaterThanOrEqualTo(viewport.top));
+      expect(action.bottom, lessThanOrEqualTo(viewport.bottom));
+      expect(tester.takeException(), isNull);
     });
 
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {

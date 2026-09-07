@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -300,10 +302,35 @@ class _GateStatusLine extends StatelessWidget {
           );
         }
         if (state.phase == OfferKycGatePhase.error) {
-          return _GateStatusStrip(
-            key: const Key('gate-status-unavailable'),
-            icon: Icons.cloud_off_outlined,
-            text: l10n.offerKycGateStatusUnavailable,
+          // OKG-01: a failed read used to be an inert strip. It now says what
+          // failed and offers the one act that can fix it.
+          final AppFailure failure = state.failure ?? const UnknownFailure();
+          // R6: an unrecoverable kind never gets an inert Retry.
+          final bool retryable = failureCopy(l10n, failure).retryable;
+          return Semantics(
+            identifier: 'offer_kyc_gate_error',
+            container: true,
+            liveRegion: true,
+            child: _GateStatusSlot(
+              key: const Key('gate-status-unavailable'),
+              child: JeebInfoNote.error(
+                icon: Icons.cloud_off_outlined,
+                text: failureCopy(l10n, failure).body,
+                trailing: !retryable
+                    ? null
+                    : Semantics(
+                        identifier: 'offer_kyc_gate_retry_cta',
+                        button: true,
+                        container: true,
+                        child: JeebCtaButton.text(
+                          label: l10n.offerKycGateRetry,
+                          expand: false,
+                          onTap: () =>
+                              context.read<OfferKycGateCubit>().loadStatus(),
+                        ),
+                      ),
+              ),
+            ),
           );
         }
         final (title, body, tone, icon) = switch (state.status) {
@@ -349,7 +376,7 @@ class _GateStatusLine extends StatelessWidget {
 
 /// The one gap above the status panel, so every phase sits at the same offset.
 class _GateStatusSlot extends StatelessWidget {
-  const _GateStatusSlot({required this.child});
+  const _GateStatusSlot({super.key, required this.child});
 
   final Widget child;
 

@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
+import '../domain/courier_position_channel.dart';
 import '../domain/delivery_tracking_info.dart';
+import '../domain/live_tracking_repository.dart';
 
 enum LiveTrackingViewMode { loading, ready, error }
 
@@ -16,17 +19,33 @@ class LiveTrackingState extends Equatable {
   const LiveTrackingState({
     this.mode = LiveTrackingViewMode.loading,
     this.trackingInfo,
-    this.errorMessage,
-    this.errorTitle,
+    this.failure,
+    this.errorKind,
+    this.refreshError,
+    this.lastSuccessAt,
+    this.streamUnavailable = false,
+    this.streamFailure,
     this.pendingEvent = LiveTrackingEvent.none,
     this.handoverCode,
   });
 
   final LiveTrackingViewMode mode;
   final DeliveryTrackingInfo? trackingInfo;
-  final String? errorMessage;
 
-  final String? errorTitle;
+  /// The cold-load failure the copy family renders.
+  final AppFailure? failure;
+
+  final LiveTrackingErrorKind? errorKind;
+
+  /// A warm refresh failed while rows are on screen: a note, not a rung.
+  final AppFailure? refreshError;
+
+  final DateTime? lastSuccessAt;
+
+  /// The live-position socket could not be opened.
+  final bool streamUnavailable;
+
+  final CourierPositionOpenFailure? streamFailure;
 
   final LiveTrackingEvent pendingEvent;
 
@@ -38,17 +57,29 @@ class LiveTrackingState extends Equatable {
   LiveTrackingState copyWith({
     LiveTrackingViewMode? mode,
     DeliveryTrackingInfo? trackingInfo,
-    String? errorMessage,
-    String? errorTitle,
+    AppFailure? failure,
+    LiveTrackingErrorKind? errorKind,
     bool clearError = false,
+    AppFailure? refreshError,
+    bool clearRefreshError = false,
+    DateTime? lastSuccessAt,
+    bool? streamUnavailable,
+    CourierPositionOpenFailure? streamFailure,
     LiveTrackingEvent? pendingEvent,
     String? handoverCode,
   }) {
     return LiveTrackingState(
       mode: mode ?? this.mode,
       trackingInfo: trackingInfo ?? this.trackingInfo,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      errorTitle: clearError ? null : (errorTitle ?? this.errorTitle),
+      failure: clearError ? null : (failure ?? this.failure),
+      errorKind: clearError ? null : (errorKind ?? this.errorKind),
+      refreshError:
+          clearRefreshError ? null : (refreshError ?? this.refreshError),
+      lastSuccessAt: lastSuccessAt ?? this.lastSuccessAt,
+      streamUnavailable: streamUnavailable ?? this.streamUnavailable,
+      streamFailure: (streamUnavailable ?? this.streamUnavailable)
+          ? (streamFailure ?? this.streamFailure)
+          : null,
       pendingEvent: pendingEvent ?? LiveTrackingEvent.none,
       handoverCode: handoverCode ?? this.handoverCode,
     );
@@ -58,8 +89,12 @@ class LiveTrackingState extends Equatable {
   List<Object?> get props => [
         mode,
         trackingInfo,
-        errorMessage,
-        errorTitle,
+        failure,
+        errorKind,
+        refreshError,
+        lastSuccessAt,
+        streamUnavailable,
+        streamFailure,
         pendingEvent,
         handoverCode,
       ];

@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
+import '../../../core/diagnostics/diag.dart';
 import '../domain/dispute_status_repository.dart';
 
 class DioDisputeStatusRepository implements DisputeStatusRepository {
@@ -15,11 +17,21 @@ class DioDisputeStatusRepository implements DisputeStatusRepository {
       );
       return _parse(res.data ?? const <String, dynamic>{}, disputeId);
     } on DioException catch (e) {
-      throw DisputeStatusRepositoryException(_map(e), e.message);
+      throw DisputeStatusRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     } catch (e) {
-      throw DisputeStatusRepositoryException(
+      Diag.event('dispute_status.parse_failed', <String, Object?>{
+        'type': e.runtimeType.toString(),
+      });
+      throw DisputeStatusRepositoryException.classified(
         DisputeStatusFailure.unknown,
-        e.toString(),
+        appFailure: UnknownFailure(
+          cause: e,
+          parse: e is TypeError || e is FormatException,
+        ),
       );
     }
   }

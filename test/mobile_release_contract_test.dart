@@ -870,8 +870,26 @@ void _registerCiContracts() {
     expect(ios, isNot(contains('latest_testflight_build_number')));
     expect(ios, isNot(contains('deliver(')));
     expect(ios, isNot(contains('submit_for_review')));
-    expect(_source('Gemfile'), contains("gem 'fastlane', '2.238.0'"));
-    expect(_source('Gemfile.lock'), contains('fastlane (2.238.0)'));
+    const fastlaneCommit = '56ee6ca6717d3d0a2b182f6a517211fe9d85f860';
+    const fastlaneRepository = 'https://github.com/fastlane/fastlane.git';
+    expect(
+      _source('Gemfile'),
+      contains(
+        "gem 'fastlane', git: '$fastlaneRepository', ref: '$fastlaneCommit'",
+      ),
+    );
+    final gemLock = _source('Gemfile.lock');
+    expect(
+      gemLock,
+      contains(
+        'GIT\n  remote: $fastlaneRepository\n'
+        '  revision: $fastlaneCommit\n  ref: $fastlaneCommit\n',
+      ),
+    );
+    expect(gemLock, contains('rubyzip (>= 3.4.0, < 4.0.0)'));
+    expect(gemLock, contains('    rubyzip (3.6.0)\n'));
+    expect(gemLock, isNot(matches(RegExp(r'^PATH$', multiLine: true))));
+    expect(gemLock, isNot(matches(RegExp(r'^  branch:', multiLine: true))));
 
     final preflight = _source('fastlane/Fastfile');
     _expectContainsAll(preflight, [

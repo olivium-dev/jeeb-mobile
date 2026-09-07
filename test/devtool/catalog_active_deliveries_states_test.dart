@@ -87,7 +87,7 @@ void main() {
     ) async {
       expect(entry.states.first.label, startsWith('Populated'));
       expect(entry.states[1].label, startsWith('Empty'));
-      expect(entry.states.last.label, startsWith('One '));
+      expect(entry.states[2].label, startsWith('One '));
     });
   });
 }

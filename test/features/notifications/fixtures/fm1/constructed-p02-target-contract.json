@@ -1,0 +1,13 @@
+{
+  "items": [
+    {"id":"p02-new","type":"new_request","ref":"request-new","ts":"2026-09-06T12:00:00Z"},
+    {"id":"p02-chat","type":"chat","ref":"request-chat","conversationId":"not-a-route-id","deepLink":"jeeb://notifications","ts":"2026-09-06T12:01:00Z"},
+    {"id":"p02-offer","type":"offer","ref":"request-offer","offerId":"not-a-request-id","ts":"2026-09-06T12:02:00Z"},
+    {"id":"p02-accepted","type":"offer_accepted","ref":"request-accepted","ts":"2026-09-06T12:03:00Z"},
+    {"id":"p02-delivery","type":"delivery","ref":"request-delivery","ts":"2026-09-06T12:04:00Z"},
+    {"id":"p02-cancel","type":"cancellation_decision","ref":"request-cancel","ts":"2026-09-06T12:05:00Z"},
+    {"id":"p02-expand","type":"request.try_expand_tier","ref":"request-expand","ts":"2026-09-06T12:06:00Z"},
+    {"id":"p02-expired","type":"request.expired","ref":"request-expired","ts":"2026-09-06T12:07:00Z"},
+    {"id":"p02-availability","type":"availability","ts":"2026-09-06T12:08:00Z"}
+  ]
+}

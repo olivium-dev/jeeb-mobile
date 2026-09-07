@@ -51,9 +51,11 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     if (token == null || token.trim().isEmpty) {
       return SessionStatus.unauthenticated;
     }
+    // NET-03: `jwtExpiry` returns null for opaque tokens too. Expiry unknown
+    // is not expiry proven — only the reactive 401 lane declares death.
     final exp = jwtExpiry(token);
     if (exp == null) {
-      return SessionStatus.unauthenticated;
+      return SessionStatus.authenticated;
     }
     final isExpired = !exp.isAfter(_clock().toUtc());
     return isExpired

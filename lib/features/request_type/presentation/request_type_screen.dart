@@ -4,13 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_tier_row.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -266,12 +270,27 @@ class _Body extends StatelessWidget {
       case TierSelectionStatus.loading:
         return const _LoadingView();
       case TierSelectionStatus.error:
-        return const _UnavailableView(status: JeebEmptyStateStatus.error);
+        return JeebStateHost(
+          onRefresh: () => context.read<TierSelectionCubit>().load(),
+          child: Center(
+            child: JeebFailureBlock(
+              failure: state.appFailure ?? const UnknownFailure(),
+              identifier: 'request_type_tiers_error',
+              retryIdentifier: 'request_type_tiers_retry',
+              onRetry: () => context.read<TierSelectionCubit>().load(),
+              onExit: () => _leave(context),
+              exitLabel: AppLocalizations.of(context).actionBack,
+            ),
+          ),
+        );
       case TierSelectionStatus.loaded:
         if (state.tiers.isEmpty) {
-          // A 200 with no tier configured for this city: nothing to pick, and
-          // the same recovery as the error path.
-          return const _UnavailableView(status: JeebEmptyStateStatus.empty);
+          // A 200 with no tier configured for this city: a coverage gap, not a
+          // failed call.
+          return JeebStateHost(
+            onRefresh: () => context.read<TierSelectionCubit>().load(),
+            child: const _UnavailableView(),
+          );
         }
         return _LoadedView(
           state: state,
@@ -293,16 +312,20 @@ class _LoadingView extends StatelessWidget {
     final JeebSemanticColors semantics =
         Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
-    return Padding(
-      padding: _bodyPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          for (int i = 0; i < 5; i++) ...<Widget>[
-            _SkeletonRow(fill: semantics.glassFillEmphasis),
-            if (i < 4) const SizedBox(height: Spacing.xSmall),
+    return Semantics(
+      identifier: 'request_type_tiers_loading',
+      container: true,
+      child: Padding(
+        padding: _bodyPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            for (int i = 0; i < 5; i++) ...<Widget>[
+              _SkeletonRow(fill: semantics.glassFillEmphasis),
+              if (i < 4) const SizedBox(height: Spacing.xSmall),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -370,26 +393,24 @@ class _Bar extends StatelessWidget {
   }
 }
 
-/// Error and empty share one recovery — retry — but not one read: an empty
-/// catalog is a coverage gap, not a failed call.
+/// A 200 with no tier configured for this city. The failed read has its own
+/// rung now, so this serves the empty case only.
 class _UnavailableView extends StatelessWidget {
-  const _UnavailableView({required this.status});
-
-  final JeebEmptyStateStatus status;
+  const _UnavailableView();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isEmpty = status == JeebEmptyStateStatus.empty;
     return Center(
       child: JeebEmptyState(
-        status: status,
-        headline: isEmpty
-            ? l10n.requestTypeTiersEmptyHeadline
-            : l10n.requestSummaryErrorNetwork,
-        body: isEmpty ? l10n.requestTypeTiersEmptyBody : null,
+        reason: JeebEmptyStateReason.noResults,
+        headline: l10n.requestTypeTiersEmptyHeadline,
+        body: l10n.requestTypeTiersEmptyBody,
+        identifier: 'request_type_tiers_empty',
         action: JeebCtaButton.outline(
-          label: l10n.requestSummaryRetry,
+          label: l10n.actionRetry,
+          leadingIcon: Icons.refresh,
+          expand: false,
           identifier: 'request_type_tiers_retry',
           onTap: () => context.read<TierSelectionCubit>().load(),
         ),
@@ -504,10 +525,10 @@ class _LocationSection extends StatelessWidget {
     // Anything that is neither a point nor null is a contract violation, not a
     // cancel — same handling as the location screen's pin edge.
     if (result != null && result is! LocationPoint) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).captureLocationPinFailed),
-        ),
+      showJeebErrorSnack(
+        context,
+        message: AppLocalizations.of(context).captureLocationPinFailed,
+        identifier: 'request_type_pin_failed',
       );
       return;
     }
@@ -520,3 +541,13 @@ class _LocationSection extends StatelessWidget {
 
 // The tier rows themselves live in `widgets/tier_catalog_section.dart`: copy
 // resolution and the display lexicon sit with the section, not in this shell.
+
+/// The way out when the tier catalogue cannot be read: back, or the root when
+/// this screen is the stack root.
+void _leave(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/');
+  }
+}

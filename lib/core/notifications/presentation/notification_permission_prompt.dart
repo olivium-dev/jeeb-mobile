@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
@@ -21,29 +22,26 @@ class NotificationPermissionPrompt extends StatelessWidget {
     super.key,
     required this.onEnable,
     required this.onDismiss,
-    this.title = _defaultTitle,
-    this.body = _defaultBody,
-    this.enableLabel = _defaultEnable,
-    this.dismissLabel = _defaultDismiss,
+    this.title,
+    this.body,
+    this.enableLabel,
+    this.dismissLabel,
   });
 
   final VoidCallback onEnable;
   final VoidCallback onDismiss;
-  final String title;
-  final String body;
-  final String enableLabel;
-  final String dismissLabel;
 
-  static const String _defaultTitle = 'Turn on notifications';
-  static const String _defaultBody =
-      'Get delivery updates and chat messages the moment they happen, even '
-      'when the app is closed.';
-  static const String _defaultEnable = 'Enable notifications';
-  static const String _defaultDismiss = 'Not now';
+  /// COPY-18: null resolves the shipped ARB copy. A caller overrides only for
+  /// the post-denial "open settings" wording.
+  final String? title;
+  final String? body;
+  final String? enableLabel;
+  final String? dismissLabel;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'notification_permission_prompt',
       container: true,
@@ -58,10 +56,10 @@ class NotificationPermissionPrompt extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: _PromptBody(
-            title: title,
-            body: body,
-            enableLabel: enableLabel,
-            dismissLabel: dismissLabel,
+            title: title ?? l10n.notificationPromptTitle,
+            body: body ?? l10n.notificationPromptBody,
+            enableLabel: enableLabel ?? l10n.notificationPromptEnableCta,
+            dismissLabel: dismissLabel ?? l10n.notificationPromptDismissCta,
             onEnable: onEnable,
             onDismiss: onDismiss,
           ),

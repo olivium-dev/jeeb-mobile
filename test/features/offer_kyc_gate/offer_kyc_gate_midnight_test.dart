@@ -240,20 +240,24 @@ void main() {
       );
     });
 
-    testWidgets('a failed read draws a muted strip, never the error tone',
+    // OKG-01: the strip was inert — a failure with no way out. It now carries
+    // the kind-specific body AND the one act that can fix it.
+    testWidgets('a failed read draws an error strip WITH a retry',
         (tester) async {
       await tester.pumpWidget(failedGate());
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('gate-status-unavailable')), findsOneWidget);
-      final note = tester.widget<JeebInfoNote>(find.byType(JeebInfoNote).first);
-      expect(note.tone, JeebInfoNoteTone.muted);
       expect(
-        note.tone,
-        isNot(JeebInfoNoteTone.error),
-        reason: 'the error tone is reserved for a real KYC decision — a failed '
-            'status READ must not read as a rejection',
+        find.bySemanticsIdentifier('offer_kyc_gate_error'),
+        findsOneWidget,
       );
+      expect(
+        find.bySemanticsIdentifier('offer_kyc_gate_retry_cta'),
+        findsOneWidget,
+      );
+      final note = tester.widget<JeebInfoNote>(find.byType(JeebInfoNote).first);
+      expect(note.tone, JeebInfoNoteTone.error);
     });
 
     testWidgets('not-submitted draws no strip at all — the headline says it',

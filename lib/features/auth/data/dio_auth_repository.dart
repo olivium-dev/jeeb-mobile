@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../domain/auth_repository.dart';
 
 /// [AuthRepository] backed by the gateway BFF. Routes verified by W-1 FLOOR contract.
@@ -133,40 +135,24 @@ class DioAuthRepository implements AuthRepository {
     );
   }
 
-  /// Maps DioException to AuthFailure: timeout/network → network, 401 codes → auth-specific,
-  /// 400 → badRequest, else unknown.
+  /// Classifies through [AppFailure] so a 5xx reads as a server fault, never
+  /// as the caller's connection; 401s are split by the problem's type suffix.
   AuthFailure _mapAuth(DioException e) {
-    if (e.type == DioExceptionType.connectionError ||
-        e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      return AuthFailure.network;
-    }
-    final status = e.response?.statusCode;
-    final code = _problemCode(e.response?.data);
-    if (status == 401) {
-      switch (code) {
-        case 'invalid_recovery_code':
-          return AuthFailure.invalidRecoveryCode;
-        case 'invalid_token':
-          return AuthFailure.invalidToken;
-        case 'invalid_credentials':
-        default:
-          return AuthFailure.invalidCredentials;
-      }
-    }
-    // Signup find-or-create collision (D22): mock tags code: email_collision; treat any 409 as collision.
-    if (status == 409) return AuthFailure.emailCollision;
-    if (status == 400) return AuthFailure.badRequest;
-    return AuthFailure.unknown;
-  }
-
-  /// Reads RFC-7807 `code` field from ProblemError, tolerating `title`/`type` aliases.
-  static String? _problemCode(Object? data) {
-    if (data is Map) {
-      final code = data['code'] ?? data['title'] ?? data['type'];
-      return code is String ? code : null;
-    }
-    return null;
+    final failure = AppFailure.of(e);
+    return switch (failure) {
+      NetworkFailure() || TimeoutFailure() => AuthFailure.network,
+      UnauthorizedFailure(:final GatewayProblem? problem) =>
+        switch (problem?.typeSuffix) {
+          'invalid_recovery_code' => AuthFailure.invalidRecoveryCode,
+          'invalid_token' => AuthFailure.invalidToken,
+          _ => AuthFailure.invalidCredentials,
+        },
+      // Signup find-or-create collision (D22): any 409 is a collision.
+      ConflictFailure() => AuthFailure.emailCollision,
+      ValidationFailure() => AuthFailure.badRequest,
+      ServerFailure() => AuthFailure.serverError,
+      RateLimitedFailure() => AuthFailure.rateLimited,
+      _ => AuthFailure.unknown,
+    };
   }
 }

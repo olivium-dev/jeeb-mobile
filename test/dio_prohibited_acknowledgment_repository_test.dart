@@ -26,94 +26,100 @@ Dio _capturingDio(Object? responseBody) {
   return dio;
 }
 
-DioProhibitedAcknowledgmentRepository _repo(
-  Dio dio,
-  SharedPreferences prefs,
-) => DioProhibitedAcknowledgmentRepository(dio: dio, prefs: prefs);
+DioProhibitedAcknowledgmentRepository _repo(Dio dio, SharedPreferences prefs) =>
+    DioProhibitedAcknowledgmentRepository(dio: dio, prefs: prefs);
 
 void main() {
   group(
-      'DioProhibitedAcknowledgmentRepository — T-MOB-021 endpoint contract',
-      () {
-    late SharedPreferences prefs;
+    'DioProhibitedAcknowledgmentRepository — T-MOB-021 endpoint contract',
+    () {
+      late SharedPreferences prefs;
 
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      prefs = await SharedPreferences.getInstance();
-    });
+      setUp(() async {
+        SharedPreferences.setMockInitialValues({});
+        prefs = await SharedPreferences.getInstance();
+      });
 
-    test('fetchItems uses GET /prohibited-items (mock :3055 verified)',
+      test(
+        'fetchItems uses GET /prohibited-items (mock :3055 verified)',
         () async {
-      _capturedPath = null;
-      final repo = _repo(
-        _capturingDio({
-          'items': <dynamic>[],
-          'version': '2026-06-05T12:00:00.0000000Z',
-        }),
-        prefs,
+          _capturedPath = null;
+          final repo = _repo(
+            _capturingDio({
+              'items': <dynamic>[],
+              'version': '2026-06-05T12:00:00.0000000Z',
+              'acknowledged': false,
+            }),
+            prefs,
+          );
+
+          await repo.fetchItems();
+
+          expect(_capturedPath, '/prohibited-items');
+          expect(_capturedMethod, 'GET');
+        },
       );
 
-      await repo.fetchItems();
+      test('acknowledge uses POST /prohibited-items/acknowledge', () async {
+        _capturedPath = null;
+        final repo = _repo(
+          _capturingDio(<String, dynamic>{
+            'userId': 'u-1',
+            'version': 'v1',
+            'acknowledgedAt': '2026-06-13T00:00:00Z',
+            'items': <dynamic>[],
+            'acknowledged': false,
+          }),
+          prefs,
+        );
 
-      expect(_capturedPath, '/prohibited-items');
-      expect(_capturedMethod, 'GET');
-    });
+        await repo.acknowledge();
 
-    test('acknowledge uses POST /prohibited-items/acknowledge', () async {
-      _capturedPath = null;
-      final repo = _repo(
-        _capturingDio(<String, dynamic>{
-          'userId': 'u-1',
-          'version': 'v1',
-          'acknowledgedAt': '2026-06-13T00:00:00Z',
-        }),
-        prefs,
-      );
+        expect(_capturedPath, '/prohibited-items/acknowledge');
+        expect(_capturedMethod, 'POST');
+      });
 
-      await repo.acknowledge();
+      test('hasAcknowledged returns false before local save', () async {
+        final repo = _repo(_capturingDio(null), prefs);
 
-      expect(_capturedPath, '/prohibited-items/acknowledge');
-      expect(_capturedMethod, 'POST');
-    });
+        expect(await repo.hasAcknowledged(), isFalse);
+      });
 
-    test('hasAcknowledged returns false before local save', () async {
-      final repo = _repo(_capturingDio(null), prefs);
+      test('saveLocalAcknowledgment removes the legacy global latch', () async {
+        final repo = _repo(_capturingDio(null), prefs);
+        await prefs.setBool('app.acknowledged_prohibited', true);
 
-      expect(await repo.hasAcknowledged(), isFalse);
-    });
+        await repo.saveLocalAcknowledgment();
 
-    test('saveLocalAcknowledgment persists flag in SharedPreferences',
-        () async {
-      final repo = _repo(_capturingDio(null), prefs);
+        expect(await repo.hasAcknowledged(), isFalse);
+        expect(prefs.containsKey('app.acknowledged_prohibited'), isFalse);
+      });
 
-      await repo.saveLocalAcknowledgment();
+      test('parses items array from response correctly', () async {
+        final repo = _repo(
+          _capturingDio({
+            'items': [
+              {'id': 'arak', 'name': 'Arak', 'category': 'alcohol'},
+              {
+                'id': 'knife',
+                'name': 'Kitchen Knife',
+                'category': 'weapons',
+                'severity': 'warn',
+              },
+            ],
+            'version': '2026-06-05T12:00:00.0000000Z',
+            'acknowledged': false,
+          }),
+          prefs,
+        );
 
-      expect(await repo.hasAcknowledged(), isTrue);
-    });
+        final items = await repo.fetchItems();
 
-    test('parses items array from response correctly', () async {
-      final repo = _repo(
-        _capturingDio({
-          'items': [
-            {'id': 'arak', 'name': 'Arak', 'category': 'alcohol'},
-            {
-              'id': 'knife',
-              'name': 'Kitchen Knife',
-              'category': 'weapons',
-              'severity': 'warn',
-            },
-          ],
-          'version': '2026-06-05T12:00:00.0000000Z',
-        }),
-        prefs,
-      );
-
-      final items = await repo.fetchItems();
-
-      expect(items.length, 2);
-      expect(items[0].id, 'arak');
-      expect(items[0].name, 'Arak');
-      expect(items[1].id, 'knife');
-    });
-  });
+        expect(items.length, 2);
+        expect(items[0].id, 'arak');
+        expect(items[0].name, 'Arak');
+        expect(items[1].id, 'knife');
+      });
+    },
+  );
 }

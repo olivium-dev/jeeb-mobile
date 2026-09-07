@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
+import '../fixtures/jeeber_active_deliveries_fixtures.dart';
 
 import '../../../features/escalate/application/escalate_cubit.dart';
 import '../../../features/escalate/domain/escalate_repository.dart';
@@ -39,7 +45,10 @@ List<CatalogEntry> get batch04Entries => <CatalogEntry>[
 ];
 
 /// [preSubmit] fires setReason → submit before first frame to drive submitting/error states.
-Widget _escalateScreen(EscalateRepository repository, {bool preSubmit = false}) {
+Widget _escalateScreen(
+  EscalateRepository repository, {
+  bool preSubmit = false,
+}) {
   return BlocProvider<EscalateCubit>(
     create: (_) => EscalateScreenPreviewFixtures.cubit(
       repository,
@@ -56,11 +65,11 @@ final CatalogEntry _escalateEntry = CatalogEntry(
   states: [
     CatalogState(
       'Reason picker (evidence loaded)',
-      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceLoaded()),
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.richPreview()),
     ),
     CatalogState(
       'Evidence degraded (chat/timeline unavailable)',
-      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceDegraded()),
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.failingPreview()),
     ),
     CatalogState(
       'Submitting',
@@ -76,8 +85,40 @@ final CatalogEntry _escalateEntry = CatalogEntry(
         preSubmit: true,
       ),
     ),
+    CatalogState(
+      'Evidence preview — empty (ES-15)',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.emptyPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — failed (ESC-08)',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.failingPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — in flight',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.stalledPreview()),
+    ),
+    CatalogState(
+      'Evidence preview — rich',
+      (_) => _escalatePreview(EscalateScreenPreviewFixtures.richPreview()),
+    ),
+    CatalogState(
+      'Error — dispute not found (exit CTA, no Retry)',
+      (_) => _escalateScreen(
+        EscalateScreenPreviewFixtures.notFoundSubmit(),
+        preSubmit: true,
+      ),
+    ),
   ],
 );
+
+/// The three ES-15 rungs only light when the repository implements the preview
+/// interface, which the shipped Dio one deliberately does not.
+Widget _escalatePreview(EscalateRepository repository) =>
+    BlocProvider<EscalateCubit>(
+      create: (_) =>
+          EscalateScreenPreviewFixtures.cubit(repository)..loadEvidence(),
+      child: const EscalateScreen(),
+    );
 
 /// `repository` is the only seam; it builds its own cubit and calls loadCurrency() at mount.
 final CatalogEntry _goodsCostEntry = CatalogEntry(
@@ -105,6 +146,20 @@ final CatalogEntry _goodsCostEntry = CatalogEntry(
         repository: GoodsCostScreenPreviewFixtures.currencyUnavailable(),
       ),
     ),
+    CatalogState(
+      'Currency absent — neutral label + inline retry',
+      (_) => GoodsCostScreen(
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.currencyAbsent(),
+      ),
+    ),
+    CatalogState(
+      'Amount unconfirmed — the server confirmed nothing',
+      (_) => catalogGoodsUnconfirmed(GoodsCostScreen(
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.amountUnconfirmed(),
+      )),
+    ),
   ],
 );
 
@@ -113,13 +168,25 @@ Widget _clientHome({
   required ClientHomeRepository repository,
   required ClientHomeTab initialTab,
   String? name = ClientHomeScreenPreviewFixtures.greetingName,
+  bool failWarmRefresh = false,
 }) {
   return Scaffold(
     body: BlocProvider<ClientHomeCubit>(
-      create: (_) => ClientHomeScreenPreviewFixtures.cubit(
-        repository,
-        name: name,
-      ),
+      create: (_) {
+        final cubit = ClientHomeScreenPreviewFixtures.cubit(
+          repository,
+          name: name,
+        );
+        if (failWarmRefresh) {
+          // This repository only fails its SECOND read. Drive that real
+          // transition so the catalog displays the state its label promises.
+          unawaited(() async {
+            await cubit.load();
+            if (!cubit.isClosed) await cubit.refresh();
+          }());
+        }
+        return cubit;
+      },
       child: ClientHomeScreen(
         initialTab: initialTab,
         onCreateRequest: (_) {},
@@ -174,6 +241,35 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
       'Empty (no active deliveries)',
       (_) => _clientHome(
         repository: ClientHomeScreenPreviewFixtures.empty(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
+    CatalogState(
+      'In Progress unavailable — isolated bucket (replies retained in state)',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.partialFailureRepository(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
+    CatalogState(
+      'Refresh failed over rows',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.refreshFailingRepository(),
+        initialTab: ClientHomeTab.pendingRequests,
+        failWarmRefresh: true,
+      ),
+    ),
+    CatalogState(
+      'Forbidden — no inert retry',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.forbiddenRepository(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
+    CatalogState(
+      "Cold load failed — can't reach Jeeb (host unresolved)",
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.unreachableRepository(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
@@ -248,7 +344,34 @@ final CatalogEntry _jeeberActiveDeliveriesEntry = CatalogEntry(
         ),
       ]),
     ),
+    CatalogState(
+      'Load failed — compact failure block',
+      (_) => _activeDeliveriesSeated(
+        failedActiveDeliveriesCubit(const NetworkFailure()),
+      ),
+    ),
+    CatalogState(
+      'Loading — the banner hides itself',
+      (_) => _activeDeliveriesSeated(
+        ActiveDeliveriesCubit(
+          repository: const StalledActiveDeliveriesRepository(),
+        )..start(),
+      ),
+    ),
   ],
+);
+
+/// Seats a pre-built cubit, for the rungs a canned repository cannot reach.
+Widget _activeDeliveriesSeated(ActiveDeliveriesCubit cubit) => Scaffold(
+  body: SafeArea(
+    child: BlocProvider<ActiveDeliveriesCubit>.value(
+      value: cubit,
+      child: ActiveDeliveriesBanner(
+        onOpenChat: (_) {},
+        onManageDelivery: (_) {},
+      ),
+    ),
+  ),
 );
 
 /// Provides AvailabilityCubit the screen reads from didChangeDependencies (calls load()).
@@ -256,12 +379,14 @@ final CatalogEntry _jeeberActiveDeliveriesEntry = CatalogEntry(
 Widget _jeeberHomeRegistered({
   required AvailabilityCubit availability,
   RequestFeedCubit? feedCubit,
+  VoidCallback? onRegister,
 }) {
   return BlocProvider<AvailabilityCubit>.value(
     value: availability,
     child: JeeberHomeScreen(
       profileName: JeeberHomeScreenPreviewFixtures.profileName,
       requestFeedCubit: feedCubit,
+      onRegister: onRegister,
       submittedOffersCubitFactory:
           JeeberHomeScreenPreviewFixtures.submittedOffersCubit,
     ),
@@ -315,6 +440,41 @@ final CatalogEntry _jeeberHomeEntry = CatalogEntry(
         // mounts a builder directly, not inside a screen.
         body: JeeberFeedEmptyView(
           profileName: JeeberHomeScreenPreviewFixtures.profileName,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Feed load failed (503)',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+        feedCubit: JeeberHomeScreenPreviewFixtures.failedFeed(
+          const ServerFailure(status: 503),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Feed refresh failed — stale rows stay up',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+        feedCubit: JeeberHomeScreenPreviewFixtures.refreshFailedFeed(
+          JeeberHomeScreenPreviewFixtures.incomingFeed(),
+          const NetworkFailure(offline: true),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Not registered — availability answered 404',
+      (context) => _jeeberHomeRegistered(
+        availability:
+            JeeberHomeScreenPreviewFixtures.notRegisteredAvailability(),
+        onRegister: () => context.pushNamed('jeeber-onboarding'),
+      ),
+    ),
+    CatalogState(
+      'Availability forbidden — KYC exit, no inert retry',
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.failingAvailabilityOf(
+          const ForbiddenFailure(),
         ),
       ),
     ),

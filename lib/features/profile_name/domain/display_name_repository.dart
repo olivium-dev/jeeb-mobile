@@ -3,7 +3,7 @@ abstract class DisplayNameRepository {
   Future<void> submitDisplayName(String name);
 }
 
-enum DisplayNameFailure { network, unauthorized, unknown }
+enum DisplayNameFailure { network, unauthorized, serverError, unknown }
 
 class DisplayNameRepositoryException implements Exception {
   const DisplayNameRepositoryException(this.failure, [this.message]);

@@ -42,10 +42,16 @@ void main() {
       final items = await repo.fetchNotifications();
 
       expect(items, hasLength(1));
-      expect(items.single.kind, NotificationKind.newRequest,
-          reason: 'pre-fix this fell through to unknown (un-routable)');
-      expect(items.single.ref, 'req-42',
-          reason: 'requestId must ride the ref chain so the row can route');
+      expect(
+        items.single.kind,
+        NotificationKind.newRequest,
+        reason: 'pre-fix this fell through to unknown (un-routable)',
+      );
+      expect(
+        items.single.ref,
+        'req-42',
+        reason: 'requestId must ride the ref chain so the row can route',
+      );
     });
 
     test('camelCase newRequest wire value also maps', () async {
@@ -67,8 +73,11 @@ void main() {
 
       final items = await repo.fetchNotifications();
       expect(items.single.kind, NotificationKind.newRequest);
-      expect(items.single.ref, 'req-7',
-          reason: 'an explicit ref key still wins over requestId');
+      expect(
+        items.single.ref,
+        'req-7',
+        reason: 'an explicit ref key still wins over requestId',
+      );
     });
 
     test('an explicit ref/targetId outranks requestId; requestId outranks '
@@ -94,25 +103,27 @@ void main() {
       expect(items.single.ref, 'req-1');
     });
 
-    test('a truly unknown type still maps to unknown (no regression)',
-        () async {
-      final repo = DioNotificationsRepository(
-        dio: _dioRespond({
-          'items': [
-            {
-              'id': 'n-4',
-              'type': 'something_else',
-              'title': 't',
-              'body': 'b',
-              'createdAt': '2026-07-03T10:00:00Z',
-              'read': false,
-            },
-          ],
-        }),
-      );
+    test(
+      'a truly unknown type still maps to unknown (no regression)',
+      () async {
+        final repo = DioNotificationsRepository(
+          dio: _dioRespond({
+            'items': [
+              {
+                'id': 'n-4',
+                'type': 'something_else',
+                'title': 't',
+                'body': 'b',
+                'createdAt': '2026-07-03T10:00:00Z',
+                'read': false,
+              },
+            ],
+          }),
+        );
 
-      final items = await repo.fetchNotifications();
-      expect(items.single.kind, NotificationKind.unknown);
-    });
+        final items = await repo.fetchNotifications();
+        expect(items.single.kind, NotificationKind.unknown);
+      },
+    );
   });
 }

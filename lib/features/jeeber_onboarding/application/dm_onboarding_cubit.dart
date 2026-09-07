@@ -2,6 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
+import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -12,17 +16,27 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
   DmOnboardingCubit({
     required PhotoPickerService pickerService,
     required DmOnboardingGateway gateway,
+    CdnAssetGateway? cdn,
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     DmOnboardingStep initialStep = DmOnboardingStep.photo,
   })  : _pickerService = pickerService,
         _gateway = gateway,
+        _cdn = cdn,
         _compressor = compressor,
         super(DmOnboardingState(step: initialStep));
 
   final PhotoPickerService _pickerService;
   final DmOnboardingGateway _gateway;
+
+  /// UX-06: uploads the portrait so it reaches the DTO. Null in a bare
+  /// harness, where the upload is skipped.
+  final CdnAssetGateway? _cdn;
+
   final PhotoCompressor _compressor;
   int _nextId = 0;
+
+  /// One idempotency scope per submission attempt chain.
+  String? _submitOperationId;
 
   Future<void> pickFromCamera() => _pick(fromCamera: true);
   Future<void> pickFromGallery() => _pick(fromCamera: false);
@@ -69,18 +83,73 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
     final homeBase = state.homeBase;
     if (homeBase == null || state.isSubmitting) return;
     emit(state.copyWith(isSubmitting: true, clearError: true));
+    final String operationId =
+        _submitOperationId ??= newOperationId();
+    final String? portraitRef;
     try {
-      await _gateway.submit(_draft(homeBase));
+      portraitRef = await _uploadPortrait(operationId);
+    } on CdnUploadException catch (e) {
+      _failPortraitUpload(e.failure ?? const UnknownFailure());
+      return;
+    } catch (e) {
+      _failPortraitUpload(AppFailure.of(e));
+      return;
+    }
+    try {
+      await _gateway.submit(_draft(homeBase, portraitRef, operationId));
+      // A landed submit closes the scope: a later resubmission must not be
+      // replayed against it.
+      _submitOperationId = null;
       emit(state.copyWith(isSubmitting: false, coverageReady: true));
-    } on Object {
+    } on DmOnboardingOutOfCoverageException {
+      emit(state.copyWith(
+        isSubmitting: false,
+        error: DmOnboardingError.outOfCoverage,
+      ));
+    } on DmOnboardingGatewayException catch (e) {
       emit(state.copyWith(
         isSubmitting: false,
         error: DmOnboardingError.submitFailed,
+        failure: e.failure,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isSubmitting: false,
+        error: DmOnboardingError.submitFailed,
+        failure: AppFailure.of(e),
       ));
     }
   }
 
-  DmOnboardingSubmission _draft(DmOnboardingHomeBase homeBase) =>
+  void _failPortraitUpload(AppFailure failure) {
+    Diag.event('dm_onboarding_portrait_upload_failed', {
+      'kind': failure.kind.name,
+    });
+    emit(state.copyWith(
+      isSubmitting: false,
+      error: DmOnboardingError.photoUploadFailed,
+      failure: failure,
+    ));
+  }
+
+  Future<String?> _uploadPortrait(String operationId) async {
+    final cdn = _cdn;
+    final photo = state.photo;
+    if (cdn == null || photo == null) return null;
+    return cdn is IdempotentCdnAssetGateway
+        ? cdn.uploadAssetIdempotent(
+            slot: CdnUploadSlot.avatar,
+            bytes: photo.bytes,
+            operationId: operationId,
+          )
+        : cdn.uploadAsset(slot: CdnUploadSlot.avatar, bytes: photo.bytes);
+  }
+
+  DmOnboardingSubmission _draft(
+    DmOnboardingHomeBase homeBase,
+    String? portraitObjectRef,
+    String operationId,
+  ) =>
       DmOnboardingSubmission(
         state: state.state,
         country: state.country,
@@ -89,6 +158,8 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
         homeBaseLat: homeBase.lat,
         homeBaseLng: homeBase.lng,
         homeBaseLabel: homeBase.label,
+        portraitObjectRef: portraitObjectRef,
+        operationId: operationId,
       );
 
   Future<void> _pick({required bool fromCamera}) async {
@@ -100,8 +171,11 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
       emit(state.copyWith(photo: _attachmentFrom(raw, compressed)));
     } on PhotoPickException catch (e) {
       _surfacePickFailure(e.failure);
-    } catch (_) {
-      emit(state.copyWith(error: DmOnboardingError.photoPickFailed));
+    } catch (e) {
+      emit(state.copyWith(
+        error: DmOnboardingError.photoPickFailed,
+        failure: AppFailure.of(e),
+      ));
     }
   }
 

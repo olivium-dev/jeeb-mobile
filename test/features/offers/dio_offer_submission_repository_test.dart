@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/offers/data/dio_offer_submission_repository.dart';
 import 'package:jeeb_mobile/features/offers/domain/offer_submission_repository.dart';
 
@@ -63,6 +64,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer((invocation) async {
         capturedPath = invocation.positionalArguments.first as String;
         return _resp(liveOfferDto());
@@ -90,6 +92,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer((invocation) async {
         body = invocation.namedArguments[#data] as Map<String, dynamic>;
         return _resp(liveOfferDto());
@@ -115,6 +118,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer((invocation) async {
         body = invocation.namedArguments[#data] as Map<String, dynamic>;
         return _resp(liveOfferDto());
@@ -131,6 +135,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer((_) async => _resp(liveOfferDto(id: 'offer-xyz')));
 
       final result = await repo.submitOffer(
@@ -148,6 +153,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer(
         (_) async => _resp(liveOfferDto(requestId: 'req-corr-key')),
       );
@@ -167,6 +173,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer((_) async => _resp(dto));
 
       final result = await repo.submitOffer(
@@ -182,6 +189,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenAnswer(
         (_) async => _resp(const {'offerId': 'legacy-offer-1'}),
       );
@@ -201,6 +209,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(404));
 
       await expectLater(
@@ -217,6 +226,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(409));
 
       await expectLater(
@@ -234,6 +244,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(409, body: {
         'type': 'request-not-open-for-offers',
         'title': 'Request is not open for offers',
@@ -249,14 +260,15 @@ void main() {
       );
     });
 
-    test('409 offer-cap-reached → offerCapReached (keep composer), distinct '
-        'from request-not-open', () async {
+    test('409 offer-already-exists → duplicateOffer (withdraw and re-bid), '
+        'distinct from request-not-open', () async {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(409, body: {
-        'type': 'offer-cap-reached',
-        'detail': 'You already have the maximum of 20 live offers',
+        'type': 'https://jeeb.app/errors/offer-already-exists',
+        'title': 'Offer already exists',
       }));
 
       await expectLater(
@@ -264,7 +276,28 @@ void main() {
         throwsA(isA<OfferSubmissionException>().having(
           (e) => e.failure,
           'failure',
-          OfferSubmissionFailure.offerCapReached,
+          OfferSubmissionFailure.duplicateOffer,
+        )),
+      );
+    });
+
+    test('AE-05/UX-12: a 409 whose detail carries a GUID containing "20" is '
+        'requestGone, never a retired cap', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(_err(409, body: {
+        'title': 'Conflict',
+        'detail': 'offer 9c37b6af-4e21-4e4a-9c1b-1f2a3b4c2013 conflicts',
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>().having(
+          (e) => e.failure,
+          'failure',
+          OfferSubmissionFailure.requestGone,
         )),
       );
     });
@@ -273,6 +306,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(402, body: {
         'needed': 0.5,
         'available': 0.2,
@@ -293,6 +327,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(DioException(
         requestOptions: RequestOptions(path: ''),
         type: DioExceptionType.connectionError,
@@ -312,6 +347,7 @@ void main() {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
+            options: any(named: 'options'),
           )).thenThrow(_err(405));
 
       await expectLater(
@@ -321,6 +357,63 @@ void main() {
           'failure',
           OfferSubmissionFailure.server,
         )),
+      );
+    });
+
+    test('500 → server carrying a ServerFailure cause, and NO "HTTP 500" '
+        'string anywhere on the exception', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(_err(500));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure',
+                OfferSubmissionFailure.server)
+            .having((e) => e.cause, 'cause', isA<ServerFailure>())
+            .having((e) => e.toString(), 'toString',
+                isNot(contains('HTTP')))),
+      );
+    });
+
+    test('NET-12: every submit carries an Idempotency-Key header, and the '
+        'composer-owned key is the one sent', () async {
+      Options? captured;
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenAnswer((invocation) async {
+        captured = invocation.namedArguments[#options] as Options?;
+        return _resp(liveOfferDto());
+      });
+
+      await repo.submitOfferIdempotent(
+        requestId: 'req-1',
+        priceUsd: 5,
+        etaMinutes: 10,
+        idempotencyKey: 'draft-key-1',
+      );
+
+      expect(captured?.headers?['Idempotency-Key'], 'draft-key-1');
+    });
+
+    test('a 201 that names no offer is NOT a success', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenAnswer((_) async => _resp(<String, dynamic>{}));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>()
+            .having((e) => e.failure, 'failure',
+                OfferSubmissionFailure.server)
+            .having((e) => e.cause, 'cause', isA<UnknownFailure>())),
       );
     });
   });

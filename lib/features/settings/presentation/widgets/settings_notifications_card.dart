@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
@@ -35,6 +36,10 @@ class SettingsNotificationsCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         JeebSectionLabel(l10n.settingsNotificationsSection),
+        const SizedBox(height: Spacing.xSmall),
+        // F11: these four persist on THIS device. The account-wide set lives
+        // behind MORE → "Notification preferences" (SettingsMoreCard).
+        JeebInfoNote.muted(text: l10n.settingsNotificationsDeviceOnlyNote),
         const SizedBox(height: Spacing.xSmall),
         JeebOutlinedCard.grouped(
           children: [

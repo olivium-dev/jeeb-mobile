@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
@@ -12,20 +13,29 @@ class EarningsState extends Equatable {
   const EarningsState({
     this.mode = EarningsViewMode.loading,
     this.summary,
-    this.errorMessage,
+    this.failure,
+    this.refreshError,
     this.period = EarningsPeriod.week,
     this.exportMode = EarningsExportMode.idle,
-    this.exportError,
+    this.exportFailure,
     this.exportedFilePath,
     this.walletBalance,
   });
 
   final EarningsViewMode mode;
   final EarningsSummary? summary;
-  final String? errorMessage;
+
+  /// The classified cold-load failure; the screen resolves its copy.
+  final AppFailure? failure;
+
+  /// A refresh that failed over a dashboard still on screen (LR-16).
+  final AppFailure? refreshError;
+
   final EarningsPeriod period;
   final EarningsExportMode exportMode;
-  final String? exportError;
+
+  /// The classified export failure — never an English sentence from a cubit.
+  final AppFailure? exportFailure;
   final String? exportedFilePath;
 
   /// The Jeeber's wallet snapshot (W1m), fetched once per mount so the footer
@@ -37,11 +47,13 @@ class EarningsState extends Equatable {
   EarningsState copyWith({
     EarningsViewMode? mode,
     EarningsSummary? summary,
-    String? errorMessage,
+    AppFailure? failure,
     bool clearError = false,
+    AppFailure? refreshError,
+    bool clearRefreshError = false,
     EarningsPeriod? period,
     EarningsExportMode? exportMode,
-    String? exportError,
+    AppFailure? exportFailure,
     bool clearExportError = false,
     String? exportedFilePath,
     WalletBalance? walletBalance,
@@ -49,10 +61,15 @@ class EarningsState extends Equatable {
     return EarningsState(
       mode: mode ?? this.mode,
       summary: summary ?? this.summary,
-      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      failure: clearError ? null : (failure ?? this.failure),
+      refreshError: clearRefreshError
+          ? null
+          : (refreshError ?? this.refreshError),
       period: period ?? this.period,
       exportMode: exportMode ?? this.exportMode,
-      exportError: clearExportError ? null : (exportError ?? this.exportError),
+      exportFailure: clearExportError
+          ? null
+          : (exportFailure ?? this.exportFailure),
       exportedFilePath: exportedFilePath ?? this.exportedFilePath,
       walletBalance: walletBalance ?? this.walletBalance,
     );
@@ -60,13 +77,14 @@ class EarningsState extends Equatable {
 
   @override
   List<Object?> get props => [
-        mode,
-        summary,
-        errorMessage,
-        period,
-        exportMode,
-        exportError,
-        exportedFilePath,
-        walletBalance,
-      ];
+    mode,
+    summary,
+    failure,
+    refreshError,
+    period,
+    exportMode,
+    exportFailure,
+    exportedFilePath,
+    walletBalance,
+  ];
 }

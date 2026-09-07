@@ -103,9 +103,23 @@ class OrderSummary extends Equatable {
     required this.tier,
     required this.amountMinor,
     required this.currency,
+    this.displayId = '',
+    this.title = '',
   });
 
   final String id;
+
+  /// F4b: the wire's own human reference (`defb1f07`, or an `ORD-` form on the
+  /// legacy shape). Empty when the row carries none — never synthesized here.
+  final String displayId;
+
+  /// F4b: the request's own title (`GET /v1/requests` `title`). Empty when the
+  /// row carries none; the card then falls back to the pickup address.
+  final String title;
+
+  /// What a human is shown for this row: the display id when the wire sent one,
+  /// otherwise the raw id (which is at least unique).
+  String get referenceLabel => displayId.isEmpty ? id : displayId;
 
   final DateTime createdAt;
 
@@ -123,6 +137,8 @@ class OrderSummary extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    displayId,
+    title,
     createdAt,
     pickupAddress,
     dropoffAddress,

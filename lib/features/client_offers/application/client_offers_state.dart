@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/offer.dart';
 import '../domain/offer_ranking.dart' as ranking;
 import '../domain/offers_repository.dart';
@@ -55,6 +56,7 @@ class ClientOffersState extends Equatable {
     this.acceptStatus = AcceptStatus.idle,
     this.error,
     this.errorSource,
+    this.appFailure,
   });
 
   final OffersScreenStatus status;
@@ -108,6 +110,10 @@ class ClientOffersState extends Equatable {
   /// when a later offers refetch succeeds.
   final OffersErrorSource? errorSource;
 
+  /// The classified failure behind [error], so the copy family can render a
+  /// kind-accurate body where no suffix-specific line exists.
+  final AppFailure? appFailure;
+
   /// Time remaining on the offer window — clamped to non-negative.
   Duration get windowRemaining {
     final deadline = windowExpiresAt;
@@ -156,6 +162,7 @@ class ClientOffersState extends Equatable {
     AcceptStatus? acceptStatus,
     OffersFailure? error,
     OffersErrorSource? errorSource,
+    AppFailure? appFailure,
     bool clearError = false,
   }) {
     return ClientOffersState(
@@ -181,8 +188,9 @@ class ClientOffersState extends Equatable {
           ? null
           : (acceptedOfferId ?? this.acceptedOfferId),
       acceptStatus: acceptStatus ?? this.acceptStatus,
-      error: clearError ? null : (error ?? this.error),
-      errorSource: clearError ? null : (errorSource ?? this.errorSource),
+      error: clearError ? error : (error ?? this.error),
+      errorSource: clearError ? errorSource : (errorSource ?? this.errorSource),
+      appFailure: clearError ? appFailure : (appFailure ?? this.appFailure),
     );
   }
 
@@ -202,5 +210,6 @@ class ClientOffersState extends Equatable {
     acceptStatus,
     error,
     errorSource,
+    appFailure,
   ];
 }

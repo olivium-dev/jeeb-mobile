@@ -41,6 +41,13 @@ const bool kDevToolEnabled =
 /// True in debug or Dev-Tool-enabled builds; NEVER in a store build.
 const bool kDevAffordancesAllowed = kDevToolEnabled || kDebugMode;
 
+/// Proof-only action-snack lifetime (ms); non-positive values keep the default.
+/// Honoured only under [kDevAffordancesAllowed], never in store builds.
+const int kDevSnackActionMsOverride = int.fromEnvironment(
+  'JEEB_DEV_SNACK_ACTION_MS',
+  defaultValue: 0,
+);
+
 /// Whether this build requested the shake-to-open affordance for the Dev Tool.
 ///
 /// Defaults ON so every Dev-Tool build gets it; pass

@@ -1,4 +1,6 @@
 import '../../../core/di/injection_container.dart';
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 
@@ -15,7 +17,10 @@ Future<Tier?> resolveDefaultTier() async {
   if (!sl.isRegistered<TierRepository>()) return null;
   try {
     return defaultTierOf(await sl<TierRepository>().fetchTiers());
-  } catch (_) {
+  } catch (e) {
+    Diag.event('default_tier_resolve_failed', <String, Object?>{
+      'kind': AppFailure.of(e).kind.name,
+    });
     return null;
   }
 }

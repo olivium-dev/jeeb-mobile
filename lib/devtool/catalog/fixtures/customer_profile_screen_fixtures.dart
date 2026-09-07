@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/customer_profile/data/dev_customer_profile_fixtures.dart';
 import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_repository.dart';
 import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_view_data.dart';
@@ -40,16 +41,53 @@ class CustomerProfileScreenPendingRepository
 /// failure on `state.error` — which nothing in the screen reads. See the
 class CustomerProfileScreenFailingRepository
     implements CustomerProfileRepository {
-  const CustomerProfileScreenFailingRepository(this.failure);
+  const CustomerProfileScreenFailingRepository(this.failure, [this.appFailure]);
 
   /// The typed failure `_fetch` will catch.
   final CustomerProfileFailure failure;
 
+  /// The classified failure the block renders through.
+  final AppFailure? appFailure;
+
   @override
   Future<CustomerProfileViewData> fetchProfile() async {
-    throw CustomerProfileRepositoryException(
+    throw CustomerProfileRepositoryException.classified(
       failure,
-      'dev fixture: ${failure.name} (no request was made)',
+      message: 'dev fixture: ${failure.name} (no request was made)',
+      appFailure: appFailure ?? const UnknownFailure(),
+    );
+  }
+}
+
+/// UX-33: `/users/me` lands but the review join is down — the header says the
+/// rating is unreadable, never "No reviews yet".
+class CustomerProfileScreenReviewOutageRepository
+    implements CustomerProfileRepository {
+  const CustomerProfileScreenReviewOutageRepository(this.data);
+
+  final CustomerProfileViewData data;
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() async =>
+      data.copyWith(ratingUnavailable: true, clearRating: true);
+}
+
+/// UX-42: the first read lands, the refresh then fails — the identity card
+/// stays and `customer_profile_refresh_error` rides under it.
+class CustomerProfileScreenRefreshFailingRepository
+    implements CustomerProfileRepository {
+  CustomerProfileScreenRefreshFailingRepository(this.data);
+
+  final CustomerProfileViewData data;
+  int calls = 0;
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() async {
+    calls += 1;
+    if (calls == 1) return data;
+    throw const CustomerProfileRepositoryException.classified(
+      CustomerProfileFailure.network,
+      appFailure: NetworkFailure(offline: true),
     );
   }
 }
@@ -64,6 +102,20 @@ class CustomerProfileScreenInertReviewLauncher implements AppReviewLauncher {
   Future<void> requestReview() async {
     // Intentionally inert: a dev tool must never raise the OS store-review
   }
+}
+
+/// RATE-01: the store review API is not available, so the tap must SAY so
+/// rather than be a silent no-op.
+class CustomerProfileScreenUnavailableReviewLauncher
+    implements AppReviewLauncher, AppReviewOutcomeLauncher {
+  const CustomerProfileScreenUnavailableReviewLauncher();
+
+  @override
+  Future<void> requestReview() async {}
+
+  @override
+  Future<AppReviewOutcome> requestReviewOutcome() async =>
+      AppReviewOutcome.unavailable;
 }
 
 // ── The designed people. ─────────────────────────────────────────────────────

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../data/location_repository.dart';
 import 'location_picker_state.dart';
 
@@ -30,8 +32,12 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         dropoff: saved.dropoff,
         draftSelection: saved.dropoff,
       ));
-    } on Object {
-      // No saved location, or it failed to decode: start empty.
+    } on Object catch (e) {
+      // No saved location, or it failed to decode: start empty. The blob is
+      // left in place — LocationRepository exposes no clear (R3).
+      Diag.event('location_rehydrate_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -49,10 +55,14 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         isLocatingGps: false,
         error: _mapFailure(e.kind),
       ));
-    } catch (_) {
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
       emit(state.copyWith(
         isLocatingGps: false,
-        error: LocationPickerError.gpsUnavailable,
+        error: failure is NetworkFailure || failure is TimeoutFailure
+            ? LocationPickerError.networkUnavailable
+            : LocationPickerError.gpsUnavailable,
+        appFailure: failure,
       ));
     }
   }
@@ -80,11 +90,12 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         searchResults: results,
         isSearching: false,
       ));
-    } on Object {
+    } on Object catch (e) {
       if (token != _searchToken) return;
       emit(state.copyWith(
         isSearching: false,
         error: LocationPickerError.searchFailed,
+        appFailure: AppFailure.of(e),
       ));
     }
   }
@@ -132,11 +143,12 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         isResolvingAddress: false,
         draftSelection: current.copyWith(address: address),
       ));
-    } on Object {
+    } on Object catch (e) {
       if (token != _reverseGeocodeToken) return;
       emit(state.copyWith(
         isResolvingAddress: false,
         error: LocationPickerError.geocodingFailed,
+        appFailure: AppFailure.of(e),
       ));
     }
   }
@@ -193,10 +205,11 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         dropoff: saved.dropoff,
         draftSelection: saved.dropoff,
       ));
-    } on Object {
+    } on Object catch (e) {
       emit(state.copyWith(
         isSaving: false,
         error: LocationPickerError.saveFailed,
+        appFailure: AppFailure.of(e),
       ));
     }
   }

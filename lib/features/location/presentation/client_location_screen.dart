@@ -8,6 +8,8 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_shadows.dart';
@@ -17,8 +19,12 @@ import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart';
 import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_submission_service.dart';
@@ -32,6 +38,7 @@ import '../data/geolocator_current_location_resolver.dart';
 import '../data/location_repository.dart' show LocationPoint;
 import '../data/fake_location_select_repository.dart';
 import '../domain/current_location_resolver.dart';
+import '../domain/compose_description_rules.dart';
 import '../domain/location_select_repository.dart';
 import 'widgets/client_location_add_row.dart';
 import 'widgets/compose_tier_section.dart';
@@ -87,6 +94,8 @@ class ClientLocationScreen extends StatelessWidget {
     this.currentSelected,
     this.onSelectCurrent,
     this.startFreshSession = false,
+    this.initialDescription,
+    this.initialDescriptionFailure,
   });
 
   final LocationSelectRepository? repository;
@@ -123,6 +132,10 @@ class ClientLocationScreen extends StatelessWidget {
   /// True on the router's cold create entry (UX merge): wipes the compose
   /// session and gates the CTA until the default tier lands. False = resume.
   final bool startFreshSession;
+
+  /// Seeded presentation only; production starts from the compose session.
+  final String? initialDescription;
+  final RequestSubmissionException? initialDescriptionFailure;
 
   // Delegates to a stateful host so the authenticated-user-id future and the
   // resolved repo/GPS-resolver are computed EXACTLY ONCE. Previously the build
@@ -222,6 +235,8 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
       legacyCurrentSelected: config.currentSelected,
       onSelectCurrent: config.onSelectCurrent,
       requireTier: config.startFreshSession,
+      initialDescription: config.initialDescription,
+      initialDescriptionFailure: config.initialDescriptionFailure,
     );
     return FutureBuilder<String?>(
       future: _userIdFuture,
@@ -316,6 +331,8 @@ class _Scaffold extends StatefulWidget {
     this.legacyCurrentSelected,
     this.onSelectCurrent,
     this.requireTier = false,
+    this.initialDescription,
+    this.initialDescriptionFailure,
   });
 
   final VoidCallback? onAddLocation;
@@ -328,6 +345,8 @@ class _Scaffold extends StatefulWidget {
   /// Router-mounted create entries gate the CTA on a priceable tier (a null
   /// `Tier.wireId` is a guaranteed 400). Direct hosts/tests keep the old gate.
   final bool requireTier;
+  final String? initialDescription;
+  final RequestSubmissionException? initialDescriptionFailure;
 
   @override
   State<_Scaffold> createState() => _ScaffoldState();
@@ -339,6 +358,8 @@ class _ScaffoldState extends State<_Scaffold> {
   /// because [TextEditingController] is a [ValueListenable] the footer can
   /// rebuild on without a dedicated cubit.
   final TextEditingController _description = TextEditingController();
+  final _descriptionServerError =
+      ValueNotifier<RequestSubmissionException?>(null);
 
   /// B-02b: create-in-flight flag, OWNED here (above BOTH the body and the
   /// footer) so it can disable the body's navigation rows while the footer's
@@ -363,12 +384,17 @@ class _ScaffoldState extends State<_Scaffold> {
       if (existing != null) _description.text = existing;
       _tier.value = compose.tier;
     }
+    if (widget.initialDescription case final description?) {
+      _description.text = description;
+    }
+    _descriptionServerError.value = widget.initialDescriptionFailure;
   }
 
   @override
   void dispose() {
     _submitting.dispose();
     _description.dispose();
+    _descriptionServerError.dispose();
     _tier.dispose();
     super.dispose();
   }
@@ -402,6 +428,7 @@ class _ScaffoldState extends State<_Scaffold> {
                   builder: (context, state) => _Body(
                     state: state,
                     descriptionController: _description,
+                    descriptionServerError: _descriptionServerError,
                     submitting: _submitting,
                     onAddLocation: widget.onAddLocation,
                     onOpenSavedAddresses: widget.onOpenSavedAddresses,
@@ -421,6 +448,7 @@ class _ScaffoldState extends State<_Scaffold> {
         builder: (context, state) => _ConfirmFooter(
           state: state,
           description: _description,
+          descriptionServerError: _descriptionServerError,
           submitting: _submitting,
           onConfirm: widget.onConfirm,
           tier: _tier,
@@ -436,6 +464,7 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.state,
     required this.descriptionController,
+    required this.descriptionServerError,
     required this.submitting,
     this.onAddLocation,
     this.onOpenSavedAddresses,
@@ -447,6 +476,7 @@ class _Body extends StatelessWidget {
 
   final LocationSelectState state;
   final TextEditingController descriptionController;
+  final ValueNotifier<RequestSubmissionException?> descriptionServerError;
 
   /// B-02b: true while the footer's `POST /requests` is in flight. The
   /// navigation rows below (saved-addresses, add-location) are locked out for
@@ -484,6 +514,7 @@ class _Body extends StatelessWidget {
         // request-type's "Change" is a picker and never reaches this screen).
         _DescriptionSection(
           controller: descriptionController,
+          serverError: descriptionServerError,
           onDictate: onDictate,
         ),
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
@@ -537,7 +568,18 @@ class _Body extends StatelessWidget {
           child: _SavedAddressesRow(onTap: () => _onOpenSaved(context)),
         ),
         const SizedBox(height: Spacing.medium),
-        if (state.status == LocationSelectStatus.failed)
+        if (state.refreshError != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: Spacing.medium),
+            child: JeebRefreshFailedNote(
+              failure: state.refreshError!,
+              identifier: 'location_select_saved_addresses_refresh_note',
+              onDismiss: () =>
+                  context.read<LocationSelectCubit>().acknowledgeError(),
+              onRetry: () => context.read<LocationSelectCubit>().refresh(),
+            ),
+          )
+        else if (state.status == LocationSelectStatus.failed)
           _SavedAddressesError(
             onRetry: () => context.read<LocationSelectCubit>().refresh(),
           ),
@@ -603,9 +645,10 @@ class _Body extends StatelessWidget {
     // instead of silently collapsing into the same no-op as a cancel.
     if (result != null && result is! LocationPoint) {
       if (context.mounted) {
-        final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(l10n.captureLocationPinFailed)),
+        showJeebErrorSnack(
+          context,
+          message: AppLocalizations.of(context).captureLocationPinFailed,
+          identifier: 'client_location_pin_failed',
         );
       }
       return;
@@ -733,8 +776,10 @@ class _SavedAddressesError extends StatelessWidget {
         illustrationSize: _illustrationSize,
         padding: EdgeInsetsDirectional.zero,
         action: JeebCtaButton.outline(
-          label: l10n.earningsLoadRetry,
+          label: l10n.actionRetry,
+          leadingIcon: Icons.refresh,
           expand: false,
+          identifier: 'location_select_saved_addresses_retry_cta',
           onTap: onRetry,
         ),
       ),
@@ -744,13 +789,13 @@ class _SavedAddressesError extends StatelessWidget {
 
 /// Sticky "Review request" footer → creates the request (JM-024 AC4).
 ///
-/// G1: additionally gated on a non-empty trimmed "What do you need?" entry —
-/// the request content is required, so the create CTA stays disabled until the
-/// customer says what they actually want (typed or dictated).
+/// Requires at least five characters after whitespace normalization,
+/// whether the description is typed or dictated.
 class _ConfirmFooter extends StatefulWidget {
   const _ConfirmFooter({
     required this.state,
     required this.description,
+    required this.descriptionServerError,
     required this.submitting,
     this.onConfirm,
     this.tier,
@@ -759,6 +804,7 @@ class _ConfirmFooter extends StatefulWidget {
 
   final LocationSelectState state;
   final TextEditingController description;
+  final ValueNotifier<RequestSubmissionException?> descriptionServerError;
 
   /// B-02b: shared create-in-flight flag (owned by [_ScaffoldState]). Drives
   /// the CTA spinner + disabled state here AND locks the body's nav rows.
@@ -814,7 +860,7 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
                   builder: (context, tier, _) {
                     final tierOk = !widget.requireTier || tier != null;
                     final enabled = state.canConfirm &&
-                        value.text.trim().isNotEmpty &&
+                        isDescriptionLongEnough(value.text) &&
                         tierOk;
                     return DecoratedBox(
                       decoration: BoxDecoration(
@@ -844,7 +890,10 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
 
   Future<void> _onConfirm(BuildContext context) async {
     // B-02: ignore the tap if a create is already in flight (double-submit).
-    if (widget.submitting.value) return;
+    if (widget.submitting.value ||
+        !isDescriptionLongEnough(widget.description.text)) {
+      return;
+    }
     // EDGE: location-select → order-chat compose (21_NAV_PLAN.md §C, JM-024
     // AC4 → JM-025). The optional callback REPLACES the default nav for tests /
     // the dev seam.
@@ -881,12 +930,13 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     BuildContext context,
     ComposeRequestController controller,
   ) async {
+    if (!isDescriptionLongEnough(widget.description.text)) return;
+    final submittedDescription = widget.description.text;
     // Capture the navigation + messenger handles BEFORE the async gap: this
     // footer may be rebuilt (and unmounted) by the time the create returns, so
     // drive navigation off the GoRouter / messenger instances, not a stale
     // BuildContext.
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     final l10n = AppLocalizations.of(context);
     // B-02b: snapshot THIS route before the async gap. `mounted` alone is not
     // enough — a push (capture-location / saved-addresses / dictation) leaves
@@ -895,7 +945,11 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     final route = ModalRoute.of(context);
     widget.submitting.value = true;
     try {
-      final requestId = await controller.submitFromLocation(widget.state);
+      final requestId = await controller.submitFromLocation(
+        widget.state,
+        defaultDescription: l10n.requestDefaultDescription,
+        currentLocationLabel: l10n.requestCurrentLocationLabel,
+      );
       // B-02b: only navigate when this footer is still mounted AND its route is
       // still the current/top route (see [shouldRouteAfterCreate]). If the user
       // left the create step mid-POST (backed out → unmounted, or an overlay is
@@ -918,6 +972,17 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // `goNamed` (not push) so the now-created request cannot be re-submitted
       // by backing into this screen.
       router.goNamed('waiting-no-coverage', pathParameters: {'id': requestId});
+    } on RequestModerationRequired catch (e) {
+      debugPrint('[compose-b11] POST /requests MODERATION: $e');
+      if (!mounted || !context.mounted) return;
+      // An edit while the POST was in flight must never swallow the 409: the
+      // snack/dialog always run, only the inline field error is text-gated.
+      await _handleModeration(
+        context,
+        controller,
+        e,
+        submittedDescription: submittedDescription,
+      );
     } on RequestSubmissionException catch (e) {
       debugPrint('[compose-b11] POST /requests FAILED: $e');
       // JEBV4-108: a 401 at the create seam means the SESSION is invalid
@@ -927,26 +992,47 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // Re-auth is the phone-OTP entry (`/register`, with Apple/Google social);
       // the email/password `/login` funnel was removed in JEBV4-199.
       if (e.failure == RequestSubmissionFailure.unauthorized) {
-        messenger?.showSnackBar(
-          SnackBar(content: Text(l10n.createSessionExpired)),
-        );
+        if (mounted && context.mounted) {
+          showJeebErrorSnack(
+            context,
+            message: l10n.createSessionExpired,
+            identifier: 'client_location_session_expired',
+          );
+        }
         router.goNamed('register');
         return;
       }
-      // Stay on the location step and surface a retryable error — never hand
-      // off `'new'` (that is exactly the broken path B11 removes).
-      // P2-5 honesty: only a NETWORK failure blames connectivity; a 4xx/5xx
-      // gets the generic couldn't-create copy instead of "check your
-      // connection" misdirection.
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.failure == RequestSubmissionFailure.network
-                ? l10n.requestSummaryErrorNetwork
-                : l10n.chatCreateRequestFailed,
-          ),
-        ),
-      );
+      // Stay on the location step and surface a kind-aware retryable error —
+      // never hand off `'new'` (exactly the broken path B11 removes).
+      if (mounted && context.mounted) {
+        final AppFailure failure = e.appFailure ?? const UnknownFailure();
+        if (failure is ValidationFailure &&
+            (failure.field == 'description' ||
+                failure.fieldErrors.containsKey('description'))) {
+          // Only blame the field the customer still sees; if it was edited in
+          // flight the failure falls through to the snack below, never dropped.
+          if (widget.description.text == submittedDescription) {
+            widget.descriptionServerError.value = e;
+            return;
+          }
+        }
+        // No Retry on a terminal kind, and no re-entry through a context that
+        // may be unmounted by the time the snack action fires.
+        final bool retryable = failureCopy(l10n, failure).retryable;
+        showJeebErrorSnack(
+          context,
+          failure: failure,
+          identifier: 'client_location_submit_error',
+          retryLabel: l10n.actionRetry,
+          onRetry: retryable
+              ? () {
+                  if (mounted && context.mounted) {
+                    _createAndRoute(context, controller);
+                  }
+                }
+              : null,
+        );
+      }
     } finally {
       // Re-enable so the customer can retry after a failure. On a successful nav
       // this footer is unmounted → the mounted guard makes this a no-op, leaving
@@ -954,6 +1040,44 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // because the route was no longer current, re-enabling is correct — the
       // footer is still on screen underneath the pushed route.)
       if (mounted) widget.submitting.value = false;
+    }
+  }
+
+  /// A 409 from the moderation gate: `blocked` is terminal, a needs-ack opens
+  /// the sheet and resubmits under the SAME Idempotency-Key.
+  Future<void> _handleModeration(
+    BuildContext context,
+    ComposeRequestController controller,
+    RequestModerationRequired failure, {
+    required String submittedDescription,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    if (failure.blocked) {
+      if (widget.description.text == submittedDescription) {
+        widget.descriptionServerError.value = failure;
+      }
+      showJeebErrorSnack(
+        context,
+        message: l10n.requestSubmitErrorProhibitedBlocked,
+        identifier: 'client_location_moderation_blocked',
+      );
+      return;
+    }
+    if (!sl.isRegistered<ProhibitedAcknowledgmentRepository>()) {
+      showJeebErrorSnack(
+        context,
+        message: l10n.requestSubmitErrorProhibitedNeedsAck,
+        identifier: 'client_location_moderation_needs_ack',
+      );
+      return;
+    }
+    final bool? acknowledged = await showProhibitedAcknowledgmentDialog(
+      context,
+      repository: sl<ProhibitedAcknowledgmentRepository>(),
+      matches: failure.matches,
+    );
+    if (acknowledged == true && mounted && context.mounted) {
+      await _createAndRoute(context, controller);
     }
   }
 }
@@ -965,7 +1089,7 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
 /// card and detail then showed no actual content and jeebers priced blind
 /// ("the user is not sending in the initial request what he wants"). This
 /// block captures the customer's own words as the request description; the
-/// Confirm CTA is gated on a non-empty trimmed entry.
+/// Confirm CTA requires five characters after whitespace normalization.
 ///
 /// Voice: the mic suffix reuses the EXISTING voice-transcription flow
 /// (`compose-dictation` → VoiceRecordingScreen → TranscriptionScreen). The
@@ -973,9 +1097,14 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
 /// transcript + audio reference ride along on the POST body as
 /// `transcription`/`audioUrl`.
 class _DescriptionSection extends StatefulWidget {
-  const _DescriptionSection({required this.controller, this.onDictate});
+  const _DescriptionSection({
+    required this.controller,
+    required this.serverError,
+    this.onDictate,
+  });
 
   final TextEditingController controller;
+  final ValueNotifier<RequestSubmissionException?> serverError;
 
   /// Test seam — REPLACES the default `compose-dictation` navigation.
   final Future<VoiceClip?> Function()? onDictate;
@@ -985,14 +1114,29 @@ class _DescriptionSection extends StatefulWidget {
 }
 
 class _DescriptionSectionState extends State<_DescriptionSection> {
-  /// The gateway create contract has no hard length cap; 280 keeps the feed
-  /// card/detail readable and matches the G1 fix spec's suggested ceiling.
-  static const int _maxLength = 280;
+  /// Mobile keeps the feed readable at 280 characters; the paired P03 gateway
+  /// contract permits 500 without widening this existing field limit.
+  static const int _maxLength = kComposeDescriptionMaxLength;
 
   bool _touched = false;
 
+  @override
+  void initState() {
+    super.initState();
+    widget.serverError.addListener(_serverErrorChanged);
+  }
+
+  void _serverErrorChanged() => setState(() {});
+
+  @override
+  void dispose() {
+    widget.serverError.removeListener(_serverErrorChanged);
+    super.dispose();
+  }
+
   void _commit(String raw) {
     _touched = true;
+    widget.serverError.value = null;
     if (sl.isRegistered<ComposeRequestController>()) {
       final compose = sl<ComposeRequestController>();
       compose.setDescription(raw);
@@ -1020,6 +1164,7 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
     // Append dictation to existing text (the customer may mix type + voice);
     // replace when the field is empty.
     widget.controller.text = existing.isEmpty ? text : '$existing\n$text';
+    widget.serverError.value = null;
     if (sl.isRegistered<ComposeRequestController>()) {
       sl<ComposeRequestController>()
         ..setDescription(widget.controller.text)
@@ -1035,42 +1180,67 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final showError = _touched && widget.controller.text.trim().isEmpty;
+    final text = widget.controller.text;
+    final errorText = _touched && text.trim().isEmpty
+        ? l10n.composeDescriptionRequired
+        : _touched && !isDescriptionLongEnough(text)
+            ? l10n.composeDescriptionTooShort
+            : _descriptionFailureCopy(l10n, widget.serverError.value);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _Heading(text: l10n.composeDescriptionHeading),
         const SizedBox(height: Spacing.small),
         Semantics(
-          identifier: 'compose_description_input',
-          textField: true,
-          label: l10n.composeDescriptionHeading,
-          child: OmdsTextField(
-            key: const Key('clientLocation.descriptionField'),
-            controller: widget.controller,
-            hintText: l10n.composeDescriptionHint,
-            keyboardType: TextInputType.multiline,
-            textCapitalization: TextCapitalization.sentences,
-            minLines: 3,
-            maxLines: 6,
-            maxLength: _maxLength,
-            errorText: showError ? l10n.composeDescriptionRequired : null,
-            onChanged: _commit,
-            suffixIcon: Semantics(
-              identifier: 'compose_description_mic',
-              button: true,
-              label: l10n.composeDescriptionMicSemantic,
-              child: IconButton(
-                key: const Key('clientLocation.descriptionMic'),
-                // R5 sanctions the mic as one of the board's orange marks —
-                // it is the voice-first affordance, and 4.65:1 on white.
-                icon: Icon(Icons.mic, color: context.jeebRoles.accent),
-                tooltip: l10n.composeDescriptionMicSemantic,
-                onPressed: () => _dictate(context),
+          identifier: errorText == null ? null : 'compose_description_error',
+          label: errorText,
+          liveRegion: errorText != null,
+          container: true,
+          explicitChildNodes: true,
+          child: Semantics(
+            identifier: 'compose_description_input',
+            textField: true,
+            label: l10n.composeDescriptionHeading,
+            child: OmdsTextField(
+              key: const Key('clientLocation.descriptionField'),
+              controller: widget.controller,
+              hintText: l10n.composeDescriptionHint,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              minLines: 3,
+              maxLines: 6,
+              maxLength: _maxLength,
+              // OMDS's decoration error is single-line. Keep the invalid
+              // border, but put the full recovery instruction below it.
+              errorText: errorText == null ? null : '',
+              onChanged: _commit,
+              suffixIcon: Semantics(
+                identifier: 'compose_description_mic',
+                button: true,
+                label: l10n.composeDescriptionMicSemantic,
+                child: IconButton(
+                  key: const Key('clientLocation.descriptionMic'),
+                  // R5 sanctions the mic as one of the board's orange marks —
+                  // it is the voice-first affordance, and 4.65:1 on white.
+                  icon: Icon(Icons.mic, color: context.jeebRoles.accent),
+                  tooltip: l10n.composeDescriptionMicSemantic,
+                  onPressed: () => _dictate(context),
+                ),
               ),
             ),
           ),
         ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
+            child: Text(
+              errorText,
+              key: const Key('clientLocation.descriptionErrorCopy'),
+              style: context.jeebText.bodySmall.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.composeDescriptionHelper,
@@ -1081,6 +1251,29 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
       ],
     );
   }
+}
+
+String? _descriptionFailureCopy(
+  AppLocalizations l10n,
+  RequestSubmissionException? error,
+) {
+  if (error is RequestModerationRequired && error.blocked) {
+    final matches =
+        error.matches.where((item) => item.trim().isNotEmpty).join(' · ');
+    return matches.isEmpty
+        ? l10n.requestSubmitErrorProhibitedBlocked
+        : l10n.composeDescriptionProhibited(matches);
+  }
+  final failure = error?.appFailure;
+  if (failure is! ValidationFailure ||
+      (failure.field != 'description' &&
+          !failure.fieldErrors.containsKey('description'))) {
+    return null;
+  }
+  final codes = failure.fieldErrors['description'] ?? const <String>[];
+  if (codes.contains('too-long')) return l10n.composeDescriptionTooLong;
+  if (codes.contains('too-short')) return l10n.composeDescriptionTooShort;
+  return l10n.errorValidationBody;
 }
 
 /// iter6 OTP-phone v2 — recipient-phone capture on the location-confirm step.
@@ -1100,6 +1293,8 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
 /// a real phone-OTP user does not have to re-type their number (the requester
 /// is the default recipient). The +961 prefix is pinned; the field carries the
 /// 8 national digits, mirroring the registration phone entry.
+/// Raw [TextField]: the `+961` prefix needs `prefixIconConstraints`, which
+/// `OmdsTextField` does not expose (JEEB-55/JEEB-57, as in registration).
 class _RecipientPhoneField extends StatefulWidget {
   const _RecipientPhoneField();
 
@@ -1179,7 +1374,7 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
           identifier: 'recipient_phone_input',
           textField: true,
           label: l10n.recipientPhoneLabel,
-          child: TextField(
+          child: TextField( // EXEMPT(flutter-omds-design-system-usage): see class doc.
             key: const Key('clientLocation.recipientPhoneField'),
             controller: _controller,
             keyboardType: TextInputType.phone,

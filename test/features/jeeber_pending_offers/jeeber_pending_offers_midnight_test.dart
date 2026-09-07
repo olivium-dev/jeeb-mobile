@@ -186,9 +186,10 @@ void main() {
         final AppLocalizations l10n = AppLocalizations.of(
           tester.element(find.byType(JeebEmptyState)),
         );
-        expect(block.status, JeebEmptyStateStatus.error);
+        expect(block.reason, JeebEmptyStateReason.failed);
         expect(block.variant, JeebEmptyStateVariant.pocket);
-        expect(block.headline, l10n.offersLoadErrorTitle);
+        // The kind's copy family, not one flat "couldn't load" line.
+        expect(block.headline, l10n.errorGenericTitle);
         expect(block.action, isNotNull);
         expect(repo.reads, 1);
 

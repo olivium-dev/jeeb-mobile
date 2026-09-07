@@ -13,17 +13,17 @@ class SavedAddressesScreenFixtures {
   /// on-device state and the engineer's canvas card cannot end up named
   static const String placeholderLabel = 'Placeholder';
 
-  /// The headline the placeholder renders.
-  /// HARDCODED ENGLISH in the screen — `l10n.savedAddressesTitle` and
-  static const String title = 'Saved Addresses coming soon';
+  /// The headline the placeholder renders (ES-23: now the shipped ARB copy,
+  /// `savedAddressesComingSoonTitle`, not a hardcoded English const).
+  static const String title = 'Saved addresses coming soon';
 
-  /// The body copy under [title]. Also hardcoded English.
+  /// The body copy under [title] — `savedAddressesComingSoonBody`.
   static const String subtitle = 'This screen is not yet available.';
 
   /// The screen's `Semantics.label`, which concatenates [title] and [subtitle]
   /// into one announcement for a screen reader.
   static const String semanticsLabel =
-      'Saved Addresses coming soon. This screen is not yet available.';
+      'Saved addresses coming soon. This screen is not yet available.';
 
   /// A 390x844 phone — the reference device the rest of this app's previews are
   /// sized for.

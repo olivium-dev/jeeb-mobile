@@ -14,6 +14,18 @@ enum VoiceRecordingError {
   uploadNetwork,
   uploadServer,
   uploadUnknown,
+
+  /// The transcribe call or its poll budget ran out — not a connectivity fault.
+  uploadTimeout,
+
+  /// 413: the clip is too long/large to accept. Terminal — re-record only.
+  uploadTooLarge,
+
+  /// 415: the container/codec is not accepted. Terminal — re-record only.
+  uploadUnsupported,
+
+  /// Transcription is down (502/503/504). Retrying later can win.
+  uploadUnavailable,
 }
 
 class VoiceRecordingState extends Equatable {
@@ -43,7 +55,16 @@ class VoiceRecordingState extends Equatable {
   bool get hasUploadFailure =>
       error == VoiceRecordingError.uploadNetwork ||
       error == VoiceRecordingError.uploadServer ||
-      error == VoiceRecordingError.uploadUnknown;
+      error == VoiceRecordingError.uploadUnknown ||
+      error == VoiceRecordingError.uploadTimeout ||
+      error == VoiceRecordingError.uploadTooLarge ||
+      error == VoiceRecordingError.uploadUnsupported ||
+      error == VoiceRecordingError.uploadUnavailable;
+
+  /// Terminal upload kinds: no retry of the SAME clip can ever succeed.
+  bool get hasTerminalUploadFailure =>
+      error == VoiceRecordingError.uploadTooLarge ||
+      error == VoiceRecordingError.uploadUnsupported;
   bool get hasClip =>
       clip != null &&
       (phase == VoiceRecordingPhase.recorded ||

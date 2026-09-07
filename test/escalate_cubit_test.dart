@@ -5,26 +5,19 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
 import 'package:jeeb_mobile/features/escalate/application/escalate_state.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 
 class _FakeEscalateRepo implements EscalateRepository {
-  const _FakeEscalateRepo({
-    this.failWith,
-    this.evidence,
-    this.evidenceThrows = false,
-  });
+  const _FakeEscalateRepo({this.failWith});
 
   final EscalateErrorKind? failWith;
-  final EscalateEvidence? evidence;
-  final bool evidenceThrows;
 
   @override
-  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
-    if (evidenceThrows) throw Exception('boom');
-    return evidence ?? EscalateEvidence.empty;
-  }
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async =>
+      EscalateEvidence.empty;
 
   @override
   Future<EscalateResult> submitEscalation({
@@ -37,6 +30,23 @@ class _FakeEscalateRepo implements EscalateRepository {
   }) async {
     if (failWith != null) throw EscalateException(failWith!);
     return const EscalateResult(caseId: 'dispute-001', status: 'open');
+  }
+}
+
+/// A repository that DOES serve an evidence preview (the ES-15 gate).
+class _PreviewEscalateRepo extends _FakeEscalateRepo
+    implements EscalateEvidencePreviewRepository {
+  const _PreviewEscalateRepo({this.evidence, this.previewThrows = false});
+
+  final EscalateEvidence? evidence;
+  final bool previewThrows;
+
+  @override
+  Future<EscalateEvidence> previewEvidence({
+    required String deliveryId,
+  }) async {
+    if (previewThrows) throw Exception('boom');
+    return evidence ?? EscalateEvidence.empty;
   }
 }
 
@@ -154,14 +164,49 @@ void main() {
       },
       act: (c) async {
         await c.submit();
-        c.retryFromError();
+        await c.retryFromError();
       },
+      // A retryable failure re-submits with the SAME operationId (ESC-06), so
+      // the retry replays submitting → error rather than stopping at the form.
       expect: () => [
         predicate<EscalateState>((s) => s.phase == EscalatePhase.submitting),
         predicate<EscalateState>((s) => s.phase == EscalatePhase.error),
         predicate<EscalateState>(
           (s) => s.phase == EscalatePhase.inputting,
           'back to inputting',
+        ),
+        predicate<EscalateState>((s) => s.phase == EscalatePhase.submitting),
+        predicate<EscalateState>((s) => s.phase == EscalatePhase.error),
+      ],
+    );
+
+    blocTest<EscalateCubit, EscalateState>(
+      'a terminal failure returns to the form without re-submitting',
+      build: () {
+        final c = EscalateCubit(
+          repository: const _FakeEscalateRepo(
+            failWith: EscalateErrorKind.notFound,
+          ),
+          deliveryId: 'dlv-1',
+        );
+        c.setReason(EscalateReason.other);
+        return c;
+      },
+      act: (c) async {
+        await c.submit();
+        // A NotFound failure is not retryable, so this must not fire again.
+        c.emit(
+          c.state.copyWith(failure: const NotFoundFailure()),
+        );
+        await c.retryFromError();
+      },
+      expect: () => [
+        predicate<EscalateState>((s) => s.phase == EscalatePhase.submitting),
+        predicate<EscalateState>((s) => s.phase == EscalatePhase.error),
+        predicate<EscalateState>((s) => s.failure is NotFoundFailure),
+        predicate<EscalateState>(
+          (s) => s.phase == EscalatePhase.inputting,
+          'back to inputting, no re-submit',
         ),
       ],
     );
@@ -220,7 +265,7 @@ void main() {
     blocTest<EscalateCubit, EscalateState>(
       'loadEvidence resolves the snapshot + timeline',
       build: () => EscalateCubit(
-        repository: const _FakeEscalateRepo(
+        repository: const _PreviewEscalateRepo(
           evidence: EscalateEvidence(
             chatSnapshotUrl: 'https://cdn.jeeb.app/snapshots/conv-1.html',
             chatMessageCount: 4,
@@ -235,8 +280,14 @@ void main() {
       act: (c) => c.loadEvidence(),
       expect: () => [
         predicate<EscalateState>(
+          (s) => s.evidenceLoading && !s.evidenceLoaded,
+          'preview in flight',
+        ),
+        predicate<EscalateState>(
           (s) =>
               s.evidenceLoaded &&
+              !s.evidenceLoading &&
+              !s.evidenceLoadFailed &&
               s.evidence.hasChatSnapshot &&
               s.evidence.timeline.length == 2,
           'evidence loaded with snapshot + timeline',
@@ -245,18 +296,30 @@ void main() {
     );
 
     blocTest<EscalateCubit, EscalateState>(
-      'loadEvidence degrades to empty on a failed fetch (never blocks)',
+      'a failed preview is evidenceLoadFailed, never a fake empty (ESC-08)',
       build: () => EscalateCubit(
-        repository: const _FakeEscalateRepo(evidenceThrows: true),
+        repository: const _PreviewEscalateRepo(previewThrows: true),
         deliveryId: 'dlv-1',
       ),
       act: (c) => c.loadEvidence(),
       expect: () => [
+        predicate<EscalateState>((s) => s.evidenceLoading, 'preview in flight'),
         predicate<EscalateState>(
-          (s) => s.evidenceLoaded && s.evidence.isEmpty,
-          'evidence loaded, empty',
+          (s) =>
+              s.evidenceLoadFailed && !s.evidenceLoaded && s.failure != null,
+          'failed, and NOT reported as loaded-empty',
         ),
       ],
+    );
+
+    blocTest<EscalateCubit, EscalateState>(
+      'a repository with no preview endpoint emits nothing at all',
+      build: () => EscalateCubit(
+        repository: const _FakeEscalateRepo(),
+        deliveryId: 'dlv-1',
+      ),
+      act: (c) => c.loadEvidence(),
+      expect: () => <EscalateState>[],
     );
   });
 }

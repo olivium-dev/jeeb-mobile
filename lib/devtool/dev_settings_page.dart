@@ -97,9 +97,9 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
             spacing: 8,
             children: [
               for (final preset in kDevServerUrlPresets)
-                ActionChip(
-                  label: Text(preset),
+                OutlinedButton(
                   onPressed: () => _controller.text = preset,
+                  child: Text(preset, textAlign: TextAlign.center),
                 ),
             ],
           ),

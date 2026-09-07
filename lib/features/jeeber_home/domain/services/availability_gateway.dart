@@ -1,3 +1,4 @@
+import '../../../../core/network/app_failure.dart';
 import '../entities/availability_status.dart';
 
 /// Whether the go-online PATCH carried coordinates, and why not when it did not.
@@ -24,11 +25,29 @@ abstract class AvailabilityGateway {
 }
 
 class AvailabilityGatewayException implements Exception {
-  const AvailabilityGatewayException(this.message);
+  /// Legacy shape, kept so every existing implementor and test still compiles.
+  const AvailabilityGatewayException(this.message)
+    : failure = null,
+      notRegistered = false;
+
+  /// The classified transport failure the UI renders (NET-11).
+  const AvailabilityGatewayException.from(AppFailure this.failure)
+    : message = '',
+      notRegistered = false;
+
+  /// 404 on the availability read: the jeeber is not onboarded, not offline.
+  const AvailabilityGatewayException.notRegistered()
+    : message = '',
+      failure = null,
+      notRegistered = true;
+
   final String message;
+  final AppFailure? failure;
+  final bool notRegistered;
 
   @override
-  String toString() => 'AvailabilityGatewayException: $message';
+  String toString() => 'AvailabilityGatewayException('
+      'notRegistered: $notRegistered, hasFailure: ${failure != null})';
 }
 
 /// Thrown by the injected location seam when the OS refuses the fix outright.

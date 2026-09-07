@@ -159,7 +159,8 @@ void main() {
     );
 
     blocTest<OrderHistoryCubit, OrderHistoryState>(
-      'keeps the list visible and surfaces a transient error when page 2 fails',
+      'keeps the list visible and routes a page-2 failure to the FOOTER '
+      '(EP-15: never the snack listener)',
       build: build,
       seed: () => OrderHistoryState(
         tabs: {
@@ -189,7 +190,8 @@ void main() {
         predicate<OrderHistoryState>(
           (s) =>
               s.currentTab.status == OrderTabStatus.ready &&
-              s.currentTab.errorKind == OrderTabErrorKind.server &&
+              s.currentTab.loadMoreError != null &&
+              s.currentTab.errorKind == null &&
               s.currentTab.orders.length == 2,
         ),
       ],

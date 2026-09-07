@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import 'voice_clip.dart';
 import 'voice_recorder.dart';
 
@@ -95,7 +96,11 @@ class RecordVoiceRecorder implements VoiceRecorder {
     _activePath = null;
     try {
       await _recorder.cancel();
-    } catch (_) {}
+    } catch (_) {
+      Diag.event('voice_clip_cleanup_failed', const <String, Object?>{
+        'op': 'cancel',
+      });
+    }
     if (path != null) {
       await _deleteOwnedPath(path);
     }
@@ -154,20 +159,37 @@ class RecordVoiceRecorder implements VoiceRecorder {
     await _deleteQuietly(path);
   }
 
-  VoiceRecorderException _wrap(Object error, StackTrace stackTrace) {
-    if (error is VoiceRecorderException) return error;
+  VoiceRecorderException _wrap(Object error, StackTrace stackTrace) =>
+      classifyRecorderFailure(error);
+}
 
-    final String message = error.toString().toLowerCase();
-    if (message.contains('permission')) {
+/// VOICE-03: the plugin's platform CODE decides; the prose sniff is only the
+/// fallback for plugins that raise a bare `Exception`.
+VoiceRecorderException classifyRecorderFailure(Object error) {
+  if (error is VoiceRecorderException) return error;
+
+  if (error is PlatformException) {
+    final String code = error.code.toLowerCase();
+    if (code.contains('permission')) {
       return const VoiceRecorderException(
         VoiceRecorderFailure.permissionDenied,
       );
     }
-    if (message.contains('unavailable') ||
-        message.contains('busy') ||
-        message.contains('not initialized')) {
+    if (code.contains('unavailable') ||
+        code.contains('busy') ||
+        code.contains('not_initialized')) {
       return const VoiceRecorderException(VoiceRecorderFailure.unavailable);
     }
-    return const VoiceRecorderException(VoiceRecorderFailure.unknown);
   }
+
+  final String message = error.toString().toLowerCase();
+  if (message.contains('permission')) {
+    return const VoiceRecorderException(VoiceRecorderFailure.permissionDenied);
+  }
+  if (message.contains('unavailable') ||
+      message.contains('busy') ||
+      message.contains('not initialized')) {
+    return const VoiceRecorderException(VoiceRecorderFailure.unavailable);
+  }
+  return const VoiceRecorderException(VoiceRecorderFailure.unknown);
 }

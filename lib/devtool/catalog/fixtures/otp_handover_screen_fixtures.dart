@@ -29,6 +29,8 @@ class ScriptedOtpHandoverRepository implements OtpHandoverRepository {
     this.fetchStalls = false,
     this.submitErrorKind,
     this.submitStalls = false,
+    this.submitLocked,
+    this.submitAttemptsRemaining,
   });
 
   /// Successful `fetchHandoverCode` result; defaults to SMS trigger.
@@ -45,6 +47,12 @@ class ScriptedOtpHandoverRepository implements OtpHandoverRepository {
 
   /// When true, `submitOtp` never resolves.
   final bool submitStalls;
+
+  /// A 423 carrying the case the gateway already opened.
+  final OtpHandoverLocked? submitLocked;
+
+  /// Server-reported attempts left on a rejected code.
+  final int? submitAttemptsRemaining;
 
   @override
   Future<OtpFetchResult> fetchHandoverCode({required String deliveryId}) {
@@ -64,9 +72,13 @@ class ScriptedOtpHandoverRepository implements OtpHandoverRepository {
     required String otp,
   }) {
     if (submitStalls) return Completer<OtpHandoverResult>().future;
+    final OtpHandoverException? locked = submitLocked;
+    if (locked != null) return Future<OtpHandoverResult>.error(locked);
     final OtpHandoverErrorKind? kind = submitErrorKind;
     if (kind != null) {
-      return Future<OtpHandoverResult>.error(OtpHandoverException(kind));
+      return Future<OtpHandoverResult>.error(
+        OtpHandoverException(kind, null, submitAttemptsRemaining),
+      );
     }
     return Future<OtpHandoverResult>.value(
       const OtpHandoverResult(success: true),
@@ -139,6 +151,32 @@ class OtpHandoverScreenPreviewFixtures {
   /// Verify POST never resolves.
   static OtpHandoverRepository stalledSubmit() =>
       const ScriptedOtpHandoverRepository(submitStalls: true);
+
+  /// 423 with an already-opened case: the dialog routes to it (AE-03).
+  static OtpHandoverRepository lockedWithEscalation([
+    String escalationId = 'ESC-9001',
+  ]) => ScriptedOtpHandoverRepository(
+        submitLocked: OtpHandoverLocked(escalationId: escalationId),
+      );
+
+  /// The jeeber is not at the door yet (AE-12).
+  static OtpHandoverRepository notAtDoor() =>
+      const ScriptedOtpHandoverRepository(
+        submitErrorKind: OtpHandoverErrorKind.notAtDoor,
+      );
+
+  /// The code belongs to someone else (AE-12).
+  static OtpHandoverRepository wrongParty() =>
+      const ScriptedOtpHandoverRepository(
+        submitErrorKind: OtpHandoverErrorKind.wrongParty,
+      );
+
+  /// A rejected code the gateway counted for us (AE-11).
+  static OtpHandoverRepository attemptsRemaining2() =>
+      const ScriptedOtpHandoverRepository(
+        submitErrorKind: OtpHandoverErrorKind.invalidOtp,
+        submitAttemptsRemaining: 2,
+      );
 
   /// Code already on device.
   static HandoverCodeStore codeStore([String code = storedCode]) =>

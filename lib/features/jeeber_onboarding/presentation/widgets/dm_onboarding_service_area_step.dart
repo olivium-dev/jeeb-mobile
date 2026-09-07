@@ -8,6 +8,7 @@ import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
@@ -70,7 +71,36 @@ class _ServiceAreaContent extends StatelessWidget {
         const _HomeBaseMapPin(),
         const SizedBox(height: Spacing.medium),
         const _SelectLocationRow(),
+        const _OutOfCoverageNote(),
       ],
+    );
+  }
+}
+
+/// UX-40: the pinned base is outside every served zone. It stays on the step
+/// until a different base is pinned — the only thing that fixes it.
+class _OutOfCoverageNote extends StatelessWidget {
+  const _OutOfCoverageNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return BlocBuilder<DmOnboardingCubit, DmOnboardingState>(
+      buildWhen: (prev, curr) => prev.error != curr.error,
+      builder: (context, state) {
+        if (state.error != DmOnboardingError.outOfCoverage) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsetsDirectional.only(top: Spacing.medium),
+          child: Semantics(
+            identifier: 'dm_onboarding_out_of_coverage_note',
+            container: true,
+            liveRegion: true,
+            child: JeebInfoNote.error(text: l10n.dmOnboardingOutOfCoverage),
+          ),
+        );
+      },
     );
   }
 }
@@ -101,10 +131,12 @@ class _HomeBaseMapPin extends StatelessWidget {
           child: JeebOutlinedCard(
             radius: JeebRadii.lg,
             padding: EdgeInsetsDirectional.zero,
-            child: SizedBox(
-              height: Sizes.elevenXLarge,
-              width: double.infinity,
-              child: Center(child: _HomeBaseMapContent(base: base)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: Sizes.elevenXLarge),
+              child: SizedBox(
+                width: double.infinity,
+                child: Center(child: _HomeBaseMapContent(base: base)),
+              ),
             ),
           ),
         );
@@ -165,8 +197,9 @@ class _HomeBaseMapLabel extends StatelessWidget {
     final semantic =
         theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return Padding(
-      padding:
-          const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+      ),
       child: Text(
         text,
         textAlign: TextAlign.center,
@@ -200,11 +233,18 @@ class _SelectLocationRow extends StatelessWidget {
       label: l10n.dmOnboardingServiceAreaLocationFieldLabel,
       child: JeebOutlinedCard(
         padding: EdgeInsetsDirectional.zero,
-        child: JeebListRow(
-          icon: Icons.location_on,
-          title: l10n.dmOnboardingServiceAreaLocationFieldLabel,
-          trailing: const _SelectLocationTrailing(),
-          onTap: () => _pickHomeBase(context),
+        child: LayoutBuilder(
+          builder: (context, constraints) => JeebListRow(
+            icon: Icons.location_on,
+            title: l10n.dmOnboardingServiceAreaLocationFieldLabel,
+            trailing: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: constraints.maxWidth * 0.55,
+              ),
+              child: const _SelectLocationTrailing(),
+            ),
+            onTap: () => _pickHomeBase(context),
+          ),
         ),
       ),
     );
@@ -260,7 +300,7 @@ class _SelectLocationTrailing extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _SelectLocationValue(),
+        const Flexible(child: _SelectLocationValue()),
         const SizedBox(width: Spacing.xSmall),
         Icon(
           DirectionalIcons.disclosure(context),
@@ -300,14 +340,17 @@ class _LocationValueText extends StatelessWidget {
     return Semantics(
       identifier: 'dm_onboarding_location_value',
       child: Text(
-        isPlaceholder ? l10n.dmOnboardingServiceAreaLocationPlaceholder : chosen,
+        isPlaceholder
+            ? l10n.dmOnboardingServiceAreaLocationPlaceholder
+            : chosen,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         // `outline` is a 14%-white STROKE token; as ink on navy it is ~1.2:1,
         // i.e. an unreadable placeholder. The muted ink role is §9's AA pair.
         style: context.jeebText.bodySmall.copyWith(
-          color:
-              isPlaceholder ? semantic.mutedText : theme.colorScheme.onSurface,
+          color: isPlaceholder
+              ? semantic.mutedText
+              : theme.colorScheme.onSurface,
         ),
       ),
     );

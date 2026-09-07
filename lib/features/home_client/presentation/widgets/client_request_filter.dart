@@ -15,6 +15,16 @@ class ClientRequestFilter {
   /// Narrows to `state.offerStatusRequests`; null leaves the bucket alone.
   final ClientOfferStatus? offerStatus;
 
+  ClientRequestFilter copyWith({
+    ClientHomeTab? bucket,
+    ClientOfferStatus? offerStatus,
+    bool clearOfferStatus = false,
+  }) =>
+      ClientRequestFilter(
+        bucket: bucket ?? this.bucket,
+        offerStatus: clearOfferStatus ? null : (offerStatus ?? this.offerStatus),
+      );
+
   bool get isActive =>
       bucket != ClientHomeTab.all || offerStatus != null;
 

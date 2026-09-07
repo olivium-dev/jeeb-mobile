@@ -23,6 +23,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
+import '../../support/midnight_test_harness.dart';
 
 /// Offline until [healed] is flipped, then serves the live accepted-conversation
 /// wire. When [gate] is non-null every conversation lookup is held open, so a
@@ -422,6 +423,7 @@ void main() {
     'FALLBACK INTACT: with no connectivity event ever, the bounded backoff '
     'still heals and is still bounded',
     (tester) async {
+      useReduceMotion(tester);
       final net = _ReconnectDio();
       _register(net.dio);
       _installBus();

@@ -1,5 +1,7 @@
 // cycle-4 integration-style proof: a successfully cancelled request
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_refresh_signals.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/cancel_request/application/cancelled_request_signals.dart';
+import 'package:jeeb_mobile/features/cancel_request/cancel_request_di.dart';
 import 'package:jeeb_mobile/features/cancel_request/domain/cancel_request_repository.dart';
 import 'package:jeeb_mobile/features/cancel_request/presentation/cancel_request_sheet.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
@@ -14,6 +18,7 @@ import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.d
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/midnight_test_harness.dart';
 import '../../support/sync_app_localizations.dart';
 
 /// Mutable "server": the pending list shrinks when the cancel lands.
@@ -34,9 +39,22 @@ class _ServerBackedHomeRepository implements ClientHomeRepository {
 
   final _FakeServer server;
 
+  /// When set, every read parks on it until the test releases it — the slow
+  /// gateway the cancel must not wait for.
+  Future<void>? gate;
+
+  int calls = 0;
+
   @override
-  Future<ClientHomeSnapshot> loadSnapshot() async =>
-      ClientHomeSnapshot(pending: server.pending);
+  Future<ClientHomeSnapshot> loadSnapshot() async {
+    calls += 1;
+    // Read the rows BEFORE parking: a read started before the cancel must
+    // resolve with the stale list, exactly like the wire does.
+    final rows = server.pending;
+    final g = gate;
+    if (g != null) await g;
+    return ClientHomeSnapshot(pending: rows);
+  }
 }
 
 class _ServerBackedCancelRepository implements CancelRequestRepository {
@@ -60,10 +78,10 @@ ClientHomeRequest _pendingRequest(String id) => ClientHomeRequest(
       destinationLabel: 'Home',
     );
 
-Widget _harness(Widget child) {
+Widget _harness(Widget child, {Locale locale = const Locale('en')}) {
   return MaterialApp(
     theme: AppTheme.light(),
-    locale: const Locale('en'),
+    locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
       SyncAppLocalizationsDelegate(),
@@ -88,11 +106,20 @@ void main() {
     if (!sl.isRegistered<PushRefreshSignals>()) {
       sl.registerLazySingleton<PushRefreshSignals>(PushRefreshSignals.new);
     }
+    if (sl.isRegistered<CancelledRequestSignals>()) {
+      sl.unregister<CancelledRequestSignals>();
+    }
+    registerCancelRequestDependencies(sl);
   });
 
   tearDown(() async {
     if (sl.isRegistered<PushRefreshSignals>()) {
       await sl.unregister<PushRefreshSignals>(
+        disposingFunction: (s) => s.dispose(),
+      );
+    }
+    if (sl.isRegistered<CancelledRequestSignals>()) {
+      await sl.unregister<CancelledRequestSignals>(
         disposingFunction: (s) => s.dispose(),
       );
     }
@@ -173,4 +200,175 @@ void main() {
         reason: 'a surfaced failure must keep the request pending — no '
             'client-side pretend-release');
   });
+
+  // F9 — the device defect: the sheet lives on `/requests/:id/waiting`, so the
+  // home list is OFF SCREEN and its deferred gate swallows the push signal.
+  for (final locale in const [Locale('en'), Locale('ar')]) {
+    testWidgets(
+      'F9 [${locale.languageCode}]: a landed cancel drops the pending row while '
+      'the home list is off screen — no pull-to-refresh, no read',
+      (tester) async {
+        useReduceMotion(tester);
+        final server = _FakeServer([_pendingRequest('req-1')]);
+        final repo = _ServerBackedHomeRepository(server);
+        final homeCubit = ClientHomeCubit(
+          repository: repo,
+          greetingNameProvider: () => null,
+          refreshSignals: sl<PushRefreshSignals>().stream,
+        );
+        addTearDown(homeCubit.close);
+
+        await homeCubit.load();
+        expect(homeCubit.state.pending.map((r) => r.id), contains('req-1'));
+        final readsBeforeCancel = repo.calls;
+
+        // The waiting route is on top: PollingVisibilityGate has already told
+        // the cubit it is not visible, so every push is deferred debt.
+        homeCubit.setPollingVisible(false);
+
+        await tester.pumpWidget(
+          _harness(
+            CancelRequestSheet(
+              requestId: 'req-1',
+              repository: _ServerBackedCancelRepository(server),
+              onCancelled: () {},
+            ),
+            locale: locale,
+          ),
+        );
+        await tester.pump();
+
+        expect(
+          find.bySemanticsIdentifier('cancel_request_confirm_cta'),
+          findsOneWidget,
+        );
+        await tester
+            .tap(find.bySemanticsIdentifier('cancel_request_confirm_cta'));
+        await tester.pump(); // inFlight
+        await tester.pump(); // succeeded -> listener publishes the cancelled id
+
+        expect(
+          homeCubit.state.pending,
+          isEmpty,
+          reason: 'the row must go on the DELETE, not on a later re-read the '
+              'invisible gate is still holding',
+        );
+        expect(
+          repo.calls,
+          readsBeforeCancel,
+          reason: 'optimistic truth is local: it must cost no snapshot read',
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'F9: the row goes immediately while the home repository is still parked',
+    (tester) async {
+      useReduceMotion(tester);
+      final server = _FakeServer([_pendingRequest('req-1')]);
+      final repo = _ServerBackedHomeRepository(server);
+      final homeCubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        refreshSignals: sl<PushRefreshSignals>().stream,
+      );
+      addTearDown(homeCubit.close);
+
+      await homeCubit.load();
+      expect(homeCubit.state.pending, hasLength(1));
+
+      // Every read from here on hangs: the slow gateway of the device trace.
+      final slow = Completer<void>();
+      repo.gate = slow.future;
+
+      await tester.pumpWidget(
+        _harness(
+          CancelRequestSheet(
+            requestId: 'req-1',
+            repository: _ServerBackedCancelRepository(server),
+            onCancelled: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester
+          .tap(find.bySemanticsIdentifier('cancel_request_confirm_cta'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        homeCubit.state.pending,
+        isEmpty,
+        reason: 'no read has returned yet — the row is gone on local truth',
+      );
+
+      repo.gate = null;
+      slow.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(homeCubit.state.pending, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'F9: a snapshot already in flight at cancel time neither resurrects the '
+    'row nor swallows the follow-up read',
+    (tester) async {
+      useReduceMotion(tester);
+      final server = _FakeServer([_pendingRequest('req-1')]);
+      final repo = _ServerBackedHomeRepository(server);
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        refreshSignals: sl<PushRefreshSignals>().stream,
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      expect(cubit.state.pending, hasLength(1));
+
+      // A refresh is ALREADY in flight, holding the stale pending list.
+      final inFlight = Completer<void>();
+      repo.gate = inFlight.future;
+      unawaited(cubit.refresh());
+      await tester.pump();
+      expect(repo.calls, 2, reason: 'the refresh is parked mid-read');
+
+      await tester.pumpWidget(
+        _harness(
+          CancelRequestSheet(
+            requestId: 'req-1',
+            repository: _ServerBackedCancelRepository(server),
+            onCancelled: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester
+          .tap(find.bySemanticsIdentifier('cancel_request_confirm_cta'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(cubit.state.pending, isEmpty, reason: 'optimistic removal');
+
+      repo.gate = null;
+      inFlight.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        cubit.state.pending,
+        isEmpty,
+        reason: 'the stale in-flight snapshot must not put the row back',
+      );
+      expect(
+        repo.calls,
+        3,
+        reason: 'the push that arrived mid-read must still produce exactly one '
+            'follow-up read, not be dropped by the in-flight guard',
+      );
+    },
+  );
 }

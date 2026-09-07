@@ -99,7 +99,6 @@ RegistrationCubit otpVerificationScreenRateLimitedCubit() =>
     OtpVerificationScreenSeededCubit(
       _otpVerificationScreenOtpStep.copyWith(
         step: RegistrationStep.lockedOut,
-        lockoutSecondsRemaining:
-            otpVerificationScreenPolicy.lockoutDuration.inSeconds,
+        lockoutSecondsRemaining: 45,
       ),
     );

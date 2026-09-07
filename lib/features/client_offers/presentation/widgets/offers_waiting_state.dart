@@ -26,6 +26,7 @@ class OffersWaitingState extends StatelessWidget {
     this.body,
     this.windowRemaining,
     this.action,
+    this.identifier,
   });
 
   /// Key on the composed block — the per-state anchor the screen tests find
@@ -49,6 +50,18 @@ class OffersWaitingState extends StatelessWidget {
   /// Replaces the countdown chip, for the error form's Retry CTA.
   final Widget? action;
 
+  /// The rung's own id. Null derives one from [status] — the three rungs must
+  /// never share a single identifier.
+  final String? identifier;
+
+  String get _identifier =>
+      identifier ??
+      switch (status) {
+        JeebEmptyStateStatus.loading => 'offer_review_loading_state',
+        JeebEmptyStateStatus.error => 'offer_review_error_state',
+        JeebEmptyStateStatus.empty => 'offer_review_empty_state',
+      };
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -56,7 +69,7 @@ class OffersWaitingState extends StatelessWidget {
     final override = headline;
     return JeebEmptyState(
       key: blockKey,
-      identifier: 'offer_review_empty_state',
+      identifier: _identifier,
       variant: JeebEmptyStateVariant.radar,
       status: status,
       // The counted form (`offersWaitingTitleCount`) stays unwired: no

@@ -154,15 +154,16 @@ void main() {
     });
 
     test(
-        'a failed remote mirror never fails the local save '
-        '(fail-soft; the projection self-heals on the next getMe)', () async {
+        'LR-15: a failed remote mirror keeps the LOCAL save but never claims '
+        '"Profile saved"', () async {
       final repo = InMemoryProfileRepository();
       final remote = _RecordingDisplayNameRepository(throws: true);
       final cubit = _buildCubit(repo: repo, displayNameRepo: remote);
       await cubit.load();
       await cubit.saveProfile(name: 'Ahmad');
       expect(cubit.state.profile.name, 'Ahmad');
-      expect(cubit.state.banner, SettingsBanner.profileSaved);
+      expect(cubit.state.banner, SettingsBanner.profileSaveFailed);
+      expect(cubit.state.isSavingProfile, isFalse);
       expect((await repo.load())?.name, 'Ahmad');
     });
 
@@ -275,8 +276,10 @@ void main() {
       expect(cubit.state.profile.photoUrl, '/tmp/x.jpg');
     });
 
-    test('removePhoto attempts the remote clear and fails soft on error',
-        () async {
+    // F10: the remote avatar still exists, so the screen must not claim it is
+    // gone — the local clear is put back and the banner says what happened.
+    test('removePhoto restores the photo and says so when the remote clear '
+        'fails', () async {
       final repo = InMemoryProfileRepository();
       await repo.save(const UserProfile(
         phoneE164: '+96170100200',
@@ -291,9 +294,9 @@ void main() {
 
       await cubit.removePhoto();
       expect(avatarRepo.removeCalls, 1);
-      // Local removal (what the user asked for) still committed.
-      expect(cubit.state.profile.photoUrl, isNull);
-      expect(cubit.state.banner, SettingsBanner.profileSaved);
+      expect(cubit.state.profile.photoUrl, 'https://cdn/jeeb/avatar.png');
+      expect(cubit.state.banner, SettingsBanner.avatarRemoveFailed);
+      expect(cubit.state.isSavingProfile, isFalse);
     });
   });
 
@@ -400,7 +403,10 @@ void main() {
       expect(await repo.load(), isNull);
     });
 
-    test('signOut leaves profile untouched on network error', () async {
+    // F37: every outcome clears the local session — a user must never be
+    // trapped inside a signed-in shell because the revoke hop failed.
+    test('signOut still clears the local session on a network error',
+        () async {
       final repo = InMemoryProfileRepository();
       await repo.save(const UserProfile(
         phoneE164: '+96170100200',
@@ -414,9 +420,9 @@ void main() {
       );
       await cubit.load();
       await cubit.signOut();
-      expect(cubit.state.banner, SettingsBanner.networkError);
-      expect(cubit.state.profile.name, 'Sami');
-      expect((await repo.load())?.name, 'Sami');
+      expect(cubit.state.banner, SettingsBanner.signedOut);
+      expect(cubit.state.profile.name, isNull);
+      expect((await repo.load())?.name, isNull);
     });
   });
 

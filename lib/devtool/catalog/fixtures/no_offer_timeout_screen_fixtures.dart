@@ -22,8 +22,25 @@ class StalledWaitingRepository implements WaitingRepository {
       Completer<WaitingRequest>().future;
 
   @override
-  Future<int> fetchOfferCount(String requestId, {int fallback = 0}) =>
-      Completer<int>().future;
+  Future<int?> fetchOfferCount(String requestId) => Completer<int?>().future;
+}
+
+/// UX-34: the live offer probe cannot be read, so the count is UNKNOWN and the
+/// screen says so instead of printing a fabricated number.
+class OfferCountUnavailableWaitingRepository implements WaitingRepository {
+  OfferCountUnavailableWaitingRepository(this.seed);
+
+  final WaitingRequest seed;
+
+  @override
+  Future<WaitingRequest> fetchWaiting(String requestId) async =>
+      seed.copyWith(offerCountIsProbed: false);
+
+  @override
+  Future<WaitingRequest> fetchRequest(String requestId) async => seed;
+
+  @override
+  Future<int?> fetchOfferCount(String requestId) async => null;
 }
 
 /// The designed states of `NoOfferTimeoutScreen`, as repositories plus the
@@ -161,6 +178,16 @@ class NoOfferTimeoutScreenPreviewFixtures {
           remaining: const Duration(minutes: 3),
           displayId: 'ORD-5005',
           title: 'One box of baklava from Hallab',
+        ),
+      );
+
+  /// The offer count could not be probed — `waiting_offer_count_unavailable`.
+  static WaitingRepository countUnavailableRepository() =>
+      OfferCountUnavailableWaitingRepository(
+        snapshot(
+          notifiedCount: 6,
+          remaining: const Duration(minutes: 3),
+          title: '2 grocery bags from Spinneys',
         ),
       );
 

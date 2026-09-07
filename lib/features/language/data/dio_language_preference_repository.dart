@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/locale/language_preference_repository.dart';
+import '../../../core/network/app_failure.dart';
 
 /// Dio-backed [LanguagePreferenceRepository] (JEBV4-205, E10).
 class DioLanguagePreferenceRepository implements LanguagePreferenceRepository {
@@ -42,19 +43,14 @@ class DioLanguagePreferenceRepository implements LanguagePreferenceRepository {
     }
   }
 
-  LanguagePreferenceFailure _map(DioException e) {
-    final status = e.response?.statusCode;
-    if (status == 401 || status == 403) {
-      return LanguagePreferenceFailure.unauthorized;
-    }
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return LanguagePreferenceFailure.network;
-      default:
-        return LanguagePreferenceFailure.unknown;
-    }
-  }
+  LanguagePreferenceFailure _map(DioException e) =>
+      switch (AppFailure.of(e).kind) {
+        // Only a real 401 is a session problem. A 403 on a preference route is
+        // a permission answer and must never reach the auth-loss lane.
+        AppFailureKind.unauthorized => LanguagePreferenceFailure.unauthorized,
+        AppFailureKind.network ||
+        AppFailureKind.timeout => LanguagePreferenceFailure.network,
+        AppFailureKind.server => LanguagePreferenceFailure.serverError,
+        _ => LanguagePreferenceFailure.unknown,
+      };
 }

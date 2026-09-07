@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/address_form_repository.dart';
 import 'address_form_state.dart';
 
@@ -28,15 +29,20 @@ class AddressFormCubit extends Cubit<AddressFormState> {
         await _repository.update(userId: _userId, id: editId, draft: draft);
       }
       emit(state.copyWith(status: AddressFormStatus.saved));
-    } on AddressFormException catch (e) {
-      emit(state.copyWith(status: AddressFormStatus.failed, error: e.failure));
-    } catch (_) {
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
       emit(state.copyWith(
         status: AddressFormStatus.failed,
-        error: AddressFormFailure.unknown,
+        error: e is AddressFormException ? e.failure : _legacy(failure),
+        appFailure: failure,
       ));
     }
   }
+
+  AddressFormFailure _legacy(AppFailure failure) =>
+      failure is NetworkFailure || failure is TimeoutFailure
+          ? AddressFormFailure.network
+          : AddressFormFailure.unknown;
 
   void acknowledgeError() {
     emit(state.copyWith(status: AddressFormStatus.editing, clearError: true));

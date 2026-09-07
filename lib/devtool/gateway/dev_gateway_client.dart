@@ -807,6 +807,8 @@ class DevGatewayException implements Exception {
     this.statusCode,
     this.action,
     this.problemType,
+    this.hasActionableMessage = true,
+    this.cause,
   });
 
   const DevGatewayException.walletVerification(String message)
@@ -828,9 +830,11 @@ class DevGatewayException implements Exception {
         ? data
         : const <String, dynamic>{};
     var problemType = problem['type'] as String?;
-    final detail = problem['detail'] as String?;
+    final rawDetail = (problem['detail'] as String?)?.trim();
+    final detail = rawDetail == null || rawDetail.isEmpty ? null : rawDetail;
     final title = problem['title'] as String?;
     final String message;
+    var hasActionableMessage = true;
     if (uncertainOnMoneyTransport &&
         (status == null || status >= 500) &&
         problemType == null) {
@@ -868,10 +872,36 @@ class DevGatewayException implements Exception {
               'Could not $action: forbidden (403). The provided service-auth '
               'key was rejected by the gateway mint gate.';
         case null:
-          message =
-              'Could not $action: could not reach the gateway '
-              '(${e.type.name}). Check the Dev Tool Server URL.';
+          final guidance = switch (e.type) {
+            DioExceptionType.connectionTimeout =>
+              'The connection to the gateway timed out. '
+                  'Check the Dev Tool Server URL and your connection.',
+            DioExceptionType.sendTimeout =>
+              'The request timed out while sending data. '
+                  'Check the gateway status before continuing.',
+            DioExceptionType.receiveTimeout =>
+              'The gateway did not respond in time. '
+                  'Check its status before continuing.',
+            DioExceptionType.transformTimeout =>
+              'The gateway response could not be processed in time. '
+                  'Check the gateway status before continuing.',
+            DioExceptionType.connectionError =>
+              'The gateway could not be reached. '
+                  'Check the Dev Tool Server URL and your connection.',
+            DioExceptionType.badCertificate =>
+              'The gateway certificate could not be verified. '
+                  'Check the server certificate and the Dev Tool Server URL.',
+            DioExceptionType.badResponse =>
+              'The gateway returned an invalid response. '
+                  'Check the gateway status before continuing.',
+            DioExceptionType.cancel => 'The gateway request was cancelled.',
+            DioExceptionType.unknown =>
+              'The gateway request could not be completed. '
+                  'Check the Dev Tool Server URL and gateway status.',
+          };
+          message = 'Could not $action: $guidance';
         default:
+          hasActionableMessage = detail != null;
           message =
               detail ??
               title ??
@@ -883,10 +913,18 @@ class DevGatewayException implements Exception {
       statusCode: status,
       action: action,
       problemType: problemType,
+      hasActionableMessage: hasActionableMessage,
+      cause: e,
     );
   }
 
   final String message;
+
+  /// Title-only HTTP failures defer to the shared localized failure body.
+  final bool hasActionableMessage;
+
+  /// Original transport evidence for diagnostics, never displayed as copy.
+  final DioException? cause;
 
   final int? statusCode;
 

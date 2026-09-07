@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../../features/jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
@@ -39,6 +40,34 @@ class EmptyRequestFeedRepository implements RequestFeedRepository {
 
 /// Every snapshot throws, so the cubit lands on [RequestFeedStatus.error] and
 /// stays there however many times Retry is pressed.
+/// Throws the CLASSIFIED failure from `refresh()`, so a preview can pin the
+/// copy family a kind resolves to. [ErrorRequestFeedRepository] stays as-is.
+class KindedRequestFeedRepository implements RequestFeedRepository {
+  const KindedRequestFeedRepository(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
+
+  @override
+  Stream<FeedTransportUpdate> get transport async* {
+    yield const FeedTransportUpdate(FeedTransport.webSocket);
+  }
+
+  @override
+  Future<List<DeliveryRequest>> refresh() async => throw failure;
+
+  @override
+  Future<RequestActionOutcome> accept(String id) async => throw failure;
+
+  @override
+  Future<RequestActionOutcome> decline(String id) async => throw failure;
+
+  @override
+  Future<void> dispose() async {}
+}
+
 class ErrorRequestFeedRepository implements RequestFeedRepository {
   const ErrorRequestFeedRepository();
 
@@ -138,6 +167,20 @@ class SeededRequestFeedScreenCubit extends RequestFeedCubit {
           repository: repository ?? SeededRequestFeedRepository(seed.requests),
         ) {
     emit(seed);
+  }
+}
+
+/// Rows plus a warm failure, emitted without `start()`ing the cubit.
+class WarmFailureRequestFeedScreenCubit extends RequestFeedCubit {
+  WarmFailureRequestFeedScreenCubit(
+    List<DeliveryRequest> rows,
+    AppFailure failure,
+  ) : super(repository: SeededRequestFeedRepository(rows)) {
+    emit(RequestFeedState(
+      status: RequestFeedStatus.ready,
+      requests: rows,
+      refreshError: failure,
+    ));
   }
 }
 
@@ -241,9 +284,17 @@ abstract final class RequestFeedScreenPreviewFixtures {
   static RequestFeedCubit loadFailed() => SeededRequestFeedScreenCubit(
         const RequestFeedState(
           status: RequestFeedStatus.error,
-          errorMessageKey: 'requestFeedErrorLoad',
+          error: UnknownFailure(),
         ),
         repository: const ErrorRequestFeedRepository(),
+      );
+
+  /// The cold read failed with a KIND, so the failure block's copy family and
+  /// its retry-vs-exit ruling are both visible.
+  static RequestFeedCubit loadFailedWith(AppFailure failure) =>
+      SeededRequestFeedScreenCubit(
+        RequestFeedState(status: RequestFeedStatus.error, error: failure),
+        repository: KindedRequestFeedRepository(failure),
       );
 
   /// A settled board reached over the DEGRADED polling transport.
@@ -266,10 +317,16 @@ abstract final class RequestFeedScreenPreviewFixtures {
         RequestFeedState(
           status: RequestFeedStatus.ready,
           requests: requests,
-          errorMessageKey: 'requestFeedErrorLoad',
+          refreshError: const NetworkFailure(offline: true),
         ),
         repository: const ErrorRequestFeedRepository(),
       );
+
+  /// Rows on screen plus a classified warm failure — the refresh-failed note.
+  static RequestFeedCubit warmFailureOverRows(
+    List<DeliveryRequest> requests,
+    AppFailure failure,
+  ) => WarmFailureRequestFeedScreenCubit(requests, failure);
 
   /// Every row above, built from one shape so the feeds differ only where the
   /// difference is the point.

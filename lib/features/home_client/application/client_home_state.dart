@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/client_home_request.dart';
 import '../domain/recent_delivery_summary.dart';
 
@@ -18,9 +19,25 @@ class ClientHomeState extends Equatable {
     this.replies = const [],
     this.recentDeliveries = const [],
     this.offerStatusRequests = const [],
+    this.error,
+    this.refreshError,
+    this.inProgressError,
+    this.pendingError,
+    this.repliesError,
   });
 
   final ClientHomeStatus status;
+
+  /// The cold failure that owns the screen.
+  final AppFailure? error;
+
+  /// A refresh that failed over rows already on screen.
+  final AppFailure? refreshError;
+
+  /// Per-bucket failures: one dead read no longer empties the other tabs.
+  final AppFailure? inProgressError;
+  final AppFailure? pendingError;
+  final AppFailure? repliesError;
 
   final String? greetingName;
 
@@ -63,6 +80,14 @@ class ClientHomeState extends Equatable {
     List<ClientHomeRequest>? replies,
     List<RecentDeliverySummary>? recentDeliveries,
     List<ClientHomeRequest>? offerStatusRequests,
+    AppFailure? error,
+    AppFailure? refreshError,
+    AppFailure? inProgressError,
+    AppFailure? pendingError,
+    AppFailure? repliesError,
+    bool clearError = false,
+    bool clearRefreshError = false,
+    bool clearBucketErrors = false,
   }) {
     return ClientHomeState(
       status: status ?? this.status,
@@ -74,6 +99,18 @@ class ClientHomeState extends Equatable {
       replies: replies ?? this.replies,
       recentDeliveries: recentDeliveries ?? this.recentDeliveries,
       offerStatusRequests: offerStatusRequests ?? this.offerStatusRequests,
+      error: clearError ? error : (error ?? this.error),
+      refreshError:
+          clearRefreshError ? refreshError : (refreshError ?? this.refreshError),
+      inProgressError: clearBucketErrors
+          ? inProgressError
+          : (inProgressError ?? this.inProgressError),
+      pendingError: clearBucketErrors
+          ? pendingError
+          : (pendingError ?? this.pendingError),
+      repliesError: clearBucketErrors
+          ? repliesError
+          : (repliesError ?? this.repliesError),
     );
   }
 
@@ -86,6 +123,11 @@ class ClientHomeState extends Equatable {
     replies,
     recentDeliveries,
     offerStatusRequests,
+    error,
+    refreshError,
+    inProgressError,
+    pendingError,
+    repliesError,
   ];
 }
 
