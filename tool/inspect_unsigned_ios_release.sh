@@ -142,6 +142,7 @@ fi
 #
 # So a staging artifact must PROVE it carries the tool, in both halves.
 if [[ "${RELEASE_PROFILE}" == staging ]]; then
+  bash "${REPO_ROOT}/tool/inspect_ios_staging_clarity_payload.sh" "${APP_BINARY}"
   if [[ -f "${APP_BINARY}" ]]; then
     LC_ALL=C grep -aFq 'devtool_shake' "${APP_BINARY}" ||
       fail 'staging Dart snapshot is missing the Dev Tool: the staging '\
