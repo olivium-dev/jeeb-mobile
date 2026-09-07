@@ -40,12 +40,29 @@ Side defect in the same code path: `ts` is `""` for every generic-event row (onl
 
 ## 2. Root cause (verified in code + raw data)
 
-### 2a. The data IS stored — nothing to backfill
+### 2a. The data is stored for all but 8 rows — no backfill in scope
 
 Raw rows from notification-service (`GET http://127.0.0.1:10026/messages/receiver/{id}` on the MSI
 box, header `X-Notification-Service-Token` from `~/iter5-native/env/gateway.env`,
-`plans/live/*-upstream-raw.json`): **55 of 59 rows already carry the target id**; the 4 without are
-`jeeb.auto_offline` (availability), which has no target by design.
+`plans/live/*-upstream-raw.json`): **47 of 59 rows already carry the target id**. The 12 without
+split three ways:
+
+- 4 × `jeeb.auto_offline` (availability) — no target by design, nothing to resolve.
+- 4 × `jeeb.offer_accepted` whose stored keys are `user_id`, `offer_id`, `jeeber_id` and **no
+  `request_id`**: `4572e4e3-4c3f-4e41-9c0b-ae7961410437`, `3b86aec9-e1cc-44fa-aba2-21b952c67e04`,
+  `34efe703-6222-4bcd-be42-a6daa22b3e88`, `e4363780-bc13-4cc5-a387-1d10d187e089`.
+- 4 × `jeeb.offer_received` in the same state (`payload.offer_id` + `created_at` only):
+  `12724df4-2276-41e5-8e81-97c19c28b3a7`, `9d65a919-711b-4628-ac9e-87b8d43b695b`,
+  `63f06a09-fc61-4f2e-9137-56dd1768ce3c`, `3e2fdf89-38ec-48d1-a4c0-465d6a8ebbab` — they pair with
+  the four `offer_accepted` rows above by `offer_id`.
+
+D1 forbids hoisting `offer_id` into the request slot, so the 8 offer rows stay unaddressable from
+the stored row alone. The 4 `offer_received` ones remain recoverable at read time through
+`IOfferRequestIndex` (D4 fallback: in-memory, re-learned after restart, capped by
+`MaxOfferResolutionRowsPerPage`); the 4 `offer_accepted` ones have no such path and stay
+unaddressed until upstream emits `request_id`. So the read-side fix addresses 51 of the 59 rows,
+not all of them, and D2's "no backfill" stands only because the 8 are out of its reach — not
+because every row already carries an id.
 
 Where each producer puts the id (all on `origin/main`):
 
@@ -117,7 +134,8 @@ store the closed `payload` only.
   equals it) the mobile route needs — never an `offer_id`, never a `conversationId`. No new wire
   fields; `deepLink` becomes correct-or-absent-root, advisory only.
 - **D2 No backfill, no migration, no notification-service change.** The fix is read-side; it applies
-  to every historical row (proven above).
+  to every historical row that stores a target id — 51 of the 59 captured (§2a). The 8 offer rows
+  that store only an `offer_id` are out of its reach and stay unaddressed by design, not by backfill.
 - **D3 Mobile stays kind+ref driven** (single source of truth, the thing P2 already fixed). Inbox
   dispatch keeps ignoring `deepLink`; consuming it is a listed follow-up.
 - **D4 `offer` rows:** `payload.request_id` first, `IOfferRequestIndex` only as fallback (keeps the
@@ -194,9 +212,15 @@ G3. Tests (`tests/JeebGateway.IntegrationTests`, project already copies `Fixture
       `Fixtures/FM1/captured-msi-karim-inbox-20260905-page.json` (31 rows) and
       `captured-msi-nour-inbox-20260905-page.json` (28 rows); add both to `Fixtures/FM1/README.md`
       with provenance (receivers `106078a3-…`, `34a52972-…`, read-only, 2026-09-05, MSI :10026).
-    - `JeebNotificationsProjectionTests.cs`: add
-      `ExtractRows_CapturedMsiInbox_EveryRowButAvailabilityHasRef` (both fixtures; assert
-      `rows.Where(r => r.Type != "availability").All(r => r.Ref != null)` and spot-assert the exact
+    - `P02NotificationTargetContractTests.cs`: add
+      `Sanitized_Captured_Page_Resolves_Every_Addressed_Row` (both fixtures, one `[InlineData]` per
+      actor). A blanket "every row but availability has a ref" assertion is **not** available: the
+      four `jeeb.offer_accepted` ids in §2a carry no stored `request_id`, so the test pins exactly
+      those four to `Ref == null` with their deep link at `NotificationDeepLinkResolver.InboxRoot`
+      and asserts no other non-availability karim row is unresolved. Nour's page has no unresolved
+      row at this layer because D4 leaves her four `offer_received` ids holding `payload.offer_id`
+      as the index candidate `ResolveOfferRequestRefs` rewrites — assert that candidate hand-off,
+      never that an `offer_id` is an acceptable final `ref`. Spot-assert the exact
       ids: `f5cab53e… → defb1f07-efa5-4b8f-bc1a-09d6fcd1140b`, `4b241ba5… → 13b8bca2-ee0f-4acf-9db3-c364d5984a03`,
       `cab0d955… → fd91232f-8482-4a4e-ba3f-b356b24ab71b`, `788fbef4… → fd91232f-…`,
       `4061357f… → 96e5c26b-b4cf-4e53-8744-2c2f0affc4b1`), plus
