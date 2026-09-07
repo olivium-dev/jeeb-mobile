@@ -53,6 +53,41 @@ void main() {
     expect(subject.isCaptureActive, isTrue);
   });
 
+  testWidgets('Dev Tool blocks initialization and resumes only after close', (
+    tester,
+  ) async {
+    final context = await contextFor(tester);
+    final analytics = _FakeAnalytics();
+    final subject = ClarityController(
+      available: true,
+      consentStore: _FakeStore(ClarityConsent.unknown),
+      analytics: analytics,
+    );
+    addTearDown(subject.dispose);
+    expect(subject.prepareDevToolOpen(), isTrue);
+    subject.attachContext(context);
+    subject.updateAuthentication(true);
+    await subject.grant();
+    await tester.pump();
+    expect(analytics.initializeCalls, 0);
+    subject.resumeFromLifecycle();
+    await tester.pump();
+    expect(analytics.initializeCalls, 0);
+    subject.didCloseDevTool();
+    await tester.pump();
+    expect(subject.isCaptureActive, isTrue);
+    expect(subject.prepareDevToolOpen(), isTrue);
+    expect(subject.isCaptureActive, isFalse);
+    expect(analytics.consents.last, (false, false));
+    subject.suspendForLifecycle();
+    subject.resumeFromLifecycle();
+    await tester.pump();
+    expect(subject.isCaptureActive, isFalse);
+    subject.didCloseDevTool();
+    await tester.pump();
+    expect(subject.isCaptureActive, isTrue);
+  });
+
   testWidgets('concurrent grants initialize at most once', (tester) async {
     final context = await contextFor(tester);
     final store = _FakeStore(ClarityConsent.unknown);
