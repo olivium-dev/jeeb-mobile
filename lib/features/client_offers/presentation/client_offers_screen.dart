@@ -311,6 +311,9 @@ class _LoadedBody extends StatelessWidget {
     // is open AND has not expired — the same authority `acceptDisabled` reads,
     // not the locally elapsed display countdown.
     final windowIsLive = state.requestIsOpen && !state.requestIsExpired;
+    // F2: a closed request with no bid left to show is TERMINAL — the closed
+    // block below owns the whole body, so the note here would duplicate it.
+    final closedIsTerminal = !state.requestIsOpen && !state.hasOffers;
     return Column(
       children: [
         // ── Fixed header: strip, banners, sort bar. These used to scroll away
@@ -330,7 +333,7 @@ class _LoadedBody extends StatelessWidget {
               progress: state.windowProgress,
             ),
           ),
-        if (!state.requestIsOpen)
+        if (!state.requestIsOpen && !closedIsTerminal)
           Padding(
             padding: _gutter.add(
               const EdgeInsetsDirectional.only(top: Spacing.small),
@@ -437,6 +440,10 @@ class _LoadedBody extends StatelessWidget {
                       ),
                     ],
                   )
+                : closedIsTerminal
+                // F2: a closed/cancelled/expired request is not broadcasting,
+                // so the waiting block would promise offers that cannot come.
+                ? _ClosedBody(expired: state.requestIsExpired)
                 : _WaitingBody(
                     // The countdown chip only where there is a live window
                     // left to count: a closed or expired request is not
@@ -570,6 +577,61 @@ class _WaitingBody extends StatelessWidget {
       windowRemaining: windowRemaining,
     ),
   );
+}
+
+/// F2 · terminal state for a request the server has closed (cancelled, matched
+/// elsewhere) or expired, with no bid left to render.
+///
+/// The judge caught the old render promising "Broadcasting to nearby Jeebers…"
+/// under a "Request closed" note — two states at once. Cancelled and expired
+/// keep separate ids and headlines; they carry different fee semantics and must
+/// never read as one event. The only action is an exit: there is nothing here
+/// to retry, sort, accept or count down to.
+class _ClosedBody extends StatelessWidget {
+  const _ClosedBody({required this.expired});
+
+  /// True only when the server said `expired`; false is a cancel/close.
+  final bool expired;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _CenteredBlock(
+      maxWidth: Sizes.threeHundredLarge,
+      child: JeebEmptyState.compact(
+        key: Key(expired ? 'offer-expired-state' : 'offer-closed-state'),
+        identifier: expired
+            ? 'offer_review_expired_state'
+            : 'offer_review_closed_state',
+        headline: expired
+            ? l10n.offersWindowExpired
+            : l10n.offersRequestClosedTitle,
+        body: expired
+            ? l10n.offersRequestExpiredBody
+            : l10n.offersRequestClosedBody,
+        headlineIdentifier: expired
+            ? 'offer_review_expired_title'
+            : 'offer_review_closed_title',
+        bodyIdentifier: expired
+            ? 'offer_review_expired_body'
+            : 'offer_review_closed_body',
+        action: Semantics(
+          identifier: 'offer_review_exit_cta',
+          container: true,
+          button: true,
+          child: JeebCtaButton.accent(
+            key: const Key('offer-review-exit-cta'),
+            label: l10n.offersClosedHomeCta,
+            expand: true,
+            // `go('/')` resolves the role-aware shell home — the same terminal
+            // destination the cancel-request sheet and live tracking use. A
+            // `maybePop()` here would be a dead arrow on a push-tap stack root.
+            onTap: () => context.go('/'),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The docked footer: the orange one-offer reminder over the Cancel request

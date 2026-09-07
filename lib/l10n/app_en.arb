@@ -2270,6 +2270,18 @@
   "@offersErrorRequestNotOpen": {
     "description": "Inline error banner copy when the request was closed (cancelled or another offer won the race)"
   },
+  "offersRequestClosedBody": "This request is no longer taking offers. Nothing was charged.",
+  "@offersRequestClosedBody": {
+    "description": "F2 terminal offer-review body for a cancelled/closed request (offer_review_closed_body)."
+  },
+  "offersRequestExpiredBody": "This request expired before a Jeeber took it. You can create a new one any time.",
+  "@offersRequestExpiredBody": {
+    "description": "F2 terminal offer-review body for an expired request (offer_review_expired_body)."
+  },
+  "offersClosedHomeCta": "Back to Home",
+  "@offersClosedHomeCta": {
+    "description": "F2 offer_review_exit_cta on the terminal closed/expired offer-review block."
+  },
   "offersErrorOfferNotPending": "This offer is no longer available.",
   "@offersErrorOfferNotPending": {
     "description": "Inline error banner copy when the chosen offer was withdrawn or already accepted"

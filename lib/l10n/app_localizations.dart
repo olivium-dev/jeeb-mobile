@@ -1744,10 +1744,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get locationStepDropoff => _get('locationStepDropoff');
   String get locationStepPickup => _get('locationStepPickup');
   String get locationUseCurrentGps => _get('locationUseCurrentGps');
+  String get offersClosedHomeCta => _get('offersClosedHomeCta');
   String get offersEmptyBody => _get('offersEmptyBody');
   String get offersEmptyTitle => _get('offersEmptyTitle');
   String get offersRatingCount => _get('offersRatingCount');
+  String get offersRequestClosedBody => _get('offersRequestClosedBody');
   String get offersRequestClosedTitle => _get('offersRequestClosedTitle');
+  String get offersRequestExpiredBody => _get('offersRequestExpiredBody');
   String get offersRetryAction => _get('offersRetryAction');
   String get offersScreenTitle => _get('offersScreenTitle');
   String get offersSortByPrice => _get('offersSortByPrice');
