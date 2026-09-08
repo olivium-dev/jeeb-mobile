@@ -1,0 +1,103 @@
+name: Mobile store inventory preflight (no release)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact current protected-main SHA
+        required: true
+        type: string
+      build_name:
+        description: Three-component marketing version
+        required: true
+        type: string
+      build_number:
+        description: Candidate number to compare against BOTH stores; does not reserve it
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: mobile-store-inventory-preflight
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: mobile-rc
+    steps:
+      - name: Require designated owner and protected main
+        env:
+          REQUESTING_ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]
+          [[ "$GITHUB_REPOSITORY" == olivium-dev/jeeb-mobile ]]
+          [[ "$GITHUB_REF" == refs/heads/main && "$REF_PROTECTED" == true ]]
+          [[ "$REQUESTING_ACTOR" == oudaykhaled && "$TRIGGERING_ACTOR" == oudaykhaled ]]
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Bind exact current source and candidate number
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          MOBILE_BUILD_NAME: ${{ inputs.build_name }}
+          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REVIEWED_SHA" == "$GITHUB_SHA" && "$REVIEWED_SHA" == "$(git rev-parse HEAD)" ]]
+          [[ "$MOBILE_BUILD_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$MOBILE_BUILD_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          (( 10#$MOBILE_BUILD_NUMBER >= 26082601 && 10#$MOBILE_BUILD_NUMBER <= 2100000000 ))
+          gh api repos/olivium-dev/jeeb-mobile/branches/main \
+            --jq 'select(.protected == true) | .commit.sha' | \
+            { IFS= read -r current; [[ "$current" == "$REVIEWED_SHA" ]]; }
+          gh api repos/olivium-dev/jeeb-mobile/environments/mobile-rc --jq \
+            '.deployment_branch_policy | .protected_branches == true and .custom_branch_policies == false' | grep -Fxq true
+
+      - name: Validate isolated preflight contracts
+        run: python3 tool/test_store_inventory_preflight.py
+
+      - name: Set up repository Ruby
+        uses: ./.github/actions/setup-ruby
+
+      - name: Validate abort lifecycle and mutation denial without credentials
+        run: |
+          bundle exec ruby tool/test_store_inventory_preflight.rb
+          bundle exec ruby tool/test_store_inventory_sdk.rb
+
+      - name: Inventory stores using temporary uncommitted Play edits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          MOBILE_BUILD_NAME: ${{ inputs.build_name }}
+          MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_CONTENT_B64: ${{ secrets.APP_STORE_KEY_CONTENT_B64 }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_DONT_STORE_PASSWORD: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          gh api repos/olivium-dev/jeeb-mobile/branches/main \
+            --jq 'select(.protected == true) | .commit.sha' | \
+            { IFS= read -r current; [[ "$current" == "$REVIEWED_SHA" ]]; }
+          # Keys stay in the process environment/memory, never files or artifacts.
+          # Play edit create/read/abort is not GET-only; commit is prohibited.
+          bundle exec ruby tool/run_store_inventory_preflight.rb
