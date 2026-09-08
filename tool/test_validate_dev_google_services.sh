@@ -8,15 +8,12 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 PASS_COUNT=0
-EXPECTED_PROJECT_NUMBER="123456789012"
-EXPECTED_PROJECT_ID="jeeb-dev-test"
-EXPECTED_APP_ID="1:123456789012:android:0123456789abcdef0123456789abcdef"
+EXPECTED_PROJECT_NUMBER="1051234312170"
+EXPECTED_PROJECT_ID="jeeb-5a293"
+EXPECTED_APP_ID="1:1051234312170:android:146d7f24f109e38523dc93"
 
 run_validator() {
-  DEV_FIREBASE_EXPECTED_PROJECT_NUMBER="${EXPECTED_PROJECT_NUMBER}" \
-    DEV_FIREBASE_EXPECTED_PROJECT_ID="${EXPECTED_PROJECT_ID}" \
-    DEV_FIREBASE_EXPECTED_APP_ID="${EXPECTED_APP_ID}" \
-    bash "${VALIDATOR}" "$1"
+  bash "${VALIDATOR}" "$1"
 }
 
 write_valid_fixture() {
@@ -24,14 +21,14 @@ write_valid_fixture() {
   cat >"${output_path}" <<'JSON'
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "jeeb-dev-test",
-    "storage_bucket": "jeeb-dev-test.firebasestorage.app"
+    "project_number": "1051234312170",
+    "project_id": "jeeb-5a293",
+    "storage_bucket": "jeeb-5a293.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:0123456789abcdef0123456789abcdef",
+        "mobilesdk_app_id": "1:1051234312170:android:146d7f24f109e38523dc93",
         "android_client_info": {
           "package_name": "app.jeeb.mobile.dev"
         }
@@ -100,22 +97,6 @@ write_valid_fixture "${VALID_CONFIG}"
 expect_pass "valid-shaped dev fixture" "${VALID_CONFIG}"
 expect_fail "missing file" "${TMP_DIR}/missing.json" "config file is missing"
 
-if OUTPUT="$(
-  DEV_FIREBASE_EXPECTED_PROJECT_NUMBER='' \
-    DEV_FIREBASE_EXPECTED_PROJECT_ID='' \
-    DEV_FIREBASE_EXPECTED_APP_ID='' \
-    bash "${VALIDATOR}" "${VALID_CONFIG}" 2>&1
-)"; then
-  echo "not ok - missing protected expected identity inputs: validator passed" >&2
-  exit 1
-fi
-if [[ "${OUTPUT}" != *"protected expected Firebase identity inputs are missing"* ]]; then
-  echo "not ok - missing protected expected identity inputs: wrong error" >&2
-  exit 1
-fi
-PASS_COUNT=$((PASS_COUNT + 1))
-echo "ok - missing protected expected identity inputs"
-
 MALFORMED_CONFIG="${TMP_DIR}/malformed.json"
 SENSITIVE_SENTINEL="SENSITIVE_SENTINEL_MUST_NOT_APPEAR"
 printf '{"project_info":"%s"' "${SENSITIVE_SENTINEL}" >"${MALFORMED_CONFIG}"
@@ -156,14 +137,15 @@ expect_pass \
   "legitimate marker words outside identity fields" \
   "${LEGITIMATE_MARKER_TEXT_CONFIG}"
 
-LEGITIMATE_PROJECT_ID_CONFIG="${TMP_DIR}/legitimate-project-id.json"
+SIMILAR_PROJECT_ID_CONFIG="${TMP_DIR}/similar-project-id.json"
 jq '
   .project_info.project_id = "jeeb-placeholder-dev"
   | .project_info.storage_bucket = "jeeb-placeholder-dev.firebasestorage.app"
-' "${VALID_CONFIG}" >"${LEGITIMATE_PROJECT_ID_CONFIG}"
-EXPECTED_PROJECT_ID="jeeb-placeholder-dev" expect_pass \
-  "legitimate placeholder substring in expected project id" \
-  "${LEGITIMATE_PROJECT_ID_CONFIG}"
+' "${VALID_CONFIG}" >"${SIMILAR_PROJECT_ID_CONFIG}"
+expect_fail \
+  "similar but non-canonical project id" \
+  "${SIMILAR_PROJECT_ID_CONFIG}" \
+  "does not match the committed canonical Firebase identity"
 
 IDENTITY_MISMATCH_CONFIG="${TMP_DIR}/identity-mismatch.json"
 jq '.project_info.project_id = "jeeb-other-valid-dev"' \
@@ -171,7 +153,7 @@ jq '.project_info.project_id = "jeeb-other-valid-dev"' \
 expect_fail \
   "protected expected identity mismatch" \
   "${IDENTITY_MISMATCH_CONFIG}" \
-  "does not match the protected expected Firebase identity"
+  "does not match the committed canonical Firebase identity"
 
 WRONG_PACKAGE_CONFIG="${TMP_DIR}/wrong-package.json"
 jq '.client[0].client_info.android_client_info.package_name = "app.other.mobile.dev"' \
@@ -189,7 +171,7 @@ expect_fail \
   "${PROD_ONLY_CONFIG}" \
   "exactly one client must match the required dev package"
 
-WRONG_APP_ID="1:123456789012:android:fedcba9876543210fedcba9876543210"
+WRONG_APP_ID="1:1051234312170:android:fedcba9876543210fedcba9876543210"
 WRONG_API_KEY="AIzaSyzyxwvutsrqponmlkjihgfedcba987654321"
 VALID_API_KEY="AIzaSy0123456789abcdefghijklmnopqrstuvw"
 DUPLICATE_CLIENT_MESSAGE="exactly one client must match the required dev package"

@@ -235,7 +235,6 @@ jobs:
           ANDROID_UPLOAD_CERT_SHA1: ${{ secrets.ANDROID_UPLOAD_CERT_SHA1 }}
           ANDROID_UPLOAD_CERT_SHA256: ${{ secrets.ANDROID_UPLOAD_CERT_SHA256 }}
           ANDROID_GOOGLE_SERVICES_JSON_B64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_B64 }}
-          ANDROID_FIREBASE_EXPECTED_APP_ID: ${{ secrets.ANDROID_FIREBASE_EXPECTED_APP_ID }}
           ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
           ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
           MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
@@ -247,7 +246,6 @@ jobs:
             ANDROID_KEYSTORE_B64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
             ANDROID_STORE_PASSWORD ANDROID_UPLOAD_CERT_SHA1
             ANDROID_UPLOAD_CERT_SHA256 ANDROID_GOOGLE_SERVICES_JSON_B64
-            ANDROID_FIREBASE_EXPECTED_APP_ID
             ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID
             ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID MAPS_API_KEY
           )
@@ -257,6 +255,8 @@ jobs:
               exit 1
             }
           done
+          ANDROID_FIREBASE_APP_ID="$(jq -er '.android.store.appId' \
+            contracts/jeeb-mobile-firebase-apps-v1.json)"
           tmp_dir="$(mktemp -d)"
           # Diagnosis trap: every verification command below redirects or
           # suppresses its output, so a failure surfaces as a bare non-zero
@@ -302,6 +302,7 @@ jobs:
                 --build-name="${BUILD_NAME}" \
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
+                --dart-define=REQUIRE_REAL_PUSH=true \
                 --dart-define=JEEB_CLARITY_ENABLED=false \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
                 --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
@@ -367,7 +368,7 @@ jobs:
           LC_ALL=C grep -aFq 'app.jeeb.fds-1.com' \
             "${tmp_dir}/AndroidManifest.pb"
           unzip -p "${aab_path}" base/resources.pb >"${tmp_dir}/resources.pb"
-          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
+          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_APP_ID}" \
             "${tmp_dir}/resources.pb"
           # The Maps key is a MANIFEST PLACEHOLDER (build.gradle
           # `manifestPlaceholders += [MAPS_API_KEY: ...]`), landing as the
@@ -541,7 +542,6 @@ jobs:
           IOS_BUILD_NUMBER: ${{ inputs.build_number }}
           OMDS_SHA: ${{ steps.checkout_omds.outputs.revision }}
           IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
-          IOS_FIREBASE_EXPECTED_APP_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_APP_ID }}
           IOS_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_CLIENT_ID }}
           IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
           IOS_GOOGLE_MAPS_API_KEY: ${{ secrets.IOS_GOOGLE_MAPS_API_KEY }}
@@ -556,7 +556,7 @@ jobs:
           set -euo pipefail
           umask 077
           required=(
-            IOS_GOOGLE_SERVICE_INFO_PLIST_B64 IOS_FIREBASE_EXPECTED_APP_ID
+            IOS_GOOGLE_SERVICE_INFO_PLIST_B64
             IOS_FIREBASE_EXPECTED_CLIENT_ID
             IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID IOS_GOOGLE_MAPS_API_KEY
             APP_STORE_KEY_ID APP_STORE_ISSUER_ID APP_STORE_KEY_CONTENT_B64

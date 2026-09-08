@@ -5,9 +5,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/android/app/src/dev/google-services.json}"
 REQUIRED_PACKAGE="app.jeeb.mobile.dev"
-EXPECTED_PROJECT_NUMBER="${DEV_FIREBASE_EXPECTED_PROJECT_NUMBER:-}"
-EXPECTED_PROJECT_ID="${DEV_FIREBASE_EXPECTED_PROJECT_ID:-}"
-EXPECTED_APP_ID="${DEV_FIREBASE_EXPECTED_APP_ID:-}"
+CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
+APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 
 fail() {
   printf 'Dev Firebase config invalid: %s\n' "$1" >&2
@@ -21,6 +20,11 @@ fi
 if ! command -v jq >/dev/null 2>&1; then
   fail 'jq is required for structural validation'
 fi
+
+bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
+EXPECTED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
+EXPECTED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
+EXPECTED_APP_ID="$(jq -r '.android.dev.appId' "${APPS}")"
 
 if ! jq -e 'type == "object"' "${CONFIG_PATH}" >/dev/null 2>&1; then
   fail 'config is not valid JSON'
@@ -102,11 +106,6 @@ if ! jq -e --arg package "${REQUIRED_PACKAGE}" '
   fail 'Firebase app id or API key has an invalid shape'
 fi
 
-if [[ -z "${EXPECTED_PROJECT_NUMBER}" || -z "${EXPECTED_PROJECT_ID}" || \
-      -z "${EXPECTED_APP_ID}" ]]; then
-  fail 'protected expected Firebase identity inputs are missing'
-fi
-
 if ! jq -e \
   --arg package "${REQUIRED_PACKAGE}" \
   --arg project_number "${EXPECTED_PROJECT_NUMBER}" \
@@ -121,8 +120,8 @@ if ! jq -e \
   and .project_info.project_id == $project_id
   and $dev.client_info.mobilesdk_app_id == $app_id
 ' "${CONFIG_PATH}" >/dev/null 2>&1; then
-  fail 'config does not match the protected expected Firebase identity'
+  fail 'config does not match the committed canonical Firebase identity'
 fi
 
 printf '%s\n' \
-  'Dev Firebase config structure and protected identity match; this does not verify live FCM viability.'
+  'Dev Firebase config matches the committed canonical identity; this does not verify live FCM viability.'

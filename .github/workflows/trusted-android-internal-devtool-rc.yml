@@ -157,7 +157,6 @@ jobs:
           ANDROID_UPLOAD_CERT_SHA1: ${{ secrets.ANDROID_UPLOAD_CERT_SHA1 }}
           ANDROID_UPLOAD_CERT_SHA256: ${{ secrets.ANDROID_UPLOAD_CERT_SHA256 }}
           ANDROID_GOOGLE_SERVICES_JSON_B64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_B64 }}
-          ANDROID_FIREBASE_EXPECTED_APP_ID: ${{ secrets.ANDROID_FIREBASE_EXPECTED_APP_ID }}
           ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
           ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
           MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
@@ -171,13 +170,14 @@ jobs:
             ANDROID_KEYSTORE_B64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
             ANDROID_STORE_PASSWORD ANDROID_UPLOAD_CERT_SHA1
             ANDROID_UPLOAD_CERT_SHA256 ANDROID_GOOGLE_SERVICES_JSON_B64
-            ANDROID_FIREBASE_EXPECTED_APP_ID
             ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID
             ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID MAPS_API_KEY
           )
           for variable in "${required[@]}"; do
             [[ -n "${!variable:-}" ]] || exit 1
           done
+          ANDROID_FIREBASE_APP_ID="$(jq -er '.android.store.appId' \
+            contracts/jeeb-mobile-firebase-apps-v1.json)"
           tmp_dir="$(mktemp -d)"
           keystore="${tmp_dir}/upload.p12"
           properties="${GITHUB_WORKSPACE}/android/key.properties"
@@ -214,6 +214,7 @@ jobs:
                 --build-name="${BUILD_NAME}" \
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
+                --dart-define=REQUIRE_REAL_PUSH=true \
                 --dart-define=JEEB_DIAG=true \
                 --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
                 --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
@@ -281,7 +282,7 @@ jobs:
             exit 1
           }
           unzip -p "${aab}" "${english_arb_entry}" >"${tmp_dir}/app_en.arb"
-          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_EXPECTED_APP_ID}" \
+          LC_ALL=C grep -aFq "${ANDROID_FIREBASE_APP_ID}" \
             "${tmp_dir}/resources.pb"
           LC_ALL=C grep -aFq "${MAPS_API_KEY}" "${tmp_dir}/manifest.pb"
           JEEB_INTERNAL_RELEASE=true \
@@ -299,7 +300,7 @@ jobs:
           metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
           crashlytics_identity="$(python3 tool/android_crashlytics_mapping.py inspect --aab "${aab}")"
-          [[ "$(jq -r .firebase_app_id <<<"${crashlytics_identity}")" == "${ANDROID_FIREBASE_EXPECTED_APP_ID}" ]]
+          [[ "$(jq -r .firebase_app_id <<<"${crashlytics_identity}")" == "${ANDROID_FIREBASE_APP_ID}" ]]
           provenance="${tmp_dir}/provenance.json"
           jq -n \
             --argjson crashlytics_identity "${crashlytics_identity}" \

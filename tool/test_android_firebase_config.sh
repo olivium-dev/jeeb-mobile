@@ -16,7 +16,7 @@ cat >"${CONFIG_PATH}" <<'JSON'
   },
   "client": [{
     "client_info": {
-      "mobilesdk_app_id": "1:1051234312170:android:0123456789abcdef",
+      "mobilesdk_app_id": "1:1051234312170:android:85bc801430c9006623dc93",
       "android_client_info": {"package_name": "com.olivium.jeeb"}
     },
     "oauth_client": [
@@ -51,7 +51,6 @@ jq --arg key "${SYNTHETIC_FIREBASE_KEY}" \
 mv "${CONFIG_PATH}.next" "${CONFIG_PATH}"
 chmod 0600 "${CONFIG_PATH}"
 
-export ANDROID_FIREBASE_EXPECTED_APP_ID='1:1051234312170:android:0123456789abcdef'
 export ANDROID_UPLOAD_CERT_SHA1='77:48:5A:6B:9F:AA:39:A7:F7:A3:A2:A7:E7:F8:07:0C:B4:4F:43:0D'
 export ANDROID_UPLOAD_CERT_SHA256='AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA'
 export ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID='1051234312170-synthetic-upload.apps.googleusercontent.com'

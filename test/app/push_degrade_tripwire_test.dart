@@ -16,6 +16,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'app.onboarding.completed': true,
+      'push.deviceId': 'persistent-device-id-must-not-log',
     });
   });
 
@@ -64,13 +65,11 @@ void main() {
     expect(lines, contains('[push] FCM transport unavailable; using fake'));
     expect(
       lines,
-      contains('JEEB-PUSH-DEGRADED reason=init_channel_error stage=init '
-          'deviceId=unknown'),
+      contains('JEEB-PUSH-DEGRADED reason=init_channel_error stage=init'),
     );
     expect(
       lines,
-      contains('JEEB-PUSH-DEGRADED reason=retries_exhausted stage=init '
-          'deviceId=unknown'),
+      contains('JEEB-PUSH-DEGRADED reason=retries_exhausted stage=init'),
     );
   });
 
@@ -84,30 +83,44 @@ void main() {
 
     expect(
       lines,
-      contains('JEEB-PUSH-DEGRADED reason=init_timeout stage=init '
-          'deviceId=unknown'),
+      contains('JEEB-PUSH-DEGRADED reason=init_timeout stage=init'),
     );
   });
 
   testWidgets(
-      'a transport-build failure after Firebase is up logs token_null',
-      (tester) async {
+    'a transport-build failure after Firebase is up logs token_null',
+    (tester) async {
+      final lines = await runChain(
+        tester,
+        firebaseInitializer: () async {},
+        fcmTransportBuilder: () async =>
+            throw StateError('simulated FCM bridge failure'),
+      );
+
+      expect(
+        lines,
+        contains('JEEB-PUSH-DEGRADED reason=token_null stage=token'),
+      );
+    },
+  );
+
+  testWidgets('push degradation logs never contain a device identifier', (
+    tester,
+  ) async {
     final lines = await runChain(
       tester,
-      firebaseInitializer: () async {},
-      fcmTransportBuilder: () async =>
-          throw StateError('simulated FCM bridge failure'),
+      firebaseInitializer: () async => throw Exception('init failed'),
+      fcmTransportBuilder: () async => FakePushTransport(),
     );
+    final output = lines.join('\n');
 
-    expect(
-      lines,
-      contains('JEEB-PUSH-DEGRADED reason=token_null stage=token '
-          'deviceId=unknown'),
-    );
+    expect(output, isNot(contains('deviceId=')));
+    expect(output, isNot(contains('persistent-device-id-must-not-log')));
   });
 
-  testWidgets('the healthy push chain emits no JEEB-PUSH-DEGRADED line',
-      (tester) async {
+  testWidgets('the healthy push chain emits no JEEB-PUSH-DEGRADED line', (
+    tester,
+  ) async {
     final lines = await runChain(
       tester,
       firebaseInitializer: () async {},

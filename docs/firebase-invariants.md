@@ -8,8 +8,10 @@ already caused a real incident — see the SHA cited per rule.
 
 - Project: **`jeeb-5a293`**, project_number **`1051234312170`**. This is the
   only Firebase project this app ever talks to — production, staging, and
-  dev flavor all resolve to the same project (staging currently has no
-  client entry at all; see §6).
+  dev flavor all resolve to the same project and Firestore database
+  **`(default)`**. The machine-readable source of truth is
+  `contracts/jeeb-firebase-v1.json`; native app registrations are pinned in
+  `contracts/jeeb-mobile-firebase-apps-v1.json`.
 - **`alrahmah-d7a33` is FORBIDDEN.** Never point any Firebase config,
   `google-services.json`, plist, or Firestore rule at it. No commit in this
   repo's history has ever done so, but the risk is live enough that
@@ -29,10 +31,10 @@ already caused a real incident — see the SHA cited per rule.
 | `android/app/src/dev/google-services.json` | **NO — protected injection** | The dev wrapper validates the existing `app.jeeb.mobile.dev` registration and removes the mode-0600 file on success or failure. |
 | `*.template` files (both flavors) | YES | Reference/onboarding copies with `TODO_*` sentinels. |
 | `pubspec.lock` | **YES** | Pins the resolved Firebase package graph (firebase_core/auth/messaging/cloud_firestore/crashlytics + all `*_platform_interface`/`*_web` transitives) so a fresh `pub get` can't silently re-roll into the pigeon-poison range (§3). Mirrors `ios/Podfile.lock`, which has always been tracked. |
-| `ios/Runner/GoogleService-Info.plist` | **NO — protected injection** | The iOS wrapper validates canonical bundle/project identity and removes the file after compile/archive, including failure paths. |
+| `ios/Runner/GoogleService-Info.plist` | **NO — protected injection** | The iOS wrappers validate the store or dev app registration against the same canonical project, then remove the file after compile/archive, including failure paths. |
 | `lib/core/firebase/firebase_options.dart` | **DELETED** | Dead placeholder (`DefaultFirebaseOptions.currentPlatform` always threw). Zero references repo-wide; native config drives initialization (see §5). |
 
-**All three real native configs must be gitignored, untracked, and absent when
+**All four real native configs must be gitignored, untracked, and absent when
 their wrapper is not active. `pubspec.lock` must remain tracked and unignored.**
 Templates document shape only; they are not accepted as build inputs.
 
@@ -169,23 +171,20 @@ a 0% observed rate, so any hit is worth investigating immediately.
 > behaviour, but it puts a `deviceId` into production logs — **owner decision,
 > deliberately not taken here.**
 
-## 6. Known gaps (gaps, not bugs — do not "fix" these without an owner decision)
+## 6. Environment and producer contract
 
 - **Staging and production share the permanent native identity**
   `com.olivium.jeeb`; staging is selected through runtime defines, not a package
   suffix. Protected configuration and source gates are green, while real
   store-installed Firebase/FCM behavior remains an explicit acceptance gate.
-- **iOS dev builds ship with no Firebase at all**, by design — the `-dev`
-  Xcode configs (`Release-dev`/`Debug-dev`/`Profile-dev`) exclude
-  `GoogleService-Info.plist` via `EXCLUDED_SOURCE_FILE_NAMES`. This is
-  intentional, not an oversight.
-- **`notification-service` (`:10026`) is a second push producer.** It sits
-  alongside the push relay (`jeeb-push.service`, `:10040`) and gateway
-  proxying. Server-side dispatch-ledger analysis (`push_dispatch`, last 3
-  days: 14/14 succeeded, 0 duplicates by `(target_user_id, request_hash)`)
-  found no evidence of double-firing — the risk this gap represents is
-  **duplicate pushes, not lost pushes**. Don't treat a user report of "I got
-  two notifications" as a registration bug; check this producer first.
+- **Dev uses separate native app registrations in the same project.** Android
+  uses `app.jeeb.mobile.dev`; iOS uses `app.jeeb.jeebMobile.dev`. Different
+  provider files are required because package/bundle identity is part of each
+  file, but both files are contract-checked to `jeeb-5a293` / `(default)`.
+- **`notification-service` is the sole durable push producer.** The
+  push-notification service is the FCM relay; gateway direct delivery remains
+  denied except registration/recovery. Treat any second durable sender as a
+  contract violation, even if dispatch-ledger deduplication hides duplicates.
 - **CI is enabled for pull requests and main.** Source tests and dependency
   guards run without provider files; the secret-dependent dev APK build runs
   only after a main push through the protected wrapper. A green PR remains

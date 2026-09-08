@@ -341,7 +341,6 @@ jobs:
           EXPECTED_IPA_SHA256: ${{ steps.verify_ios.outputs.artifact_sha256 }}
           EXPECTED_DSYM_SHA256: ${{ steps.verify_ios.outputs.dsym_sha256 }}
           IOS_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
-          IOS_FIREBASE_EXPECTED_APP_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_APP_ID }}
           IOS_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_CLIENT_ID }}
           IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
         shell: bash

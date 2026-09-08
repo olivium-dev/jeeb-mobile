@@ -4,11 +4,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/android/app/google-services.json}"
-REQUIRED_PROJECT_ID="jeeb-5a293"
-REQUIRED_PROJECT_NUMBER="1051234312170"
-REQUIRED_PACKAGE="com.olivium.jeeb"
+CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
+APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 REQUIRED_PLAY_APP_SIGNING_SHA1="2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12"
-EXPECTED_APP_ID="${ANDROID_FIREBASE_EXPECTED_APP_ID:-}"
 EXPECTED_UPLOAD_SHA1="${ANDROID_UPLOAD_CERT_SHA1:-}"
 EXPECTED_UPLOAD_SHA256="${ANDROID_UPLOAD_CERT_SHA256:-}"
 EXPECTED_UPLOAD_OAUTH_CLIENT_ID="${ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID:-}"
@@ -21,7 +19,11 @@ fail() {
 
 [[ -s "${CONFIG_PATH}" ]] || fail 'config file is missing or empty'
 command -v jq >/dev/null 2>&1 || fail 'jq is required for structural validation'
-[[ -n "${EXPECTED_APP_ID}" ]] || fail 'protected expected Firebase app identity is missing'
+bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
+REQUIRED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
+REQUIRED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
+REQUIRED_PACKAGE="$(jq -r '.android.store.packageName' "${APPS}")"
+EXPECTED_APP_ID="$(jq -r '.android.store.appId' "${APPS}")"
 [[ "${EXPECTED_UPLOAD_SHA1}" =~ ^([0-9A-Fa-f]{2}:){19}[0-9A-Fa-f]{2}$ ]] ||
   fail 'approved upload SHA-1 fingerprint is missing or malformed'
 [[ "${EXPECTED_UPLOAD_SHA256}" =~ ^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$ ]] ||

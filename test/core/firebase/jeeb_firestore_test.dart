@@ -29,12 +29,11 @@ void main() {
     expect(JeebFirestore.effectiveDatabaseId, JeebFirestore.defaultDatabaseId);
   });
 
-  // An unset CI variable interpolated into a build command yields '', which
-  // instanceFor passes through as the database named "".
-  test('an empty database id resolves to the contract default, never ""', () {
-    expect(JeebFirestore.resolveDatabaseId(''), '(default)');
-    expect(JeebFirestore.resolveDatabaseId('  '), '(default)');
-    expect(JeebFirestore.resolveDatabaseId('chat-staging'), 'chat-staging');
+  test('only the exact canonical database is accepted without substitution', () {
+    expect(JeebFirestore.resolveDatabaseId('(default)'), '(default)');
+    for (final value in ['', '  ', 'chat-staging', ' (default)', '(default) ']) {
+      expect(() => JeebFirestore.resolveDatabaseId(value), throwsStateError);
+    }
   });
 
   test('no source file in lib/ resolves Firestore outside the seam', () {
@@ -54,8 +53,7 @@ void main() {
       offenders,
       isEmpty,
       reason:
-          'These call sites pin the implicit default database, so a backend '
-          'move to a named database is silently invisible to them. Use '
+          'These call sites bypass the canonical database validation. Use '
           'JeebFirestore.instance():\n${offenders.join('\n')}',
     );
   });

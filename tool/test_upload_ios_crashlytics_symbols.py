@@ -17,9 +17,23 @@ class SymbolUploadTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         source = Path(__file__).resolve().parent.parent
-        (self.root / 'tool').mkdir()
-        for name in ('upload_ios_crashlytics_symbols.sh', 'validate_ios_google_service_info.sh'):
-            shutil.copy(source / 'tool' / name, self.root / 'tool' / name)
+        # The real plist validator delegates to the canonical contract gate.
+        # Preserve that complete tracked dependency graph in the isolated repo.
+        paths = subprocess.check_output(['git', 'ls-files', '-z', '--',
+            '.firebaserc', 'contracts', 'android/app/build.gradle',
+            'ios/Runner.xcodeproj/project.pbxproj', 'lib', '.github/workflows',
+            'tool/upload_ios_crashlytics_symbols.sh',
+            'tool/validate_ios_google_service_info.sh',
+            'tool/validate_jeeb_firebase_contract.sh',
+            'tool/run_with_android_firebase_config.sh',
+            'tool/run_with_dev_firebase_config.sh',
+            'tool/run_with_ios_firebase_config.sh',
+            'tool/validate_android_google_services.sh',
+            'tool/validate_dev_google_services.sh'], cwd=source).decode().split('\0')
+        for name in filter(None, paths):
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source / name, target)
         self.sdk = self.root / 'sdk'
         (self.sdk / 'Crashlytics').mkdir(parents=True)
         self.uploader = self.sdk / 'Crashlytics/upload-symbols'
@@ -34,7 +48,8 @@ class SymbolUploadTests(unittest.TestCase):
         self.config = self.root / 'GoogleService-Info.plist'
         config = plistlib.loads((source / 'ios/Runner/GoogleService-Info.plist.template').read_bytes())
         config.update(API_KEY='AIza' + 'A' * 35, GCM_SENDER_ID='1051234312170', PROJECT_ID='jeeb-5a293',
-                      STORAGE_BUCKET='jeeb-5a293.appspot.com', GOOGLE_APP_ID='1:1051234312170:ios:0123456789abcdef',
+                      STORAGE_BUCKET='jeeb-5a293.appspot.com',
+                      GOOGLE_APP_ID=json.loads((source / 'contracts/jeeb-mobile-firebase-apps-v1.json').read_text())['ios']['store']['appId'],
                       CLIENT_ID='1051234312170-fixture.apps.googleusercontent.com',
                       REVERSED_CLIENT_ID='com.googleusercontent.apps.1051234312170-fixture')
         self.config.write_bytes(plistlib.dumps(config))
@@ -52,7 +67,7 @@ class SymbolUploadTests(unittest.TestCase):
         (mockbin / 'xcrun').write_text('#!/bin/bash\necho "UUID: 12345678-1234-1234-1234-123456789ABC (arm64) fixture"\n')
         (mockbin / 'xcrun').chmod(0o755)
         self.env = dict(os.environ, PATH=str(mockbin) + ':' + os.environ['PATH'],
-                        UPLOAD_RECEIPT=str(self.receipt), IOS_FIREBASE_EXPECTED_APP_ID=config['GOOGLE_APP_ID'],
+                        UPLOAD_RECEIPT=str(self.receipt),
                         IOS_FIREBASE_EXPECTED_CLIENT_ID=config['CLIENT_ID'],
                         IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID=config['REVERSED_CLIENT_ID'])
 
@@ -94,7 +109,19 @@ class SymbolUploadTests(unittest.TestCase):
         self.assertFalse(self.receipt.exists())
 
     def test_firebase_identity_mismatch_rejected(self):
-        self.assertNotEqual(self.run_upload(IOS_FIREBASE_EXPECTED_APP_ID='wrong').returncode, 0)
+        config = plistlib.loads(self.config.read_bytes())
+        config['GOOGLE_APP_ID'] = '1:1051234312170:ios:0123456789abcdef'
+        self.config.write_bytes(plistlib.dumps(config))
+        result = self.run_upload()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Google app identity does not match', result.stderr)
+        self.assertFalse(self.receipt.exists())
+
+    def test_canonical_project_drift_rejected_before_upload(self):
+        (self.root / '.firebaserc').write_text('{"projects":{"default":"wrong-project"}}')
+        result = self.run_upload()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('.firebaserc default project drifted', result.stderr)
         self.assertFalse(self.receipt.exists())
 
     def test_hash_mismatch_rejected(self):

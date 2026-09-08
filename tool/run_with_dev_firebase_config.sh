@@ -13,12 +13,6 @@ fail() {
 
 [[ $# -gt 0 ]] || fail 'a build or validation command is required'
 [[ -n "${ENCODED_CONFIG}" ]] || fail 'protected JSON input is missing'
-[[ -n "${DEV_FIREBASE_EXPECTED_PROJECT_NUMBER:-}" ]] ||
-  fail 'protected expected Firebase project number is missing'
-[[ -n "${DEV_FIREBASE_EXPECTED_PROJECT_ID:-}" ]] ||
-  fail 'protected expected Firebase project identity is missing'
-[[ -n "${DEV_FIREBASE_EXPECTED_APP_ID:-}" ]] ||
-  fail 'protected expected Firebase app identity is missing'
 [[ ! -e "${TARGET_PATH}" ]] || fail 'refusing to overwrite an existing local Firebase config'
 if git -C "${REPO_ROOT}" ls-files --error-unmatch \
   android/app/src/dev/google-services.json >/dev/null 2>&1; then
