@@ -333,6 +333,14 @@ class _DevToolShakeLayer extends StatefulWidget {
 class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
 
+  /// The sticky controls are siblings of the nested [Navigator], so they sit
+  /// above every page it renders. That is useful for ordinary Dev Tool pages,
+  /// but a modal route must own its action area: otherwise Apply & Restart can
+  /// intercept a Super Login submit or a confirmation-dialog button.
+  late final _DevToolPopupRouteObserver _popupRouteObserver =
+      _DevToolPopupRouteObserver(onVisibilityChanged: _setPopupVisible);
+  bool _popupVisible = false;
+
   /// The layer's own hero controller.
   ///
   /// `MaterialApp` publishes a single [HeroControllerScope] ABOVE its
@@ -365,6 +373,11 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
   /// only add a frame of animation before it disappears.
   void _handleApply() => widget.onApply();
 
+  void _setPopupVisible(bool visible) {
+    if (!mounted || _popupVisible == visible) return;
+    setState(() => _popupVisible = visible);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
@@ -379,71 +392,117 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
                 controller: _hero,
                 child: Navigator(
                   key: _navigator,
+                  observers: <NavigatorObserver>[_popupRouteObserver],
                   onGenerateRoute: (settings) =>
                       MaterialPageRoute<void>(builder: widget.layerBuilder),
                 ),
               ),
             ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  Spacing.medium,
-                  Spacing.small,
-                  Spacing.medium,
-                  Spacing.xLarge,
-                ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  heightFactor: 1,
-                  // NO `tooltip:` ON EITHER CONTROL. `FloatingActionButton` wraps
-                  // its child in a `Tooltip` iff `tooltip != null`
-                  // (material/floating_action_button.dart:822-824), and
-                  // `RawTooltipState.build` asserts `debugCheckHasOverlay`
-                  // (widgets/raw_tooltip.dart:865). These buttons are SIBLINGS of
-                  // the layer's Navigator, and the host sits above the app's
-                  // Navigator — the app's only `Overlay` — so there is no `Overlay`
-                  // ancestor and the assert would replace the only exit affordances
-                  // with an `ErrorWidget` on a device that has no hardware back
-                  // button. `semanticLabel` and the visible label carry the
-                  // accessible names instead.
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Deliberately the LABELLED, wider control, and deliberately
-                      // NOT the one at the thumb's resting position: restarting is
-                      // the expensive, irreversible-feeling action and must be
-                      // chosen on purpose, never hit while reaching for "get me out
-                      // of here".
-                      FloatingActionButton.extended(
-                        key: kDevToolShakeApplyKey,
-                        heroTag: null,
-                        onPressed: _handleApply,
-                        icon: const Icon(Icons.restart_alt),
-                        label: const Text('Apply & Restart'),
-                      ),
-                      const SizedBox(height: Spacing.small),
-                      // `X` keeps its universal meaning — dismiss, change nothing —
-                      // and keeps the position the muscle memory already knows.
-                      // This is the exit for an accidental shake.
-                      FloatingActionButton.small(
-                        key: kDevToolShakeCloseKey,
-                        heroTag: null,
-                        onPressed: _handleClose,
-                        child: const Icon(
-                          Icons.close,
-                          semanticLabel: 'Close Dev Tool without restarting',
+            if (!_popupVisible)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Spacing.medium,
+                    Spacing.small,
+                    Spacing.medium,
+                    Spacing.xLarge,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    heightFactor: 1,
+                    // NO `tooltip:` ON EITHER CONTROL. `FloatingActionButton`
+                    // wraps its child in a `Tooltip` iff `tooltip != null`.
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        FloatingActionButton.extended(
+                          key: kDevToolShakeApplyKey,
+                          heroTag: null,
+                          onPressed: _handleApply,
+                          icon: const Icon(Icons.restart_alt),
+                          label: const Text('Apply & Restart'),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: Spacing.small),
+                        FloatingActionButton.small(
+                          key: kDevToolShakeCloseKey,
+                          heroTag: null,
+                          onPressed: _handleClose,
+                          child: const Icon(
+                            Icons.close,
+                            semanticLabel: 'Close Dev Tool without restarting',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Keeps the Dev Tool's sticky controls below a dialog or bottom sheet without
+/// changing their behaviour for ordinary page navigation.
+class _DevToolPopupRouteObserver extends NavigatorObserver {
+  _DevToolPopupRouteObserver({required this.onVisibilityChanged});
+
+  final ValueChanged<bool> onVisibilityChanged;
+  final Set<Route<dynamic>> _popupRoutes = <Route<dynamic>>{};
+
+  bool _isPopup(Route<dynamic>? route) => route is PopupRoute<dynamic>;
+
+  void _track(Route<dynamic>? route) {
+    if (!_isPopup(route)) return;
+    final wasVisible = _popupRoutes.isNotEmpty;
+    _popupRoutes.add(route!);
+    _notifyIfChanged(wasVisible);
+  }
+
+  void _untrack(Route<dynamic>? route) {
+    if (!_isPopup(route)) return;
+    final wasVisible = _popupRoutes.isNotEmpty;
+    _popupRoutes.remove(route);
+    _notifyIfChanged(wasVisible);
+  }
+
+  void _replace(Route<dynamic>? oldRoute, Route<dynamic>? newRoute) {
+    final wasVisible = _popupRoutes.isNotEmpty;
+    if (_isPopup(oldRoute)) _popupRoutes.remove(oldRoute);
+    if (_isPopup(newRoute)) _popupRoutes.add(newRoute!);
+    _notifyIfChanged(wasVisible);
+  }
+
+  void _notifyIfChanged(bool wasVisible) {
+    final visible = _popupRoutes.isNotEmpty;
+    if (visible != wasVisible) onVisibilityChanged(visible);
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _track(route);
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _untrack(route);
+    super.didPop(route, previousRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _untrack(route);
+    super.didRemove(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _replace(oldRoute, newRoute);
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 }

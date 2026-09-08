@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/onboarding/onboarding_cubit.dart';
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
 import '../gateway/dev_gateway_client.dart';
 
@@ -27,6 +31,63 @@ class RosterUser {
   final String name;
   final String role;
   final List<String> roles;
+
+  bool get isJeeber => <String>[role, ...roles].any((candidate) {
+    final normalized = candidate.trim().toLowerCase();
+    return normalized == 'jeeber' || normalized == 'driver';
+  });
+
+  UserRole get activeRole => isJeeber ? UserRole.jeeber : UserRole.client;
+}
+
+/// Resolves the role Super Login should hand to the product app.
+///
+/// The all-users roster is sourced from user-management, whose registration
+/// projection can still describe a dev-seeded Jeeber as customer-only. The
+/// authenticated `/v1/users/me` capability view is the authority used by the
+/// product shell, so prefer its complete role set and retain the roster only as
+/// a fail-soft fallback.
+UserRole resolveSuperLoginActiveRole(
+  RosterUser user,
+  Map<String, dynamic>? profile, {
+  Iterable<String> tokenRoles = const <String>[],
+}) {
+  final rawRoles = profile?['availableRoles'] ?? profile?['available_roles'];
+  final roles = <String>[
+    ...tokenRoles,
+    if (rawRoles is List) ...rawRoles.whereType<String>(),
+  ];
+  if (roles.any((role) {
+    final normalized = role.trim().toLowerCase();
+    return normalized == 'jeeber' || normalized == 'driver';
+  })) {
+    return UserRole.jeeber;
+  }
+  return user.activeRole;
+}
+
+/// Extracts only role claims from a JWT minted by the development gateway.
+/// Malformed or opaque access tokens simply return no roles and fall back to
+/// the authenticated profile/roster path.
+List<String> superLoginRolesFromAccessToken(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return const <String>[];
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    if (payload is! Map<String, dynamic>) return const <String>[];
+    final raw = payload['roles'];
+    if (raw is String && raw.trim().isNotEmpty) return <String>[raw.trim()];
+    if (raw is! List) return const <String>[];
+    return raw
+        .whereType<String>()
+        .map((role) => role.trim())
+        .where((role) => role.isNotEmpty)
+        .toList(growable: false);
+  } on FormatException {
+    return const <String>[];
+  }
 }
 
 class FullRosterLoginPage extends StatefulWidget {
@@ -67,10 +128,11 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/auth/tokens',
-        data: <String, dynamic>{
-          'userId': user.userId,
-          if (user.roles.isNotEmpty) 'roles': user.roles,
-        },
+        // Resolve roles from the gateway's durable user projection. The public
+        // roster can lag that projection and advertise a freshly seeded Jeeber
+        // as customer-only; forwarding those stale roles mints the wrong
+        // session even though the gateway already knows the correct roles.
+        data: <String, dynamic>{'userId': user.userId},
       );
       final access = res.data?['accessToken'] as String?;
       final refresh = res.data?['refreshToken'] as String?;
@@ -82,12 +144,40 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
         refreshToken: refresh ?? access,
         userId: user.userId,
       );
-      await sl<SharedPreferences>().setBool(OnboardingCubit.completedKey, true);
+      final tokenRoles = superLoginRolesFromAccessToken(access);
+      var activeRole = resolveSuperLoginActiveRole(
+        user,
+        null,
+        tokenRoles: tokenRoles,
+      );
+      try {
+        final profile = await _dio.get<Map<String, dynamic>>(
+          '/v1/users/me',
+          options: Options(
+            headers: <String, String>{'Authorization': 'Bearer $access'},
+          ),
+        );
+        activeRole = resolveSuperLoginActiveRole(
+          user,
+          profile.data,
+          tokenRoles: tokenRoles,
+        );
+      } on DioException {
+        // The roster remains a useful fallback for normal accounts. The
+        // product app will retry its own capability sync after launch.
+      }
+      final preferences = sl<SharedPreferences>();
+      await preferences.setBool(OnboardingCubit.completedKey, true);
+      // The Dev Tool is an account switcher, so its handoff must update both
+      // the credentials and the active role. Leaving a prior client's role in
+      // SharedPreferences makes Jeeber child routes render owner/client UI
+      // even when the newly selected account has the driver capability.
+      await preferences.setString(RoleCubit.rolePrefKey, activeRole.storageKey);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Logged in as ${user.name} (${user.role}). Open the Jeeb app icon '
+            'Logged in as ${user.name} (${activeRole.storageKey}). Open the Jeeb app icon '
             '— it now shares this session.',
           ),
         ),
@@ -150,10 +240,12 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
                 final users = _query.isEmpty
                     ? all
                     : all
-                        .where((u) =>
-                            u.name.toLowerCase().contains(_query) ||
-                            u.role.toLowerCase().contains(_query))
-                        .toList(growable: false);
+                          .where(
+                            (u) =>
+                                u.name.toLowerCase().contains(_query) ||
+                                u.role.toLowerCase().contains(_query),
+                          )
+                          .toList(growable: false);
                 if (users.isEmpty) {
                   return const Center(child: Text('No users'));
                 }

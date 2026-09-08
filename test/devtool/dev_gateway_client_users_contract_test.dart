@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/devtool/gateway/dev_gateway_client.dart';
+import 'package:jeeb_mobile/devtool/super_login/full_roster_login.dart';
+import 'package:jeeb_mobile/core/role/user_role.dart';
 
 class _RosterAdapter implements HttpClientAdapter {
   _RosterAdapter(this.respond);
@@ -35,6 +38,109 @@ ResponseBody _json(Object? body, {int status = 200}) => ResponseBody.fromString(
 );
 
 void main() {
+  test('online-ready Dev Tool handoff persists the Jeeber active role', () {
+    final source = File(
+      'lib/devtool/users/scenario_users_page.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('RoleCubit.rolePrefKey'));
+    expect(source, contains('UserRole.jeeber.storageKey'));
+  });
+
+  test('Super Login Plus selects the active role from all roster roles', () {
+    const jeeber = RosterUser(
+      userId: 'jeeber',
+      name: 'Jeeber',
+      role: 'customer',
+      roles: <String>['customer', 'driver'],
+    );
+    const client = RosterUser(
+      userId: 'client',
+      name: 'Client',
+      role: 'customer',
+      roles: <String>['customer'],
+    );
+
+    expect(jeeber.activeRole, UserRole.jeeber);
+    expect(client.activeRole, UserRole.client);
+  });
+
+  test(
+    'Super Login Plus trusts authenticated capabilities over stale roster',
+    () {
+      const staleJeeber = RosterUser(
+        userId: 'jeeber',
+        name: 'Seeded Jeeber',
+        role: 'customer',
+        roles: <String>['customer'],
+      );
+
+      expect(
+        resolveSuperLoginActiveRole(staleJeeber, <String, dynamic>{
+          'activeRole': 'client',
+          'availableRoles': <String>['client', 'jeeber'],
+        }),
+        UserRole.jeeber,
+      );
+      expect(
+        resolveSuperLoginActiveRole(staleJeeber, <String, dynamic>{
+          'available_roles': <String>['customer'],
+        }),
+        UserRole.client,
+      );
+    },
+  );
+
+  test('Super Login Plus can resolve roles from the minted JWT offline', () {
+    final header = base64Url.encode(utf8.encode('{"alg":"none"}'));
+    final payload = base64Url.encode(
+      utf8.encode('{"roles":["client","jeeber"]}'),
+    );
+    final token = '$header.$payload.signature';
+    const staleJeeber = RosterUser(
+      userId: 'jeeber',
+      name: 'Seeded Jeeber',
+      role: 'customer',
+      roles: <String>['customer'],
+    );
+
+    final roles = superLoginRolesFromAccessToken(token);
+    expect(roles, <String>['client', 'jeeber']);
+    expect(
+      resolveSuperLoginActiveRole(staleJeeber, null, tokenRoles: roles),
+      UserRole.jeeber,
+    );
+    expect(superLoginRolesFromAccessToken('opaque-token'), isEmpty);
+  });
+
+  test('Super Login Plus never forwards stale roster roles to token mint', () {
+    final source = File(
+      'lib/devtool/super_login/full_roster_login.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("data: <String, dynamic>{'userId': user.userId}"));
+    expect(source, isNot(contains("'roles': user.roles")));
+    expect(source, contains("'/v1/users/me'"));
+  });
+
+  test('roleless /auth/tokens mint is the valid fresh-user path', () async {
+    final adapter = _RosterAdapter((options) {
+      expect(options.path, '/auth/tokens');
+      expect(options.method, 'POST');
+      expect(options.data, <String, dynamic>{'userId': 'fresh-user'});
+      return _json(<String, Object?>{'accessToken': 'fresh-user-token'});
+    });
+    final dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'))
+      ..httpClientAdapter = adapter;
+
+    final token = await DevGatewayClient(
+      dio: dio,
+    ).mintTokenForUser('fresh-user');
+
+    expect(token, 'fresh-user-token');
+    expect(adapter.requests, hasLength(1));
+  });
+
   test('fetches the super-login roster with roles intact', () async {
     final adapter = _RosterAdapter((options) {
       return _json(<String, Object?>{

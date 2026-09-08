@@ -70,6 +70,38 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(Path(str(prefix) + ".xml").stat().st_mode & 0o777, 0o600)
             self.assertTrue(Path(str(prefix) + ".png").exists())
 
+    def test_hierarchy_read_retries_transient_null_root(self):
+        with patch.object(
+            helpers,
+            "adb",
+            side_effect=[b"UI hierarchy dumped to: /dev/tty\n", SAFE_XML],
+        ) as adb:
+            raw, root = helpers.read_hierarchy("selected")
+            self.assertEqual(raw, SAFE_XML)
+            self.assertEqual(root.tag, "hierarchy")
+            self.assertEqual(adb.call_count, 2)
+
+    def test_hierarchy_read_stops_after_bounded_failures(self):
+        with patch.object(helpers, "adb", return_value=b"null root") as adb:
+            with self.assertRaises(ValueError):
+                helpers.read_hierarchy("selected", attempts=3)
+            self.assertEqual(adb.call_count, 3)
+
+    def test_numeric_input_uses_one_keyevent_per_digit(self):
+        with patch.object(helpers, "adb") as adb:
+            helpers.input_digits("selected", "50719")
+            self.assertEqual(
+                adb.call_args_list,
+                [
+                    unittest.mock.call(
+                        "selected", "shell", "input", "keyevent", f"KEYCODE_{digit}"
+                    )
+                    for digit in "50719"
+                ],
+            )
+            with self.assertRaises(ValueError):
+                helpers.input_digits("selected", "12 3")
+
     def test_logcat_slice_keeps_only_the_app_wire_ledger(self):
         with tempfile.TemporaryDirectory() as temporary:
             prefix = Path(temporary) / "S03"

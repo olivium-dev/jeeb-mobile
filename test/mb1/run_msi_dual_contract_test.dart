@@ -81,6 +81,29 @@ exit 0
     expect(script, isNot(contains('emulator-5556')));
   });
 
+  test('defaults to the off-LAN MSI Cloudflare HTTPS and WSS routes', () {
+    final script = MB1Source.raw('tool/run_msi_dual.sh');
+
+    expect(
+      script,
+      contains(
+        'MSI_GATEWAY="\${MSI_GATEWAY:-https://msi.olivium.space/gateway}"',
+      ),
+    );
+    expect(
+      script,
+      contains(
+        'MSI_REALTIME_SOCKET="\${MSI_REALTIME_SOCKET:-wss://msi.olivium.space/socket/websocket}"',
+      ),
+    );
+    expect(script, contains('"\${MSI_GATEWAY}/health/ready"'));
+    expect(script, isNot(contains('http://192.168.2.39:10090')));
+    expect(script, isNot(contains('ws://192.168.2.39:5804')));
+    expect(script, isNot(contains('d1000000-0000-4000-8000-000000000002')));
+    expect(script, isNot(contains('(Karim)')));
+    expect(script, contains('create/select a clean jeeber'));
+  });
+
   test('defaults to the first two attached physical devices', () async {
     final result = await selectDevices('''List of devices attached
 emulator-5554 device product:sdk_gphone model:sdk_gphone
@@ -90,6 +113,20 @@ physical-second device product:phone_two model:Phone_Two
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(result.stdout, 'physical-first|physical-second');
+  });
+
+  test('recognizes wireless-adb serials as physical devices', () async {
+    final result = await selectDevices('''List of devices attached
+adb-RZCT505K7WF-vntvpc._adb-tls-connect._tcp device product:a33 model:SM_A336B
+adb-RFCX306JSRT-4Wjs7F._adb-tls-connect._tcp device product:s24 model:SM_S921B
+''');
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(
+      result.stdout,
+      'adb-RZCT505K7WF-vntvpc._adb-tls-connect._tcp|'
+      'adb-RFCX306JSRT-4Wjs7F._adb-tls-connect._tcp',
+    );
   });
 
   test('preserves explicit attached serial overrides', () async {

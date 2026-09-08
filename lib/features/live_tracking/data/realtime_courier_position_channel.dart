@@ -52,14 +52,24 @@ class RealtimeCourierPositionChannel
   final RealtimeSocketPolicy _socketPolicy;
 
   @override
-  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async =>
-      (await openWithOutcome(deliveryId: deliveryId)).positions;
+  Future<Stream<CourierPositionFix>?> open({
+    required String deliveryId,
+  }) async => (await openWithOutcome(deliveryId: deliveryId)).positions;
 
   @override
   Future<CourierPositionOpenResult> openWithOutcome({
     required String deliveryId,
   }) async {
     _lastResolveFailure = null;
+    // The descriptor's `socketUrl` must normalize to this compile-time
+    // mobile-owned authority. If it is absent, no descriptor can ever open a
+    // socket, so avoid an otherwise guaranteed gateway bootstrap failure (for
+    // example a 503 from an intentionally unconfigured realtime deployment).
+    if (_socketPolicy.configuredUri() == null) {
+      return const CourierPositionOpenResult.failed(
+        CourierPositionOpenFailure.unavailable,
+      );
+    }
     final descriptor = await resolve(deliveryId);
     if (descriptor == null) {
       return CourierPositionOpenResult.failed(_resolveFailureKind());
@@ -96,11 +106,9 @@ class RealtimeCourierPositionChannel
     if (failure == null) return CourierPositionOpenFailure.unavailable;
     return switch (failure.kind) {
       AppFailureKind.unauthorized ||
-      AppFailureKind.forbidden =>
-        CourierPositionOpenFailure.authRejected,
+      AppFailureKind.forbidden => CourierPositionOpenFailure.authRejected,
       AppFailureKind.network ||
-      AppFailureKind.timeout =>
-        CourierPositionOpenFailure.transport,
+      AppFailureKind.timeout => CourierPositionOpenFailure.transport,
       AppFailureKind.notFound => CourierPositionOpenFailure.unavailable,
       _ => CourierPositionOpenFailure.unavailable,
     };

@@ -99,35 +99,43 @@ void main() {
         expect(snapshot.requestIsOpen, isTrue);
       });
 
-      test(
-        'carries the request title off the /v1/requests/:id row it already '
-        'reads, and normalises a blank one to null',
-        () async {
-          final withTitle = DioOffersRepository(
-            _dioRespond(
-              const {'items': []},
-              requestBody: const {'status': 'pending', 'title': '  Medicine '},
-            ),
-          );
-          expect(
-            (await withTitle.fetchOffers('req-title')).requestTitle,
-            'Medicine',
-          );
+      test('carries the request title or description off the /v1/requests/:id '
+          'row it already reads, preferring a non-blank title', () async {
+        final withTitle = DioOffersRepository(
+          _dioRespond(
+            const {'items': []},
+            requestBody: const {
+              'status': 'pending',
+              'title': '  Medicine ',
+              'description': 'Bring Panadol Extra',
+            },
+          ),
+        );
+        expect((await withTitle.fetchOffers('req-title')).requestTitle, 'Medicine');
 
-          final blank = DioOffersRepository(
-            _dioRespond(
-              const {'items': []},
-              requestBody: const {'status': 'pending', 'title': '   '},
-            ),
-          );
-          expect((await blank.fetchOffers('req-blank')).requestTitle, isNull);
+        final descriptionOnly = DioOffersRepository(
+          _dioRespond(
+            const {'items': []},
+            requestBody: const {
+              'status': 'pending',
+              'title': '   ',
+              'description': '  Bring Panadol Extra  ',
+            },
+          ),
+        );
+        expect(
+          (await descriptionOnly.fetchOffers('req-description')).requestTitle,
+          'Bring Panadol Extra',
+        );
 
-          final absent = DioOffersRepository(
-            _dioRespond(const {'items': []}),
-          );
-          expect((await absent.fetchOffers('req-absent')).requestTitle, isNull);
-        },
-      );
+        final blank = DioOffersRepository(
+          _dioRespond(
+            const {'items': []},
+            requestBody: const {'status': 'pending', 'title': ' ', 'description': ' '},
+          ),
+        );
+        expect((await blank.fetchOffers('req-blank')).requestTitle, isNull);
+      });
 
       test(
           'renders a LIVE gateway offer whose status is "pending" '

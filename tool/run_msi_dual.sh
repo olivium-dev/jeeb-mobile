@@ -2,9 +2,9 @@
 #
 # S16 dual-account MSI acceptance launcher (Principal Flutter Engineer B).
 #
-# Builds the dev-debug APK wired to the NATIVE jeeb-gateway on the MSI host
-# (192.168.2.39:10090) — NOT the Express mock — and installs it on the two
-# acceptance phones simultaneously:
+# Builds the dev-debug APK wired to the NATIVE jeeb-gateway through the
+# Cloudflare tunnel at msi.olivium.space — NOT the Express mock or a LAN-only
+# address — and installs it on the two acceptance phones simultaneously:
 #
 #   first attached physical phone  = CLIENT
 #   second attached physical phone = JEEBER
@@ -20,12 +20,12 @@
 # identity, installs it mode 0600 for the build, and removes it on every exit.
 #
 # Prereqs: two physical Android devices attached and authorized; the dev
-# protected dev Firebase input available; MSI gateway reachable (ufw 10090).
+# protected dev Firebase input available; MSI Cloudflare gateway reachable.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MSI_GATEWAY="${MSI_GATEWAY:-http://192.168.2.39:10090}"
-MSI_REALTIME_SOCKET="${MSI_REALTIME_SOCKET:-ws://192.168.2.39:5804/socket/websocket}"
+MSI_GATEWAY="${MSI_GATEWAY:-https://msi.olivium.space/gateway}"
+MSI_REALTIME_SOCKET="${MSI_REALTIME_SOCKET:-wss://msi.olivium.space/socket/websocket}"
 CLIENT_SERIAL="${CLIENT_SERIAL:-}"
 JEEBER_SERIAL="${JEEBER_SERIAL:-}"
 PKG="app.jeeb.mobile.dev"
@@ -72,8 +72,9 @@ pick_physical_serial() {
     if [[ -n "${candidate}" && "${candidate}" != "${excluded}" ]]; then
       local attached
       for attached in "$@"; do
-        if [[ "${candidate}" == "${attached}" ]]; then
-          echo "${candidate}"
+        if [[ "${candidate}" == "${attached}" || \
+              "${attached}" == "adb-${candidate}-"* ]]; then
+          echo "${attached}"
           return 0
         fi
       done
@@ -122,8 +123,8 @@ main() {
   select_devices
   echo '[run_msi_dual] two distinct physical devices selected.'
   echo "[run_msi_dual] MSI gateway target: ${MSI_GATEWAY}"
-  echo "[run_msi_dual] pre-flight: gateway /health"
-  curl -fsS -o /dev/null -w "  /health -> HTTP %{http_code}\n" --max-time 8 "${MSI_GATEWAY}/health" \
+  echo "[run_msi_dual] pre-flight: gateway /health/ready"
+  curl -fsS -o /dev/null -w "  /health/ready -> HTTP %{http_code}\n" --max-time 8 "${MSI_GATEWAY}/health/ready" \
     || { echo "  MSI gateway unreachable — abort"; exit 1; }
 
   echo "[run_msi_dual] building dev-debug APK (MSI-targeted, real FCM)…"
@@ -144,11 +145,10 @@ main() {
     "${ADB}" -s "${SERIAL}" shell pm grant "${PKG}" android.permission.POST_NOTIFICATIONS || true
   done
 
-  echo '[run_msi_dual] done. Drive super-login by role without logging device IDs:'
-  echo '  CLIENT: userId d1000000-0000-4000-8000-000000000001 (Nour)'
-  echo '  JEEBER: userId d1000000-0000-4000-8000-000000000002 (Karim)'
-  echo "  POST ${MSI_GATEWAY}/api/User/user-id-login {userId, superAdminPassCode}"
-  echo "  (passcode: read on MSI from ~/iter5-runtime/keys/super_admin_passcode — never print/commit)"
+  echo '[run_msi_dual] done. Open the Dev Tool launcher on each selected device:'
+  echo '  CLIENT: Scenario Users -> create/select a clean client -> Super Login Plus'
+  echo '  JEEBER: Scenario Users -> create/select a clean jeeber -> Super Login Plus'
+  echo '  Read the passcode at run time from MSI; never print, log, or commit it.'
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

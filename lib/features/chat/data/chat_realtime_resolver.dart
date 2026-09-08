@@ -78,25 +78,27 @@ class ChatRealtimeResolver {
   }
 
   Future<ChatSocket?> connect(String conversationId) async {
+    // A descriptor cannot be used without the mobile-owned socket authority.
+    // Check it before calling the gateway so a build that deliberately has no
+    // `JEEB_REALTIME_SOCKET_URL` does not generate a misleading descriptor
+    // bootstrap 503 after an accept. HTTP history/push remains the fallback.
+    final socketUri = _socketPolicy.configuredUri(
+      developmentOverride: _socketBaseUriOverride,
+    );
+    if (socketUri == null) {
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.socket,
+        reason: 'no_configured_socket_url',
+        conversationId: conversationId,
+      );
+      return null;
+    }
     final descriptor = await resolve(conversationId);
     if (descriptor == null) return null;
     if (!_nonBlank(descriptor.connectToken) || !_nonBlank(descriptor.ticket)) {
       ChatDiagnostics.degraded(
         stage: ChatDiagStage.socket,
         reason: 'descriptor_missing_credentials',
-        conversationId: conversationId,
-      );
-      return null;
-    }
-    final socketUri = _socketPolicy.configuredUri(
-      developmentOverride: _socketBaseUriOverride,
-    );
-    if (socketUri == null) {
-      // JEEB_REALTIME_SOCKET_URL is compile-time only, so a REST base-URL
-      // switch never moves it — the silent half of the split-brain trap.
-      ChatDiagnostics.degraded(
-        stage: ChatDiagStage.socket,
-        reason: 'no_configured_socket_url',
         conversationId: conversationId,
       );
       return null;
