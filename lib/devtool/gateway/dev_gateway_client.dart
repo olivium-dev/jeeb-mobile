@@ -144,6 +144,10 @@ class DevGatewayClient {
     }
   }
 
+  /// Mints an act-as token for [userId]. [roles] is an explicit development
+  /// override, not a prerequisite: omit it for the ordinary server-resolved
+  /// identity, including a freshly seeded user. A roleless `/auth/tokens` mint
+  /// is a valid success path, so callers must not invent roles to avoid 404.
   Future<String> mintTokenForUser(String userId, {List<String>? roles}) async {
     final headers = <String, dynamic>{
       if (serviceAuthKey.isNotEmpty) serviceAuthHeaderName: serviceAuthKey,
@@ -175,6 +179,8 @@ class DevGatewayClient {
 
   // Like mintTokenForUser but returns the refresh token too, so the caller
   // can persist a full session (used to make a seeded jeeber online-ready).
+  // `roles` remains an optional explicit override; the normal fresh-user path
+  // deliberately sends only userId and lets the gateway resolve its roles.
   Future<({String accessToken, String refreshToken})> mintSession(
     String userId, {
     List<String>? roles,

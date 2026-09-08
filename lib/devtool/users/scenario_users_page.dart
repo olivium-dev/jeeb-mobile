@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/onboarding/onboarding_cubit.dart';
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
@@ -199,7 +201,17 @@ class _ScenarioUsersPageState extends State<ScenarioUsersPage> {
       refreshToken: session.refreshToken,
       userId: userId,
     );
-    await sl<SharedPreferences>().setBool(OnboardingCubit.completedKey, true);
+    final preferences = sl<SharedPreferences>();
+    await preferences.setBool(OnboardingCubit.completedKey, true);
+    // This action promises an online-ready Jeeber session. Persist the matching
+    // active role as part of that same handoff; otherwise MainActivity can show
+    // the Jeeber dashboard from capabilities while role-aware child routes
+    // (notably order chat) still render as the client and issue owner-scoped
+    // summary reads.
+    await preferences.setString(
+      RoleCubit.rolePrefKey,
+      UserRole.jeeber.storageKey,
+    );
   }
 
   void _selectScenario(_UserScenario scenario) {

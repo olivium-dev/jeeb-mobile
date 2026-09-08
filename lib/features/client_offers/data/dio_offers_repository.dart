@@ -138,15 +138,20 @@ class DioOffersRepository implements OffersRepository {
     );
   }
 
-  /// The request's item title off the already-fetched `/v1/requests/:id` row.
-  /// No extra call — `fetchOffers` reads that row anyway. Blank/absent → null so
-  /// the offer-review top bar renders one line instead of an empty subtitle.
+  /// The request's customer-facing label off the already-fetched
+  /// `/v1/requests/:id` row. Prefer an explicit title, then retain the
+  /// customer's description when that contract omits a title. No extra call —
+  /// `fetchOffers` reads that row anyway. Blank/absent → null so the offer
+  /// review top bar renders one line instead of an empty subtitle.
   String? _requestTitle(dynamic requestData) {
     if (requestData is! Map) return null;
-    final raw = requestData['title'];
-    if (raw is! String) return null;
-    final trimmed = raw.trim();
-    return trimmed.isEmpty ? null : trimmed;
+    for (final key in const <String>['title', 'description']) {
+      final raw = requestData[key];
+      if (raw is! String) continue;
+      final trimmed = raw.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
   }
 
   bool? _explicitOpen(dynamic data) {

@@ -180,6 +180,22 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final buckets = await _partitionClientRequests(roleClientRows, rateLimit);
     final recentDeliveries = _recentDeliveries(roleClientRows);
 
+    // The delivery-service `shipments` projection is intentionally lean: its
+    // parent request is named `orderId` and it does not repeat the customer's
+    // description. Keep the delivery id for tracking, but fill its display
+    // fields from the matching request projection so accepting an offer never
+    // makes the original request disappear from the customer's list.
+    final requestPresentationById = <String, ClientHomeRequest>{
+      for (final request in <ClientHomeRequest>[
+        ...activeRequests,
+        ...buckets.accepted,
+        ...buckets.pending,
+        ...buckets.replies,
+        ...buckets.offerStatusRequests,
+      ])
+        request.id: request,
+    };
+
     // Merge accepted orders into In Progress, deduped against any live shipment
     // by id so the same order never renders twice. A delivery that already
     // reached a terminal state (V3 `Done` → delivered, or cancelled/expired) is
@@ -190,6 +206,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
           (r) =>
               r.status != ClientRequestStatus.delivered &&
               r.status != ClientRequestStatus.cancelled,
+        )
+        .map(
+          (delivery) => _enrichDeliveryPresentation(
+            delivery,
+            requestPresentationById[delivery.chatCorrelationId],
+          ),
         )
         .toList(growable: false);
     final shipmentIds = activeShipments.map((r) => r.id).toSet();
@@ -691,20 +713,24 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
         : (json['dropoffAddress'] as String? ?? '');
+    final description = _cleanString(json['description']);
+    final title = _cleanString(json['title']);
+    // The v1 list intentionally exposes the request text as `title`; the
+    // canonical detail names the same text `description`. Normalize both into
+    // the card's item-summary field so a list row never loses what the client
+    // asked for just because it did not carry the detail-only key.
+    final itemsSummary = description ?? title;
     // D5 ShipmentsListDto uses 'currentStage', not 'status'.
     final stage = json['currentStage'] as String? ?? json['status'] as String?;
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
-      title:
-          json['title'] as String? ??
-          json['description'] as String? ??
-          'Delivery ${friendlyReference(id)}',
+      title: title ?? description ?? _deliveryFallback(id),
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
       // G1: the request content (customer's "What do you need?" text) — the
       // card subtitle echoes what was asked for via [summaryLine].
-      itemsSummary: json['description'] as String?,
+      itemsSummary: itemsSummary,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
       tier: ClientRequestTier.parse(
@@ -719,8 +745,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // delivery id (S9) — falling back to `id` via the getters when absent.
       deliveryId:
           json['deliveryId'] as String? ?? json['delivery_id'] as String?,
+      // `ShipmentDetailDto` calls its parent request `orderId`; mock and older
+      // gateway rows use `requestId`. They denote the same chat correlation
+      // key, while [id] remains the delivery id used for live tracking.
       chatCorrelationId:
-          json['requestId'] as String? ?? json['request_id'] as String?,
+          json['requestId'] as String? ??
+          json['request_id'] as String? ??
+          json['orderId'] as String? ??
+          json['order_id'] as String?,
     );
   }
 
@@ -742,20 +774,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
         ? (dropoff['address'] as String? ?? '')
         : (json['dropoffAddress'] as String? ?? '');
     final deliveryId = (json['deliveryId'] ?? json['delivery_id']) as String?;
+    final description = _cleanString(json['description']);
+    final title = _cleanString(json['title']);
+    final itemsSummary = description ?? title;
     return ClientHomeRequest(
       id: id,
       deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
           ? deliveryId
           : null,
       displayId: json['displayId'] as String?,
-      title:
-          json['title'] as String? ??
-          json['description'] as String? ??
-          'Request ${friendlyReference(id)}',
+      title: title ?? description ?? _requestFallback(id),
       status: status,
       destinationLabel: destination,
       // G1: echo the request content on the card subtitle (see summaryLine).
-      itemsSummary: json['description'] as String?,
+      itemsSummary: itemsSummary,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
       tier: ClientRequestTier.parse(
@@ -810,6 +842,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
         : (json['dropoffAddress'] as String? ?? '');
+    final description = _cleanString(json['description']);
+    final title = _cleanString(json['title']);
+    final itemsSummary = description ?? title;
     final offerAvatars = json['offerAvatars'];
     final payloadAvatarUrls = offerAvatars is List
         ? offerAvatars.whereType<String>().toList(growable: false)
@@ -823,14 +858,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
-      title:
-          json['title'] as String? ??
-          json['description'] as String? ??
-          'Request ${friendlyReference(id)}',
+      title: title ?? description ?? _requestFallback(id),
       status: status,
       destinationLabel: destination,
       // G1: echo the request content on the card subtitle (see summaryLine).
-      itemsSummary: json['description'] as String?,
+      itemsSummary: itemsSummary,
       tier: ClientRequestTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
       ),
@@ -856,6 +888,51 @@ class DioClientHomeRepository implements ClientHomeRepository {
       offerStatuses: offerStatuses,
     );
   }
+
+  /// Restores presentation fields that the active-delivery `shipments` row
+  /// intentionally omits. The row itself still wins for tracking/status so a
+  /// client never loses the canonical delivery id after acceptance.
+  static ClientHomeRequest _enrichDeliveryPresentation(
+    ClientHomeRequest delivery,
+    ClientHomeRequest? request,
+  ) {
+    if (request == null) return delivery;
+
+    var enriched = delivery;
+    final requestDescription = _cleanString(request.itemsSummary);
+    if (_cleanString(enriched.itemsSummary) == null &&
+        requestDescription != null) {
+      enriched = enriched.copyWith(itemsSummary: requestDescription);
+    }
+    if (enriched.title == _deliveryFallback(enriched.id) &&
+        request.title != _requestFallback(request.id)) {
+      enriched = enriched.copyWith(title: request.title);
+    }
+    if (enriched.displayId == null && request.displayId != null) {
+      enriched = enriched.copyWith(displayId: request.displayId);
+    }
+    if (_cleanString(enriched.destinationLabel) == null &&
+        _cleanString(request.destinationLabel) != null) {
+      enriched = enriched.copyWith(destinationLabel: request.destinationLabel);
+    }
+    if (enriched.tier == ClientRequestTier.unknown &&
+        request.tier != ClientRequestTier.unknown) {
+      enriched = enriched.copyWith(tier: request.tier);
+    }
+    return enriched;
+  }
+
+  static String? _cleanString(Object? raw) {
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static String _deliveryFallback(String id) =>
+      'Delivery ${friendlyReference(id)}';
+
+  static String _requestFallback(String id) =>
+      'Request ${friendlyReference(id)}';
 
   static ClientOfferStatus? _inferredOfferStatus(String requestStatus) {
     return switch (requestStatus) {

@@ -90,13 +90,34 @@ def safe_hierarchy(raw):
     return raw, root
 
 
+def read_hierarchy(serial, attempts=3):
+    if attempts < 1:
+        raise ValueError("at least one hierarchy attempt is required")
+    last_error = None
+    for _ in range(attempts):
+        try:
+            return safe_hierarchy(
+                adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty")
+            )
+        except ValueError as error:
+            last_error = error
+    raise last_error
+
+
+def input_digits(serial, digits):
+    if not re.fullmatch(r"[0-9]+", digits):
+        raise ValueError("numeric device input accepts digits only")
+    for digit in digits:
+        adb(serial, "shell", "input", "keyevent", f"KEYCODE_{digit}")
+
+
 def dump(serial, prefix, confirmed):
     if not confirmed or not prefix.is_absolute():
         raise ValueError("use an absolute output prefix and --screen-confirmed-safe on a non-sensitive screen")
     targets = [Path(str(prefix) + suffix) for suffix in [".xml", ".png"]]
     if not prefix.parent.is_dir() or any(path.exists() for path in targets):
         raise ValueError("existing evidence is never overwritten; parent directory must exist")
-    raw, root = safe_hierarchy(adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty"))
+    raw, root = read_hierarchy(serial)
     screenshot = adb(serial, "exec-out", "screencap", "-p")
     if not screenshot.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("screencap did not return PNG data")
@@ -136,7 +157,10 @@ def logcat(serial, prefix):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["dump", "logcat", "preflight", "teardown"])
+    parser.add_argument(
+        "action",
+        choices=["dump", "logcat", "preflight", "teardown", "type-digits"],
+    )
     parser.add_argument("--serial", required=True)
     parser.add_argument("--output-prefix", type=Path)
     parser.add_argument("--screen-confirmed-safe", action="store_true")
@@ -149,6 +173,8 @@ def main():
             preflight(args.serial)
         elif args.action == "teardown":
             teardown(args.serial, args.app_restored)
+        elif args.action == "type-digits":
+            input_digits(args.serial, sys.stdin.readline().strip())
         elif args.output_prefix is None:
             parser.error(args.action + " requires --output-prefix")
         elif args.action == "logcat":

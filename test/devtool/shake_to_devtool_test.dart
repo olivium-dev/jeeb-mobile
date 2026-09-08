@@ -3,16 +3,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/app/jeeb_bootstrap.dart';
 import 'package:jeeb_mobile/app/app_restarter.dart';
 import 'package:jeeb_mobile/core/dev_flags.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
+import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/devtool/devtool_shell.dart';
 import 'package:jeeb_mobile/devtool/shake/devtool_shake.dart';
 import 'package:jeeb_mobile/features/registration/data/super_login_demo_user.dart';
 import 'package:jeeb_mobile/features/registration/data/super_login_service.dart';
+import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_cubit.dart';
+import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_sheet.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import '../support/sync_app_localizations.dart';
 
 /// Wall clock stand-in so the debounce window is asserted deterministically
 /// instead of with real sleeps. This fakes TIME, never the code under test:
@@ -26,6 +33,9 @@ class _FakeClock {
 }
 
 const Key _layerContentKey = ValueKey<String>('test-dev-tool-layer-content');
+const Key _openSuperLoginKey = ValueKey<String>('test-open-super-login');
+const Key _openDialogKey = ValueKey<String>('test-open-dialog');
+const Key _dialogActionKey = ValueKey<String>('test-dialog-action');
 
 /// Stands in for an already-registered `SuperLoginService` so the idempotent
 /// re-registration can be shown NOT to clobber it.
@@ -98,21 +108,98 @@ class _ProductProbeState extends State<_ProductProbe> {
   Widget build(BuildContext context) => const Text('PRODUCT UI');
 }
 
+/// A real Super Login sheet and a normal dialog opened from the Dev Tool's
+/// nested Navigator. It deliberately uses a failure-only service, so the test
+/// can tap the submit control without touching secure storage.
+class _DevToolModalActions extends StatefulWidget {
+  const _DevToolModalActions();
+
+  @override
+  State<_DevToolModalActions> createState() => _DevToolModalActionsState();
+}
+
+class _DevToolModalActionsState extends State<_DevToolModalActions> {
+  late final SuperLoginCubit _superLoginCubit = SuperLoginCubit(
+    service: _StubSuperLoginService(),
+    tokenStore: AuthTokenStore(),
+  );
+  bool _dialogActionTapped = false;
+
+  @override
+  void dispose() {
+    _superLoginCubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ElevatedButton(
+            key: _openSuperLoginKey,
+            onPressed: () => showSuperLoginSheet(
+              context,
+              cubit: _superLoginCubit,
+              initialUserId: 'dev-user',
+              initialPasscode: 'secret',
+            ),
+            child: const Text('Open Super Login'),
+          ),
+          ElevatedButton(
+            key: _openDialogKey,
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('Confirm action'),
+                actions: <Widget>[
+                  TextButton(
+                    key: _dialogActionKey,
+                    onPressed: () {
+                      setState(() => _dialogActionTapped = true);
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('Confirm'),
+                  ),
+                ],
+              ),
+            ),
+            child: const Text('Open dialog'),
+          ),
+          if (_dialogActionTapped) const Text('dialog action completed'),
+        ],
+      ),
+    ),
+  );
+}
+
 Widget _hostUnderTest(
   _FakeClock clock, {
   bool initiallyOpen = false,
   bool shakeEnabled = true,
   bool Function()? prepareOpen,
+  WidgetBuilder? layerBuilder,
 }) => MaterialApp(
   theme: AppTheme.light(),
+  locale: const Locale('en'),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+    SyncAppLocalizationsDelegate(),
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
   builder: (context, child) => DevToolShakeHost(
     initiallyOpen: initiallyOpen,
     shakeEnabled: shakeEnabled,
     prepareOpen: prepareOpen,
     clock: clock.call,
-    layerBuilder: (_) => const Scaffold(
-      body: Center(child: Text('DEV TOOL', key: _layerContentKey)),
-    ),
+    layerBuilder:
+        layerBuilder ??
+        (_) => const Scaffold(
+          body: Center(child: Text('DEV TOOL', key: _layerContentKey)),
+        ),
     child: child!,
   ),
   home: const Scaffold(body: Center(child: _ProductProbe())),
@@ -701,6 +788,83 @@ void main() {
             'ErrorWidget',
       );
     });
+
+    testWidgets(
+      'a Super Login sheet owns its submit action while the sticky controls '
+      'are hidden, then restores them after close',
+      (tester) async {
+        await tester.pumpWidget(
+          _hostUnderTest(
+            _FakeClock(),
+            initiallyOpen: true,
+            layerBuilder: (_) => const _DevToolModalActions(),
+          ),
+        );
+
+        expect(find.byKey(kDevToolShakeApplyKey), findsOneWidget);
+        expect(find.byKey(kDevToolShakeCloseKey), findsOneWidget);
+
+        await tester.tap(find.byKey(_openSuperLoginKey));
+        // OmdsLoadingButton keeps an AnimatedSwitcher alive, so do not wait for
+        // a global settle that would mask a routing regression.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
+        expect(find.byKey(kDevToolShakeApplyKey), findsNothing);
+        expect(find.byKey(kDevToolShakeCloseKey), findsNothing);
+
+        // This tap used to hit the sibling Apply & Restart FAB when their bounds
+        // overlapped. The real failure-only sheet remains open after its submit.
+        await tester.tap(find.byKey(const Key('superLogin.submit')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byKey(kDevToolShakeLayerKey), findsOneWidget);
+        expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
+        expect(find.byKey(kDevToolShakeApplyKey), findsNothing);
+
+        Navigator.of(
+          tester.element(find.byKey(const Key('superLogin.submit'))),
+        ).pop();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(kDevToolShakeApplyKey), findsOneWidget);
+        expect(find.byKey(kDevToolShakeCloseKey), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'a normal dialog owns its confirmation action while sticky controls '
+      'are hidden',
+      (tester) async {
+        await tester.pumpWidget(
+          _hostUnderTest(
+            _FakeClock(),
+            initiallyOpen: true,
+            layerBuilder: (_) => const _DevToolModalActions(),
+          ),
+        );
+
+        await tester.tap(find.byKey(_openDialogKey));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(_dialogActionKey), findsOneWidget);
+        expect(find.byKey(kDevToolShakeApplyKey), findsNothing);
+        expect(find.byKey(kDevToolShakeCloseKey), findsNothing);
+
+        await tester.tap(find.byKey(_dialogActionKey));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('dialog action completed'), findsOneWidget);
+        expect(find.byKey(kDevToolShakeApplyKey), findsOneWidget);
+        expect(find.byKey(kDevToolShakeCloseKey), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets(
       'Apply & Restart restarts the app so Dev Tool settings take effect',

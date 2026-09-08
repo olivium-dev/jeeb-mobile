@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/realtime/realtime_socket_policy.dart';
 import 'package:jeeb_mobile/features/live_tracking/data/realtime_courier_position_channel.dart';
+import 'package:jeeb_mobile/features/live_tracking/domain/courier_position_channel.dart';
 
 import '../../support/fake_web_socket_channel.dart';
 
@@ -73,6 +74,7 @@ void main() {
   RealtimeCourierPositionChannel channelOver(
     Dio dio, {
     bool factoryThrows = false,
+    RealtimeSocketPolicy? policy,
   }) {
     dialled = <Uri>[];
     ws = FakeWebSocketChannel();
@@ -83,7 +85,7 @@ void main() {
         if (factoryThrows) throw StateError('unreachable host');
         return ws;
       },
-      socketPolicy: socketPolicy,
+      socketPolicy: policy ?? socketPolicy,
     );
   }
 
@@ -164,6 +166,26 @@ void main() {
             'degrade ($because)',
       );
     }
+
+    test('does not bootstrap the descriptor when no mobile socket authority is '
+        'configured', () async {
+      final channel = channelOver(
+        dioAnswering(status: 503),
+        policy: const RealtimeSocketPolicy(configuredUrl: ''),
+      );
+
+      final result = await channel.openWithOutcome(deliveryId: deliveryId);
+
+      expect(result.positions, isNull);
+      expect(result.failure, CourierPositionOpenFailure.unavailable);
+      expect(
+        requestedPaths,
+        isEmpty,
+        reason:
+            'no descriptor can become a socket without JEEB_REALTIME_SOCKET_URL',
+      );
+      expect(dialled, isEmpty);
+    });
 
     test('socketUrl is null — the gateway default, not an edge case', () async {
       await expectDegraded(

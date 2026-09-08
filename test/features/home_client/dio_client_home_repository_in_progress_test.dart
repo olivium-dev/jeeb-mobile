@@ -27,41 +27,49 @@ void main() {
 
   // Stub paths/type-args trued up to the CURRENT repository architecture
   void stubDeliveries(Map<String, dynamic> body) {
-    when(() => dio.get<dynamic>(
-          '/deliveries',
-          queryParameters: any(named: 'queryParameters'),
-        )).thenAnswer((_) async => _ok(body));
+    when(
+      () => dio.get<dynamic>(
+        '/deliveries',
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async => _ok(body));
   }
 
   void stubDeliveriesError(int statusCode) {
-    when(() => dio.get<dynamic>(
-          '/deliveries',
-          queryParameters: any(named: 'queryParameters'),
-        )).thenThrow(DioException(
-      requestOptions: RequestOptions(path: '/deliveries'),
-      response: Response<dynamic>(
-        requestOptions: RequestOptions(path: '/deliveries'),
-        statusCode: statusCode,
+    when(
+      () => dio.get<dynamic>(
+        '/deliveries',
+        queryParameters: any(named: 'queryParameters'),
       ),
-      type: DioExceptionType.badResponse,
-    ));
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/deliveries'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/deliveries'),
+          statusCode: statusCode,
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
   }
 
   void stubRequests(Map<String, dynamic> body) {
-    when(() => dio.get<dynamic>(
-          '/requests',
-          queryParameters: any(named: 'queryParameters'),
-        )).thenAnswer((_) async => _ok(body));
+    when(
+      () => dio.get<dynamic>(
+        '/requests',
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async => _ok(body));
   }
 
   // BUG-3 offer probes (`GET /v1/offers?requestId=`) run for every
   void stubOffers() {
-    when(() => dio.get<dynamic>(
-          '/v1/offers',
-          queryParameters: any(named: 'queryParameters'),
-        )).thenAnswer(
-      (_) async => _ok(<String, dynamic>{'items': <dynamic>[]}),
-    );
+    when(
+      () => dio.get<dynamic>(
+        '/v1/offers',
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((_) async => _ok(<String, dynamic>{'items': <dynamic>[]}));
   }
 
   // A seeded active delivery row + an accept-minted delivery row (covers
@@ -121,36 +129,39 @@ void main() {
   };
 
   test(
-      'In-Progress includes BOTH seeded delivery rows AND a fresh matched '
-      'request (client-scoped), without narrowing the seeded predicate',
-      () async {
-    stubDeliveries(deliveriesBody);
-    stubRequests(requestsBody);
-    stubOffers();
+    'In-Progress includes BOTH seeded delivery rows AND a fresh matched '
+    'request (client-scoped), without narrowing the seeded predicate',
+    () async {
+      stubDeliveries(deliveriesBody);
+      stubRequests(requestsBody);
+      stubOffers();
 
-    final snapshot = await repo.loadSnapshot();
-    final ids = snapshot.inProgress.map((r) => r.id).toList();
+      final snapshot = await repo.loadSnapshot();
+      final ids = snapshot.inProgress.map((r) => r.id).toList();
 
-    // Seeded + accept-minted delivery rows still render (predicate not narrowed).
-    expect(ids, contains('delivery-001'));
-    expect(ids, contains('delivery-acc'));
-    // The freshly-accepted order surfaces via the requests merge.
-    expect(ids, contains('request-fresh-1'));
-  });
+      // Seeded + accept-minted delivery rows still render (predicate not narrowed).
+      expect(ids, contains('delivery-001'));
+      expect(ids, contains('delivery-acc'));
+      // The freshly-accepted order surfaces via the requests merge.
+      expect(ids, contains('request-fresh-1'));
+    },
+  );
 
-  test('a request already represented by a delivery row is NOT duplicated',
-      () async {
-    stubDeliveries(deliveriesBody);
-    stubRequests(requestsBody);
-    stubOffers();
+  test(
+    'a request already represented by a delivery row is NOT duplicated',
+    () async {
+      stubDeliveries(deliveriesBody);
+      stubRequests(requestsBody);
+      stubOffers();
 
-    final snapshot = await repo.loadSnapshot();
-    final ids = snapshot.inProgress.map((r) => r.id).toList();
+      final snapshot = await repo.loadSnapshot();
+      final ids = snapshot.inProgress.map((r) => r.id).toList();
 
-    // `request-covered` is the parent of `delivery-acc` → it must appear ONLY
-    expect(ids, isNot(contains('request-covered')));
-    expect(ids.where((id) => id == 'delivery-acc').length, 1);
-  });
+      // `request-covered` is the parent of `delivery-acc` → it must appear ONLY
+      expect(ids, isNot(contains('request-covered')));
+      expect(ids.where((id) => id == 'delivery-acc').length, 1);
+    },
+  );
 
   test('pending / delivered requests never leak into In-Progress', () async {
     stubDeliveries(deliveriesBody);
@@ -164,8 +175,7 @@ void main() {
     expect(ids, isNot(contains('request-delivered-1')));
   });
 
-  test(
-      'fresh matched request STILL surfaces when /v1/deliveries 404s '
+  test('fresh matched request STILL surfaces when /v1/deliveries 404s '
       '(Mockoon :3055 / gateway omits the delivery row)', () async {
     stubDeliveriesError(404);
     stubRequests(requestsBody);
@@ -178,8 +188,9 @@ void main() {
     expect(ids, contains('request-fresh-1'));
     // The covered request now has no delivery row, so it surfaces too.
     expect(ids, contains('request-covered'));
-    final fresh =
-        snapshot.inProgress.firstWhere((r) => r.id == 'request-fresh-1');
+    final fresh = snapshot.inProgress.firstWhere(
+      (r) => r.id == 'request-fresh-1',
+    );
     expect(fresh.status, ClientRequestStatus.accepted);
   });
 
@@ -213,37 +224,86 @@ void main() {
   };
 
   test(
-      'S12: an `Ordered` delivery row maps to accepted (trackable), not '
-      'searching — and progressStep stays 0 so the stepper is unchanged',
-      () async {
-    stubDeliveries(orderedDeliveryBody);
-    stubRequests(matchedRequestBody);
-    stubOffers();
+    'S12: an `Ordered` delivery row maps to accepted (trackable), not '
+    'searching — and progressStep stays 0 so the stepper is unchanged',
+    () async {
+      stubDeliveries(orderedDeliveryBody);
+      stubRequests(matchedRequestBody);
+      stubOffers();
 
-    final snapshot = await repo.loadSnapshot();
-    final row = snapshot.inProgress.firstWhere((r) => r.id == 'delivery-x');
+      final snapshot = await repo.loadSnapshot();
+      final row = snapshot.inProgress.firstWhere((r) => r.id == 'delivery-x');
 
-    // THE FIX: `Ordered` → accepted so the "Track my order" / "Open chat" CTA
-    expect(row.status, ClientRequestStatus.accepted);
-    // The visual stage is read independently from `progressStep`, so the
-    expect(row.progressStep, 0);
-  });
+      // THE FIX: `Ordered` → accepted so the "Track my order" / "Open chat" CTA
+      expect(row.status, ClientRequestStatus.accepted);
+      // The visual stage is read independently from `progressStep`, so the
+      expect(row.progressStep, 0);
+    },
+  );
 
   test(
-      'S12 guard: a delivery row carrying `requestId` yields exactly ONE '
-      'trackable row for that order (no duplicate from the request path)',
-      () async {
-    stubDeliveries(orderedDeliveryBody);
-    stubRequests(matchedRequestBody);
+    'S12 guard: a delivery row carrying `requestId` yields exactly ONE '
+    'trackable row for that order (no duplicate from the request path)',
+    () async {
+      stubDeliveries(orderedDeliveryBody);
+      stubRequests(matchedRequestBody);
+      stubOffers();
+
+      final snapshot = await repo.loadSnapshot();
+      final forOrder = snapshot.inProgress
+          .where((r) => r.id == 'delivery-x' || r.id == 'req-x')
+          .toList();
+
+      // Exactly one row, and it's the delivery-backed (tracking-id-bearing) row —
+      expect(forOrder.length, 1);
+      expect(forOrder.single.id, 'delivery-x');
+    },
+  );
+
+  test('a real ShipmentDetailDto orderId retains the v1 list title when that '
+      'projection intentionally omits detail-only description', () async {
+    // delivery-service's live `shipments` envelope names the parent request
+    // `orderId`; it does not repeat request text. The v1 list deliberately
+    // exposes that text as `title`, while the canonical detail calls it
+    // `description`.
+    stubDeliveries(<String, dynamic>{
+      'shipments': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'shipment-42',
+          'orderId': 'request-42',
+          'currentStage': 'InTransit',
+        },
+      ],
+    });
+    stubRequests(<String, dynamic>{
+      'items': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'request-42',
+          'displayId': 'ORD-42',
+          'status': 'in_transit',
+          // Captured live shape: no `description`, only the request-text title.
+          'title': 'E2EHappyPathAhmad20260908',
+          'dropoff': <String, dynamic>{'address': 'Sassine Square'},
+        },
+      ],
+    });
     stubOffers();
 
     final snapshot = await repo.loadSnapshot();
-    final forOrder = snapshot.inProgress
-        .where((r) => r.id == 'delivery-x' || r.id == 'req-x')
-        .toList();
+    final row = snapshot.inProgress.single;
 
-    // Exactly one row, and it's the delivery-backed (tracking-id-bearing) row —
-    expect(forOrder.length, 1);
-    expect(forOrder.single.id, 'delivery-x');
+    // Tracking stays keyed by the canonical shipment id.
+    expect(row.id, 'shipment-42');
+    expect(row.trackingId, 'shipment-42');
+    // Chat and request display use the parent order/request id instead.
+    expect(row.chatCorrelationId, 'request-42');
+    expect(row.chatThreadId, 'request-42');
+    expect(row.displayId, 'ORD-42');
+    expect(row.itemsSummary, 'E2EHappyPathAhmad20260908');
+    expect(row.summaryLine, 'E2EHappyPathAhmad20260908');
+    expect(snapshot.inProgress.where((r) => r.id == 'request-42'), isEmpty);
+    // The list title is authoritative for this surface; no per-card detail
+    // request is needed merely because the detail contract calls it description.
+    verifyNever(() => dio.get<dynamic>('/v1/requests/request-42'));
   });
 }

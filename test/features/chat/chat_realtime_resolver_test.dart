@@ -13,17 +13,20 @@ void main() {
   const canonicalSocketUrl = 'wss://app.jeeb.fds-1.com/socket/websocket';
   const socketPolicy = RealtimeSocketPolicy(configuredUrl: canonicalSocketUrl);
 
-  Dio dioAnswering(Map<String, dynamic> body) {
+  Dio dioAnswering(Map<String, dynamic> body, {List<String>? requestedPaths}) {
     final dio = Dio(BaseOptions(baseUrl: 'https://gateway.test'));
     dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) => handler.resolve(
-          Response<Map<String, dynamic>>(
-            requestOptions: options,
-            statusCode: 200,
-            data: body,
-          ),
-        ),
+        onRequest: (options, handler) {
+          requestedPaths?.add(options.path);
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: body,
+            ),
+          );
+        },
       ),
     );
     return dio;
@@ -81,6 +84,24 @@ void main() {
       expect(await resolver.connect(conversationId), isNull);
     });
   }
+
+  test('does not bootstrap a descriptor when no mobile socket authority is '
+      'configured', () async {
+    final requestedPaths = <String>[];
+    final resolver = ChatRealtimeResolver(
+      dio: dioAnswering(descriptor(), requestedPaths: requestedPaths),
+      currentUserId: currentUserId,
+      socketPolicy: const RealtimeSocketPolicy(configuredUrl: ''),
+    );
+
+    expect(await resolver.connect(conversationId), isNull);
+    expect(
+      requestedPaths,
+      isEmpty,
+      reason:
+          'a descriptor cannot become a socket without JEEB_REALTIME_SOCKET_URL',
+    );
+  });
 
   group('production descriptor binding rejects before socket creation', () {
     Future<void> expectRejected(
