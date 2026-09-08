@@ -154,15 +154,35 @@ void main() {
       // native build inputs are absent, or touching those inputs at all.
       final fixture = await Directory.systemTemp.createTemp('jeeb-firebase-');
       addTearDown(() => fixture.delete(recursive: true));
-      await Directory('${fixture.path}/tool').create();
       await Directory(
         '${fixture.path}/android/app/src/dev',
       ).create(recursive: true);
-      for (final script in const <String>[
+      // The dev validator delegates to the canonical contract gate, which also
+      // checks native identities and the real Dart/workflow source. Copy its
+      // tracked dependency graph, never a developer's ignored native inputs.
+      final dependencies = await Process.run('git', <String>[
+        'ls-files',
+        '-z',
+        '--',
+        '.firebaserc',
+        'contracts',
+        'android/app/build.gradle',
+        'ios/Runner.xcodeproj/project.pbxproj',
+        'lib',
+        '.github/workflows',
+        'tool/validate_jeeb_firebase_contract.sh',
+        'tool/run_with_android_firebase_config.sh',
         'tool/run_with_dev_firebase_config.sh',
+        'tool/run_with_ios_firebase_config.sh',
+        'tool/validate_android_google_services.sh',
         'tool/validate_dev_google_services.sh',
-      ]) {
-        await File(script).copy('${fixture.path}/$script');
+      ]);
+      expect(dependencies.exitCode, 0, reason: '${dependencies.stderr}');
+      for (final path in (dependencies.stdout as String).split('\x00')) {
+        if (path.isEmpty) continue;
+        final target = File('${fixture.path}/$path');
+        await target.parent.create(recursive: true);
+        await File(path).copy(target.path);
       }
       final init = await Process.run('git', <String>[
         'init',
@@ -211,6 +231,30 @@ void main() {
         isFalse,
         reason: 'failure cleanup did not run',
       );
+
+      // The new delegated gate must really execute, not merely exist in the
+      // fixture: project drift must reject before the wrapped command runs.
+      final firebaserc = File('${fixture.path}/.firebaserc');
+      final canonicalFirebaserc = await firebaserc.readAsString();
+      await firebaserc.writeAsString(
+        '{"projects":{"default":"wrong-project"}}',
+      );
+      final drift = await Process.run(
+        'bash',
+        <String>[
+          'tool/run_with_dev_firebase_config.sh',
+          'bash',
+          '-c',
+          'touch wrapped-command-ran',
+        ],
+        workingDirectory: fixture.path,
+        environment: _syntheticDevEnvironment(),
+      );
+      expect(drift.exitCode, 1);
+      expect(drift.stderr, contains('.firebaserc default project drifted'));
+      expect(File('${fixture.path}/wrapped-command-ran').existsSync(), isFalse);
+      expect(target.existsSync(), isFalse);
+      await firebaserc.writeAsString(canonicalFirebaserc);
 
       // Existing native input must be preserved even when injection is valid.
       const sentinel = 'existing fixture input must remain untouched';
