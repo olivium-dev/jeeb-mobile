@@ -25,8 +25,21 @@ if ENV['STORE_FIXTURE_CHILD'] == '1'
       commit_edit if ENV['STORE_FIXTURE_CASE'] == 'blocked-commit'
       upload_edit_bundle if ENV['STORE_FIXTURE_CASE'] == 'blocked-upload'
       raise 'private-provider-sentinel' if ENV['STORE_FIXTURE_CASE'] == 'read-failure'
+      if ENV['STORE_FIXTURE_CASE'] == 'empty-tracks'
+        return Google::Apis::AndroidpublisherV3::Track.new(track: track, releases: [])
+      end
+      if ENV['STORE_FIXTURE_CASE'] == 'unknown-release-shape'
+        return Google::Apis::AndroidpublisherV3::Track.new(track: track, releases: [Object.new])
+      end
+      raw_codes = case ENV['STORE_FIXTURE_CASE']
+                  when 'raw-plus' then ['+26090403']
+                  when 'raw-junk' then ['26090403junk']
+                  when 'raw-whitespace' then [' 26090403']
+                  when 'raw-null' then [nil]
+                  else ['26090403']
+                  end
       Google::Apis::AndroidpublisherV3::Track.new(track: track, releases: [
-        Google::Apis::AndroidpublisherV3::TrackRelease.new(version_codes: ['26090403'])
+        Google::Apis::AndroidpublisherV3::TrackRelease.new(version_codes: raw_codes)
       ])
     end
     def delete_edit(package_name, edit_id, **)
@@ -73,7 +86,7 @@ else
   require 'rbconfig'
   root = File.expand_path('..', __dir__)
   before = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).sort
-  %w[success nonmonotonic open-failure read-failure abort-failure wrong-bundle blocked-commit blocked-upload].each do |scenario|
+  %w[success empty-tracks nonmonotonic open-failure read-failure abort-failure wrong-bundle blocked-commit blocked-upload raw-plus raw-junk raw-whitespace raw-null unknown-release-shape].each do |scenario|
     Dir.mktmpdir('store-sdk-fixture-') do |temporary|
       trace = File.join(temporary, 'trace')
       environment = {
@@ -88,26 +101,29 @@ else
       }
       output, error, status = Open3.capture3(environment, RbConfig.ruby,
         '-r', File.expand_path(__FILE__), File.join(root, 'tool/run_store_inventory_preflight.rb'), chdir: root)
-      raise "unexpected runtime status: #{scenario}: #{error}: #{File.read(trace) if File.exist?(trace)}" unless status.success? == (scenario == 'success')
+      expected_success = %w[success empty-tracks].include?(scenario)
+      raise "unexpected runtime status: #{scenario}: #{error}: #{File.read(trace) if File.exist?(trace)}" unless status.success? == expected_success
       raise 'provider body leaked' if (output + error).include?('private-provider-sentinel')
       events = File.exist?(trace) ? File.readlines(trace, chomp: true) : []
-      if !%w[success nonmonotonic].include?(scenario)
+      if !%w[success empty-tracks nonmonotonic].include?(scenario)
         raise 'unverified number falsely rejected' unless JSON.parse(output)['candidate_monotonic'].nil?
       end
-      if %w[success nonmonotonic].include?(scenario)
+      if %w[success empty-tracks nonmonotonic].include?(scenario)
         receipt = JSON.parse(output)
-        raise 'wrong maxima' unless receipt['google_play_max'] == 26090403 && receipt['app_store_ios_max'] == 26090402
-        raise 'wrong policy' unless receipt['candidate_monotonic'] == (scenario == 'success')
+        expected_play = scenario == 'empty-tracks' ? 0 : 26090403
+        raise 'wrong maxima' unless receipt['google_play_max'] == expected_play && receipt['app_store_ios_max'] == 26090402
+        raise 'wrong policy' unless receipt['candidate_monotonic'] == expected_success
         raise 'cleanup mismatch' unless events.count('insert') == 4 && events.count('abort') == 4
       elsif scenario == 'open-failure'
         raise 'uncertain insert retried' unless events.count('insert') == 1 && events.count('abort').zero?
-      elsif %w[read-failure abort-failure blocked-commit blocked-upload].include?(scenario)
+      elsif %w[read-failure abort-failure blocked-commit blocked-upload raw-plus raw-junk raw-whitespace raw-null unknown-release-shape].include?(scenario)
         raise 'failed read cleanup missing' unless events.count('insert') == 1 && events.count('abort') == 1
+        raise 'incomplete Play inventory reported' if JSON.parse(output).key?('google_play_max')
       end
       raise 'unexpected report' unless Dir.glob(File.join(temporary, '**', '*')).all? { |path| path == trace }
     end
   end
   after = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).sort
   raise 'SDK generated an unapproved file' unless before == after
-  puts 'Pinned SDK fixed-lane fixtures passed (eight scenarios; no store network).'
+  puts 'Pinned SDK fixed-lane fixtures passed (fourteen scenarios; no store network).'
 end
