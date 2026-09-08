@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/notifications/application/offer_lifecycle_signals.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/dio_submitted_offers_repository.dart';
@@ -69,17 +70,28 @@ void main() {
       expect(offers[0].price, 12.5);
     });
 
-    test('withdraw treats 404 as an idempotent success (row clears), 409 as a '
-        'failure (row stays)', () async {
+    test('withdraw treats 404 as an idempotent success (row clears), and '
+        'THROWS a classified failure on 409 (OFF-17)', () async {
       adapter.deleteStatus = 404;
       expect(
         await DioSubmittedOffersRepository(dio: dio).withdraw('gone'),
         isTrue,
       );
       adapter.deleteStatus = 409;
-      expect(
-        await DioSubmittedOffersRepository(dio: dio).withdraw('locked'),
-        isFalse,
+      await expectLater(
+        DioSubmittedOffersRepository(dio: dio).withdraw('locked'),
+        throwsA(isA<ConflictFailure>()),
+      );
+    });
+
+    test('listSubmitted THROWS the classified failure instead of an empty '
+        'list (ES-04/OFF-06)', () async {
+      adapter.listStatus = 503;
+      await expectLater(
+        DioSubmittedOffersRepository(dio: dio).listSubmitted(),
+        throwsA(
+          isA<ServerFailure>().having((f) => f.status, 'status', 503),
+        ),
       );
     });
   });
@@ -151,6 +163,7 @@ class _ScriptedRepo implements SubmittedOffersRepository {
 class _RecordingAdapter implements HttpClientAdapter {
   Map<String, Object?> body = const {'items': <dynamic>[]};
   int deleteStatus = 204;
+  int listStatus = 200;
 
   @override
   void close({bool force = false}) {}
@@ -167,7 +180,7 @@ class _RecordingAdapter implements HttpClientAdapter {
     }
     return ResponseBody.fromString(
       jsonEncode(body),
-      200,
+      listStatus,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },

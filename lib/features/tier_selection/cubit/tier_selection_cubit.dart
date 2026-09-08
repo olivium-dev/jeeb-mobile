@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/app_failure_mapper.dart';
 import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 import 'tier_selection_state.dart';
@@ -17,16 +19,24 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
       state.copyWith(
         status: TierSelectionStatus.loading,
         clearFailure: true,
+        clearAppFailure: true,
         usingCachedFallback: false,
       ),
     );
     try {
       final tiers = await _repository.fetchTiers();
       _emitLoaded(tiers);
+    } on AppFailure catch (f) {
+      _emitFailure(f);
     } on TierLoadException catch (e) {
-      _emitFailure(e.failure);
-    } catch (_) {
-      _emitFailure(TierLoadFailure.network);
+      _emitFailure(
+        e.failure == TierLoadFailure.network
+            ? networkFailureFromReachability()
+            : const ServerFailure(status: 500),
+        legacy: e.failure,
+      );
+    } catch (e) {
+      _emitFailure(AppFailure.of(e));
     }
   }
 
@@ -40,18 +50,25 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
         clearSelectedTier:
             selectedTierId == null && state.selectedTierId != null,
         clearFailure: true,
+        clearAppFailure: true,
         usingCachedFallback: false,
       ),
     );
   }
 
-  void _emitFailure(TierLoadFailure failure) {
+  /// A transient refetch failure must not throw away a valid selection.
+  void _emitFailure(AppFailure failure, {TierLoadFailure? legacy}) {
+    final bool wipe = state.tiers.isEmpty;
     emit(
       state.copyWith(
         status: TierSelectionStatus.error,
-        failure: failure,
-        clearSelectedTier: true,
-        clearConfirmedTier: true,
+        appFailure: failure,
+        failure: legacy ??
+            (failure is NetworkFailure || failure is TimeoutFailure
+                ? TierLoadFailure.network
+                : TierLoadFailure.server),
+        clearSelectedTier: wipe,
+        clearConfirmedTier: wipe,
         usingCachedFallback: false,
       ),
     );

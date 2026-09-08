@@ -7,18 +7,35 @@ import '../../features/kyc/domain/kyc_gateway.dart';
 import '../../features/kyc/domain/kyc_submission.dart';
 import '../dev_seam/dev_seam.dart';
 import '../dev_seam/dev_seam_config.dart';
+import '../lifecycle/app_resume_signals.dart';
+import '../lifecycle/deferred_refresh_gate.dart';
+import '../network/app_failure.dart';
+import '../network/network_reachability_signals.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'package:flutter/material.dart' show ColorScheme, Theme, ThemeData;
 import '../../l10n/app_localizations.dart';
 import '../previews/jeeb_preview.dart';
 
-enum JeeberKycStatus { none, pending, approved, rejected }
+enum JeeberKycStatus {
+  none,
+  pending,
+  approved,
+  rejected,
+
+  /// NET-16: the gate could not read the status. Distinct from [none], which
+  /// swallowed a failed read and routed an approved jeeber to the prompt.
+  unknown,
+}
 
 enum JeeberDeliveryTabDestination {
   registerPrompt,
   feed,
-  kycRejected;
+  kycRejected,
+
+  /// NET-16: the status is not known, so no destination is honest yet — the
+  /// tab renders a failure block with a retry (WP-2 owns the rendering).
+  unavailable;
 
   static JeeberDeliveryTabDestination forStatus(JeeberKycStatus status) =>
       switch (status) {
@@ -30,6 +47,8 @@ enum JeeberDeliveryTabDestination {
         JeeberKycStatus.approved => JeeberDeliveryTabDestination.feed,
 
         JeeberKycStatus.rejected => JeeberDeliveryTabDestination.kycRejected,
+
+        JeeberKycStatus.unknown => JeeberDeliveryTabDestination.unavailable,
       };
 }
 
@@ -74,14 +93,34 @@ class LiveJeeberKycStatusGate extends ChangeNotifier
 
   LiveJeeberKycStatusGate(this._gateway, {bool? useLiveSource})
     : _useLiveSource = useLiveSource ?? !kDebugMode {
-
-    if (_useLiveSource) unawaited(refresh());
+    if (!_useLiveSource) return;
+    unawaited(refresh());
+    // A failed read must not stay unknown forever: re-read on resume and on
+    // the reconnect edge.
+    _resumeGate = DeferredRefreshGate(
+      onRefresh: refresh,
+      signals: AppResumeSignals.instance.stream,
+      debugLabel: 'jeeber_kyc_gate_resume',
+    );
+    _reconnectGate = DeferredRefreshGate(
+      onRefresh: refresh,
+      signals: NetworkReachabilitySignals.instance.stream,
+      debugLabel: 'jeeber_kyc_gate_reconnect',
+    );
   }
 
   final KycGateway _gateway;
   final bool _useLiveSource;
 
+  DeferredRefreshGate? _resumeGate;
+  DeferredRefreshGate? _reconnectGate;
+
   JeeberKycStatus? _cached;
+
+  AppFailure? _lastFailure;
+
+  /// The failure behind a [JeeberKycStatus.unknown], for the tab's copy.
+  AppFailure? get lastFailure => _lastFailure;
 
   @override
   JeeberKycStatus get status {
@@ -98,13 +137,28 @@ class LiveJeeberKycStatusGate extends ChangeNotifier
     try {
       final submission = await _gateway.fetchStatus();
       final next = _map(submission.status);
-      if (next != _cached) {
+      final bool cleared = _lastFailure != null;
+      _lastFailure = null;
+      if (next != _cached || cleared) {
         _cached = next;
         notifyListeners();
       }
-    } catch (_) {
-
+    } catch (e) {
+      _lastFailure = e is KycGatewayException ? e.failure : AppFailure.of(e);
+      // R6: a failed resume/reconnect re-read must not downgrade an already
+      // authoritative status; only a cold read resolves to `unknown`.
+      _cached ??= JeeberKycStatus.unknown;
+      notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_resumeGate?.dispose());
+    unawaited(_reconnectGate?.dispose());
+    _resumeGate = null;
+    _reconnectGate = null;
+    super.dispose();
   }
 
   static JeeberKycStatus _map(KycStatus status) => switch (status) {
@@ -174,17 +228,21 @@ class _JeeberKycGateBuilderResolvedDestination extends StatelessWidget {
       JeeberDeliveryTabDestination.registerPrompt => l10n.jeeberRegisterTitle,
       JeeberDeliveryTabDestination.feed => l10n.jeeberFeedSectionTitle,
       JeeberDeliveryTabDestination.kycRejected => l10n.kycRejectedHeadline,
+      JeeberDeliveryTabDestination.unavailable =>
+        l10n.jeeberDeliveryTabStatusUnknownTitle,
     };
     final Color background = switch (destination) {
       JeeberDeliveryTabDestination.registerPrompt =>
         colors.surfaceContainerHighest,
       JeeberDeliveryTabDestination.feed => colors.primaryContainer,
       JeeberDeliveryTabDestination.kycRejected => colors.errorContainer,
+      JeeberDeliveryTabDestination.unavailable => colors.errorContainer,
     };
     final Color foreground = switch (destination) {
       JeeberDeliveryTabDestination.registerPrompt => colors.onSurface,
       JeeberDeliveryTabDestination.feed => colors.onPrimaryContainer,
       JeeberDeliveryTabDestination.kycRejected => colors.onErrorContainer,
+      JeeberDeliveryTabDestination.unavailable => colors.onErrorContainer,
     };
 
     return Container(
@@ -257,6 +315,11 @@ Widget jeeberKycGateBuilderApproved() => _jeeberKycGateBuilderSync(JeeberKycStat
 /// In production this destination is a post-frame redirect to the
 @JeebPreview(group: 'core', name: 'rejected · terminal', size: _jeeberKycGateBuilderTabBox)
 Widget jeeberKycGateBuilderRejected() => _jeeberKycGateBuilderSync(JeeberKycStatus.rejected);
+
+/// NET-16: the status read FAILED. The tab must not read that as "never
+/// onboarded" — it renders the unavailable destination with a retry.
+@JeebPreview(group: 'core', name: 'unknown · read failed', size: _jeeberKycGateBuilderTabBox)
+Widget jeeberKycGateBuilderUnknown() => _jeeberKycGateBuilderSync(JeeberKycStatus.unknown);
 
 /// JEBV4-267, and the state this whole widget exists for: the release gate
 /// before its one live read has landed.

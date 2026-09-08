@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -5,16 +7,20 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/lifecycle/app_resume_signals.dart';
+import '../../../../core/lifecycle/deferred_refresh_gate.dart';
+import '../../../../core/network/app_failure.dart';
+import '../../../../core/network/network_reachability_signals.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../chat/data/dio_accepted_conversations_repository.dart';
 import '../../../chat/domain/accepted_conversation.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
-import 'dart:async';
 import '../../../../core/previews/jeeb_preview.dart';
 
 class JeeberActiveDeliveriesBanner extends StatefulWidget {
@@ -37,25 +43,77 @@ class _JeeberActiveDeliveriesBannerState
     extends State<JeeberActiveDeliveriesBanner> {
   List<AcceptedConversation> _accepted = const [];
   bool _loaded = false;
+  AppFailure? _failure;
+
+  DeferredRefreshGate? _refreshGate;
+  StreamSubscription<void>? _resumeSub;
+  StreamSubscription<void>? _reachabilitySub;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // OFF-08: a banner that failed once must re-arm, not stay dark until the
+    // jeeber leaves the tab.
+    final gate = DeferredRefreshGate(
+      onRefresh: _load,
+      debugLabel: 'JeeberActiveDeliveriesBanner',
+    );
+    _refreshGate = gate;
+    _resumeSub = AppResumeSignals.instance.stream.listen((_) => gate.signal());
+    _reachabilitySub = NetworkReachabilitySignals.instance.stream.listen(
+      (_) => gate.signal(),
+    );
   }
 
+  @override
+  void dispose() {
+    _resumeSub?.cancel();
+    _resumeSub = null;
+    _reachabilitySub?.cancel();
+    _reachabilitySub = null;
+    unawaited(_refreshGate?.dispose());
+    _refreshGate = null;
+    super.dispose();
+  }
+
+  bool _loadInFlight = false;
+
   Future<void> _load() async {
+    // Resume and reachability can both fire at once; without this the loser
+    // of the race can overwrite a fresh success with a stale failure.
+    if (_loadInFlight) return;
+    _loadInFlight = true;
+    try {
+      await _loadOnce();
+    } finally {
+      _loadInFlight = false;
+    }
+  }
+
+  Future<void> _loadOnce() async {
     final repository = _resolveRepository();
     if (repository == null) {
+      if (!mounted) return;
       setState(() => _loaded = true);
       return;
     }
-    final accepted = await repository.fetchAccepted();
-    if (!mounted) return;
-    setState(() {
-      _accepted = accepted;
-      _loaded = true;
-    });
+    try {
+      final accepted = await repository.fetchAccepted();
+      if (!mounted) return;
+      setState(() {
+        _accepted = accepted;
+        _loaded = true;
+        _failure = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // Keeps `_accepted` — a last-good card beats an in-flight job vanishing.
+      setState(() {
+        _failure = AppFailure.of(e);
+        _loaded = true;
+      });
+    }
   }
 
   AcceptedConversationsRepository? _resolveRepository() {
@@ -80,8 +138,42 @@ class _JeeberActiveDeliveriesBannerState
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded || _accepted.isEmpty) return const SizedBox.shrink();
+    if (!_loaded) return const SizedBox.shrink();
+    final failure = _failure;
+    if (failure != null && _accepted.isEmpty) {
+      return _BannerFailure(failure: failure, onRetry: _load);
+    }
+    if (_accepted.isEmpty) return const SizedBox.shrink();
     return _ActiveDeliveriesSection(accepted: _accepted, onOpen: _open);
+  }
+}
+
+/// The cold-failure rung: the read failed with nothing last-good to keep, so
+/// the band says so inline instead of collapsing into an invisible SizedBox.
+class _BannerFailure extends StatelessWidget {
+  const _BannerFailure({required this.failure, required this.onRetry});
+
+  final AppFailure failure;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.small,
+        Spacing.xLarge,
+        0,
+      ),
+      child: JeebFailureBlock.compact(
+        failure: failure,
+        identifier: 'jeeber_active_deliveries_banner_error',
+        retryIdentifier: 'jeeber_active_deliveries_banner_retry_cta',
+        bodyOverride: l10n.activeDeliveriesLoadError,
+        onRetry: onRetry,
+      ),
+    );
   }
 }
 
@@ -282,6 +374,17 @@ class _JeeberActiveDeliveriesBannerStalledRepository
       Completer<List<AcceptedConversation>>().future;
 }
 
+/// Throws the classified failure, so the banner draws its cold-failure rung.
+class _JeeberActiveDeliveriesBannerFailingRepository
+    implements AcceptedConversationsRepository {
+  const _JeeberActiveDeliveriesBannerFailingRepository(this.failure);
+
+  final AppFailure failure;
+
+  @override
+  Future<List<AcceptedConversation>> fetchAccepted() async => throw failure;
+}
+
 Widget _jeeberActiveDeliveriesBannerHosted(
   AcceptedConversationsRepository repository,
 ) {
@@ -396,4 +499,18 @@ Widget jeeberActiveDeliveriesBannerEmpty() =>
 Widget jeeberActiveDeliveriesBannerLoading() =>
     _jeeberActiveDeliveriesBannerHosted(
       const _JeeberActiveDeliveriesBannerStalledRepository(),
+    );
+
+/// The read failed with nothing last-good to keep: the band must say so, or an
+/// in-flight delivery silently disappears from the jeeber's board.
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Load failed · retry',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 420),
+)
+Widget jeeberActiveDeliveriesBannerLoadFailed() =>
+    _jeeberActiveDeliveriesBannerHosted(
+      const _JeeberActiveDeliveriesBannerFailingRepository(
+        NetworkFailure(offline: true),
+      ),
     );

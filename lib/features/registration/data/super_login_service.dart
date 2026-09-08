@@ -79,14 +79,12 @@ class DefaultSuperLoginService implements SuperLoginService {
         accessToken.isEmpty) {
       return null;
     }
-    final refreshToken = data['refreshToken'] as String?;
+    // Empty, never the access token: a fake refresh value would turn a clean
+    // "no refresh token -> logout" into a doomed rotation attempt.
     return SuperLoginSession(
       userId: userId,
       accessToken: accessToken,
-      refreshToken:
-          (refreshToken != null && refreshToken.isNotEmpty)
-              ? refreshToken
-              : accessToken,
+      refreshToken: data['refreshToken'] as String? ?? '',
     );
   }
 

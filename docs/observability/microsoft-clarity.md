@@ -19,11 +19,35 @@ Production capture requires all three defines on a release build:
 non-release configuration prevents SDK initialization.
 `JEEB_CLARITY_PRIVACY_APPROVED` also defaults to `false`; the release owner may
 set it only after the privacy, minor-use, and store-disclosure gates below are
-approved. Debug, profile, tests, CI, catalog previews, and `DevToolApp` never
+approved. Debug, profile, tests, catalog previews, and `DevToolApp` never
 capture. Omitting `JEEB_CLARITY_ENABLED` is the shipment kill switch, but a
 rebuild cannot stop already-installed versions. Before production enablement,
 the release owner must also verify and document the Microsoft project-side
 emergency stop used for an immediate incident response.
+
+### Internal staging validation
+
+The dedicated Android internal candidate and signed iOS internal candidate
+workflows prepare `JEEB_CLARITY_ENABLED=true`,
+`JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true`, and project `y6laxxj143`, while
+keeping `JEEB_CLARITY_PRIVACY_APPROVED=false`. This separate authorization only
+works in a release build with `JEEB_INTERNAL_RELEASE=true`, `APP_FLAVOR=staging`,
+gateway `https://app.jeeb.fds-1.com` and socket
+`wss://app.jeeb.fds-1.com/socket/websocket`. Production workflows remain off.
+The retained provenance binds the exact project and
+`staging-internal-consent-masked-v1` policy along with the artifact hash.
+
+This change prepares owner-authorized synthetic internal testing, not production
+privacy/legal/store approval. At preparation on 2026-09-07, the administrator's
+Strict setting was observed but explicit staging approval and device ingestion,
+masked playback, revocation and emergency-stop evidence remained pending.
+Do not dispatch until the release owner records the staging authorization.
+
+The in-app Dev Tool closes consent and verifies SDK pause before opening; pause
+failure keeps the tool closed. Capture stays blocked through lifecycle changes
+and resumes through the normal consent gates only after the closing frame has
+removed the tool. Apply/restart leaves the outgoing context blocked. The entire
+product and tool retain the root mask throughout.
 
 ## Consent, identity, and masking
 

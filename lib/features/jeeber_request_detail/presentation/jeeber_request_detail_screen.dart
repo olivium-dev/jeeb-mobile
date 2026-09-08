@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
@@ -10,6 +13,7 @@ import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
@@ -26,11 +30,16 @@ class JeeberRequestDetailScreen extends StatefulWidget {
     required this.request,
     required this.reportService,
     required this.onDeclined,
+    this.onDeclineRequest,
   });
 
   final FeedRequest request;
   final ProhibitedItemReportService reportService;
   final ValueChanged<String> onDeclined;
+
+  /// The awaitable decline. Null keeps the fire-and-forget [onDeclined] path
+  /// every devtool entry and widget test uses today.
+  final Future<void> Function(String requestId)? onDeclineRequest;
 
   @override
   State<JeeberRequestDetailScreen> createState() =>
@@ -38,6 +47,8 @@ class JeeberRequestDetailScreen extends StatefulWidget {
 }
 
 class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
+  bool _declining = false;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -61,14 +72,55 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
               ),
               Expanded(child: _RequestSummary(request: widget.request)),
               _ActionBar(
-                onMakeOffer: _openOfferForm,
-                onDecline: () => widget.onDeclined(widget.request.id),
+                onMakeOffer: _declining ? null : _openOfferForm,
+                onDecline: _declining ? null : _onDecline,
+                isDeclining: _declining,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _onDecline() {
+    final decline = widget.onDeclineRequest;
+    if (decline == null) {
+      widget.onDeclined(widget.request.id);
+      return;
+    }
+    unawaited(_declineAwaited(decline));
+  }
+
+  Future<void> _declineAwaited(
+    Future<void> Function(String requestId) decline,
+  ) async {
+    setState(() => _declining = true);
+    try {
+      await decline(widget.request.id);
+      if (!mounted) return;
+      widget.onDeclined(widget.request.id);
+    } catch (e) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      // A classified kind speaks for itself; an unclassified one keeps the
+      // screen's own line, and an unrecoverable one gets no inert Retry.
+      final failure = AppFailure.of(e);
+      final classified = failure is UnknownFailure ? null : failure;
+      final bool retryable = failure.isRetryable;
+      showJeebErrorSnack(
+        context,
+        failure: classified,
+        message: classified == null
+            ? l10n.jeeberRequestDetailDeclineFailed
+            : null,
+        identifier: 'jeeber_request_detail_decline_failed_snack',
+        retryLabel: retryable ? l10n.actionRetry : null,
+        onRetry: retryable ? () => unawaited(_declineAwaited(decline)) : null,
+      );
+    } finally {
+      if (mounted) setState(() => _declining = false);
+    }
   }
 
   void _openOfferForm() {
@@ -160,10 +212,15 @@ class _RequestSummaryCard extends StatelessWidget {
 /// Declining is the secondary WORD, not a second pill (R4/R16 ruling; the
 /// `below` slot is the board's 10-style line under the docked pill).
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.onMakeOffer, required this.onDecline});
+  const _ActionBar({
+    required this.onMakeOffer,
+    required this.onDecline,
+    this.isDeclining = false,
+  });
 
-  final VoidCallback onMakeOffer;
-  final VoidCallback onDecline;
+  final VoidCallback? onMakeOffer;
+  final VoidCallback? onDecline;
+  final bool isDeclining;
 
   @override
   Widget build(BuildContext context) {
@@ -171,12 +228,15 @@ class _ActionBar extends StatelessWidget {
     return JeebCtaFooter.single(
       below: JeebCtaButton.text(
         label: l10n.jeeberRequestDetailDeclineButton,
+        // Never a label swap: the spinner rides the button (§3.5).
+        isLoading: isDeclining,
         onTap: onDecline,
         identifier: 'jeeber-request-detail-decline',
       ),
       child: JeebCtaButton.accent(
         label: l10n.jeeberFeedMakeOfferAction,
         height: JeebCtaButton.primaryHeightTall,
+        isEnabled: !isDeclining,
         onTap: onMakeOffer,
         identifier: 'jeeber-request-detail-make-offer',
       ),

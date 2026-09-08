@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/feed_request.dart';
 import 'package:jeeb_mobile/features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 
@@ -9,6 +10,16 @@ import 'package:jeeb_mobile/features/jeeber_request_detail/domain/services/prohi
 /// `ProhibitedItemReportService` is still the 2026-05-17 sanity-build stub — its
 const ProhibitedItemReportService jeeberRequestDetailScreenReportService =
     ProhibitedItemReportService();
+
+/// A by-id recovery that fails on transport — the loader's retryable rung
+/// (LR-14), as distinct from a genuine miss.
+Future<FeedRequest?> Function() throwingRequestDetailFetch(
+  AppFailure failure,
+) => () async => throw failure;
+
+/// A by-id recovery that MISSES — the request is genuinely gone, so the loader
+/// still lands on the unavailable screen.
+Future<FeedRequest?> Function() missingRequestDetailFetch() => () async => null;
 
 /// The [FeedRequest] payloads this screen is reviewed with.
 /// Every one of them is a shape `_recoverFeedRequestById`

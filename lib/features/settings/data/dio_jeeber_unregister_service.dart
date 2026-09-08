@@ -1,5 +1,8 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../domain/jeeber_unregister_service.dart';
 
@@ -8,7 +11,7 @@ import '../domain/jeeber_unregister_service.dart';
 /// The 409 discriminators (`active_delivery` / `positive_wallet_balance`) and
 /// the dark-path `502 upstream_fault` are read from `type`, which the gateway
 /// emits as a FULL RFC 7807 URI (`https://problems.jeeb.lb/users/<code>`) —
-/// only the last path segment is the stable code, see [_shortType].
+/// only the last path segment is the stable code (`GatewayProblem.typeSuffix`).
 class DioJeeberUnregisterService implements JeeberUnregisterService {
   DioJeeberUnregisterService(this._dio, this._tokenStore);
 
@@ -23,35 +26,47 @@ class DioJeeberUnregisterService implements JeeberUnregisterService {
       final response = await _dio.post<Map<String, dynamic>>(_path);
       await _adoptRemintedTokens(response.data);
       return JeeberUnregisterOutcome.success;
-    } on DioException catch (e) {
-      return _mapOutcome(e);
-    } catch (_) {
-      return JeeberUnregisterOutcome.networkError;
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
+      Diag.event('jeeber_unregister_failed', {'kind': failure.kind.name});
+      return _mapOutcome(failure, e);
     }
   }
 
-  JeeberUnregisterOutcome _mapOutcome(DioException e) {
-    final status = e.response?.statusCode;
-    if (status == 404) return JeeberUnregisterOutcome.notAJeeber;
+  JeeberUnregisterOutcome _mapOutcome(AppFailure failure, Object error) {
+    if (failure is NotFoundFailure) return JeeberUnregisterOutcome.notAJeeber;
     // Dark path: UM has no revoke op yet, gateway's UM call fails closed.
-    if (status == 502) return JeeberUnregisterOutcome.unavailable;
-    if (status == 409) {
-      switch (_shortType(e.response?.data)) {
+    if (failure is ServerFailure && failure.status == 502) {
+      return JeeberUnregisterOutcome.unavailable;
+    }
+    if (failure is ConflictFailure) {
+      switch (_typeSuffix(failure, error)) {
         case 'active_delivery':
           return JeeberUnregisterOutcome.activeDelivery;
         case 'positive_wallet_balance':
           return JeeberUnregisterOutcome.positiveBalance;
       }
     }
-    return JeeberUnregisterOutcome.networkError;
+    return switch (failure.kind) {
+      AppFailureKind.network ||
+      AppFailureKind.timeout =>
+        JeeberUnregisterOutcome.networkError,
+      _ => JeeberUnregisterOutcome.serverError,
+    };
   }
 
-  /// Last path segment of a ProblemDetails `type` URI, or null if absent/
-  /// unshaped — never guess a discriminator from an unrecognised body.
-  String? _shortType(Object? body) {
-    if (body is! Map) return null;
-    final type = body['type'];
-    if (type is! String || type.isEmpty) return null;
+  /// This endpoint emits `https://problems.jeeb.lb/users/<code>`, not the
+  /// `/errors/` shape `typeSuffix` recognises — last segment is the fallback.
+  String? _typeSuffix(AppFailure failure, Object error) {
+    final GatewayProblem? problem = failure.problem ??
+        (error is DioException
+            ? GatewayProblem.tryParse(error.response?.data)
+            : null);
+    return problem?.typeSuffix ?? _lastSegment(problem?.type);
+  }
+
+  static String? _lastSegment(String? type) {
+    if (type == null || type.isEmpty) return null;
     final segments = type.split('/').where((s) => s.isNotEmpty).toList();
     return segments.isEmpty ? null : segments.last;
   }

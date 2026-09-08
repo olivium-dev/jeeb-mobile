@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../live_tracking/domain/delivery_tracking_info.dart';
 import '../../live_tracking/domain/live_tracking_repository.dart';
 import '../domain/handover_arrival.dart';
@@ -78,8 +80,11 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
           currency: info.currency,
         ),
       ));
-    } catch (_) {
+    } catch (e) {
       // Garnish, not content — a failed banner read is not a screen state.
+      Diag.event('otp_handover.arrival_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -132,7 +137,7 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
       if (isClosed) return;
       emit(state.copyWith(
         mode: OtpHandoverViewMode.error,
-        errorMessage: _mapError(e.kind),
+        errorKind: e.kind,
       ));
     }
   }
@@ -172,9 +177,12 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     if (store == null) return null;
     try {
       return await store.read(deliveryId: deliveryId);
-    } catch (_) {
+    } catch (e) {
       // A broken prefs read must never dead-end the screen — fall through to
       // the gateway path.
+      Diag.event('otp_handover.code_store_read_failed', <String, Object?>{
+        'kind': AppFailure.of(e).kind.name,
+      });
       return null;
     }
   }
@@ -184,7 +192,17 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     if (state.escalate) return;
     emit(state.copyWith(mode: OtpHandoverViewMode.submitting, clearError: true));
     try {
-      await _repository.submitOtp(deliveryId: deliveryId, otp: otp);
+      final result =
+          await _repository.submitOtp(deliveryId: deliveryId, otp: otp);
+      if (isClosed) return;
+      // Belt and braces for a repository that answers `success:false` instead
+      // of throwing: a refused handover is never a success.
+      if (result.success != true) {
+        _handleSubmitError(
+          const OtpHandoverException(OtpHandoverErrorKind.invalidOtp),
+        );
+        return;
+      }
       // Handover complete — the single-use code has no further value; drop the
       // persisted copy (hygiene; both roles, harmless when absent).
       unawaited(_codeStore?.clear(deliveryId: deliveryId).catchError((_) {}));
@@ -195,33 +213,46 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
   }
 
   void _handleSubmitError(OtpHandoverException e) {
+    if (e is OtpHandoverLocked) {
+      emit(state.copyWith(
+        mode: OtpHandoverViewMode.ready,
+        escalate: true,
+        errorKind: OtpHandoverErrorKind.locked,
+        escalationId: e.escalationId,
+        lockedAt: e.lockedAt,
+        attemptsRemaining: e.attemptsRemaining,
+      ));
+      return;
+    }
     if (e.kind == OtpHandoverErrorKind.invalidOtp) {
-      _incrementWrongAttempts();
+      _incrementWrongAttempts(attemptsRemaining: e.attemptsRemaining);
       return;
     }
     if (e.kind == OtpHandoverErrorKind.locked) {
       emit(state.copyWith(
         mode: OtpHandoverViewMode.ready,
         escalate: true,
-        errorMessage: _mapError(e.kind),
+        errorKind: OtpHandoverErrorKind.locked,
       ));
       return;
     }
     emit(state.copyWith(
       mode: OtpHandoverViewMode.ready,
-      errorMessage: _mapError(e.kind),
+      errorKind: e.kind,
     ));
   }
 
-  void _incrementWrongAttempts() {
+  void _incrementWrongAttempts({int? attemptsRemaining}) {
     final next = state.wrongAttempts + 1;
-    final shouldEscalate = next >= OtpHandoverState.maxAttempts;
+    final remaining =
+        attemptsRemaining ?? (OtpHandoverState.maxAttempts - next);
     emit(state.copyWith(
       mode: OtpHandoverViewMode.ready,
       wrongAttempts: next,
       shakeKey: state.shakeKey + 1,
-      errorMessage: _mapError(OtpHandoverErrorKind.invalidOtp),
-      escalate: shouldEscalate,
+      errorKind: OtpHandoverErrorKind.invalidOtp,
+      attemptsRemaining: remaining < 0 ? 0 : remaining,
+      escalate: remaining <= 0,
     ));
   }
 
@@ -235,20 +266,5 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
 
   void dismissEscalate() {
     emit(state.copyWith(escalate: false, clearError: true));
-  }
-
-  String _mapError(OtpHandoverErrorKind kind) {
-    switch (kind) {
-      case OtpHandoverErrorKind.network:
-        return 'network';
-      case OtpHandoverErrorKind.server:
-        return 'server';
-      case OtpHandoverErrorKind.invalidOtp:
-        return 'invalid_otp';
-      case OtpHandoverErrorKind.locked:
-        return 'locked';
-      case OtpHandoverErrorKind.parse:
-        return 'parse';
-    }
   }
 }

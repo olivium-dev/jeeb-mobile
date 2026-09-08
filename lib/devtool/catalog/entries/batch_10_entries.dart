@@ -21,6 +21,9 @@ import '../../../features/settings/presentation/screens/settings_screen.dart';
 import '../../../features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../../../features/tier_selection/data/tier_repository.dart';
 import '../../../features/tier_selection/domain/tier.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../features/settings/domain/notification_preferences.dart';
+import '../../../features/settings/domain/profile_repository.dart';
 import '../catalog_models.dart';
 import '../fixtures/notification_preferences_screen_fixtures.dart';
 import '../fixtures/profile_edit_screen_fixtures.dart';
@@ -28,6 +31,7 @@ import '../fixtures/request_summary_screen_fixtures.dart';
 import '../fixtures/request_summary_unavailable_screen_fixtures.dart';
 import '../fixtures/request_type_screen_fixtures.dart';
 import '../fixtures/reviews_list_screen_fixtures.dart';
+import '../fixtures/middle_failure_scenarios.dart';
 import '../fixtures/saved_addresses_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
 
@@ -45,6 +49,27 @@ Widget _requestSummaryScreen(
 
 /// Unlike the live route (which mounts before load completes), `awaitLoad: true`
 /// waits for load to finish first, so the name field shows the loaded value.
+/// The settings rungs a canned profile cannot reach.
+Widget _settingsOverProfileRepository(
+  ProfileRepository repository, {
+  SettingsNotificationPrefsStore? notificationStore,
+  Future<void> Function(SettingsCubit)? afterLoad,
+}) => SettingsScreenPreviewHost(
+  create: () {
+    final SettingsCubit cubit = SettingsCubit(
+      profileRepository: repository,
+      accountService: const SettingsScreenFakeAccountService(),
+      notificationStore: notificationStore,
+    );
+    unawaited(() async {
+      await cubit.load();
+      if (!cubit.isClosed) await afterLoad?.call(cubit);
+    }());
+    return cubit;
+  },
+  builder: (SettingsCubit cubit) => SettingsScreen(cubit: cubit),
+);
+
 Widget _profileEditPreview([UserProfile? profile]) =>
     ProfileEditScreenPreviewHost(
       repository: ProfileEditScreenFakeProfileRepository(
@@ -96,6 +121,22 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
         (_) => _requestSummaryScreen(
           const RequestSummaryScreenFakeSubmissionService(
             failure: RequestSubmissionFailure.network,
+          ),
+          drive: true,
+        ),
+      ),
+      CatalogState(
+        'Moderation — needs acknowledgment',
+        (_) => _requestSummaryScreen(
+          const RequestSummaryScreenFakeSubmissionService.moderation(),
+          drive: true,
+        ),
+      ),
+      CatalogState(
+        'Moderation — blocked (exit, no retry)',
+        (_) => _requestSummaryScreen(
+          const RequestSummaryScreenFakeSubmissionService.moderation(
+            blocked: true,
           ),
           drive: true,
         ),
@@ -161,6 +202,18 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
           ),
         ),
       ),
+      CatalogState(
+        'Error — Unavailable (503)',
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.unavailable(),
+        ),
+      ),
+      CatalogState(
+        'Error — Forbidden (403)',
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.forbidden(),
+        ),
+      ),
     ],
   ),
   CatalogEntry(
@@ -204,6 +257,43 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
           ),
         ),
       ),
+      CatalogState(
+        'Refresh failed over rows (LR-07)',
+        (_) => catalogReviewFailure(ReviewsListScreen(
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenRefreshFailingRepository(
+            ReviewsListScreenPages.longestContent,
+          ),
+        ), CatalogReviewAction.refresh),
+      ),
+      CatalogState(
+        'Load-more failed (TEST-16)',
+        (_) => catalogReviewFailure(const ReviewsListScreen(
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenLoadMoreFailingRepository(
+            ReviewsListScreenPages.longestContent,
+          ),
+        ), CatalogReviewAction.loadMore),
+      ),
+      CatalogState(
+        'Report conflict — already rated (AE-25)',
+        (_) => catalogReviewFailure(const ReviewsListScreen(
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenReportConflictRepository(
+            ReviewsListScreenPages.longestContent,
+          ),
+        ), CatalogReviewAction.report),
+      ),
+      CatalogState(
+        'Error — unauthorized (sign-in exit)',
+        (_) => const ReviewsListScreen(
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenFailingRepository(
+            ReviewsFailure.unauthorized,
+            UnauthorizedFailure(),
+          ),
+        ),
+      ),
     ],
   ),
   CatalogEntry(
@@ -222,6 +312,43 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
         (_) => SettingsScreenPreviewHost(
           create: SettingsScreenPreviewFixtures.deletionPending,
           builder: (SettingsCubit cubit) => SettingsScreen(cubit: cubit),
+        ),
+      ),
+      CatalogState(
+        'Load failed (LR-05)',
+        (_) => _settingsOverProfileRepository(
+          const SettingsScreenThrowingProfileRepository(),
+        ),
+      ),
+      CatalogState(
+        'Load failed — expired session (exit CTA, no Retry)',
+        (_) => _settingsOverProfileRepository(
+          const SettingsScreenThrowingProfileRepository(UnauthorizedFailure()),
+        ),
+      ),
+      CatalogState(
+        'Save failed — the optimistic name rolls back (LR-15)',
+        (_) => _settingsOverProfileRepository(
+          SettingsScreenSaveFailingProfileRepository(),
+          afterLoad: (cubit) => cubit.saveProfile(name: 'Rejected edit'),
+        ),
+      ),
+      CatalogState(
+        'Loading — the read never lands',
+        (_) => _settingsOverProfileRepository(
+          const SettingsScreenSlowProfileRepository(),
+        ),
+      ),
+      CatalogState(
+        'Notification write failed (F11)',
+        (_) => _settingsOverProfileRepository(
+          SettingsScreenFakeProfileRepository(
+            SettingsScreenPreviewFixtures.sampleProfile(),
+          ),
+          notificationStore: SettingsScreenFakeNotificationStore(
+            writeFails: true,
+          ),
+          afterLoad: (cubit) => cubit.setNotification(NotificationCategory.offers, false),
         ),
       ),
     ],
@@ -299,6 +426,26 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
           repository: NotificationPreferencesScreenFakeRepository(
             fetchFailure: NotificationPrefsFailure.network,
           ),
+        ),
+      ),
+      CatalogState(
+        'Malformed body',
+        (_) => const NotificationPreferencesScreen(
+          repository:
+              NotificationPreferencesScreenThrowingRepository.malformedBody,
+        ),
+      ),
+      CatalogState(
+        'Unauthorized',
+        (_) => const NotificationPreferencesScreen(
+          repository:
+              NotificationPreferencesScreenThrowingRepository.unauthorized,
+        ),
+      ),
+      CatalogState(
+        'Save failed — retry',
+        (_) => const NotificationPreferencesScreen(
+          cubitFactory: NotificationPreferencesScreenSaveFailureCubit.new,
         ),
       ),
     ],

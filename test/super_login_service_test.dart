@@ -78,9 +78,10 @@ void main() {
       expect(session.accessToken, isNot(contains('mock-jwt')));
     });
 
-    test('falls back to authToken when the route omits a refreshToken',
-        () async {
+    test('stores an EMPTY refreshToken when the route omits one', () async {
       // The gateway super-login route returns only {userId, authToken}.
+      // Never substitute the access token: a fake refresh value turns the
+      // clean "no refresh token -> logout" path into a doomed rotation.
       dio.nextResponse = _resp(200, {
         'userId': 'super-user-001',
         'authToken': 'um-audience-token',
@@ -90,7 +91,8 @@ void main() {
           await sut.signIn(userId: 'super-user-001', passcode: 's3cret');
 
       final session = (result as SuperLoginSuccess).session;
-      expect(session.refreshToken, 'um-audience-token');
+      expect(session.refreshToken, isEmpty);
+      expect(session.accessToken, 'um-audience-token');
     });
   });
 

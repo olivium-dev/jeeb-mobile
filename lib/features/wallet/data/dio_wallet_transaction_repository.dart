@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/wallet_ledger_repository.dart' show WalletLedgerType;
 import '../domain/wallet_transaction_repository.dart';
 
@@ -15,18 +16,40 @@ class DioWalletTransactionRepository implements WalletTransactionRepository {
         '/v1/jeeb/wallet/ledger/$id',
       );
       return _parse(res.data ?? const <String, dynamic>{}, id);
+    } on WalletTransactionRepositoryException {
+      rethrow;
     } on DioException catch (e) {
-      throw WalletTransactionRepositoryException(_map(e), e.message);
+      throw WalletTransactionRepositoryException(
+        _map(AppFailure.of(e)),
+        cause: AppFailure.of(e),
+      );
+    } catch (e) {
+      throw WalletTransactionRepositoryException(
+        WalletTransactionFailure.unknown,
+        cause: AppFailure.of(e),
+      );
     }
   }
 
+  /// A detail screen shows ONE row, so it cannot drop an unreadable one: a
+  /// guessed sign, currency or amount would misstate money (UX-17/UX-22).
   WalletTransaction _parse(Map<String, dynamic> json, String fallbackId) {
+    final type = _type(json['category'] ?? json['type']);
+    final sign = _int(json['sign']) ?? _signFor(type);
+    final currency = _str(json['currency']);
+    final amount = _numOrNull(json['amount']);
+    if (sign == null || currency == null || amount == null) {
+      throw const WalletTransactionRepositoryException(
+        WalletTransactionFailure.unknown,
+        cause: UnknownFailure(parse: true),
+      );
+    }
     return WalletTransaction(
       id: _str(json['id']) ?? fallbackId,
-      type: _type(json['category'] ?? json['type']),
-      amount: _num(json['amount']),
-      sign: _int(json['sign']) ?? 1,
-      currency: _str(json['currency']) ?? 'USD',
+      type: type,
+      amount: amount,
+      sign: sign,
+      currency: currency,
       timestamp: _str(json['ts'] ?? json['timestamp']) ?? '',
       title: _str(json['title']),
       ref: _str(json['ref']),
@@ -60,7 +83,18 @@ class DioWalletTransactionRepository implements WalletTransactionRepository {
     }
   }
 
-  double _num(Object? v) => (v is num) ? v.toDouble() : 0.0;
+  /// The direction each ledger kind moves the balance.
+  static int? _signFor(WalletLedgerType type) => switch (type) {
+    WalletLedgerType.reserve ||
+    WalletLedgerType.feeWon ||
+    WalletLedgerType.penalty => -1,
+    WalletLedgerType.released ||
+    WalletLedgerType.refund ||
+    WalletLedgerType.topup ||
+    WalletLedgerType.gift => 1,
+    WalletLedgerType.unknown => null,
+  };
+
   double? _numOrNull(Object? v) => (v is num) ? v.toDouble() : null;
   int? _int(Object? v) => (v is num) ? v.toInt() : null;
 
@@ -70,20 +104,11 @@ class DioWalletTransactionRepository implements WalletTransactionRepository {
     return t.isEmpty ? null : t;
   }
 
-  WalletTransactionFailure _map(DioException e) {
-    final code = e.response?.statusCode;
-    if (code == 404) return WalletTransactionFailure.notFound;
-    if (code == 401 || code == 403) {
-      return WalletTransactionFailure.unauthorized;
-    }
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return WalletTransactionFailure.network;
-      default:
-        return WalletTransactionFailure.unknown;
-    }
-  }
+  WalletTransactionFailure _map(AppFailure f) => switch (f) {
+    NetworkFailure() || TimeoutFailure() => WalletTransactionFailure.network,
+    NotFoundFailure() || GoneFailure() => WalletTransactionFailure.notFound,
+    UnauthorizedFailure() ||
+    ForbiddenFailure() => WalletTransactionFailure.unauthorized,
+    _ => WalletTransactionFailure.unknown,
+  };
 }

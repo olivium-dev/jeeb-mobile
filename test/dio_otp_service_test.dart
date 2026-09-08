@@ -72,6 +72,7 @@ void main() {
     test('returns rateLimited on 429', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 429,
@@ -86,6 +87,7 @@ void main() {
     test('returns invalidPhone on 400', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 400,
@@ -101,6 +103,7 @@ void main() {
       // 502 is representative of any 5xx or other unexpected response status.
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 502,
@@ -121,6 +124,70 @@ void main() {
       final outcome = await sut.sendCode('+96170000001');
 
       expect(outcome, OtpSendOutcome.networkError);
+    });
+
+    // AE-29: any 2xx is a send, not just 200.
+    test('accepts 201 as sent', () async {
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 201,
+        data: {'ttlSeconds': 120},
+      );
+
+      expect(await sut.sendCode('+96170000001'), OtpSendOutcome.sent);
+    });
+
+    // AE-17 / F16: the 429 window is the SERVER's, not our policy's guess.
+    test('requestCode carries Retry-After from a 429', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 429,
+          headers: Headers.fromMap(<String, List<String>>{
+            'retry-after': <String>['45'],
+          }),
+        ),
+      );
+
+      final result = await sut.requestCode('+96170000001');
+
+      expect(result.outcome, OtpSendOutcome.rateLimited);
+      expect(result.retryAfter, const Duration(seconds: 45));
+    });
+
+    // AE-29: the gateway's own code lifetime drives the cooldown when present.
+    test('requestCode reads ttlSeconds in both spellings', () async {
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: {'ttlSeconds': 300},
+      );
+      expect((await sut.requestCode('+96170000001')).ttlSeconds, 300);
+
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: {'ttl_seconds': 90},
+      );
+      expect((await sut.requestCode('+96170000001')).ttlSeconds, 90);
+    });
+
+    test('a 503 is a server fault, never the caller\'s connection', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 503,
+        ),
+      );
+
+      final result = await sut.requestCode('+96170000001');
+
+      expect(result.outcome, OtpSendOutcome.serverError);
+      expect(result.outcome, isNot(OtpSendOutcome.networkError));
     });
   });
 
@@ -217,6 +284,7 @@ void main() {
     test('returns accountSuspended on 403 with the problem type', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 403,
@@ -236,13 +304,16 @@ void main() {
       expect(outcome, OtpVerifyOutcome.accountSuspended);
     });
 
-    test('returns accountSuspended on 403 carrying only accountStatus', () async {
+    // No `type` link, but still a problem document (`status` is an RFC 7807
+    // member) — the extension member alone is enough.
+    test('returns accountSuspended on 403 without the type link', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 403,
-          data: const {'accountStatus': 'suspended'},
+          data: const {'status': 403, 'accountStatus': 'suspended'},
         ),
       );
 
@@ -258,6 +329,7 @@ void main() {
     test('a bare 403 is not treated as a suspension', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 403,
@@ -270,13 +342,128 @@ void main() {
         code: '123456',
       );
 
-      expect(outcome, OtpVerifyOutcome.networkError);
+      expect(outcome, OtpVerifyOutcome.serverError);
       expect(outcome, isNot(OtpVerifyOutcome.accountSuspended));
+    });
+
+    // F5 (P0): a 200 with no token pair used to report `verified` into an EMPTY
+    // token store — an authenticated shell with no bearer.
+    test('a 200 with no tokens is a serverError and writes nothing', () async {
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: const {'user': {'userId': 'user-123'}},
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '1234',
+      );
+
+      expect(outcome, OtpVerifyOutcome.serverError);
+      verifyNever(() => tokenStore.save(
+            accessToken: any(named: 'accessToken'),
+            refreshToken: any(named: 'refreshToken'),
+            userId: any(named: 'userId'),
+          ));
+    });
+
+    test('a 200 with a null body is a serverError and writes nothing', () async {
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+      );
+
+      expect(
+        await sut.verifyCode(e164Phone: '+96170000001', code: '1234'),
+        OtpVerifyOutcome.serverError,
+      );
+      verifyNever(() => tokenStore.save(
+            accessToken: any(named: 'accessToken'),
+            refreshToken: any(named: 'refreshToken'),
+            userId: any(named: 'userId'),
+          ));
+    });
+
+    test('accepts a 201 verify with a full token pair', () async {
+      when(() => tokenStore.save(
+            accessToken: any(named: 'accessToken'),
+            refreshToken: any(named: 'refreshToken'),
+            userId: any(named: 'userId'),
+          )).thenAnswer((_) async {});
+
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 201,
+        data: {
+          'accessToken': 'a',
+          'refreshToken': 'r',
+          'user': {'userId': 'user-1'},
+        },
+      );
+
+      expect(
+        await sut.verifyCode(e164Phone: '+96170000001', code: '1234'),
+        OtpVerifyOutcome.verified,
+      );
+    });
+
+    // AE-16 / F29: "sign-in is down" must never read as "check your connection".
+    test('503 identity_unavailable is serviceUnavailable, not network', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 503,
+          data: const {
+            'type': 'https://problems.jeeb.lb/errors/identity_unavailable',
+            'status': 503,
+          },
+        ),
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '1234',
+      );
+
+      expect(outcome, OtpVerifyOutcome.serviceUnavailable);
+      expect(outcome, isNot(OtpVerifyOutcome.networkError));
+    });
+
+    test('a 500 is a serverError, not a networkError', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 500,
+        ),
+      );
+
+      expect(
+        await sut.verifyCode(e164Phone: '+96170000001', code: '1234'),
+        OtpVerifyOutcome.serverError,
+      );
+    });
+
+    test('a connect timeout stays a networkError', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.connectionTimeout,
+      );
+
+      expect(
+        await sut.verifyCode(e164Phone: '+96170000001', code: '1234'),
+        OtpVerifyOutcome.networkError,
+      );
     });
 
     test('returns invalidCode on 401', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.badResponse,
         response: Response(
           requestOptions: RequestOptions(path: ''),
           statusCode: 401,

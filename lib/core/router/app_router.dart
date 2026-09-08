@@ -840,7 +840,11 @@ class AppRouter {
         GoRoute(
           path: '/',
           name: 'shell',
-          builder: (context, state) => const ShellScreen(),
+          builder: (context, state) => ShellScreen(
+            requestsIntent: state.extra is ShellRequestsIntent
+                ? state.extra as ShellRequestsIntent
+                : null,
+          ),
         ),
         GoRoute(
           path: '/onboarding',
@@ -1036,11 +1040,17 @@ class AppRouter {
           builder: (context, state) {
             final extra = state.extra;
             if (extra is CustomerProfileViewData) {
-              return CustomerProfileScreen(data: extra);
+              return CustomerProfileScreen(
+                data: extra,
+                onExit: () =>
+                    context.goNamed('shell', extra: ShellRequestsIntent()),
+              );
             }
             if (kDebugMode) {
-              return const CustomerProfileScreen(
+              return CustomerProfileScreen(
                 data: DevCustomerProfileFixtures.sample,
+                onExit: () =>
+                    context.goNamed('shell', extra: ShellRequestsIntent()),
               );
             }
             return const ProfileUnavailableScreen();
@@ -1430,6 +1440,12 @@ class AppRouter {
                 pathParameters: {'id': deliveryId},
               ),
               reportService: sl<ProhibitedItemReportService>(),
+              // X2: the real decline round trip. Null when no repository is
+              // registered, which keeps the fire-and-forget pop.
+              onDeclineRequest: sl.isRegistered<RequestFeedRepository>()
+                  ? (requestId) =>
+                        sl<RequestFeedRepository>().decline(requestId)
+                  : null,
               onDeclined: (_) => back(),
               onBack: back,
             );
@@ -1609,10 +1625,12 @@ class AppRouter {
           builder: (context, state) {
             final deliveryId = state.pathParameters['id'] ?? '';
             return BlocProvider<EscalateCubit>(
+              // ES-15: no-op unless the repository implements the preview
+              // interface; lights the evidence rungs the moment one does.
               create: (_) => EscalateCubit(
                 repository: sl<EscalateRepository>(),
                 deliveryId: deliveryId,
-              ),
+              )..loadEvidence(),
               child: const EscalateScreen(),
             );
           },

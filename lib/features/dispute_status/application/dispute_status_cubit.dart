@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/dispute_status_repository.dart';
 import 'dispute_status_state.dart';
 
@@ -16,12 +17,18 @@ class DisputeStatusCubit extends Cubit<DisputeStatusState> {
   int _generation = 0;
 
   Future<void> load() async {
-    if (isClosed || state.status != DisputeStatusViewStatus.initial) return;
+    if (isClosed ||
+        (state.status != DisputeStatusViewStatus.initial &&
+            state.status != DisputeStatusViewStatus.failed)) {
+      return;
+    }
     if (disputeId.trim().isEmpty) {
+      // Terminal: the screen offers the way out, never an inert Retry.
       emit(
         state.copyWith(
           status: DisputeStatusViewStatus.failed,
           error: DisputeStatusFailure.notFound,
+          failure: const NotFoundFailure(),
         ),
       );
       return;
@@ -47,6 +54,11 @@ class DisputeStatusCubit extends Cubit<DisputeStatusState> {
     await _fetch(generation);
   }
 
+  void acknowledgeRefreshError() {
+    if (isClosed) return;
+    emit(state.copyWith(clearRefreshError: true));
+  }
+
   Future<void> _fetch(int generation) async {
     try {
       final dispute = await _repository.fetchDispute(disputeId);
@@ -56,24 +68,31 @@ class DisputeStatusCubit extends Cubit<DisputeStatusState> {
           status: DisputeStatusViewStatus.loaded,
           dispute: dispute,
           clearError: true,
+          clearRefreshError: true,
         ),
       );
     } on DisputeStatusRepositoryException catch (e) {
       if (isClosed || generation != _generation) return;
-      emit(
-        state.copyWith(
-          status: DisputeStatusViewStatus.failed,
-          error: e.failure,
-        ),
-      );
-    } catch (_) {
+      _emitFailure(e.failure, e.appFailure ?? AppFailure.of(e));
+    } catch (error) {
       if (isClosed || generation != _generation) return;
-      emit(
-        state.copyWith(
-          status: DisputeStatusViewStatus.failed,
-          error: DisputeStatusFailure.unknown,
-        ),
-      );
+      _emitFailure(DisputeStatusFailure.unknown, AppFailure.of(error));
     }
+  }
+
+  /// A warm failure keeps the loaded dispute on screen; only a cold read
+  /// blanks the surface (R6 "error before empty, refresh keeps rows").
+  void _emitFailure(DisputeStatusFailure kind, AppFailure failure) {
+    if (state.status == DisputeStatusViewStatus.loaded) {
+      emit(state.copyWith(refreshError: failure));
+      return;
+    }
+    emit(
+      state.copyWith(
+        status: DisputeStatusViewStatus.failed,
+        error: kind,
+        failure: failure,
+      ),
+    );
   }
 }

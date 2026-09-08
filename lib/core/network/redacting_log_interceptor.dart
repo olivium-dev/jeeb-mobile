@@ -4,13 +4,15 @@ import 'package:flutter/foundation.dart';
 import '../diagnostics/diag_redaction.dart';
 
 class RedactingLogInterceptor extends Interceptor {
-  const RedactingLogInterceptor();
+  const RedactingLogInterceptor({this.metadataOnly = false});
+
+  final bool metadataOnly;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (kDebugMode) {
       final path = DiagRedaction.scrubPath(options.path);
-      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+      if (metadataOnly || DiagRedaction.isBodySuppressedPath(options.path)) {
         debugPrint('[http→] ${options.method} $path');
       } else {
         final headers = DiagRedaction.redactHeaders(options.headers);
@@ -31,7 +33,7 @@ class RedactingLogInterceptor extends Interceptor {
     if (kDebugMode) {
       final options = response.requestOptions;
       final path = DiagRedaction.scrubPath(options.path);
-      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+      if (metadataOnly || DiagRedaction.isBodySuppressedPath(options.path)) {
         debugPrint('[http←] ${response.statusCode} ${options.method} $path');
       } else {
         debugPrint(
@@ -48,7 +50,7 @@ class RedactingLogInterceptor extends Interceptor {
     if (kDebugMode) {
       final options = err.requestOptions;
       final path = DiagRedaction.scrubPath(options.path);
-      if (DiagRedaction.isBodySuppressedPath(options.path)) {
+      if (metadataOnly || DiagRedaction.isBodySuppressedPath(options.path)) {
         debugPrint('[http✗] ${options.method} $path');
       } else {
         debugPrint(

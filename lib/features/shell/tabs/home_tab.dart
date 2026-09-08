@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/network/network_reachability_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
@@ -17,6 +19,7 @@ import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../home_client/application/client_home_cubit.dart';
 import '../../home_client/application/client_home_state.dart';
 import '../../home_client/data/dev_client_home_fixtures.dart';
+import '../../home_client/data/dio_client_home_repository.dart';
 import '../../home_client/data/in_memory_client_home_repository.dart';
 import '../../home_client/domain/client_home_repository.dart';
 import '../../home_client/domain/client_home_request.dart';
@@ -26,6 +29,22 @@ import '../tab_visibility.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:async';
 import '../../../core/previews/jeeb_preview.dart';
+
+/// Critic A2: a DI miss falls back to the REAL gateway, never to the in-memory
+/// fixture — a fabricated empty home read as real data is a P0.
+@visibleForTesting
+ClientHomeRepository resolveClientHomeRepository(bool devSeed) {
+  if (devSeed) {
+    return InMemoryClientHomeRepository.fromSnapshot(
+      DevClientHomeFixtures.snapshot(),
+    );
+  }
+  final GetIt getIt = GetIt.instance;
+  if (getIt.isRegistered<ClientHomeRepository>()) {
+    return getIt<ClientHomeRepository>();
+  }
+  return DioClientHomeRepository(resolveGatewayDio());
+}
 
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key, this.repository, this.greetingNameProvider});
@@ -56,6 +75,8 @@ class HomeTab extends StatelessWidget {
             repository: _resolveGreetingRepository(devSeed),
             seed: _greetingSeed(devSeed),
             refreshSignals: _profileRefreshStream(),
+            reconnectSignals: NetworkReachabilitySignals.instance.stream,
+            resumeSignals: AppResumeSignals.instance.stream,
           )..load(),
         ),
       ],
@@ -106,18 +127,8 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  ClientHomeRepository _resolveRepository(bool devSeed) {
-    if (devSeed) {
-      return InMemoryClientHomeRepository.fromSnapshot(
-        DevClientHomeFixtures.snapshot(),
-      );
-    }
-    final getIt = GetIt.instance;
-    if (getIt.isRegistered<ClientHomeRepository>()) {
-      return getIt<ClientHomeRepository>();
-    }
-    return InMemoryClientHomeRepository();
-  }
+  ClientHomeRepository _resolveRepository(bool devSeed) =>
+      resolveClientHomeRepository(devSeed);
 
   String? _resolveGreetingName() => _devSeamTab() != null ? 'Sami' : null;
 

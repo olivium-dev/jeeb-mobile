@@ -54,9 +54,12 @@ class _Waiting extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        const OmdsLoadingState(
-          size: Sizes.xLarge,
-          padding: EdgeInsets.zero,
+        SizedBox.square(
+          dimension: Sizes.xLarge,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: scheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(width: Spacing.small),
         Expanded(

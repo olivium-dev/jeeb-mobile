@@ -51,7 +51,11 @@ validate_release_inputs() {
     fail 'Super Login gate is not true'
   [[ "${JEEB_DEVTOOL_SHAKE_ENABLED:-}" == false ]] ||
     fail 'shake-to-open gate is not false'
-  [[ "${JEEB_CLARITY_ENABLED:-}" == false ]] || fail 'Clarity gate is not false'
+  [[ "${JEEB_CLARITY_ENABLED:-}" == true ]] || fail 'Clarity gate is not true'
+  [[ "${JEEB_CLARITY_STAGING_INTERNAL_APPROVED:-}" == true ]] ||
+    fail 'staging Clarity authorization is missing'
+  [[ "${JEEB_CLARITY_PROJECT_ID:-}" == y6laxxj143 ]] ||
+    fail 'staging Clarity project drifted'
   [[ "${JEEB_CLARITY_PRIVACY_APPROVED:-}" == false ]] ||
     fail 'Clarity privacy gate is not false'
   [[ "${JEEB_RELEASE_PROFILE:-}" == release ]] ||
@@ -74,6 +78,18 @@ validate_archive() {
     LC_ALL=C grep -aFq "${launcher_marker}" "${manifest}" ||
       fail "required launcher marker is missing: ${launcher_marker}"
   done
+  local app_entry app_count=0
+  while IFS= read -r app_entry; do
+    [[ "${app_entry}" =~ ^base/lib/[^/]+/libapp\.so$ ]] || continue
+    app_count=$((app_count + 1))
+    unzip -p "${AAB_PATH}" "${app_entry}" >"${VALIDATION_TMP}/libapp.so" ||
+      fail 'Dart application payload is missing'
+    for marker in y6laxxj143 jeeb-clarity-sdk; do
+      LC_ALL=C grep -aFq "${marker}" "${VALIDATION_TMP}/libapp.so" ||
+        fail "staging Clarity payload marker is absent: ${marker}"
+    done
+  done < <(unzip -Z1 "${AAB_PATH}")
+  (( app_count > 0 )) || fail 'AAB contains no Dart application payload'
 }
 
 validate_metadata() {
@@ -142,8 +158,11 @@ validate_provenance() {
       and .devtool == true
       and .super_login == true
       and .shake_to_open == false
-      and .clarity_enabled == false
+      and .clarity_enabled == true
       and .clarity_privacy_approved == false
+      and .clarity_staging_internal_approved == true
+      and .clarity_project_id == "y6laxxj143"
+      and .clarity_capture_policy == "staging-internal-consent-masked-v1"
       and .retained == true
       and .store_uploaded == false
     ' "${PROVENANCE_PATH}" >/dev/null ||

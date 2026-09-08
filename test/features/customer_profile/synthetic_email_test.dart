@@ -20,9 +20,13 @@ class _StubAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    return ResponseBody.fromString(jsonEncode(body), 200, headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    });
+    return ResponseBody.fromString(
+      jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
   }
 
   @override
@@ -77,31 +81,30 @@ void main() {
 
   group('locally stored phone substitutes for the dropped handle', () {
     test('the OTP phone becomes the subtitle', () async {
-      final data = await _repo(
-        const {'email': 'phone-only+abc123@jeeb.internal'},
-        phoneFallback: () async => '+96170123456',
-      ).fetchProfile();
+      final data = await _repo(const {
+        'email': 'phone-only+abc123@jeeb.internal',
+      }, phoneFallback: () async => '+96170123456').fetchProfile();
 
       expect(data.email, '+96170123456');
     });
 
     test('a real email is never overwritten by the fallback', () async {
-      final data = await _repo(
-        const {'email': 'sami@example.com'},
-        phoneFallback: () async => '+96170123456',
-      ).fetchProfile();
+      final data = await _repo(const {
+        'email': 'sami@example.com',
+      }, phoneFallback: () async => '+96170123456').fetchProfile();
 
       expect(data.email, 'sami@example.com');
     });
 
-    test('no stored phone leaves the subtitle absent, never the handle',
-        () async {
-      final data = await _repo(
-        const {'email': 'phone-only+abc123@jeeb.internal'},
-        phoneFallback: () async => null,
-      ).fetchProfile();
+    test(
+      'no stored phone leaves the subtitle absent, never the handle',
+      () async {
+        final data = await _repo(const {
+          'email': 'phone-only+abc123@jeeb.internal',
+        }, phoneFallback: () async => null).fetchProfile();
 
-      expect(data.email, isNull);
-    });
+        expect(data.email, isNull);
+      },
+    );
   });
 }

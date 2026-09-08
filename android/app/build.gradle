@@ -8,6 +8,7 @@ plugins {
     // Firebase.initializeApp() loads FirebaseOptions from the generated
     // resource instead of falling back to the Noop reporter.
     id "com.google.gms.google-services"
+    id "com.google.firebase.crashlytics"
 }
 
 def localProperties = new Properties()
@@ -220,11 +221,23 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
+            // Keep a unique mapping ID in the app; upload happens only after
+            // retained-candidate verification in the distribution workflow.
+            firebaseCrashlytics { mappingFileUploadEnabled true }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+// Disabling mappingFileUploadEnabled also produces a blank mapping ID in
+// plugin 3.0.2. Disable the upload tasks instead, preserving ID injection.
+tasks.withType(com.google.firebase.crashlytics.buildtools.gradle.tasks.UploadMappingFileTask).configureEach {
+    enabled = false
+}
+tasks.withType(com.google.firebase.crashlytics.buildtools.gradle.tasks.UploadSymbolFileTask).configureEach {
+    enabled = false
 }
 
 def verifyProductionReleaseSigning = tasks.register('verifyProductionReleaseSigning') {

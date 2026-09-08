@@ -65,6 +65,8 @@ import '../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
+import '../features/offline_mode/application/offline_cubit.dart';
+import '../features/offline_mode/presentation/offline_banner_host.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../devtool/shake/devtool_shake.dart';
 import '../l10n/app_localizations.dart';
@@ -200,7 +202,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit(
     const RoleAvailability(),
     widget.preferences,
+    _cachedRolesOwnerId,
   );
+
+  /// Stamps/validates the cached `available_roles` so a second account never
+  /// inherits the first one's jeeber surface.
+  static Future<String?> _cachedRolesOwnerId() async =>
+      sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>().userId : null;
 
   /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
   /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
@@ -338,6 +346,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// [didChangeAppLifecycleState]. Closed in [dispose].
   StreamSubscription<void>? _resumeSub;
 
+  /// OFF-02: the one connectivity surface, provided above the router so every
+  /// route inherits it and the banner can sit in the [MaterialApp.builder] slot.
+  final OfflineCubit _offline = OfflineCubit();
+
   /// Re-entrancy guard for the empty-stack recovery below: a stack-REPLACING
   /// AppBar back that pops go_router's lone page empties the Navigator, so
   /// `MaterialApp.router` hands its `builder` a NULL child. Rather than sit on
@@ -408,8 +420,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// keeps its bounded backoff as the fallback.
   void _bindNetworkReachability() {
     const source = ConnectivityReachabilitySource();
+    final signals = NetworkReachabilitySignals.instance;
+    _offline.bindReachability(signals);
     try {
-      NetworkReachabilitySignals.instance.bindSource(
+      signals.bindSource(
         source.onlineStates(),
         seed: source.currentlyOnline(),
       );
@@ -723,6 +737,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _onboarding.close();
     _sessionSub?.cancel();
     _resumeSub?.cancel();
+    _offline.close();
     _ownedSession?.close();
     _locale.close();
     _router.dispose();
@@ -742,6 +757,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         BlocProvider.value(value: _onboarding),
         BlocProvider.value(value: _biometricLock),
         BlocProvider.value(value: _badgeCount),
+        BlocProvider.value(value: _offline),
         // FR-P0-3 (defect DEF-1): expose the production SessionCubit to the
         // tree so a successful login (OTP verify / super-login) can call
         // `refresh()` — that emit drives `refreshListenable` and re-runs the
@@ -816,7 +832,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                           },
                           child: content,
                         );
-                  final routed = jeebA11yBuilder(context, wrapped);
+                  // OFF-02/EP-10: the offline notice rides above the router
+                  // content, so it survives every route change.
+                  final banded = OfflineBannerHost(child: wrapped);
+                  final routed = jeebA11yBuilder(context, banded);
                   // GESTURE-LOG hook (dev-affordances only): a translucent,
                   // pass-through root Listener that records taps/gestures the
                   // Flutter engine receives — INCLUDING adb/Maestro-injected taps
@@ -842,6 +861,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                           initiallyOpen:
                               widget.consumeDevToolInitialOpen?.call() ?? false,
                           shakeEnabled: kShakeToDevToolEnabled,
+                          prepareOpen: _clarity.prepareDevToolOpen,
+                          onClosed: _clarity.didCloseDevTool,
                           child: routed,
                         )
                       : routed;

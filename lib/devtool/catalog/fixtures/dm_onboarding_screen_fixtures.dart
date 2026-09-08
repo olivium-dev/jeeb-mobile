@@ -2,6 +2,10 @@
 
 import 'dart:async';
 
+import 'dart:typed_data';
+
+import '../../../core/network/app_failure.dart';
+import '../../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../../features/jeeber_onboarding/application/dm_onboarding_cubit.dart';
 import '../../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
 import '../../../features/jeeber_onboarding/domain/dm_onboarding_gateway.dart';
@@ -107,4 +111,45 @@ class DmOnboardingScreenPreviewFixtures {
     if (pickPhoto) unawaited(cubit.pickFromCamera());
     return cubit;
   }
+}
+
+/// UX-40: the home base is outside every served zone — the note stays on the
+/// service-area step rather than flashing past as a snack.
+class DmOnboardingScreenOutOfCoverageGateway implements DmOnboardingGateway {
+  const DmOnboardingScreenOutOfCoverageGateway();
+
+  @override
+  Future<void> submit(DmOnboardingSubmission submission) async =>
+      throw const DmOnboardingOutOfCoverageException();
+}
+
+/// A 5xx on the submit: `dm_onboarding_error_snack` with the server body.
+class DmOnboardingScreenServerErrorGateway implements DmOnboardingGateway {
+  const DmOnboardingScreenServerErrorGateway();
+
+  @override
+  Future<void> submit(DmOnboardingSubmission submission) async => throw const
+      DmOnboardingGatewayException(ServerFailure(status: 500));
+}
+
+/// UX-06: the portrait upload fails — `photoUploadFailed`, never
+/// `submitFailed`.
+class DmOnboardingScreenPhotoUploadFailingCdn implements CdnAssetGateway {
+  const DmOnboardingScreenPhotoUploadFailingCdn();
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async =>
+      throw const CdnUploadException(
+        'cdn_signed_put',
+        failure: ServerFailure(status: 500),
+        status: 500,
+      );
+
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async =>
+      throw const CdnFetchException('cdn_fetch');
 }

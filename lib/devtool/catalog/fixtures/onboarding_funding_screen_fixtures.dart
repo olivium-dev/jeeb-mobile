@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/wallet/domain/wallet_repository.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -73,15 +74,28 @@ class OnboardingFundingScreenStaticWallet implements WalletRepository {
 class OnboardingFundingScreenFailingWallet implements WalletRepository {
   const OnboardingFundingScreenFailingWallet([
     this.failure = WalletFailure.network,
+    this.cause,
   ]);
 
   final WalletFailure failure;
 
+  /// The classified failure the rung renders. Null falls back to a generic
+  /// body; a `ServerFailure` proves the rung no longer blames the network.
+  final AppFailure? cause;
+
   @override
   Future<WalletBalance> fetchBalance() async {
-    throw WalletRepositoryException(failure);
+    throw WalletRepositoryException(failure, cause: cause);
   }
 }
+
+/// A 5xx wallet read — the rung must NOT blame the connection here.
+const OnboardingFundingScreenFailingWallet
+    onboardingFundingScreenServerFailingWallet =
+    OnboardingFundingScreenFailingWallet(
+  WalletFailure.unknown,
+  ServerFailure(status: 500),
+);
 
 /// Never completes — the read is still in flight.
 class OnboardingFundingScreenPendingWallet implements WalletRepository {

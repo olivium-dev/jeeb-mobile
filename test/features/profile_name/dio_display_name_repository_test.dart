@@ -36,7 +36,10 @@ void main() {
   }
 
   group('DioDisplayNameRepository.submitDisplayName', () {
-    test('PUTs /api/User/profile with the required 4-field body', () async {
+    // UX-23: an unresolved field is OMITTED. It used to be PUT back as `''`,
+    // which blanks the stored value rather than leaving it alone.
+    test('PUTs /api/User/profile omitting the fields it could not read',
+        () async {
       stubMe();
       when(() => dio.put<Map<String, dynamic>>(
             any(),
@@ -54,8 +57,83 @@ void main() {
         'userId': meUserId,
         'email': meEmail,
         'username': 'Ahmad',
-        'profilePic': '',
       });
+      expect((captured[1] as Map).containsKey('profilePic'), isFalse);
+    });
+
+    test('an unknown email is omitted, never sent as an empty string', () async {
+      when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v1/users/me'),
+          statusCode: 200,
+          data: const <String, dynamic>{
+            'userId': meUserId,
+            'avatarUrl': 'https://cdn.test/a.png',
+          },
+        ),
+      );
+      when(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenAnswer((_) async => ok());
+
+      await repo.submitDisplayName('Ahmad');
+
+      final body = verify(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: captureAny(named: 'data'),
+          )).captured.single as Map;
+      expect(body.containsKey('email'), isFalse);
+      expect(body['profilePic'], 'https://cdn.test/a.png');
+    });
+
+    test('a /v1/users/me with no userId aborts and issues NO put', () async {
+      when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v1/users/me'),
+          statusCode: 200,
+          data: const <String, dynamic>{'email': meEmail},
+        ),
+      );
+
+      await expectLater(
+        repo.submitDisplayName('Ahmad'),
+        throwsA(isA<DisplayNameRepositoryException>().having(
+          (e) => e.failure,
+          'failure',
+          DisplayNameFailure.unauthorized,
+        )),
+      );
+      verifyNever(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          ));
+    });
+
+    test('a 500 maps to DisplayNameFailure.serverError, never network',
+        () async {
+      stubMe();
+      when(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(DioException(
+        requestOptions: RequestOptions(path: DioDisplayNameRepository.path),
+        type: DioExceptionType.badResponse,
+        response: Response<void>(
+          requestOptions:
+              RequestOptions(path: DioDisplayNameRepository.path),
+          statusCode: 500,
+        ),
+      ));
+
+      await expectLater(
+        repo.submitDisplayName('Ahmad'),
+        throwsA(isA<DisplayNameRepositoryException>().having(
+          (e) => e.failure,
+          'failure',
+          DisplayNameFailure.serverError,
+        )),
+      );
     });
 
     test(
@@ -120,6 +198,7 @@ void main() {
             data: any(named: 'data'),
           )).thenThrow(DioException(
         requestOptions: RequestOptions(path: DioDisplayNameRepository.path),
+        type: DioExceptionType.badResponse,
         response: Response<void>(
           requestOptions:
               RequestOptions(path: DioDisplayNameRepository.path),

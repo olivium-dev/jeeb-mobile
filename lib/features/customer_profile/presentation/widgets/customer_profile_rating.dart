@@ -26,10 +26,14 @@ class CustomerProfileRating extends StatelessWidget {
     super.key,
     required this.rating,
     required this.ratingCount,
+    this.ratingUnavailable = false,
   });
 
   final double? rating;
   final int ratingCount;
+
+  /// The review read failed — say so rather than claim "no reviews yet".
+  final bool ratingUnavailable;
 
   bool get _hasReviews => ratingCount > 0;
   bool get _hasAggregate => rating != null && _hasReviews;
@@ -41,7 +45,9 @@ class CustomerProfileRating extends StatelessWidget {
     final muted = semantics?.mutedText;
 
     final ratingText = (rating ?? 0).toStringAsFixed(1);
-    final label = _hasAggregate
+    final label = ratingUnavailable
+        ? l10n.customerProfileRatingUnavailable
+        : _hasAggregate
         ? l10n.deliveryManProfileRatingSummary(ratingText, ratingCount)
         : _hasReviews
         ? l10n.deliveryManProfileReviewsCount(ratingCount)
@@ -61,10 +67,14 @@ class CustomerProfileRating extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _hasAggregate ? Icons.star_rounded : Icons.star_border_rounded,
+            _hasAggregate && !ratingUnavailable
+                ? Icons.star_rounded
+                : Icons.star_border_rounded,
             size: Sizes.medium,
             // R15 draws the unearned star muted, never a dim amber.
-            color: _hasAggregate ? semantics?.amber : muted,
+            color: _hasAggregate && !ratingUnavailable
+                ? semantics?.amber
+                : muted,
           ),
           const SizedBox(width: Spacing.twoXSmall),
           Flexible(

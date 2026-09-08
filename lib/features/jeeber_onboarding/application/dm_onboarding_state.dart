@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 
 enum DmOnboardingStep {
@@ -19,7 +20,19 @@ enum DmOnboardingStep {
   }
 }
 
-enum DmOnboardingError { photoPickFailed, submitFailed }
+enum DmOnboardingError {
+  photoPickFailed,
+
+  /// UX-06: the portrait could not be uploaded — distinct from a rejected
+  /// submit, and retryable in place.
+  photoUploadFailed,
+
+  submitFailed,
+
+  /// UX-40: the home base is outside every served zone. NOT retryable in
+  /// place — it needs a different pin, so it renders on the step, not a snack.
+  outOfCoverage,
+}
 
 class DmOnboardingHomeBase extends Equatable {
   const DmOnboardingHomeBase({
@@ -49,6 +62,7 @@ class DmOnboardingState extends Equatable {
     this.isSubmitted = false,
     this.coverageReady = false,
     this.error,
+    this.failure,
   });
 
   final DmOnboardingStep step;
@@ -66,6 +80,9 @@ class DmOnboardingState extends Equatable {
   final bool coverageReady;
 
   final DmOnboardingError? error;
+
+  /// The classified transport failure behind [error], when there was one.
+  final AppFailure? failure;
 
   bool get hasPhoto => photo != null;
 
@@ -92,6 +109,7 @@ class DmOnboardingState extends Equatable {
     bool? coverageReady,
     DmOnboardingError? error,
     bool clearError = false,
+    AppFailure? failure,
   }) {
     return DmOnboardingState(
       step: step ?? this.step,
@@ -105,6 +123,7 @@ class DmOnboardingState extends Equatable {
       isSubmitted: isSubmitted ?? this.isSubmitted,
       coverageReady: coverageReady ?? this.coverageReady,
       error: clearError ? null : (error ?? this.error),
+      failure: clearError ? null : (failure ?? this.failure),
     );
   }
 
@@ -121,5 +140,6 @@ class DmOnboardingState extends Equatable {
         isSubmitted,
         coverageReady,
         error,
+        failure,
       ];
 }

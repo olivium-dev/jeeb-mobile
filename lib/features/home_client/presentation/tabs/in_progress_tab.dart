@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
@@ -79,8 +81,12 @@ class _InProgressContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.status == ClientHomeStatus.failed) {
+    // Error branch first: a dead bucket is never an empty tab.
+    if (state.status == ClientHomeStatus.failed ||
+        state.inProgressError != null) {
       return _InProgressError(
+        failure:
+            state.inProgressError ?? state.error ?? const UnknownFailure(),
         onRetry: () => context.read<ClientHomeCubit>().load(),
       );
     }
@@ -116,7 +122,7 @@ class _InProgressLoading extends StatelessWidget {
       variant: JeebEmptyStateVariant.parcel,
       status: JeebEmptyStateStatus.loading,
       identifier: 'in_progress_loading_state',
-      headline: AppLocalizations.of(context).homeEmptyTitle,
+      headline: AppLocalizations.of(context).homeLoadingHeadline,
     );
   }
 }
@@ -124,28 +130,22 @@ class _InProgressLoading extends StatelessWidget {
 /// Same `parcel` subject as the empty arm, danger-tinted — the failure is of
 /// the parcel list, so the tile must not change identity between states.
 class _InProgressError extends StatelessWidget {
-  const _InProgressError({required this.onRetry});
+  const _InProgressError({required this.failure, required this.onRetry});
 
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return JeebEmptyState(
+    return JeebFailureBlock(
       key: const Key('in-progress-error'),
-      variant: JeebEmptyStateVariant.parcel,
-      status: JeebEmptyStateStatus.error,
+      failure: failure,
       identifier: 'in_progress_error_state',
-      headline: l10n.homeLoadFailedTitle,
-      body: l10n.homeErrorRetry,
-      action: IntrinsicWidth(
-        child: JeebCtaButton.primary(
-          label: l10n.homeLoadFailedRetry,
-          identifier: 'in_progress_retry_cta',
-          expand: false,
-          onTap: onRetry,
-        ),
-      ),
+      variant: JeebEmptyStateVariant.parcel,
+      headlineOverride:
+          AppLocalizations.of(context).homeInProgressLoadFailedTitle,
+      onRetry: onRetry,
+      retryIdentifier: 'in_progress_retry_cta',
     );
   }
 }
@@ -284,6 +284,17 @@ class _InProgressTabFailingHomeRepository implements ClientHomeRepository {
       throw StateError('preview fixture: cold home load failed');
 }
 
+/// A load that SUCCEEDS but loses only the in-progress read — the partial
+/// failure the cubit renders as READY plus one dead bucket.
+class _InProgressTabBucketFailingRepository implements ClientHomeRepository {
+  const _InProgressTabBucketFailingRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async => const ClientHomeSnapshot(
+        inProgressFailure: NetworkFailure(offline: true),
+      );
+}
+
 /// The tab as `client_home_screen.dart` mounts it: an ambient [ClientHomeCubit]
 /// above it and unbounded height below it (the canvas box supplies the width —
 Widget _inProgressTabHosted(ClientHomeRepository repository) =>
@@ -367,6 +378,16 @@ Widget inProgressTabEmpty() => _inProgressTabHosted(
 )
 Widget inProgressTabFailed() =>
     _inProgressTabHosted(const _InProgressTabFailingHomeRepository());
+
+/// ES-10/F7: the requests read landed but the in-progress read died. The tab
+/// shows ITS failure while the rest of the home keeps its rows.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Failed · this bucket only',
+  size: _inProgressTabPlaceholderBox,
+)
+Widget inProgressTabBucketFailed() =>
+    _inProgressTabHosted(const _InProgressTabBucketFailingRepository());
 
 /// The load is still in flight — the parcel tile's own breathing skeleton.
 /// Held open by a future that never completes, so it is the one preview that

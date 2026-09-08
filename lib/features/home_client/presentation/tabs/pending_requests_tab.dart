@@ -3,11 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/bidi_isolate.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
-import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -69,8 +70,10 @@ class _PendingContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.status == ClientHomeStatus.failed) {
+    // Error branch first: a dead bucket is never an empty tab.
+    if (state.status == ClientHomeStatus.failed || state.pendingError != null) {
       return _PendingError(
+        failure: state.pendingError ?? state.error ?? const UnknownFailure(),
         onRetry: () => context.read<ClientHomeCubit>().load(),
       );
     }
@@ -98,32 +101,27 @@ class _PendingLoading extends StatelessWidget {
     return JeebEmptyState(
       key: const Key('pending-loading'),
       status: JeebEmptyStateStatus.loading,
-      headline: AppLocalizations.of(context).homeEmptyTitle,
+      identifier: 'pending_loading_state',
+      headline: AppLocalizations.of(context).homeLoadingHeadline,
     );
   }
 }
 
 class _PendingError extends StatelessWidget {
-  const _PendingError({required this.onRetry});
+  const _PendingError({required this.failure, required this.onRetry});
 
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return JeebEmptyState(
+    return JeebFailureBlock(
       key: const Key('pending-error'),
-      status: JeebEmptyStateStatus.error,
-      headline: l10n.homeLoadFailedTitle,
-      body: l10n.homeErrorRetry,
-      action: IntrinsicWidth(
-        child: JeebCtaButton.primary(
-          label: l10n.homeLoadFailedRetry,
-          identifier: 'pending_retry_cta',
-          expand: false,
-          onTap: onRetry,
-        ),
-      ),
+      failure: failure,
+      identifier: 'pending_error_state',
+      headlineOverride: AppLocalizations.of(context).homePendingLoadFailedTitle,
+      onRetry: onRetry,
+      retryIdentifier: 'pending_retry_cta',
     );
   }
 }
@@ -458,9 +456,16 @@ class PendingReconnectBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // M4/Q2: §2.7 has no sub-compact form and the kit is frozen, so the
-          // one-line banner keeps a role-tinted mark. Ruling pending.
-          OmdsLoadingState(size: Sizes.medium, color: roles.onWarningContainer),
+          // M4: the sanctioned inline wait. `OmdsLoadingState` bakes an
+          // `EdgeInsets.all(Spacing.large)` a one-line banner cannot carry.
+          SizedBox(
+            width: Sizes.medium,
+            height: Sizes.medium,
+            child: CircularProgressIndicator(
+              strokeWidth: UIConstants.strokeWidthNormal,
+              color: roles.onWarningContainer,
+            ),
+          ),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.pendingTabReconnecting,

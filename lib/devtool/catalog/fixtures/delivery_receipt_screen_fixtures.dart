@@ -29,6 +29,29 @@ class DeliveryReceiptScreenPendingRepository
 }
 
 /// The designed states, named once for both dev surfaces.
+/// Loads once, then every refresh fails: the warm lane where the receipt stays
+/// on screen and `receipt_refresh_failed` appears above it.
+class DeliveryReceiptScreenWarmFailingRepository
+    implements DeliveryReceiptRepository {
+  DeliveryReceiptScreenWarmFailingRepository(this.receipt);
+
+  final DeliveryReceipt receipt;
+
+  int reads = 0;
+
+  @override
+  Future<DeliveryReceipt> fetchReceipt(String deliveryId) async {
+    reads++;
+    if (reads == 1) return receipt;
+    throw const DeliveryReceiptRepositoryException(
+      DeliveryReceiptFailure.network,
+    );
+  }
+
+  @override
+  Future<void> confirmReceipt(DeliveryReceipt receipt) async {}
+}
+
 abstract final class DeliveryReceiptScreenFixtures {
   /// The delivery every state confirms. Matches the reference the Screen
   /// Catalog has used for this screen since it was written.
@@ -131,6 +154,10 @@ abstract final class DeliveryReceiptScreenFixtures {
   static DeliveryReceiptRepository notFound() => FakeDeliveryReceiptRepository(
         fetchFailure: DeliveryReceiptFailure.notFound,
       );
+
+  /// Loaded, then a failed warm refresh (UX-30).
+  static DeliveryReceiptRepository refreshFailedWarm() =>
+      DeliveryReceiptScreenWarmFailingRepository(confirmRejectedReceipt);
 
   /// The read never reached the server. Retryable, and the fixture keeps
   /// failing, so `Retry` behaves the way it does on a dead connection.

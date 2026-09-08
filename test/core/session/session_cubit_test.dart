@@ -103,20 +103,24 @@ void main() {
       addTearDown(cubit.close);
     });
 
+    // NET-03: `jwtExpiry` returns null for opaque tokens (super-login mints
+    // them), and expiry-unknown is not expiry-proven. Signing a held token out
+    // on a cold start is the bug; only a reactive 401 may end the session.
     test(
-      'non-JWT token → unauthenticated (malformed tokens fail closed)',
+      'opaque (non-JWT) token → authenticated',
       () async {
         when(
           () => store.accessToken,
         ).thenAnswer((_) async => 'mock-jwt-access-super-user');
         final cubit = build();
         await cubit.refresh();
-        expect(cubit.state.status, SessionStatus.unauthenticated);
+        expect(cubit.state.status, SessionStatus.authenticated);
+        expect(cubit.isUnauthenticated, isFalse);
         addTearDown(cubit.close);
       },
     );
 
-    test('JWT-shaped token with non-numeric exp → unauthenticated', () async {
+    test('JWT-shaped token with non-numeric exp → authenticated', () async {
       final header = base64Url.encode(utf8.encode('{}')).replaceAll('=', '');
       final payload = base64Url
           .encode(utf8.encode('{"exp":"soon"}'))
@@ -126,7 +130,7 @@ void main() {
       ).thenAnswer((_) async => '$header.$payload.sig');
       final cubit = build();
       await cubit.refresh();
-      expect(cubit.state.status, SessionStatus.unauthenticated);
+      expect(cubit.state.status, SessionStatus.authenticated);
       addTearDown(cubit.close);
     });
 

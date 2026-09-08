@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
@@ -115,7 +116,11 @@ void main() {
       () async {
         final repo = _ScriptedRepo([
           const ClientHomeSnapshot(inProgress: [_order]), // clean first load
-          const ClientHomeSnapshot(rateLimited: true), // throttled refresh
+          const ClientHomeSnapshot(
+            rateLimited: true,
+            requestsFailure: RateLimitedFailure(retryAfter: Duration(seconds: 30)),
+            inProgressFailure: RateLimitedFailure(retryAfter: Duration(seconds: 30)),
+          ),
         ]);
         final cubit = ClientHomeCubit(
           repository: repo,
@@ -129,6 +134,7 @@ void main() {
         await cubit.refresh();
 
         expect(cubit.state.status, ClientHomeStatus.ready);
+        expect(cubit.state.refreshError, isA<RateLimitedFailure>());
         expect(
           cubit.state.inProgress,
           hasLength(1),

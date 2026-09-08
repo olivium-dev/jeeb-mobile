@@ -485,11 +485,21 @@ void main() {
       expect(find.byKey(const Key('receipt-load-error')), findsOneWidget);
       expect(find.bySemanticsIdentifier('receipt_load_error'), findsOneWidget);
       expect(
-        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        tester
+            .widget<JeebEmptyState>(find.byType(JeebEmptyState))
+            .effectiveStatus,
         JeebEmptyStateStatus.error,
       );
       expect(find.text("We couldn't find this delivery."), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
+      // R6: a 404 is unrecoverable — it gets an EXIT, never an inert Retry.
+      expect(
+        find.bySemanticsIdentifier('receipt_load_exit_cta'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('receipt_load_retry_cta'),
+        findsNothing,
+      );
     });
   });
 }

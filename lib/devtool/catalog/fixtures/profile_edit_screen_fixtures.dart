@@ -5,6 +5,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'dart:typed_data';
+
+import 'package:jeeb_mobile/features/settings/domain/avatar_repository.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/profile_repository.dart';
@@ -216,4 +219,32 @@ class _ProfileEditScreenPreviewHostState
     if (cubit == null) return const SizedBox.shrink();
     return BlocProvider<SettingsCubit>.value(value: cubit, child: widget.child);
   }
+}
+
+/// UX-23 twin: the three avatar rejections that used to read as one sentence.
+class ProfileEditScreenRejectingAvatarRepository implements AvatarRepository {
+  const ProfileEditScreenRejectingAvatarRepository(this.failure);
+
+  static const ProfileEditScreenRejectingAvatarRepository tooLarge =
+      ProfileEditScreenRejectingAvatarRepository(AvatarUploadFailure.tooLarge);
+
+  static const ProfileEditScreenRejectingAvatarRepository unauthorized =
+      ProfileEditScreenRejectingAvatarRepository(
+    AvatarUploadFailure.unauthorized,
+  );
+
+  static const ProfileEditScreenRejectingAvatarRepository serverError =
+      ProfileEditScreenRejectingAvatarRepository(
+    AvatarUploadFailure.serverError,
+  );
+
+  final AvatarUploadFailure failure;
+
+  @override
+  Future<String> uploadAvatar(Uint8List bytes) async =>
+      throw AvatarRepositoryException(failure);
+
+  @override
+  Future<void> removeAvatar() async =>
+      throw AvatarRepositoryException(failure);
 }

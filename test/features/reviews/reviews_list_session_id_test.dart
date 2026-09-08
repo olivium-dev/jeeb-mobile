@@ -51,15 +51,14 @@ class _CapturingReviewsRepository implements ReviewsRepository {
 /// MIDNIGHT: the empty frame now mounts `JeebEmptyState`, whose illustration
 /// loops ∞ by design — `pumpAndSettle` can never settle without reduce motion.
 Widget _reduceMotion(Widget child) => Builder(
-      builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(disableAnimations: true),
-        child: child,
-      ),
-    );
+  builder: (context) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child,
+  ),
+);
 
 void main() {
-  testWidgets(
-      'cold deep-link (no ?jeeberId=) resolves the REAL session id, '
+  testWidgets('cold deep-link (no ?jeeberId=) resolves the REAL session id, '
       'never the hardcoded user-jeeber-002', (tester) async {
     final repo = _CapturingReviewsRepository();
 
@@ -79,8 +78,9 @@ void main() {
     expect(repo.capturedJeeberId, isNot('user-jeeber-002'));
   });
 
-  testWidgets('an explicit ?jeeberId= still selects that jeeber directly',
-      (tester) async {
+  testWidgets('an explicit ?jeeberId= still selects that jeeber directly', (
+    tester,
+  ) async {
     final repo = _CapturingReviewsRepository();
 
     await tester.pumpWidget(

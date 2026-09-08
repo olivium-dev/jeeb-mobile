@@ -3,15 +3,18 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/network/app_failure_mapper.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/active_delivery_cubit.dart';
+import '../../domain/active_delivery_repository.dart';
 import '../../domain/jeeber_delivery.dart';
 import '../../domain/jeeber_delivery_status.dart';
 import '../active_delivery_jeeber_l10n.dart';
@@ -63,7 +66,8 @@ class MarkDeliveredPanel extends StatelessWidget {
     required this.l10n,
     this.otpRequired = false,
     this.isVerifyingOtp = false,
-    this.otpError,
+    this.otpErrorKind,
+    this.otpAttemptsRemaining,
     this.onSubmitOtp,
   });
 
@@ -87,7 +91,10 @@ class MarkDeliveredPanel extends StatelessWidget {
   final bool isVerifyingOtp;
 
   /// Inline error under the door-OTP field (wrong code / locked / network).
-  final String? otpError;
+  /// Why the door code was refused. The cubit no longer hands down prose.
+  final ActiveDeliveryFailure? otpErrorKind;
+
+  final int? otpAttemptsRemaining;
 
   /// Submits the typed recipient OTP. Non-null whenever [otpRequired] is wired.
   final ValueChanged<String>? onSubmitOtp;
@@ -117,7 +124,8 @@ class MarkDeliveredPanel extends StatelessWidget {
         if (otpRequired)
           _DoorOtpEntry(
             isVerifying: isVerifyingOtp,
-            errorText: otpError,
+            errorKind: otpErrorKind,
+            attemptsRemaining: otpAttemptsRemaining,
             onSubmit: onSubmitOtp,
             copy: copy,
           )
@@ -160,13 +168,15 @@ class MarkDeliveredPanel extends StatelessWidget {
 class _DoorOtpEntry extends StatefulWidget {
   const _DoorOtpEntry({
     required this.isVerifying,
-    required this.errorText,
+    required this.errorKind,
+    required this.attemptsRemaining,
     required this.onSubmit,
     required this.copy,
   });
 
   final bool isVerifying;
-  final String? errorText;
+  final ActiveDeliveryFailure? errorKind;
+  final int? attemptsRemaining;
   final ValueChanged<String>? onSubmit;
   final ActiveDeliveryJeeberL10n copy;
 
@@ -177,11 +187,29 @@ class _DoorOtpEntry extends StatefulWidget {
 class _DoorOtpEntryState extends State<_DoorOtpEntry> {
   String _code = '';
 
+  String _errorText(AppLocalizations l10n) {
+    final int? remaining = widget.attemptsRemaining;
+    return switch (widget.errorKind) {
+      ActiveDeliveryFailure.otpCodeRequired =>
+        l10n.activeDeliveryOtpCodeTooShort,
+      ActiveDeliveryFailure.otpLocked => l10n.otpHandoverLockedBody,
+      ActiveDeliveryFailure.invalidOtp when remaining != null =>
+        l10n.otpHandoverAttemptsRemaining(remaining),
+      ActiveDeliveryFailure.invalidOtp => l10n.errorInvalidCode,
+      ActiveDeliveryFailure.notFound => l10n.errorNotFoundBody,
+      ActiveDeliveryFailure.network => failureCopy(
+        l10n,
+        networkFailureFromReachability(),
+      ).body,
+      _ => l10n.errorGenericBody,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mutedText = jeebMutedInk(context);
-    final hasError = widget.errorText != null;
+    final hasError = widget.errorKind != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -207,7 +235,7 @@ class _DoorOtpEntryState extends State<_DoorOtpEntry> {
         if (hasError) ...[
           const SizedBox(height: Spacing.xSmall),
           Text(
-            widget.errorText!,
+            _errorText(AppLocalizations.of(context)),
             style: context.jeebText.caption.copyWith(
               color: theme.colorScheme.error,
             ),

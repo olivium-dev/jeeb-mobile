@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/features/location/data/dio_saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
@@ -125,18 +126,21 @@ void main() {
       expect(_capturedMethod, 'POST');
     });
 
-    test('null persisted userId still resolves the live me-keyed path',
+    // GEN-01: a null session id used to fall back to `user-client-001`, which
+    // reads ANOTHER account's saved-locations path. It must refuse instead.
+    test('null persisted userId throws UnauthorizedFailure and issues no call',
         () async {
-      // A null userId falls back internally to user-client-001 (used only for
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
         tokenStore: _FakeTokenStore(null),
       );
 
-      await repo.fetchSavedLocations();
-
-      expect(_capturedPath, '/api/users/me/saved-locations');
+      await expectLater(
+        repo.fetchSavedLocations(),
+        throwsA(isA<UnauthorizedFailure>()),
+      );
+      expect(_capturedPath, isNull);
     });
 
     test('parses array response correctly', () async {

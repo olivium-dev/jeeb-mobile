@@ -1,0 +1,41 @@
+{
+  "scenario": "S10",
+  "rules": [
+    {
+      "id": "gone",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 410,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://problems.jeeb.lb/requests/request-expired\",\"title\":\"Gone\",\"status\":410}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "gone",
+    "copyTitle": "errorNotFoundTitle",
+    "copyBody": "errorGoneBody",
+    "retryable": false
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": 1,
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_load_exit_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Clear faults and verify recovery after each scenario."
+  }
+}

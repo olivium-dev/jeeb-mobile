@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/widgets/jeeb/jeeb_quick_reply_row.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../application/chat_cubit.dart';
-import '../chat_redesign_l10n.dart';
 
 /// Screen-local consumer of the kit's [JeebQuickReplyRow]: three client-voice
 /// canned replies, sent in one tap via [ChatCubit.sendQuickReply].
@@ -22,26 +22,26 @@ class ChatQuickReplyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = ChatRedesignL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final ChatCubit cubit = context.read<ChatCubit>();
     return JeebQuickReplyRow(
       identifier: 'order_chat_quick_reply_row',
-      semanticLabel: l10n.quickReplyRowA11y,
+      semanticLabel: l10n.chatQuickReplyRowA11y,
       replies: <JeebQuickReply>[
         JeebQuickReply(
-          label: l10n.quickReplyImHome,
+          label: l10n.chatQuickReplyImHome,
           identifier: 'order_chat_quick_reply_home',
-          onTap: () => cubit.sendQuickReply(l10n.quickReplyImHome),
+          onTap: () => cubit.sendQuickReply(l10n.chatQuickReplyImHome),
         ),
         JeebQuickReply(
-          label: l10n.quickReplyCallAtDoor,
+          label: l10n.chatQuickReplyCallAtDoor,
           identifier: 'order_chat_quick_reply_door',
-          onTap: () => cubit.sendQuickReply(l10n.quickReplyCallAtDoor),
+          onTap: () => cubit.sendQuickReply(l10n.chatQuickReplyCallAtDoor),
         ),
         JeebQuickReply(
-          label: l10n.quickReplyThanks,
+          label: l10n.chatQuickReplyThanks,
           identifier: 'order_chat_quick_reply_thanks',
-          onTap: () => cubit.sendQuickReply(l10n.quickReplyThanks),
+          onTap: () => cubit.sendQuickReply(l10n.chatQuickReplyThanks),
         ),
       ],
     );

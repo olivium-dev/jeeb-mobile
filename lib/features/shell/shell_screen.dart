@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
 import '../../core/lifecycle/route_visibility.dart';
+import '../../core/network/app_failure.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/observability/session_trace/observability.dart';
 import '../../core/observability/session_trace/observability_config.dart';
@@ -14,6 +15,7 @@ import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/jeeb/jeeb_pill_nav.dart';
+import '../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
@@ -26,7 +28,17 @@ import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/orders_tab.dart';
 import 'widgets/jeeber_tab_empty_state.dart';
+import 'widgets/jeeber_tab_failure_state.dart';
 import 'widgets/shell_header_actions.dart';
+
+/// Which body the two additive jeeber tabs render — the four answers the
+/// capability read can give (F2/F3).
+enum _JeeberTabContent { live, invite, loading, failed }
+
+/// A fresh instance selects Requests even when the shell is already mounted.
+class ShellRequestsIntent {
+  ShellRequestsIntent();
+}
 
 /// Unified bottom-nav shell implementing the CORE UX RULE (`docs/orchestrator/
 /// 05-constraints-and-ground-truth.md`): **a jeeber is also a user.**
@@ -65,7 +77,10 @@ class ShellScreen extends StatefulWidget {
     super.key,
     this.homeRepository,
     this.ordersRepository,
+    this.requestsIntent,
   });
+
+  final ShellRequestsIntent? requestsIntent;
 
   /// DT-04 catalog seam: overrides the Requests-tab ([HomeTab]) repository.
   /// `null` (every production call site) preserves the existing behavior —
@@ -102,12 +117,28 @@ class _ShellScreenState extends State<ShellScreen> {
   DateTime? _lastBackAt;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.requestsIntent != null) _selectedIndex = 0;
+  }
+
+  @override
+  void didUpdateWidget(covariant ShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.requestsIntent != null &&
+        !identical(widget.requestsIntent, oldWidget.requestsIntent)) {
+      _handleProfileExit();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // The tab SET never changes — additive, not role-gated. Only the jeeber
     // tab BODIES (live vs empty state) AND the landing tab react to the user's
     // available roles (gateway Auth/Capabilities → RoleAvailabilityCubit).
     final availability = context.watch<RoleAvailabilityCubit?>()?.state;
-    final showJeeberContent = _showJeeberContent(availability);
+    final jeeberContent = _jeeberContent(availability);
+    final showJeeberContent = jeeberContent == _JeeberTabContent.live;
     // G3: unseen-open-request count for the Dashboard-tab badge. Nullable
     // watch so bare harnesses without the app-level BadgeCountCubit render
     // badge-less instead of throwing (same idiom as RoleAvailabilityCubit
@@ -120,12 +151,18 @@ class _ShellScreenState extends State<ShellScreen> {
     final activeRoleIsJeeber =
         context.watch<RoleCubit?>()?.state == UserRole.jeeber;
     final tabs = _tabs(
-      showJeeberContent: showJeeberContent,
+      content: jeeberContent,
+      failure: availability?.failure,
       requestBadgeCount: requestBadgeCount,
+      // A FAILED read must not flip the whole bar to client wording; the last
+      // known role does the talking then.
       jeeberLabels: activeRoleIsJeeber || showJeeberContent,
     );
     final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
-    final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
+    final safeIndex = (_selectedIndex ?? landingIndex).clamp(
+      0,
+      tabs.length - 1,
+    );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // White status glyphs over navy on EVERY tab, whatever a tab body does.
       value: AppTheme.systemOverlayStyle,
@@ -200,6 +237,18 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
+  void _handleProfileExit() {
+    setState(() => _selectedIndex = 0);
+    if (!kObsCompiledIn) return;
+    Observability.instance.currentScreen = '/shell/requests';
+    Observability.instance.recordScreen(
+      action: 'tab_exit',
+      route: '/shell/requests',
+      name: 'requests',
+      previousRoute: '/shell/profile',
+    );
+  }
+
   void _handleRootBack(List<_Tab> tabs, int landingIndex, int currentIndex) {
     if (currentIndex != landingIndex) {
       setState(() => _selectedIndex = landingIndex);
@@ -218,15 +267,14 @@ class _ShellScreenState extends State<ShellScreen> {
       return;
     }
     _lastBackAt = now;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).shellExitConfirm),
-          duration: _exitConfirmWindow,
-        ),
-      );
+    if (ScaffoldMessenger.maybeOf(context) == null) return;
+    // The window is load-bearing: it IS the double-back timer.
+    showJeebSnack(
+      context,
+      message: AppLocalizations.of(context).shellExitConfirm,
+      identifier: 'shell_exit_confirm_snack',
+      duration: _exitConfirmWindow,
+    );
   }
 
   void _recordTabNavigation({
@@ -255,8 +303,7 @@ class _ShellScreenState extends State<ShellScreen> {
   /// somehow absent so the shell can never strand on an out-of-range index.
   int _landingIndex(List<_Tab> tabs, {required bool isJeeber}) {
     if (!isJeeber) return 0;
-    final jeeberIndex =
-        tabs.indexWhere((t) => t.id == _jeeberLandingTabId);
+    final jeeberIndex = tabs.indexWhere((t) => t.id == _jeeberLandingTabId);
     return jeeberIndex >= 0 ? jeeberIndex : 0;
   }
 
@@ -275,16 +322,68 @@ class _ShellScreenState extends State<ShellScreen> {
   /// prompt via `jeeb.home_tab=unregistered`, the feed variants via
   /// `jeeb.feed=<view>`) without a real getMe round-trip. Always the real
   /// available-roles signal in release.
-  bool _showJeeberContent(RoleAvailability? availability) {
+  /// F2/F3: `available_roles` has FOUR answers, not two — a failed or
+  /// unresolved read is not "not a jeeber".
+  _JeeberTabContent _jeeberContent(RoleAvailability? availability) {
     if (kDebugMode) {
       final seam = DevSeam.current;
-      if (seam.feed.isNotEmpty || seam.homeTab == 'unregistered') return true;
+      if (seam.feed.isNotEmpty || seam.homeTab == 'unregistered') {
+        return _JeeberTabContent.live;
+      }
     }
-    return availability?.roles.contains('jeeber') ?? false;
+    // No cubit at all (bare harnesses): the legacy two-valued answer.
+    if (availability == null) return _JeeberTabContent.invite;
+    // Cache wins over a failed or unfinished read: the account didn't change.
+    if (availability.isJeeber) return _JeeberTabContent.live;
+    // Any cached role list already answers "not a jeeber", so only a read with
+    // nothing behind it degrades to the failed/loading rungs.
+    final bool blind = availability.roles.isEmpty;
+    return switch (availability.status) {
+      RoleAvailabilityStatus.resolved => _JeeberTabContent.invite,
+      RoleAvailabilityStatus.failed =>
+        blind ? _JeeberTabContent.failed : _JeeberTabContent.invite,
+      RoleAvailabilityStatus.unknown || RoleAvailabilityStatus.loading =>
+        blind ? _JeeberTabContent.loading : _JeeberTabContent.invite,
+    };
+  }
+
+  Future<void> _retryAvailability() async =>
+      context.read<RoleAvailabilityCubit?>()?.refresh();
+
+  /// The Dashboard/Earnings tab body for [content]. The invitation renders
+  /// ONLY for a resolved account that has no jeeber role.
+  Widget _jeeberTabBody({
+    required _JeeberTabContent content,
+    required AppFailure? failure,
+    required Widget live,
+    required bool earnings,
+  }) {
+    return switch (content) {
+      _JeeberTabContent.live => live,
+      _JeeberTabContent.loading =>
+        earnings
+            ? const JeeberTabLoadingState.earnings()
+            : const JeeberTabLoadingState.dashboard(),
+      _JeeberTabContent.failed =>
+        earnings
+            ? JeeberTabFailureState.earnings(
+                failure: failure ?? const UnknownFailure(),
+                onRetry: _retryAvailability,
+              )
+            : JeeberTabFailureState.dashboard(
+                failure: failure ?? const UnknownFailure(),
+                onRetry: _retryAvailability,
+              ),
+      _JeeberTabContent.invite =>
+        earnings
+            ? const JeeberTabEmptyState.earnings()
+            : const JeeberTabEmptyState.dashboard(),
+    };
   }
 
   List<_Tab> _tabs({
-    required bool showJeeberContent,
+    required _JeeberTabContent content,
+    required AppFailure? failure,
     required int requestBadgeCount,
     required bool jeeberLabels,
   }) {
@@ -323,12 +422,15 @@ class _ShellScreenState extends State<ShellScreen> {
         // G3: unseen open requests badge the tab icon so a dismissed push
         // still leaves a visible trail to the feed.
         badgeCount: requestBadgeCount,
-        page: showJeeberContent
-            ? const _HeaderedTab(
-                idPrefix: 'delivery_tab',
-                child: DashboardTab(),
-              )
-            : const JeeberTabEmptyState.dashboard(),
+        page: _jeeberTabBody(
+          content: content,
+          failure: failure,
+          earnings: false,
+          live: const _HeaderedTab(
+            idPrefix: 'delivery_tab',
+            child: DashboardTab(),
+          ),
+        ),
       ),
       // ADDITIVE jeeber tab #2 — Earnings. A jeeber sees the live earnings
       // dashboard; a regular user sees the same become-a-jeeber empty state.
@@ -336,9 +438,12 @@ class _ShellScreenState extends State<ShellScreen> {
         id: 'earnings',
         label: jeeberLabels ? l10n.navEarnings : l10n.navEarnInvite,
         icon: Icons.payments,
-        page: showJeeberContent
-            ? const EarningsTab()
-            : const JeeberTabEmptyState.earnings(),
+        page: _jeeberTabBody(
+          content: content,
+          failure: failure,
+          earnings: true,
+          live: const EarningsTab(),
+        ),
       ),
       _Tab(
         id: 'profile',
@@ -350,9 +455,9 @@ class _ShellScreenState extends State<ShellScreen> {
         // The seed is intentionally empty: the screen must populate from live
         // `GET /v1/users/me`; on a failed read the profile should look
         // incomplete rather than show a sample person mistaken for real data.
-        page: const _HeaderedTab(
+        page: _HeaderedTab(
           idPrefix: 'customer_profile',
-          child: _CustomerProfileTabBody(),
+          child: _CustomerProfileTabBody(onExit: _handleProfileExit),
         ),
       ),
     ];
@@ -460,11 +565,16 @@ class _HeaderedTab extends StatelessWidget {
 /// `GET /v1/users/me`; if that read fails, the profile should look incomplete
 /// rather than displaying a sample person and being mistaken for real data.
 class _CustomerProfileTabBody extends StatelessWidget {
-  const _CustomerProfileTabBody();
+  const _CustomerProfileTabBody({required this.onExit});
+
+  final VoidCallback onExit;
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerProfileScreen(data: CustomerProfileViewData());
+    return CustomerProfileScreen(
+      data: const CustomerProfileViewData(),
+      onExit: onExit,
+    );
   }
 }
 
@@ -535,9 +645,7 @@ class _TabBadgeOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: JeebPillNav.defaultMargin.add(
-        const EdgeInsets.symmetric(
-          horizontal: JeebPillNav.horizontalPadding,
-        ),
+        const EdgeInsets.symmetric(horizontal: JeebPillNav.horizontalPadding),
       ),
       child: Row(
         children: <Widget>[

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -50,12 +52,22 @@ class RequestSummaryUnavailableScreen extends StatelessWidget {
                         // FROZEN key — the pre-redesign hook for this state.
                         key: const Key('request-summary-unavailable-state'),
                         variant: JeebEmptyStateVariant.parcel,
-                        status: JeebEmptyStateStatus.error,
-                        // TODO(midnight): l10n-queued requestSummaryUnavailable
-                        // Headline — this key is a screen NAME, not an absence.
-                        headline: l10n.requestSummaryUnavailableTitle,
+                        reason: JeebEmptyStateReason.notFound,
+                        headline: l10n.requestSummaryUnavailableHeadline,
                         body: l10n.requestSummaryUnavailableBody,
-                        identifier: 'request_summary_unavailable_note',
+                        identifier: 'request_summary_unavailable_error',
+                        action: JeebCtaButton.primary(
+                          label: l10n.actionBack,
+                          expand: false,
+                          identifier: 'request_summary_unavailable_exit_cta',
+                          onTap: () {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.go('/');
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ),

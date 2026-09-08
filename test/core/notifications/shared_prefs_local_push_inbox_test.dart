@@ -98,4 +98,96 @@ void main() {
     final all = await inbox.readAll();
     expect(all.map((r) => r.id), ['a']);
   });
+
+  // F7 (device-verified): a fresh client saw four rows byte-identical to the
+  // previous jeeber account's — the store keyed rows with no owner at all.
+  group('F7 owner scoping', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      prefs = await SharedPreferences.getInstance();
+    });
+
+    test("owner A's rows are invisible to owner B", () async {
+      final a = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-a');
+      await a.append(_rec('a1'));
+      await a.append(_rec('a2'));
+      expect((await a.readAll()).map((r) => r.id), <String>['a1', 'a2']);
+
+      final b = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b');
+      expect(await b.readAll(), isEmpty,
+          reason: "a second account must never inherit the first's inbox");
+    });
+
+    test("reading as owner B PRUNES owner A's rows from the device", () async {
+      final a = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-a');
+      await a.append(_rec('a1'));
+
+      await SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b')
+          .readAll();
+
+      expect(
+        prefs.getKeys().where(
+              (k) => k.startsWith(SharedPrefsLocalPushInbox.keyPrefix),
+            ),
+        isEmpty,
+        reason: 'a foreign row is dropped, not merely hidden',
+      );
+    });
+
+    test('a legacy unscoped row (the leak shape) is never read and is pruned',
+        () async {
+      // Exactly the on-device key from the outage evidence: an FCM message id
+      // written straight under the prefix, with no owner segment.
+      const legacyKey =
+          'jeeb.push_inbox.1788531140789665%5f925b925f925b92';
+      await prefs.setString(legacyKey, _rec('1788531140789665').encode());
+
+      final fresh = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b');
+      expect(await fresh.readAll(), isEmpty);
+      expect(prefs.getString(legacyKey), isNull);
+    });
+
+    test('the owner is resolved from prefs when none is injected', () async {
+      await SharedPrefsLocalPushInbox.stampOwner(prefs, 'user-a');
+      final resolved = SharedPrefsLocalPushInbox(prefs: prefs);
+      await resolved.append(_rec('a1'));
+
+      expect((await resolved.readAll()).single.id, 'a1');
+      expect(
+        await SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b')
+            .readAll(),
+        isEmpty,
+      );
+    });
+
+    test('markRead/markAllRead never touch another owner\'s row', () async {
+      final a = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-a');
+      await a.append(_rec('a1'));
+      final b = SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-b');
+
+      expect(await b.markRead('a1'), isFalse);
+      await b.markAllRead();
+      // A's row is gone (pruned by B's read), but it was never mutated in place.
+      expect(await b.readAll(), isEmpty);
+    });
+
+    test('clearAll drops every account\'s rows and the owner stamp', () async {
+      await SharedPrefsLocalPushInbox.stampOwner(prefs, 'user-a');
+      await SharedPrefsLocalPushInbox(prefs: prefs, ownerId: 'user-a')
+          .append(_rec('a1'));
+
+      await SharedPrefsLocalPushInbox.clearAll(prefs);
+
+      expect(
+        prefs.getKeys().where(
+              (k) =>
+                  k.startsWith(SharedPrefsLocalPushInbox.keyPrefix) ||
+                  k == SharedPrefsLocalPushInbox.ownerPrefKey,
+            ),
+        isEmpty,
+      );
+    });
+  });
 }

@@ -85,14 +85,23 @@ void main() {
   );
 
   testWidgets(
-    'cache miss + fetch throws → the unavailable fallback is preserved',
+    'cache miss + fetch throws → the RETRYABLE failure rung (LR-14), never '
+    'the unavailable dead end',
     (tester) async {
       await tester.pumpWidget(
         loader(initial: null, fetch: () async => throw Exception('offline')),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('jeeber_request_detail_error'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('jeeber_request_detail_retry_cta'),
+        findsOneWidget,
+      );
+      expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
       expect(find.byType(JeeberRequestDetailScreen), findsNothing);
     },
   );

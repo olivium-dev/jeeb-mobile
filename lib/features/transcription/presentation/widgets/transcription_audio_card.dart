@@ -7,6 +7,7 @@ import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_meter.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -31,18 +32,37 @@ class TranscriptionAudioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return JeebOutlinedCard(
-      radius: JeebRadii.lg,
-      // Board stroke is `rgba(255,255,255,.15)` — the §4 strong rung.
-      borderColor: _semanticsOf(context).glassBorderStrong,
-      padding: _padding,
-      child: Row(
-        children: [
-          _PlaybackToggle(isPlaying: state.isPlaying),
-          const SizedBox(width: Spacing.small),
-          Expanded(child: _PlaybackProgress(state: state)),
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        JeebOutlinedCard(
+          radius: JeebRadii.lg,
+          // Board stroke is `rgba(255,255,255,.15)` — the §4 strong rung.
+          borderColor: _semanticsOf(context).glassBorderStrong,
+          padding: _padding,
+          child: Row(
+            children: [
+              _PlaybackToggle(isPlaying: state.isPlaying),
+              const SizedBox(width: Spacing.small),
+              Expanded(child: _PlaybackProgress(state: state)),
+            ],
+          ),
+        ),
+        if (state.playbackError) ...[
+          const SizedBox(height: Spacing.small),
+          // The note owns the id and the text node; the outer wrapper only
+          // announces, so the sentence is not read out twice.
+          Semantics(
+            liveRegion: true,
+            container: true,
+            child: JeebInfoNote.error(
+              text: l10n.transcriptionPlaybackUnavailable,
+              identifier: 'voice_transcript_playback_error',
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 }

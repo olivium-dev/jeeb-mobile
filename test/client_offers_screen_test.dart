@@ -11,6 +11,7 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:omds/omds.dart';
 
 import 'support/offers_fixtures.dart';
@@ -381,7 +382,9 @@ void main() {
 
     final error = find.byKey(const Key('offer-load-error'));
     expect(error, findsOneWidget);
-    expect(find.text('Check your connection, then retry.'), findsOneWidget);
+    final copy = AppLocalizations.of(tester.element(error));
+    expect(find.text(copy.errorUnreachableBody), findsOneWidget);
+    expect(find.text(copy.errorNetworkBody), findsNothing);
     expect(
       tester.getSize(error).width,
       lessThanOrEqualTo(Sizes.threeHundredLarge),
@@ -406,7 +409,42 @@ void main() {
       tester.getSize(retry).height,
       greaterThanOrEqualTo(UIConstants.buttonHeight),
     );
+    // COPY-05: the pinned retry identifier survives the outline-pill swap.
+    expect(
+      find.bySemanticsIdentifier('offer_review_retry_cta'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<JeebCtaButton>(retry).identifier,
+      'offer_review_retry_cta',
+    );
   });
+
+  testWidgets(
+    'COPY-05 — an UNCLASSIFIED load failure reads the shared copy family, '
+    'not "Couldn\'t load offers. Retry."',
+    (tester) async {
+      final repo = ScriptedOffersRepository(
+        snapshots: const <OffersSnapshot>[],
+        fetchFailure: OffersFailure.unknown,
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-1',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('offer-load-error')), findsOneWidget);
+      expect(find.text("We couldn't complete that. Try again."), findsOneWidget);
+      expect(find.textContaining('Retry.'), findsNothing);
+    },
+  );
 
   testWidgets(
     'ClientOffersScreen — failure then Retry reattaches poll and countdown '
@@ -456,6 +494,7 @@ void main() {
       expect(cubit.state.error, OffersFailure.network);
       expect(find.byKey(const Key('offer-load-error')), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Retry'));
       await tester.tap(find.text('Retry'));
       await tester.pump();
       await tester.pump();

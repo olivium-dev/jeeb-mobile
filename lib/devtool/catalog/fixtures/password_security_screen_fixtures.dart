@@ -1,7 +1,6 @@
 // Shared dev-only fixtures for `PasswordSecurityScreen` (JM-061).
 
 import 'package:jeeb_mobile/features/password_security/application/password_security_cubit.dart';
-import 'package:jeeb_mobile/features/password_security/application/password_security_state.dart';
 import 'package:jeeb_mobile/features/password_security/domain/change_password_policy.dart';
 
 /// The account's existing password, as typed into `password_current_field`.
@@ -18,16 +17,6 @@ const String passwordSecurityScreenConfirmMismatch = 'Mismatch123';
 /// Below the floor: four characters, no digit.
 const String passwordSecurityScreenWeakPassword = 'weak';
 
-/// A [PasswordSecurityCubit] that starts in [seed] instead of the default idle
-/// state.
-/// DEV-ONLY. It is not a production seam and it adds none: the screen still only
-class PasswordSecurityScreenSeededCubit extends PasswordSecurityCubit {
-  /// Emits [seed] immediately, before any surface has subscribed.
-  PasswordSecurityScreenSeededCubit(PasswordSecurityState seed) {
-    emit(seed);
-  }
-}
-
 /// The state every user lands in: three blank masked fields, no error, a live
 /// "Save password". Catalog: `Change Form — Idle`.
 PasswordSecurityCubit passwordSecurityScreenIdleCubit() =>
@@ -36,54 +25,42 @@ PasswordSecurityCubit passwordSecurityScreenIdleCubit() =>
 /// `ChangePasswordValidation.weak` — the new password is below the floor
 /// ([ChangePasswordPolicy]: 8 characters, a letter and a digit) while the two
 PasswordSecurityCubit passwordSecurityScreenWeakCubit() =>
-    PasswordSecurityCubit()
-      ..submit(
-        current: passwordSecurityScreenCurrentPassword,
-        newPassword: passwordSecurityScreenWeakPassword,
-        confirm: passwordSecurityScreenWeakPassword,
-      );
+    PasswordSecurityCubit()..submit(
+      current: passwordSecurityScreenCurrentPassword,
+      newPassword: passwordSecurityScreenWeakPassword,
+      confirm: passwordSecurityScreenWeakPassword,
+    );
 
 /// `ChangePasswordValidation.mismatch` — new and confirm differ, and the new
 /// password is otherwise fine. Catalog: `Mismatch Error`.
 PasswordSecurityCubit passwordSecurityScreenMismatchCubit() =>
-    PasswordSecurityCubit()
-      ..submit(
-        current: passwordSecurityScreenCurrentPassword,
-        newPassword: passwordSecurityScreenNewPassword,
-        confirm: passwordSecurityScreenConfirmMismatch,
-      );
+    PasswordSecurityCubit()..submit(
+      current: passwordSecurityScreenCurrentPassword,
+      newPassword: passwordSecurityScreenNewPassword,
+      confirm: passwordSecurityScreenConfirmMismatch,
+    );
 
 /// `ChangePasswordValidation.empty` — the CTA was tapped on an untouched form.
 /// [ChangePasswordPolicy.validate] tests emptiness FIRST, and the CTA's only
 PasswordSecurityCubit passwordSecurityScreenEmptyFieldsCubit() =>
-    PasswordSecurityCubit()
-      ..submit(current: '', newPassword: '', confirm: '');
+    PasswordSecurityCubit()..submit(current: '', newPassword: '', confirm: '');
 
 /// `ChangePasswordValidation.sameAsCurrent` — the "new" password is the one the
 /// account already has, typed identically into all three boxes.
 PasswordSecurityCubit passwordSecurityScreenSameAsCurrentCubit() =>
-    PasswordSecurityCubit()
-      ..submit(
-        current: passwordSecurityScreenCurrentPassword,
-        newPassword: passwordSecurityScreenCurrentPassword,
-        confirm: passwordSecurityScreenCurrentPassword,
-      );
+    PasswordSecurityCubit()..submit(
+      current: passwordSecurityScreenCurrentPassword,
+      newPassword: passwordSecurityScreenCurrentPassword,
+      confirm: passwordSecurityScreenCurrentPassword,
+    );
 
 /// `PasswordSecurityStatus.unavailable` — a perfectly valid change, submitted.
 /// B-33: there is no `POST` behind this form, so `submit` records `unavailable`
 PasswordSecurityCubit passwordSecurityScreenUnavailableCubit() =>
-    PasswordSecurityCubit()
-      ..submit(
-        current: passwordSecurityScreenCurrentPassword,
-        newPassword: passwordSecurityScreenNewPassword,
-        confirm: passwordSecurityScreenNewPassword,
-      );
-
-/// `PasswordSecurityStatus.submitting` — the ONLY state in this file that has
-/// to be seeded, because no sequence of calls on `PasswordSecurityCubit` can
-PasswordSecurityCubit passwordSecurityScreenSubmittingCubit() =>
-    PasswordSecurityScreenSeededCubit(
-      const PasswordSecurityState(status: PasswordSecurityStatus.submitting),
+    PasswordSecurityCubit()..submit(
+      current: passwordSecurityScreenCurrentPassword,
+      newPassword: passwordSecurityScreenNewPassword,
+      confirm: passwordSecurityScreenNewPassword,
     );
 
 /// All three obscure flags flipped to "shown", through the cubit's own public

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/home_client/application/client_home_cubit.dart';
 import '../../../features/home_client/data/dev_client_home_fixtures.dart';
 import '../../../features/home_client/data/in_memory_client_home_repository.dart';
@@ -39,6 +40,49 @@ class SeededClientHomeRepository implements ClientHomeRepository {
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async => snapshot;
+}
+
+/// One bucket dead, the rest healthy — the partial-failure render (ES-10/F7).
+class PartialFailureClientHomeRepository implements ClientHomeRepository {
+  const PartialFailureClientHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async => ClientHomeSnapshot(
+    replies: DevClientHomeFixtures.snapshot().replies,
+    inProgressFailure: const NetworkFailure(offline: true),
+  );
+}
+
+/// First load succeeds; every later read throws — the warm refresh band.
+class RefreshFailingClientHomeRepository implements ClientHomeRepository {
+  RefreshFailingClientHomeRepository();
+
+  bool _loaded = false;
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async {
+    if (_loaded) throw const NetworkFailure(offline: true);
+    _loaded = true;
+    return DevClientHomeFixtures.snapshot();
+  }
+}
+
+/// Cold load fails unrecoverably — the exit-CTA path (403).
+class ForbiddenClientHomeRepository implements ClientHomeRepository {
+  const ForbiddenClientHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw const ForbiddenFailure();
+}
+
+/// No transport-offline evidence; the home destination cannot be resolved.
+class UnreachableClientHomeRepository implements ClientHomeRepository {
+  const UnreachableClientHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw const NetworkFailure(reason: NetworkFailureReason.hostLookup);
 }
 
 /// The designed states of `ClientHomeScreen`, as repositories + a cubit factory.
@@ -85,6 +129,21 @@ class ClientHomeScreenPreviewFixtures {
 
   /// Cold load never returns — the spinner state.
   static ClientHomeRepository stalled() => const StalledClientHomeRepository();
+
+  /// In-Progress dead, Replies healthy — rows AND a per-bucket error.
+  static ClientHomeRepository partialFailureRepository() =>
+      const PartialFailureClientHomeRepository();
+
+  /// Load OK, refresh throws — `client_home_refresh_failed_note` over rows.
+  static ClientHomeRepository refreshFailingRepository() =>
+      RefreshFailingClientHomeRepository();
+
+  /// 403 cold load — the unrecoverable branch, no inert Retry.
+  static ClientHomeRepository forbiddenRepository() =>
+      const ForbiddenClientHomeRepository();
+
+  static ClientHomeRepository unreachableRepository() =>
+      const UnreachableClientHomeRepository();
 
   /// Pending EMPTY, Replies POPULATED — the one-shot "land where the content
   /// is" affordance in `_resolveInitialTab`, which must advance to Replies and

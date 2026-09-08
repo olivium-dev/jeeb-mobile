@@ -59,10 +59,12 @@ void main() {
       await cubit.close();
     });
 
-    test('null repository (fixture mode) resolves as saved', () async {
+    // UX-39: this used to report `saved` for a PUT nobody issued.
+    test('null repository (fixture mode) resolves as UNAVAILABLE', () async {
       final cubit = DisplayNameCubit();
       await cubit.submit('Ahmad');
-      expect(cubit.state.status, DisplayNameStatus.saved);
+      expect(cubit.state.status, DisplayNameStatus.unavailable);
+      expect(cubit.state.status, isNot(DisplayNameStatus.saved));
       await cubit.close();
     });
 

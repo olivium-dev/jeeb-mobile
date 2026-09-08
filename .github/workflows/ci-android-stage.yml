@@ -101,3 +101,15 @@ jobs:
 
       - name: Validate protected Android Firebase injection contract
         run: bash tool/test_android_firebase_config.sh
+
+      - name: Verify Crashlytics mapping with real Android resource tools
+        run: |
+          set -euo pipefail
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+          export AAPT2_BIN="${ANDROID_HOME}/build-tools/36.0.0/aapt2"
+          export ANDROID_PLATFORM_JAR="${ANDROID_HOME}/platforms/android-36/android.jar"
+          test -x "${AAPT2_BIN}" && test -s "${ANDROID_PLATFORM_JAR}"
+          python3 -m unittest discover -s tool -p 'test_android_crashlytics_mapping.py'
+
+      - name: Validate device cleanup safety with offline stubs
+        run: bash tool/test_device_validation_cleanup.sh

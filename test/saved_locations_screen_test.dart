@@ -6,7 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_failure_block.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
@@ -83,10 +85,20 @@ class _FlakyRepo extends _FakeRepo {
   Future<List<SavedLocation>> fetchSavedLocations() async {
     fetchCalls++;
     if (fetchCalls == 1) {
-      throw Exception('load failed');
+      throw const ServerFailure(status: 500);
     }
     return recoverWith;
   }
+}
+
+/// No session: `DioSavedLocationRepository` throws this rather than reading
+/// another account's path.
+class _UnauthorizedRepo extends _FakeRepo {
+  _UnauthorizedRepo() : super(const []);
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async =>
+      throw const UnauthorizedFailure();
 }
 
 /// Never resolves, so the first frame is the loading state.
@@ -280,8 +292,8 @@ void main() {
       );
     });
 
-    testWidgets('error state uses JeebEmptyState and retry re-runs the load',
-        (tester) async {
+    testWidgets('error state is a kind-aware JeebFailureBlock and retry '
+        're-runs the load', (tester) async {
       final repo = _FlakyRepo(
         recoverWith: const [
           SavedLocation(
@@ -296,14 +308,14 @@ void main() {
       await tester.pumpWidget(_harness(_router(repo)));
       await tester.pumpAndSettle();
 
-      // First load threw → the §2.7 error member with retry.
+      // First load threw → the failure block, identified and kind-aware.
       expect(find.byKey(const Key('saved-locations-error')), findsOneWidget);
-      final error = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
-      expect(error.status, JeebEmptyStateStatus.error);
-      // The shipped `savedLocationsError` sentence, split at its own full stop.
-      expect(error.headline, 'Could not load saved locations');
-      expect(error.body, 'Please try again.');
-      expect(find.text('Try again'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('saved_locations_error'), findsOneWidget);
+      final block =
+          tester.widget<JeebFailureBlock>(find.byType(JeebFailureBlock));
+      expect(block.failure, const ServerFailure(status: 500));
+      // COPY-09: the copy family answers a 500, and never blames the network.
+      expect(find.textContaining('connection'), findsNothing);
 
       // Retry re-runs the real load (no fabricated data); second load recovers.
       // The §2.7 block is taller than a 600pt test viewport, so scroll first.
@@ -315,7 +327,27 @@ void main() {
 
       expect(repo.fetchCalls, 2);
       expect(find.byKey(const Key('saved-locations-error')), findsNothing);
+      expect(find.bySemanticsIdentifier('saved_locations_error'), findsNothing);
       expect(find.text('Home'), findsOneWidget);
+    });
+
+    // R6: a non-retryable kind must still give the user a way out, and the
+    // declared exit id must actually resolve.
+    testWidgets('a 401 renders the exit CTA and no Retry', (tester) async {
+      await tester.pumpWidget(
+        _harness(_router(_UnauthorizedRepo())),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsIdentifier('saved_locations_error'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('saved_address_error_retry_cta'),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsIdentifier('saved_address_error_exit_cta'),
+        findsOneWidget,
+      );
     });
   });
 

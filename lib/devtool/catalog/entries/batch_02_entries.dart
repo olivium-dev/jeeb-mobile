@@ -7,6 +7,8 @@ import '../../../features/cancel_request/presentation/cancel_request_sheet.dart'
 import '../../../features/cancellation/domain/cancellation_result.dart';
 import '../../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../../features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
+import '../../../features/chat/domain/chat_gateway.dart';
+import '../../../features/chat/presentation/chat_screen.dart';
 import '../../../features/client_offers/application/offer_accept_state.dart';
 import '../../../features/client_offers/data/fake_offers_repository.dart';
 import '../../../features/client_offers/domain/jeeber_vehicle.dart';
@@ -17,8 +19,12 @@ import '../../../features/client_offers/presentation/widgets/offer_accept_sheet.
 import '../../../features/client_unreachable/presentation/client_unreachable_screen.dart';
 import '../../../core/diagnostics/diagnostics_screen.dart';
 import '../../../core/router/profile_unavailable_screen.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../features/customer_profile/domain/customer_profile_repository.dart';
+import '../../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
 import '../fixtures/cancellation_screen_fixtures.dart';
 import '../fixtures/chat_screen_fixtures.dart';
 import '../fixtures/client_offers_screen_fixtures.dart';
@@ -116,6 +122,8 @@ final CatalogEntry _cancellationScreenEntry = CatalogEntry(
     // instead of being an invisible snackbar.
     _cancellationScreenState(cancellationScreenRejectedState),
     _cancellationScreenState(cancellationScreenTooLateState),
+    _cancellationScreenState(cancellationScreenReasonRequiredState),
+    _cancellationScreenState(cancellationScreenNotAPartyState),
   ],
 );
 
@@ -170,7 +178,27 @@ final CatalogEntry _chatScreenEntry = CatalogEntry(
       'Jeeber — confirm heading-off sheet',
       (_) => ChatScreenPreviewFixtures.jeeberConfirmHeadingOff(),
     ),
+    CatalogState(
+      'Failed outgoing message — tap to retry (OFF-05)',
+      (_) => _chatThread(ChatScreenPreviewFixtures.failedOutgoingMessage()),
+    ),
+    CatalogState(
+      'Image load failed — reload the attachment (F36)',
+      (_) => _chatThread(ChatScreenPreviewFixtures.imageLoadFailed()),
+    ),
+    CatalogState(
+      'Connection lost — reconnect banner',
+      (_) => _chatThread(ChatScreenPreviewFixtures.connectionOffline()),
+    ),
   ],
+);
+
+/// Mounts the raw thread over a fixture gateway, for the states the seven
+/// Figma frames cannot reach.
+Widget _chatThread(ChatGateway gateway) => ChatScreen(
+  deliveryId: 'catalog-thread',
+  counterpartName: ChatScreenPreviewFixtures.counterpartName,
+  gateway: gateway,
 );
 
 Widget _clientOffersScreen(OffersRepository repository) => ClientOffersScreen(
@@ -269,6 +297,36 @@ final CatalogEntry _offerAcceptSheetEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Conflict — request expired (AE-07)',
+      (_) => _sheetHost(
+        OfferAcceptSheet(
+          offer: _sampleOffer,
+          requestId: 'req-demo-1',
+          repository:
+              ClientOffersScreenPreviewFixtures.requestExpiredAcceptRepository(),
+          initialState: const OfferAcceptState(
+            status: OfferAcceptStatus.failed,
+            error: OffersFailure.requestExpired,
+          ),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Conflict — jeeber wallet short (AE-08)',
+      (_) => _sheetHost(
+        OfferAcceptSheet(
+          offer: _sampleOffer,
+          requestId: 'req-demo-1',
+          repository:
+              ClientOffersScreenPreviewFixtures.walletShortAcceptRepository(),
+          initialState: const OfferAcceptState(
+            status: OfferAcceptStatus.failed,
+            error: OffersFailure.jeeberWalletShort,
+          ),
+        ),
+      ),
+    ),
   ],
 );
 
@@ -312,6 +370,47 @@ final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
         ),
         reviewLauncher: CustomerProfileScreenInertReviewLauncher(),
       ),
+    ),
+    CatalogState(
+      'Rating unavailable — review-service outage (UX-33)',
+      (_) => const CustomerProfileScreen(
+        data: CustomerProfileScreenPreviewFixtures.ratedClient,
+        repository: CustomerProfileScreenReviewOutageRepository(
+          CustomerProfileScreenPreviewFixtures.ratedClient,
+        ),
+        reviewLauncher: CustomerProfileScreenInertReviewLauncher(),
+      ),
+    ),
+    CatalogState(
+      'Refresh failed over a seeded profile (UX-42)',
+      (_) => catalogProfileRefresh(CustomerProfileScreen(
+        data: CustomerProfileScreenPreviewFixtures.ratedClient,
+        repository: CustomerProfileScreenRefreshFailingRepository(
+          CustomerProfileScreenPreviewFixtures.ratedClient,
+        ),
+        reviewLauncher: const CustomerProfileScreenInertReviewLauncher(),
+      )),
+    ),
+    CatalogState(
+      'Cold blank read failed (UX-42)',
+      (_) => const CustomerProfileScreen(
+        data: CustomerProfileViewData(),
+        repository: CustomerProfileScreenFailingRepository(
+          CustomerProfileFailure.network,
+          NetworkFailure(offline: true),
+        ),
+        reviewLauncher: CustomerProfileScreenInertReviewLauncher(),
+      ),
+    ),
+    CatalogState(
+      'Rate-app unavailable (RATE-01)',
+      (_) => catalogProfileRateApp(const CustomerProfileScreen(
+        data: CustomerProfileScreenPreviewFixtures.ratedClient,
+        repository: CustomerProfileScreenStaticRepository(
+          CustomerProfileScreenPreviewFixtures.ratedClient,
+        ),
+        reviewLauncher: CustomerProfileScreenUnavailableReviewLauncher(),
+      )),
     ),
   ],
 );

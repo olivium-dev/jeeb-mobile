@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/data/dio_case_evidence_uploader.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/support_repository.dart';
@@ -93,11 +94,22 @@ class DioSupportRepository
         if (existing != null) return existing;
         final existingId = _existingCaseId(error.response?.data);
         if (existingId != null) {
-          return await _fetchAfterConflict(existingId) ??
-              SupportTicket(id: existingId, status: 'pending');
+          // Never fabricate a ticket: when the follow-up read fails the
+          // conflict travels typed and the screen offers the existing one.
+          final recovered = await _fetchAfterConflict(existingId);
+          if (recovered != null) return recovered;
+          throw SupportRepositoryException.classified(
+            SupportFailure.conflict,
+            message: 'Existing ticket $existingId could not be read.',
+            appFailure: AppFailure.of(error),
+          );
         }
       }
-      throw SupportRepositoryException(_map(error), error.message);
+      throw SupportRepositoryException.classified(
+        _map(error),
+        message: error.message,
+        appFailure: AppFailure.of(error),
+      );
     }
   }
 
@@ -113,7 +125,11 @@ class DioSupportRepository
         includeMessages: false,
       );
     } on DioException catch (error) {
-      throw SupportRepositoryException(_map(error), error.message);
+      throw SupportRepositoryException.classified(
+        _map(error),
+        message: error.message,
+        appFailure: AppFailure.of(error),
+      );
     }
   }
 
@@ -182,7 +198,11 @@ class DioSupportRepository
         nextCursor: nextCursor,
       );
     } on DioException catch (error) {
-      throw SupportRepositoryException(_map(error), error.message);
+      throw SupportRepositoryException.classified(
+        _map(error),
+        message: error.message,
+        appFailure: AppFailure.of(error),
+      );
     }
   }
 
@@ -223,13 +243,18 @@ class DioSupportRepository
         SupportTicket? latest = _ticketFromConflict(error.response?.data);
         final existingId = _existingCaseId(error.response?.data);
         latest ??= await _fetchAfterConflict(existingId ?? ticketId);
-        throw SupportRepositoryException(
+        throw SupportRepositoryException.classified(
           SupportFailure.conflict,
-          'Ticket changed while this reply was being sent.',
-          latest,
+          message: 'Ticket changed while this reply was being sent.',
+          latestTicket: latest,
+          appFailure: AppFailure.of(error),
         );
       }
-      throw SupportRepositoryException(_map(error), error.message);
+      throw SupportRepositoryException.classified(
+        _map(error),
+        message: error.message,
+        appFailure: AppFailure.of(error),
+      );
     }
   }
 
@@ -281,16 +306,17 @@ class DioSupportRepository
         final uploaded = await upload;
         result.add(uploaded);
       } on CaseEvidenceUploadException catch (error) {
+        // No message: the screen renders the failure kind, never repo prose.
         onProgress?.call(
           CaseAttachmentProgress(
             localId: attachment.localId,
             state: CaseAttachmentUploadState.failed,
-            message: error.message,
           ),
         );
-        throw SupportRepositoryException(
+        throw SupportRepositoryException.classified(
           error.offline ? SupportFailure.network : SupportFailure.upload,
-          error.message,
+          message: error.message,
+          appFailure: error.appFailure,
         );
       } finally {
         _uploadsInFlight.remove(cacheKey);

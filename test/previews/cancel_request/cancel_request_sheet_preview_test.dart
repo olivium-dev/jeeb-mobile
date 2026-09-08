@@ -48,9 +48,9 @@ void main() {
       // The one dedicated failure string in the set.
       'Failed · no longer cancellable (409)':
           'This request can no longer be cancelled.',
-      // Shared `loginNetworkError`: retryable, and the longest copy the sheet
-      'Failed · network (retryable)':
-          "Couldn't reach the server. Check your connection and try again.",
+      // OFF-24: the shared NETWORK copy, not the login string this sheet used
+      // to borrow.
+      'Failed · network (retryable)': "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
       // The catch-all 404 / 403 / 5xx / malformed-body copy.
       'Failed · generic (5xx)': "Couldn't cancel your request. Please try again.",
       // `Narrow phone` deliberately has no entry: it renders the same strings
@@ -138,7 +138,7 @@ void main() {
         cancelRequestSheetFailedConflict:
             'This request can no longer be cancelled.',
         cancelRequestSheetFailedNetwork:
-            "Couldn't reach the server. Check your connection and try again.",
+            "Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again.",
         cancelRequestSheetFailedGeneric:
             "Couldn't cancel your request. Please try again.",
       }.entries) {
@@ -151,10 +151,19 @@ void main() {
           reason: '${entry.value} must surface an error line',
         );
         expect(find.text(entry.value), findsOneWidget);
-        // …and the sheet stays open with both CTAs live, so the user can retry
+        // …and the sheet stays open. CR-01: a TERMINAL failure swaps the
+        // destructive confirm for a close — re-firing it can only fail again —
+        // while a retryable one keeps both CTAs live.
         expect(find.bySemanticsIdentifier(_sheetId), findsOneWidget);
-        expect(find.text('Cancel'), findsOneWidget);
-        expect(find.text('Keep delivery'), findsOneWidget);
+        final bool terminal = entry.key == cancelRequestSheetFailedConflict;
+        if (terminal) {
+          expect(find.bySemanticsIdentifier('cancel_request_close_cta'),
+              findsOneWidget);
+          expect(find.text('Cancel'), findsNothing);
+        } else {
+          expect(find.text('Cancel'), findsOneWidget);
+          expect(find.text('Keep delivery'), findsOneWidget);
+        }
       }
     });
 
@@ -181,7 +190,7 @@ void main() {
       expect(tester.getSize(find.byType(CancelRequestSheet)).width, 320);
       // Same state as `Failed · network`, so it must still show that copy.
       expect(
-        find.text("Couldn't reach the server. Check your connection and try again."),
+        find.text("Jeeb couldn't be reached. If you're on Wi-Fi, check it has internet access, then try again."),
         findsOneWidget,
       );
 

@@ -28,8 +28,7 @@ class _FakeRepo implements EarningsRepository {
   Future<String> exportEarningsPdf({
     String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      '/tmp/e.pdf';
+  }) async => '/tmp/e.pdf';
 }
 
 const _empty = EarningsSummary(
@@ -126,8 +125,9 @@ void main() {
     });
   });
 
-  testWidgets('empty period → honest empty state, NO fabricated 0.00',
-      (tester) async {
+  testWidgets('empty period → honest empty state, NO fabricated 0.00', (
+    tester,
+  ) async {
     await _pump(tester, _empty);
 
     expect(find.text('No earnings yet this period'), findsOneWidget);
@@ -137,8 +137,9 @@ void main() {
     expect(find.text('CASH COLLECTED'), findsNothing);
   });
 
-  testWidgets('funded period → MoneyFormat amounts, no empty state',
-      (tester) async {
+  testWidgets('funded period → MoneyFormat amounts, no empty state', (
+    tester,
+  ) async {
     await _pump(tester, _funded);
 
     expect(find.text('No earnings yet this period'), findsNothing);
@@ -159,8 +160,9 @@ void main() {
     }
   });
 
-  testWidgets('member-since is withheld when the wire omits it',
-      (tester) async {
+  testWidgets('member-since is withheld when the wire omits it', (
+    tester,
+  ) async {
     await _pump(tester, _funded);
 
     expect(find.bySemanticsIdentifier('earnings_member_since'), findsNothing);
@@ -172,17 +174,22 @@ void main() {
     expect(find.bySemanticsIdentifier('earnings_member_since'), findsOneWidget);
   });
 
-  testWidgets('funded \u2192 footer + activity link docked, no scrolling needed',
-      (tester) async {
-    await _pump(tester, _funded);
+  testWidgets(
+    'funded \u2192 footer + activity link docked, no scrolling needed',
+    (tester) async {
+      await _pump(tester, _funded);
 
-    expect(find.bySemanticsIdentifier('earnings_wallet_link'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('earnings_export_cta'), findsOneWidget);
-    expect(
-      find.bySemanticsIdentifier('earnings_activity_link'),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.bySemanticsIdentifier('earnings_wallet_link'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('earnings_export_cta'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('earnings_activity_link'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('empty \u2192 no footer at all', (tester) async {
     await _pump(tester, _empty);

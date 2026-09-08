@@ -48,6 +48,7 @@ this doc fixes the *full grammar*:
 | **Bottom sheet / modal-dialog element** | `<screenId>_sheet_<element>` | `offer_accept_sheet`, `offer_accept_sheet_confirm_cta`, `cancel_request_sheet_keep_cta`, `insufficient_balance_sheet_topup_cta` |
 | **Per-item row in a list** (dynamic) | `<screenId>_<element>_<dataId>` | `offer_card_<offerId>`, `notif_row_<notifId>`, `wallet_activity_row_<txnId>`, `pending_offer_<offerId>_withdraw_cta` |
 | **Screen root** (the host container, for "did not navigate away" re-asserts) | `<screenId>_root` | `waiting_no_coverage_root`, `wallet_hub_root` |
+| **Action inside an empty block** (re-issues the read from `<screen>_empty`) | `<screen>_empty_retry_cta` | `earnings_empty_retry_cta`, `tier_selection_empty_retry_cta` |
 
 - **`<screenId>`** = the blueprint screen id, normalized to snake_case (`offer-composer` → `offer_composer`, `wallet-hub` → `wallet_hub`, `delivered-receipt-confirm` → `delivered_receipt`). Use the `name` column of `21_NAV_PLAN.md §A` when the blueprint id and route name differ.
 - **`<element>`** = role suffix. Use a small controlled vocabulary so flows are predictable:
@@ -56,6 +57,11 @@ this doc fixes the *full grammar*:
   `_dropdown` · `_bell` (notification entry) · `_avatar` · `_stepper` · `_root`.
 - **Dynamic rows** interpolate the backend id, never the index: `offer_card_${offer.id}` (matches `JM-028`), `notif_row_${n.id}` (`JM-057`). QA asserts the seeded fixture id (e.g. `pending_requests_item_pen-1` in flow `13`).
 - **Tabs are NOT routes** (CTO brief §4, `21_NAV_PLAN.md §A "Tab disambiguation"`). They are reached by tapping `shell_tab_<id>`, never by a path. The five tab bodies (`customer-orders-home`, `my-orders`, `customer-profile`, `delivery-requests`, `jeeber-requests-home`, `earnings-fees-dashboard`) get their own per-screen ids for their *contents*, but the navigation target is the tab id.
+
+`<screen>_retry_cta` / `<screen>_exit_cta` belong to the error rung only (`JeebFailureBlock`, or a
+`JeebEmptyState` with `reason: failed` / `status: error` where the block cannot host the layout).
+An empty rung never carries `<screen>_retry_cta` (error-before-empty, RULINGS R6);
+its own action is `<screen>_empty_retry_cta`.
 
 > **LEGACY / deprecated:** some shipped flows use a **leading-underscore** form (`_splash_screen`,
 > `_request_empty_state_root`, `_register_hero`). That predates this convention. **Do NOT add new

@@ -39,6 +39,9 @@ class TranscriptionState extends Equatable {
     this.queuedReason,
     this.editRange,
     this.appliedQuickAdds = const <String>{},
+    this.playbackError = false,
+    this.queuedElapsed = Duration.zero,
+    this.queuedTimeout = Duration.zero,
   });
 
   final String text;
@@ -74,6 +77,23 @@ class TranscriptionState extends Equatable {
   /// and then leaves the row.
   final Set<String> appliedQuickAdds;
 
+  /// The last playback act failed: the toggle reset itself, so without this
+  /// the user taps forever with no signal.
+  final bool playbackError;
+
+  /// How long the queued wait has been running, for the determinate bar.
+  final Duration queuedElapsed;
+
+  /// The bounded queued window, so the bar has a denominator.
+  final Duration queuedTimeout;
+
+  /// 0..1 progress of the queued wait, or null when it is unbounded.
+  double? get queuedProgress {
+    if (queuedTimeout <= Duration.zero) return null;
+    final double v = queuedElapsed.inMilliseconds / queuedTimeout.inMilliseconds;
+    return v.clamp(0.0, 1.0);
+  }
+
   /// True when there is a real recording to replay (a non-empty path).
   bool get hasAudio => (audioPath ?? '').isNotEmpty;
 
@@ -103,6 +123,10 @@ class TranscriptionState extends Equatable {
     TextRange? editRange,
     Set<String>? appliedQuickAdds,
     bool clearEditRange = false,
+    bool? playbackError,
+    bool clearPlaybackError = false,
+    Duration? queuedElapsed,
+    Duration? queuedTimeout,
   }) {
     return TranscriptionState(
       text: text ?? this.text,
@@ -119,6 +143,10 @@ class TranscriptionState extends Equatable {
       // `?? this.editRange` can never null it out, so the reset is explicit.
       editRange: clearEditRange ? null : (editRange ?? this.editRange),
       appliedQuickAdds: appliedQuickAdds ?? this.appliedQuickAdds,
+      playbackError:
+          clearPlaybackError ? false : (playbackError ?? this.playbackError),
+      queuedElapsed: queuedElapsed ?? this.queuedElapsed,
+      queuedTimeout: queuedTimeout ?? this.queuedTimeout,
     );
   }
 
@@ -137,6 +165,9 @@ class TranscriptionState extends Equatable {
         queuedReason,
         editRange,
         appliedQuickAdds,
+        playbackError,
+        queuedElapsed,
+        queuedTimeout,
       ];
 }
 
@@ -156,6 +187,9 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
   final TranscriptAudioPlayer _player;
   final Duration _queuedTimeout;
   Timer? _queuedTimer;
+  Timer? _queuedTicker;
+
+  static const Duration _queuedTick = Duration(seconds: 1);
 
   /// Seeds the cubit from the clip handed over by the voice composer. A
   /// non-empty [VoiceClip.transcript] is the happy path; a null/empty
@@ -177,9 +211,31 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
         queuedReason: clip.reason,
       ),
     );
-    if (status == TranscriptionStatus.queued) {
-      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
+    _startQueuedWindow(status);
+  }
+
+  /// Runs the bounded queued window and the ticker that makes the wait visible.
+  void _startQueuedWindow(TranscriptionStatus status) {
+    _queuedTicker?.cancel();
+    if (status != TranscriptionStatus.queued) {
+      emit(state.copyWith(
+        queuedElapsed: Duration.zero,
+        queuedTimeout: Duration.zero,
+      ));
+      return;
     }
+    emit(state.copyWith(
+      queuedElapsed: Duration.zero,
+      queuedTimeout: _queuedTimeout,
+    ));
+    _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
+    _queuedTicker = Timer.periodic(_queuedTick, (_) {
+      if (isClosed || state.status != TranscriptionStatus.queued) return;
+      final Duration next = state.queuedElapsed + _queuedTick;
+      emit(state.copyWith(
+        queuedElapsed: next > _queuedTimeout ? _queuedTimeout : next,
+      ));
+    });
   }
 
   void _onQueuedTimeout() {
@@ -193,6 +249,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
   /// replay and type a manual description.
   void markFailed(TranscriptionFailure failure) {
     _queuedTimer?.cancel();
+    _queuedTicker?.cancel();
     emit(state.copyWith(
       status: TranscriptionStatus.failed,
       failure: failure,
@@ -224,9 +281,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
       appliedQuickAdds: <String>{...state.appliedQuickAdds, id},
       status: status,
     ));
-    if (status == TranscriptionStatus.queued) {
-      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
-    }
+    _startQueuedWindow(status);
   }
 
   void updateText(String text) => emit(state.copyWith(text: text));
@@ -245,9 +300,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
       clearEditRange: true,
       status: status,
     ));
-    if (status == TranscriptionStatus.queued) {
-      _queuedTimer = Timer(_queuedTimeout, _onQueuedTimeout);
-    }
+    _startQueuedWindow(status);
   }
 
   /// Toggles playback of the original recording. No-op when there is no audio.
@@ -263,6 +316,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
     emit(state.copyWith(
       isPlaying: true,
       playbackPosition: restart ? Duration.zero : state.playbackPosition,
+      clearPlaybackError: true,
     ));
     try {
       await _player.play(
@@ -271,10 +325,9 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
         onCompleted: _onCompleted,
       );
     } on Object {
-      // JEBV4-13: an unplayable source (e.g. a server audioId with no local
-      // file on a cold deep link) must never crash the review screen — reset
-      // the toggle instead of leaving a stuck "playing" state.
-      emit(state.copyWith(isPlaying: false));
+      // JEBV4-13: an unplayable source must never crash the review screen —
+      // reset the toggle AND say so, or the user taps forever.
+      emit(state.copyWith(isPlaying: false, playbackError: true));
     }
   }
 
@@ -287,12 +340,13 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
     final clamped = position < Duration.zero
         ? Duration.zero
         : (position > state.audioDuration ? state.audioDuration : position);
-    emit(state.copyWith(playbackPosition: clamped));
     try {
       await _player.seek(clamped);
+      // Emitted AFTER the seek lands: a knob that moves where the audio did
+      // not is a lie.
+      emit(state.copyWith(playbackPosition: clamped, clearPlaybackError: true));
     } on Object {
-      // The optimistic position already shipped; an unplayable source just
-      // means the knob moved and the audio did not.
+      emit(state.copyWith(playbackError: true));
     }
   }
 
@@ -313,6 +367,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
   @override
   Future<void> close() async {
     _queuedTimer?.cancel();
+    _queuedTicker?.cancel();
     await _player.stop();
     await _player.dispose();
     return super.close();

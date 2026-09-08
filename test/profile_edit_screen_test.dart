@@ -256,7 +256,7 @@ void main() {
       expect(store.persistCalls, 0);
       expect(cubit.state.profile.photoUrl, isNull);
       expect(
-        find.text("Couldn't update your photo. Please try again."),
+        find.text('That photo is too large. Pick a smaller one.'),
         findsOneWidget,
       );
     });

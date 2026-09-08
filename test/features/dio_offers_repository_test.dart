@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 
@@ -128,7 +129,7 @@ void main() {
         () async {
       String? capturedPath;
       Map<Symbol, dynamic>? capturedNamed;
-      when(() => mockDio.post<dynamic>(any())).thenAnswer((invocation) async {
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenAnswer((invocation) async {
         capturedPath = invocation.positionalArguments.first as String;
         capturedNamed = invocation.namedArguments;
         return Response<dynamic>(
@@ -145,11 +146,17 @@ void main() {
       // S07 fix: the accept call carries NO request body (data is null), so no
       expect(capturedNamed?[#data], isNull,
           reason: 'accept sends no body — status must not be leaked client-side');
+      // Checklist (j): Retry and the error snack both re-POST, and
+      // RetryInterceptor only replays mutations that carry the key.
+      expect(
+        (capturedNamed?[#options] as Options?)?.headers?['Idempotency-Key'],
+        'accept-offer-9',
+      );
     });
 
     test('returns result (deliveryId null) on 200 with no delivery field',
         () async {
-      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenAnswer(
         (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: ''),
           // Pre-golden accept body — carries no delivery id.
@@ -164,7 +171,7 @@ void main() {
     });
 
     test('surfaces deliveryId from the accept response (G3)', () async {
-      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenAnswer(
         (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: ''),
           data: const {'id': 'req-1', 'deliveryId': 'dlv-golden-001'},
@@ -178,7 +185,7 @@ void main() {
     });
 
     test('reads snake_case delivery_id defensively (G3)', () async {
-      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenAnswer(
         (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: ''),
           data: const {'delivery_id': 'dlv-snake-9'},
@@ -192,7 +199,7 @@ void main() {
     });
 
     test('throws offerNotPending on 409', () {
-      when(() => mockDio.post<dynamic>(any())).thenThrow(
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenThrow(
         DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
@@ -217,7 +224,7 @@ void main() {
 
     // sprint-009 scenario matrix #7: the gateway reuses 409 for several
     void stubAcceptError(int statusCode, [Map<String, dynamic>? body]) {
-      when(() => mockDio.post<dynamic>(any())).thenThrow(
+      when(() => mockDio.post<dynamic>(any(), options: any(named: 'options'))).thenThrow(
         DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
@@ -259,11 +266,38 @@ void main() {
       );
     });
 
-    test('409 with upstream request_not_open code -> requestNotOpen', () {
-      stubAcceptError(409, const {'code': 'request_not_open', 'status': 409});
+    // AE-07: the bucket comes from the RFC 7807 `type` suffix, never from a
+    // non-standard `code` member or English prose.
+    test('409 with a request-not-open type suffix -> requestNotOpen', () {
+      stubAcceptError(409, const {
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/request-not-open',
+      });
       expect(
         () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
         throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
+
+    test('409 request-expired is no longer misbucketed', () {
+      stubAcceptError(409, const {
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/request-expired',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestExpired),
+      );
+    });
+
+    test('409 offer-jeeber-insufficient-balance -> jeeberWalletShort', () {
+      stubAcceptError(409, const {
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/offer-jeeber-insufficient-balance',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.jeeberWalletShort),
       );
     });
 
@@ -289,6 +323,42 @@ void main() {
       expect(
         () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
         throwsFailure(OffersFailure.jeeberAtCapacity),
+      );
+    });
+
+    // The 7-value enum cannot round-trip 401/403/5xx: the transport's own
+    // classification rides along so the screen never shows an inert Retry.
+    test('a 403 keeps its classified ForbiddenFailure, not "unknown"', () {
+      stubAcceptError(403);
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsA(
+          isA<OffersRepositoryException>()
+              .having((e) => e.failure, 'failure', OffersFailure.unknown)
+              .having((e) => e.appFailure, 'appFailure', isA<ForbiddenFailure>()),
+        ),
+      );
+    });
+
+    test('a 500 keeps its classified ServerFailure', () {
+      stubAcceptError(500);
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsA(
+          isA<OffersRepositoryException>()
+              .having((e) => e.appFailure, 'appFailure', isA<ServerFailure>()),
+        ),
+      );
+    });
+
+    test('a 409 with no classification still derives ConflictFailure', () {
+      stubAcceptError(409);
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsA(
+          isA<OffersRepositoryException>()
+              .having((e) => e.appFailure, 'appFailure', isA<ConflictFailure>()),
+        ),
       );
     });
 

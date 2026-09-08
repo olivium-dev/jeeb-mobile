@@ -56,47 +56,49 @@ void main() {
     await sl.reset();
   });
 
-  test('camera moves do not look up addresses and stale results cannot win',
-      () async {
-    final completions = <Completer<String?>>[];
-    final geocoder = _FakeReverseGeocoder((_, _) {
-      final completion = Completer<String?>();
-      completions.add(completion);
-      return completion.future;
-    });
-    final controller = MapCaptureController(
-      initial: const LocationPoint(latitude: 33.8, longitude: 35.4),
-      reverseGeocoder: geocoder,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'camera moves do not look up addresses and stale results cannot win',
+    () async {
+      final completions = <Completer<String?>>[];
+      final geocoder = _FakeReverseGeocoder((_, _) {
+        final completion = Completer<String?>();
+        completions.add(completion);
+        return completion.future;
+      });
+      final controller = MapCaptureController(
+        initial: const LocationPoint(latitude: 33.8, longitude: 35.4),
+        reverseGeocoder: geocoder,
+      );
+      addTearDown(controller.dispose);
 
-    controller.updateCenter(
-      const LocationPoint(latitude: 33.9012, longitude: 35.6033),
-    );
-    controller.updateCenter(
-      const LocationPoint(latitude: 33.9013, longitude: 35.6034),
-    );
-    expect(geocoder.calls, 0, reason: 'camera moves must not call the OS');
+      controller.updateCenter(
+        const LocationPoint(latitude: 33.9012, longitude: 35.6033),
+      );
+      controller.updateCenter(
+        const LocationPoint(latitude: 33.9013, longitude: 35.6034),
+      );
+      expect(geocoder.calls, 0, reason: 'camera moves must not call the OS');
 
-    controller.markReady();
-    expect(geocoder.calls, 1);
+      controller.markReady();
+      expect(geocoder.calls, 1);
 
-    controller.updateCenter(
-      const LocationPoint(latitude: 33.9020, longitude: 35.6040),
-    );
-    controller.markReady();
-    expect(geocoder.calls, 2);
+      controller.updateCenter(
+        const LocationPoint(latitude: 33.9020, longitude: 35.6040),
+      );
+      controller.markReady();
+      expect(geocoder.calls, 2);
 
-    completions.first.complete('Stale address');
-    await Future<void>.delayed(Duration.zero);
-    expect(controller.center.address, isNull);
+      completions.first.complete('Stale address');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.center.address, isNull);
 
-    completions.last.complete('Latest address');
-    await Future<void>.delayed(Duration.zero);
-    expect(controller.center.address, 'Latest address');
-    expect(controller.center.latitude, 33.9020);
-    expect(controller.center.longitude, 35.6040);
-  });
+      completions.last.complete('Latest address');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.center.address, 'Latest address');
+      expect(controller.center.latitude, 33.9020);
+      expect(controller.center.longitude, 35.6040);
+    },
+  );
 
   testWidgets(
     'a throwing reverse geocoder never blocks pin confirmation or raw-coordinate submission',
@@ -169,9 +171,7 @@ void main() {
       );
       expect(cta.isEnabled, isTrue);
 
-      await tester.tap(
-        find.bySemanticsIdentifier('capture_location_pin_cta'),
-      );
+      await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -189,7 +189,11 @@ void main() {
 
       final submission = FakeRequestSubmissionService(requestId: 'req-1');
       final compose = ComposeRequestController(submission)..setTier(_tier);
-      final requestId = await compose.submitFromLocation(location.state);
+      final requestId = await compose.submitFromLocation(
+        location.state,
+        defaultDescription: 'Delivery request',
+        currentLocationLabel: 'Current location',
+      );
 
       expect(requestId, 'req-1');
       expect(submission.submitCount, 1);
@@ -198,8 +202,9 @@ void main() {
       expect(draft.pickupLng, 35.6033);
       expect(draft.dropoffLat, 33.9012);
       expect(draft.dropoffLng, 35.6033);
-      expect(draft.pickupAddress, 'Current location (33.9012, 35.6033)');
-      expect(draft.dropoffAddress, 'Current location (33.9012, 35.6033)');
+      // RSUM-04: localized label, coordinates carried structurally above.
+      expect(draft.pickupAddress, 'Current location');
+      expect(draft.dropoffAddress, 'Current location');
     },
   );
 }

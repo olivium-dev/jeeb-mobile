@@ -33,6 +33,7 @@ void main() {
     when(() => mockDio.post<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         )).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: ''),
@@ -52,6 +53,7 @@ void main() {
       () => mockDio.post<Map<String, dynamic>>(
         captureAny(),
         data: captureAny(named: 'data'),
+        options: any(named: 'options'),
       ),
     ).captured;
 
@@ -69,6 +71,7 @@ void main() {
     when(() => mockDio.post<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         )).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: ''),
@@ -83,6 +86,7 @@ void main() {
       () => mockDio.post<Map<String, dynamic>>(
         any(),
         data: captureAny(named: 'data'),
+        options: any(named: 'options'),
       ),
     ).captured.first as Map<String, dynamic>;
     expect(body['raterRole'], 'jeeber');
@@ -93,6 +97,7 @@ void main() {
     when(() => mockDio.post<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
+          options: any(named: 'options'),
         )).thenThrow(
       DioException(
         requestOptions: RequestOptions(path: ''),

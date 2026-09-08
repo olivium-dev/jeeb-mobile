@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_review/in_app_review.dart';
 
 import 'package:jeeb_mobile/features/rate_app/data/in_app_review_launcher.dart';
+import 'package:jeeb_mobile/features/rate_app/domain/app_review_launcher.dart';
 
 class _RecordingReview implements InAppReview {
   _RecordingReview({this.available = true, this.throwOnAvailability = false});
@@ -39,7 +40,7 @@ void main() {
     final review = _RecordingReview();
     final launcher = InAppReviewLauncher(review: review);
 
-    await launcher.requestReview();
+    expect(await launcher.requestReviewOutcome(), AppReviewOutcome.requested);
 
     expect(review.isAvailableCalls, 1);
     expect(review.requestReviewCalls, 1);
@@ -50,7 +51,8 @@ void main() {
     final review = _RecordingReview(available: false);
     final launcher = InAppReviewLauncher(review: review);
 
-    await launcher.requestReview();
+    // RATE-01: the caller now learns WHY nothing opened.
+    expect(await launcher.requestReviewOutcome(), AppReviewOutcome.unavailable);
 
     expect(review.requestReviewCalls, 0);
   });
@@ -61,6 +63,14 @@ void main() {
     final launcher = InAppReviewLauncher(review: review);
 
     await expectLater(launcher.requestReview(), completes);
+    expect(await launcher.requestReviewOutcome(), AppReviewOutcome.failed);
     expect(review.requestReviewCalls, 0);
+  });
+
+  test('the noop launcher reports unavailable, never a fake success', () async {
+    expect(
+      await const NoopAppReviewLauncher().requestReviewOutcome(),
+      AppReviewOutcome.unavailable,
+    );
   });
 }

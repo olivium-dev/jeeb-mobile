@@ -134,6 +134,15 @@ jobs:
           bash tool/test_inspect_android_internal_release_payload.sh
           bash tool/test_inspect_android_release_payload.sh
 
+      - name: Verify Crashlytics mapping with real Android resource tools
+        run: |
+          set -euo pipefail
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+          export AAPT2_BIN="${ANDROID_HOME}/build-tools/36.0.0/aapt2"
+          export ANDROID_PLATFORM_JAR="${ANDROID_HOME}/platforms/android-36/android.jar"
+          test -x "${AAPT2_BIN}" && test -s "${ANDROID_PLATFORM_JAR}"
+          python3 -m unittest discover -s tool -p 'test_android_crashlytics_mapping.py'
+
       - name: Build, inspect, encrypt, and retain signed internal candidate
         id: candidate
         env:
@@ -151,6 +160,8 @@ jobs:
           ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_UPLOAD_OAUTH_CLIENT_ID }}
           ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID: ${{ secrets.ANDROID_FIREBASE_PLAY_OAUTH_CLIENT_ID }}
           MAPS_API_KEY: ${{ secrets.ANDROID_MAPS_API_KEY }}
+          # Env-index decrypt key; empty secret hides the Server URL preset list.
+          JEEB_ENV_INDEX_KEY: ${{ secrets.JEEB_ENV_INDEX_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -204,15 +215,21 @@ jobs:
                 --build-number="${BUILD_NUMBER}" \
                 --dart-define=APP_FLAVOR=staging \
                 --dart-define=REQUIRE_REAL_PUSH=true \
+                --dart-define=JEEB_DIAG=true \
+                --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
+                --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
                 --dart-define=JEEB_INTERNAL_RELEASE=true \
                 --dart-define=JEEB_DEVTOOL_ENABLED=true \
                 --dart-define=JEEB_STAGING_DEVTOOL=true \
                 --dart-define=JEEB_OBS_OVERLAY=true \
                 --dart-define=JEEB_DEVTOOL_SHAKE=false \
-                --dart-define=JEEB_CLARITY_ENABLED=false \
+                --dart-define=JEEB_CLARITY_ENABLED=true \
                 --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+                --dart-define=JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+                --dart-define=JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
                 --dart-define="JEEB_REALTIME_SOCKET_URL=${STAGING_REALTIME_SOCKET_URL}" \
-                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}"
+                --dart-define="GATEWAY_BASE_URL=${STAGING_GATEWAY_URL}" \
+                --dart-define="JEEB_ENV_INDEX_KEY=${JEEB_ENV_INDEX_KEY}"
           test ! -e android/app/google-services.json
           aab="$(bash tool/android_internal_candidate_integrity.sh \
             select-aab build/app/outputs/bundle/internalReleaseRelease)"
@@ -271,8 +288,10 @@ jobs:
           JEEB_INTERNAL_RELEASE=true \
           JEEB_DEVTOOL_ENABLED=true \
           JEEB_STAGING_DEVTOOL=true \
-          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_ENABLED=true \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+          JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
             bash tool/inspect_android_internal_release_payload.sh \
               "${tmp_dir}/manifest.pb" "${tmp_dir}/resources.pb" \
               "${tmp_dir}/libapp.so" "${tmp_dir}/app_en.arb" \
@@ -280,8 +299,11 @@ jobs:
           artifact_sha="$(sha256sum "${aab}" | cut -d ' ' -f1)"
           metadata_sha="$(sha256sum "${metadata}" | cut -d ' ' -f1)"
           mapping_sha="$(sha256sum "${mapping}" | cut -d ' ' -f1)"
+          crashlytics_identity="$(python3 tool/android_crashlytics_mapping.py inspect --aab "${aab}")"
+          [[ "$(jq -r .firebase_app_id <<<"${crashlytics_identity}")" == "${ANDROID_FIREBASE_APP_ID}" ]]
           provenance="${tmp_dir}/provenance.json"
           jq -n \
+            --argjson crashlytics_identity "${crashlytics_identity}" \
             --arg reviewed_sha "${REVIEWED_SHA}" \
             --arg dependency_sha "${OMDS_SHA}" \
             --arg build_name "${BUILD_NAME}" \
@@ -321,10 +343,14 @@ jobs:
               gateway_origin:$gateway_origin,
               realtime_socket:$realtime_socket,
               devtool:true, super_login:true, shake_to_open:false,
-              clarity_enabled:false,
+              clarity_enabled:true, clarity_staging_internal_approved:true,
+              clarity_project_id:"y6laxxj143",
+              clarity_capture_policy:"staging-internal-consent-masked-v1",
               clarity_privacy_approved:false, retained:true,
-              store_uploaded:false}' >"${provenance}"
+              store_uploaded:false} + $crashlytics_identity' >"${provenance}"
           chmod 0600 "${provenance}"
+          python3 tool/android_crashlytics_mapping.py verify \
+            --aab "${aab}" --mapping "${mapping}" --provenance "${provenance}"
           ANDROID_PACKAGE_NAME=com.olivium.jeeb \
           MOBILE_BUILD_NAME="${BUILD_NAME}" \
           MOBILE_BUILD_NUMBER="${BUILD_NUMBER}" \
@@ -335,8 +361,10 @@ jobs:
           JEEB_DEVTOOL_BUILD=true \
           JEEB_SUPER_LOGIN_ENABLED=true \
           JEEB_DEVTOOL_SHAKE_ENABLED=false \
-          JEEB_CLARITY_ENABLED=false \
+          JEEB_CLARITY_ENABLED=true \
           JEEB_CLARITY_PRIVACY_APPROVED=false \
+          JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+          JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
           JEEB_RELEASE_PROFILE=release \
             bash tool/validate_android_internal_devtool_artifact.sh \
               "${aab}" "${provenance}" "${metadata}" >/dev/null

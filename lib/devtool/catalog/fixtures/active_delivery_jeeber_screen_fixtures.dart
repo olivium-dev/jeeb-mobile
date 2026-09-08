@@ -7,6 +7,7 @@ import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delive
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import 'package:jeeb_mobile/features/background_gps/application/background_gps_state.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 
 /// The repository the seeded cubit is built over. Every method throws, because
 /// none of them may ever run: the screen's `cubit:` seam skips `loadDelivery()`
@@ -25,23 +26,49 @@ class ActiveDeliveryJeeberScreenInertRepository
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
     String? evidenceUrl,
-  }) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
+  }) => throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
 
   @override
   Future<JeeberDeliveryStatus> verifyDoorOtp({
     required String deliveryId,
     required String code,
-  }) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
+  }) => throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
 
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required Uint8List bytes,
     String contentType = 'image/jpeg',
-  }) =>
+  }) => throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
+}
+
+/// A real successful load, optionally followed by a failed refresh. No state
+/// is seeded: the production cubit performs every read.
+class ActiveDeliveryScreenReadThenFailRepository
+    extends ActiveDeliveryJeeberScreenInertRepository {
+  ActiveDeliveryScreenReadThenFailRepository({this.failRefresh = false});
+  final bool failRefresh;
+  int reads = 0;
+
+  @override
+  Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
+    reads++;
+    if (failRefresh && reads > 1) {
       throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
+    }
+    return ActiveDeliveryJeeberScreenFixtures.delivery(
+      status: JeeberDeliveryStatus.atDoor,
+    );
+  }
+}
+
+class ActiveDeliveryScreenDeniedPhotoPicker implements PhotoPickerService {
+  const ActiveDeliveryScreenDeniedPhotoPicker();
+  @override
+  Future<RawPhoto> pickFromCamera() async =>
+      throw const PhotoPickException(PhotoPickFailure.permissionDenied);
+  @override
+  Future<RawPhoto> pickFromGallery() => pickFromCamera();
 }
 
 /// Seeds [ActiveDeliveryCubit] directly into a designed state — the screen's
@@ -49,10 +76,10 @@ class ActiveDeliveryJeeberScreenInertRepository
 /// (unreachable) [ActiveDeliveryJeeberScreenInertRepository] never fires.
 class ActiveDeliveryJeeberScreenSeededCubit extends ActiveDeliveryCubit {
   ActiveDeliveryJeeberScreenSeededCubit(ActiveDeliveryState seed)
-      : super(
-          repository: const ActiveDeliveryJeeberScreenInertRepository(),
-          deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
-        ) {
+    : super(
+        repository: const ActiveDeliveryJeeberScreenInertRepository(),
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+      ) {
     emit(seed);
   }
 }
@@ -107,22 +134,21 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
     String? client = clientName,
     String? amount = amountText,
     String? proofPhotoUrl,
-  }) =>
-      JeeberDelivery(
-        id: deliveryId,
-        status: status,
-        dropOff: DropOffAddress(
-          label: label,
-          lat: 24.6877,
-          lng: 46.6857,
-          detail: detail,
-        ),
-        clientName: client,
-        conversationId: 'demo-conversation-01',
-        amountText: amount,
-        cashNote: 'Customer confirms receipt and pays cash on delivery.',
-        proofPhotoUrl: proofPhotoUrl,
-      );
+  }) => JeeberDelivery(
+    id: deliveryId,
+    status: status,
+    dropOff: DropOffAddress(
+      label: label,
+      lat: 24.6877,
+      lng: 46.6857,
+      detail: detail,
+    ),
+    clientName: client,
+    conversationId: 'demo-conversation-01',
+    amountText: amount,
+    cashNote: 'Customer confirms receipt and pays cash on delivery.',
+    proofPhotoUrl: proofPhotoUrl,
+  );
 
   // ── The five states the Screen Catalog names ──────────────────────────────
 
@@ -154,7 +180,36 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
   /// `GET /v1/deliveries/{id}` failed — the full-screen error with its retry.
   static const ActiveDeliveryState loadFailed = ActiveDeliveryState(
     mode: ActiveDeliveryMode.error,
-    errorMessage: loadErrorMessage,
+    loadFailureKind: ActiveDeliveryFailure.network,
+  );
+
+  /// The 404 lane: the block offers an exit, never an inert Retry.
+  static const ActiveDeliveryState loadFailedNotFound = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.error,
+    loadFailureKind: ActiveDeliveryFailure.notFound,
+  );
+
+  /// The GPS uploader tore itself down mid-delivery (BGPS-01).
+  static final ActiveDeliveryState gpsUploadStopped = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.inTransit),
+    gpsPhase: BackgroundGpsPhase.error,
+  );
+
+  /// The camera leg was refused (F27) — the snack, not a silent no-op.
+  static final ActiveDeliveryState proofPhotoPermissionDenied =
+      ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: delivery(status: JeeberDeliveryStatus.atDoor),
+        proofPhotoStatus: ProofPhotoStatus.failed,
+        proofPhotoFailure: PhotoPickFailure.permissionDenied,
+      );
+
+  /// A push refresh failed with the rows still on screen (F28).
+  static final ActiveDeliveryState refreshFailedWarm = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.inTransit),
+    refreshFailure: ActiveDeliveryFailure.network,
   );
 
   /// M4: proof photo mid-upload. The only frame that draws the evidence tile's
@@ -199,12 +254,12 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
   /// Done optimistically, but nothing is confirmed — the OTP path reverts to
   static final ActiveDeliveryState completingOptimistically =
       ActiveDeliveryState(
-    mode: ActiveDeliveryMode.transitioning,
-    delivery: delivery(
-      status: JeeberDeliveryStatus.done,
-      label: optimisticDropOffLabel,
-    ),
-  );
+        mode: ActiveDeliveryMode.transitioning,
+        delivery: delivery(
+          status: JeeberDeliveryStatus.done,
+          label: optimisticDropOffLabel,
+        ),
+      );
 
   /// Cancelled terminal — neutral empty state, no stepper, no actions.
   static final ActiveDeliveryState cancelled = ActiveDeliveryState(

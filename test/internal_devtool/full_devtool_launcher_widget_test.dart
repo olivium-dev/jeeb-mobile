@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jeeb_mobile/app/jeeb_bootstrap.dart';
 import 'package:jeeb_mobile/core/dev_flags.dart';
+import 'package:jeeb_mobile/core/di/injection_container.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
+import 'package:jeeb_mobile/devtool/dev_settings_page.dart';
 import 'package:jeeb_mobile/devtool/shake/devtool_shake.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -81,6 +85,74 @@ void main() {
       expect(find.bySemanticsLabel('Session trace overlay'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
+
+      // Exercise the actual wrapping URL banner and Gesture Logging header,
+      // not just a fixed-height stand-in for the Dev Tool page.
+      for (final withOverride in [false, true]) {
+        for (final scale in [1.0, 2.0]) {
+          await sl.reset();
+          SharedPreferences.setMockInitialValues({
+            if (withOverride)
+              'dev.base_url_override': 'https://override.example.test/gateway',
+          });
+          sl.registerSingleton<SharedPreferences>(
+            await SharedPreferences.getInstance(),
+          );
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = const Size(320, 568);
+          tester.view.padding = const FakeViewPadding(bottom: 24);
+          tester.view.viewPadding = const FakeViewPadding(bottom: 24);
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.light(),
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: const [
+                SyncAppLocalizationsDelegate(),
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(scale)),
+                child: DevToolShakeHost(initiallyOpen: true, child: child!),
+              ),
+              home: const SizedBox.shrink(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'Live menu: override=$withOverride text=$scale',
+          );
+          final hostState = tester.state(find.byType(DevToolShakeHost));
+          await tester.scrollUntilVisible(
+            find.text('Server URL'),
+            150,
+            scrollable: find.byType(Scrollable).last,
+          );
+          await tester.pumpAndSettle();
+          final actionRect = tester.getRect(find.text('Server URL'));
+          final applyRect = tester.getRect(find.byKey(kDevToolShakeApplyKey));
+          expect(
+            actionRect.overlaps(applyRect),
+            isFalse,
+            reason:
+                'override=$withOverride scale=$scale '
+                'action=$actionRect apply=$applyRect',
+          );
+          await tester.tapAt(actionRect.center);
+          await tester.pumpAndSettle();
+          expect(find.byType(ServerUrlPage), findsOneWidget);
+          expect(tester.state(find.byType(DevToolShakeHost)), same(hostState));
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        }
+      }
+      await sl.reset();
     },
     skip: !kDevToolEnabled,
   );

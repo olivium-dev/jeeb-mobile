@@ -18,6 +18,7 @@ PY
 )"
 BUILD_NAME="${IOS_BUILD_NAME:-}"
 BUILD_NUMBER="${IOS_BUILD_NUMBER:-}"
+REVIEWED_SHA="${REVIEWED_SHA:-}"
 GATEWAY_URL="${GATEWAY_BASE_URL:-https://app.jeeb.fds-1.com}"
 REALTIME_SOCKET_URL="${JEEB_REALTIME_SOCKET_URL:-}"
 FIREBASE_CONFIG="${IOS_GOOGLE_SERVICE_INFO_PLIST_PATH:-}"
@@ -39,6 +40,10 @@ fail() {
   exit 1
 }
 
+[[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]] ||
+  fail 'REVIEWED_SHA must be an explicit immutable commit'
+[[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" == "${REVIEWED_SHA}" ]] ||
+  fail 'diagnostic source revision differs from checked-out candidate'
 [[ "${GATEWAY_URL}" == https://app.jeeb.fds-1.com ]] ||
   fail 'the internal candidate must point at the canonical staging edge'
 [[ "${REALTIME_SOCKET_URL}" == wss://app.jeeb.fds-1.com/socket/websocket ]] ||
@@ -139,11 +144,17 @@ run_release_build() {
     --build-number="${BUILD_NUMBER}" \
     --dart-define=APP_FLAVOR=staging \
     --dart-define=REQUIRE_REAL_PUSH=true \
+    --dart-define=JEEB_INTERNAL_RELEASE=true \
+    --dart-define=JEEB_DIAG=true \
+    --dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}" \
+    --dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}" \
     --dart-define=JEEB_DEVTOOL_ENABLED=true \
     --dart-define=JEEB_STAGING_DEVTOOL=true \
     --dart-define=JEEB_OBS_OVERLAY=true \
-    --dart-define=JEEB_CLARITY_ENABLED=false \
+    --dart-define=JEEB_CLARITY_ENABLED=true \
     --dart-define=JEEB_CLARITY_PRIVACY_APPROVED=false \
+    --dart-define=JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true \
+    --dart-define=JEEB_CLARITY_PROJECT_ID=y6laxxj143 \
     --dart-define="JEEB_REALTIME_SOCKET_URL=${REALTIME_SOCKET_URL}" \
     --dart-define="GATEWAY_BASE_URL=${GATEWAY_URL}"
 
@@ -176,7 +187,7 @@ run_release_build() {
 }
 
 export -f run_release_build
-export FLUTTER_BIN BUILD_NAME BUILD_NUMBER GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
+export FLUTTER_BIN BUILD_NAME BUILD_NUMBER REVIEWED_SHA GATEWAY_URL REALTIME_SOCKET_URL ARCHIVE_PATH
 export EXPORT_PATH EXPORT_OPTIONS
 export AUTHENTICATION_KEY_PATH AUTHENTICATION_KEY_ID AUTHENTICATION_KEY_ISSUER_ID
 export SIGNING_KEYCHAIN_PATH DEVELOPMENT_SIGNING_IDENTITY_SHA1
@@ -202,6 +213,15 @@ export JEEB_IOS_RELEASE_PROFILE=staging
 
 ipa_path="$(find "${EXPORT_PATH}" -maxdepth 1 -type f -name '*.ipa' -print -quit)"
 [[ -n "${ipa_path}" && -s "${ipa_path}" ]] || fail 'exported IPA is missing'
+
+# This capture-enabled candidate has a stronger payload contract than the
+# independent capture-off unsigned staging CI build.
+capture_binary="$(mktemp)"
+trap 'rm -f -- "${capture_binary}"' EXIT HUP INT TERM
+unzip -p "${ipa_path}" Payload/Runner.app/Frameworks/App.framework/App >"${capture_binary}"
+bash "${REPO_ROOT}/tool/inspect_ios_staging_clarity_payload.sh" "${capture_binary}"
+rm -f -- "${capture_binary}"
+trap - EXIT HUP INT TERM
 
 IOS_BUILD_NAME="${BUILD_NAME}" IOS_BUILD_NUMBER="${BUILD_NUMBER}" \
   bash "${REPO_ROOT}/tool/inspect_signed_ios_release.sh" \

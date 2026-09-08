@@ -1,8 +1,11 @@
 // Tests for EarningsCubit (T-MOB-019).
 
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/earnings/application/earnings_cubit.dart';
 import 'package:jeeb_mobile/features/earnings/application/earnings_state.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
@@ -243,8 +246,10 @@ void main() {
       ),
       expect: () => [
         predicate<EarningsState>(
-          (s) => s.mode == EarningsViewMode.error && s.errorMessage != null,
-          'error with message',
+          (s) =>
+              s.mode == EarningsViewMode.error &&
+              s.failure is NetworkFailure,
+          'error carrying the network KIND, never an English sentence',
         ),
       ],
     );
@@ -361,11 +366,156 @@ void main() {
         // No error mode, no error message, no balance — the pill simply
         // renders without its suffix rather than showing a fabricated zero.
         expect(c.state.mode, EarningsViewMode.ready);
-        expect(c.state.errorMessage, isNull);
+        expect(c.state.failure, isNull);
         expect(c.state.walletBalance, isNull);
       },
     );
+
+    blocTest<EarningsCubit, EarningsState>(
+      'LR-17: a second exportPdf while one is in flight is a no-op',
+      build: () => EarningsCubit(
+        repository: const _StallingExportRepository(),
+        jeeberId: 'jeeber-001',
+      ),
+      act: (c) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        unawaited(c.exportPdf());
+        await c.exportPdf();
+      },
+      verify: (c) => expect(c.state.exportMode, EarningsExportMode.exporting),
+    );
+
+    blocTest<EarningsCubit, EarningsState>(
+      'LR-16: refresh() keeps `ready` and the current summary, and a failed '
+      'refresh raises refreshError instead of blanking the dashboard',
+      build: () => EarningsCubit(
+        repository: _WarmFailingEarningsRepository(),
+        jeeberId: 'jeeber-001',
+      ),
+      act: (c) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await c.refresh();
+      },
+      verify: (c) {
+        expect(c.state.mode, EarningsViewMode.ready);
+        expect(c.state.summary, isNotNull);
+        expect(c.state.refreshError, isA<NetworkFailure>());
+      },
+    );
+
+    blocTest<EarningsCubit, EarningsState>(
+      'a period tap DOES flip to loading — the split is deliberate',
+      build: () => EarningsCubit(
+        repository: const _FakeEarningsRepository(),
+        jeeberId: 'jeeber-001',
+      ),
+      act: (c) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await c.loadEarnings(period: EarningsPeriod.month);
+      },
+      skip: 1,
+      expect: () => [
+        predicate<EarningsState>(
+          (s) => s.mode == EarningsViewMode.loading,
+          'loading',
+        ),
+        predicate<EarningsState>(
+          (s) => s.mode == EarningsViewMode.ready,
+          'ready',
+        ),
+      ],
+    );
+
+    blocTest<EarningsCubit, EarningsState>(
+      'LR-04/EARN-01: a RAW TypeError from the repository lands the error '
+      'rung, never a hung skeleton',
+      build: () => EarningsCubit(
+        repository: const _RawThrowEarningsRepository(),
+        jeeberId: 'jeeber-001',
+      ),
+      wait: const Duration(milliseconds: 20),
+      verify: (c) {
+        expect(c.state.mode, EarningsViewMode.error);
+        expect(c.state.failure, isNotNull);
+      },
+    );
   });
+}
+
+/// A cold load that lands and every refresh after it that fails.
+class _WarmFailingEarningsRepository implements EarningsRepository {
+  bool _served = false;
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async {
+    if (_served) {
+      throw const EarningsRepositoryException(
+        EarningsErrorKind.network,
+        null,
+        NetworkFailure(),
+      );
+    }
+    _served = true;
+    return const EarningsSummary(
+      totalCashEarned: 10,
+      feesPaid: 1,
+      currency: 'USD',
+      deliveryCount: 1,
+    );
+  }
+
+  @override
+  Future<String> exportEarningsPdf({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      throw const EarningsRepositoryException(EarningsErrorKind.network);
+}
+
+/// Raises the untyped error an `as` cast in `fromJson` would.
+class _RawThrowEarningsRepository implements EarningsRepository {
+  const _RawThrowEarningsRepository();
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      throw TypeError();
+
+  @override
+  Future<String> exportEarningsPdf({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      throw TypeError();
+}
+
+/// Never resolves — the export in-flight guard's fixture.
+class _StallingExportRepository implements EarningsRepository {
+  const _StallingExportRepository();
+
+  @override
+  Future<EarningsSummary> fetchEarnings({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      const EarningsSummary(
+        totalCashEarned: 10,
+        feesPaid: 1,
+        currency: 'USD',
+        deliveryCount: 1,
+      );
+
+  @override
+  Future<String> exportEarningsPdf({
+    String jeeberId = '',
+    EarningsPeriod period = EarningsPeriod.week,
+  }) =>
+      Completer<String>().future;
 }
 
 class _FakeWalletRepository implements WalletRepository {

@@ -2,11 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
+import '../../../core/network/gateway_problem.dart';
 import '../../../core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import '../domain/cdn_asset_gateway.dart';
 
 /// Dio-backed [CdnAssetGateway].
-class DioCdnAssetGateway implements CdnAssetGateway {
+class DioCdnAssetGateway implements IdempotentCdnAssetGateway {
   DioCdnAssetGateway(this._brokerDio, {Dio? uploadDio})
     : _uploadDio = uploadDio ?? _bareUploadDio() {
     ObsDioInterceptor.attachTo(_uploadDio);
@@ -44,22 +46,39 @@ class DioCdnAssetGateway implements CdnAssetGateway {
     required CdnUploadSlot slot,
     required Uint8List bytes,
     String contentType = 'image/jpeg',
+  }) => uploadAssetIdempotent(
+    slot: slot,
+    bytes: bytes,
+    operationId: newOperationId(),
+    contentType: contentType,
+  );
+
+  @override
+  Future<String> uploadAssetIdempotent({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    required String operationId,
+    String contentType = 'image/jpeg',
   }) async {
-    final ticket = await _brokerTicket(slot, contentType);
-    await _putBytes(ticket: ticket, bytes: bytes, slot: slot);
+    final ticket = await _brokerTicket(slot, contentType, operationId);
+    await _putBytes(ticket: ticket, bytes: bytes);
     return ticket.objectRef;
   }
 
   Future<_CdnUploadTicket> _brokerTicket(
     CdnUploadSlot slot,
     String contentType,
+    String operationId,
   ) async {
     try {
       final res = await _brokerDio.post<Map<String, dynamic>>(
         _brokerPath,
         data: {'slot': _wireSlot(slot), 'content_type': contentType},
         options: Options(
-          headers: <String, Object?>{'Idempotency-Key': newOperationId()},
+          headers: <String, Object?>{
+            // One key per slot per submission, so a retried submit replays.
+            'Idempotency-Key': '$operationId:${_wireSlot(slot)}',
+          },
         ),
       );
       return _CdnUploadTicket.fromBroker(
@@ -68,7 +87,9 @@ class DioCdnAssetGateway implements CdnAssetGateway {
       );
     } on DioException catch (e) {
       throw CdnUploadException(
-        'CDN broker ticket failed for ${_wireSlot(slot)}: ${e.message}',
+        'cdn_broker_ticket',
+        failure: AppFailure.of(e),
+        status: e.response?.statusCode,
       );
     }
   }
@@ -76,7 +97,6 @@ class DioCdnAssetGateway implements CdnAssetGateway {
   Future<void> _putBytes({
     required _CdnUploadTicket ticket,
     required Uint8List bytes,
-    required CdnUploadSlot slot,
   }) async {
     try {
       final res = await _uploadDio.request<void>(
@@ -84,10 +104,12 @@ class DioCdnAssetGateway implements CdnAssetGateway {
         data: bytes, // raw Uint8List — Dio 5.x sends binary data untransformed
         options: _putOptions(ticket),
       );
-      _ensure2xx(res.statusCode ?? 0, slot);
+      _ensure2xx(res.statusCode ?? 0);
     } on DioException catch (e) {
       throw CdnUploadException(
-        'CDN signed-PUT failed for ${_wireSlot(slot)}: ${e.message}',
+        'cdn_signed_put',
+        failure: AppFailure.of(e),
+        status: e.response?.statusCode,
       );
     }
   }
@@ -104,10 +126,14 @@ class DioCdnAssetGateway implements CdnAssetGateway {
     );
   }
 
-  void _ensure2xx(int status, CdnUploadSlot slot) {
+  void _ensure2xx(int status) {
     if (status < 200 || status >= 300) {
       throw CdnUploadException(
-        'CDN signed-PUT returned $status for ${_wireSlot(slot)}',
+        'cdn_signed_put',
+        failure: status >= 400 && status < 500
+            ? ValidationFailure(problem: GatewayProblem(status: status))
+            : ServerFailure(status: status),
+        status: status,
       );
     }
   }
@@ -151,7 +177,7 @@ class DioCdnAssetGateway implements CdnAssetGateway {
       }
       return Uint8List.fromList(data);
     } on DioException catch (e) {
-      throw CdnFetchException('CDN fetch failed for $objectRef: ${e.message}');
+      throw CdnFetchException('cdn_fetch', failure: AppFailure.of(e));
     }
   }
 }

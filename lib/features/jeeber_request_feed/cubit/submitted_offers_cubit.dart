@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
@@ -21,24 +22,40 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
 
   final SubmittedOffersRepository _repository;
   StreamSubscription<OfferLifecycleEvent>? _lifecycleSub;
+  bool _loadInFlight = false;
 
   Future<void> load() async {
+    if (_loadInFlight) return;
+    _loadInFlight = true;
     final isInitial = state.status == SubmittedOffersStatus.initial;
     if (isInitial) {
-      emit(state.copyWith(status: SubmittedOffersStatus.loading));
+      emit(state.copyWith(status: SubmittedOffersStatus.loading, error: null));
     }
     try {
       final offers = await _repository.listSubmitted();
+      if (isClosed) return;
       emit(state.copyWith(
         status: SubmittedOffersStatus.ready,
         offers: offers,
+        error: null,
+        refreshError: null,
       ));
-    } catch (_) {
-      emit(state.copyWith(
-        status: state.offers.isEmpty
-            ? SubmittedOffersStatus.error
-            : SubmittedOffersStatus.ready,
-      ));
+    } catch (e) {
+      if (isClosed) return;
+      final failure = AppFailure.of(e);
+      // A warm failure keeps the rows; only a cold one owns the screen.
+      emit(state.offers.isEmpty
+          ? state.copyWith(
+              status: SubmittedOffersStatus.error,
+              error: failure,
+              refreshError: null,
+            )
+          : state.copyWith(
+              status: SubmittedOffersStatus.ready,
+              refreshError: failure,
+            ));
+    } finally {
+      _loadInFlight = false;
     }
   }
 
@@ -48,16 +65,38 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
     emit(state.copyWith(
       withdrawingIds: {...state.withdrawingIds, offerId},
     ));
-    final ok = await _repository.withdraw(offerId);
-    final clearedBusy = {...state.withdrawingIds}..remove(offerId);
-    if (!ok) {
-      emit(state.copyWith(withdrawingIds: clearedBusy));
-      return;
+    SubmittedOffersEffect? effect;
+    List<SubmittedOffer>? remaining;
+    try {
+      final ok = await _repository.withdraw(offerId);
+      if (ok) {
+        remaining =
+            state.offers.where((o) => o.id != offerId).toList(growable: false);
+      } else {
+        effect = SubmittedOffersEffect.withdrawFailed(offerId, null);
+      }
+    } catch (e) {
+      effect = SubmittedOffersEffect.withdrawFailed(offerId, AppFailure.of(e));
+    } finally {
+      if (!isClosed) {
+        // The busy id clears on EVERY path, or the row is dead forever.
+        emit(state.copyWith(
+          offers: remaining,
+          withdrawingIds: {...state.withdrawingIds}..remove(offerId),
+          lastEffect: effect,
+        ));
+      }
     }
-    emit(state.copyWith(
-      offers: state.offers.where((o) => o.id != offerId).toList(growable: false),
-      withdrawingIds: clearedBusy,
-    ));
+  }
+
+  void clearEffect() {
+    if (state.lastEffect == null) return;
+    emit(state.copyWith(lastEffect: null));
+  }
+
+  void clearRefreshError() {
+    if (state.refreshError == null) return;
+    emit(state.copyWith(refreshError: null));
   }
 
   Future<void> applyOfferLifecycle(String offerId, OfferStatus status) async {

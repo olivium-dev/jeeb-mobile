@@ -36,35 +36,59 @@ const _loaded = LocationSelectState(
 
 void main() {
   group('B-02b — ComposeRequestController in-flight guard', () {
-    test('a re-entrant submit joins the in-flight create (fires exactly once)',
-        () async {
-      final gated = _GatedSubmission();
-      final controller = ComposeRequestController(gated);
+    test(
+      'a re-entrant submit joins the in-flight create (fires exactly once)',
+      () async {
+        final gated = _GatedSubmission();
+        final controller = ComposeRequestController(gated);
 
-      final f1 = controller.submitFromLocation(_loaded);
-      final f2 = controller.submitFromLocation(_loaded); // while f1 in flight
+        final f1 = controller.submitFromLocation(
+          _loaded,
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
+        final f2 = controller.submitFromLocation(
+          _loaded,
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        ); // while f1 in flight
 
-      expect(gated.submitCount, 1, reason: 'the create must fire only once');
-      expect(identical(f1, f2), isTrue, reason: 'both callers share one future');
+        expect(gated.submitCount, 1, reason: 'the create must fire only once');
+        expect(
+          identical(f1, f2),
+          isTrue,
+          reason: 'both callers share one future',
+        );
 
-      gated.release('req-1');
-      expect(await f1, 'req-1');
-      expect(await f2, 'req-1');
-    });
+        gated.release('req-1');
+        expect(await f1, 'req-1');
+        expect(await f2, 'req-1');
+      },
+    );
 
-    test('a fresh submit after the first settles fires a new create (retry ok)',
-        () async {
-      final gated = _GatedSubmission();
-      final controller = ComposeRequestController(gated);
+    test(
+      'a fresh submit after the first settles fires a new create (retry ok)',
+      () async {
+        final gated = _GatedSubmission();
+        final controller = ComposeRequestController(gated);
 
-      final first = controller.submitFromLocation(_loaded);
-      gated.release('req-1');
-      await first;
+        final first = controller.submitFromLocation(
+          _loaded,
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
+        gated.release('req-1');
+        await first;
 
-      final second = controller.submitFromLocation(_loaded);
-      gated.release('req-2');
-      expect(await second, 'req-2');
-      expect(gated.submitCount, 2);
-    });
+        final second = controller.submitFromLocation(
+          _loaded,
+          defaultDescription: 'Delivery request',
+          currentLocationLabel: 'Current location',
+        );
+        gated.release('req-2');
+        expect(await second, 'req-2');
+        expect(gated.submitCount, 2);
+      },
+    );
   });
 }

@@ -3,8 +3,10 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_demo_user.dart';
 
@@ -171,10 +173,20 @@ class _PickerAsyncRegion extends StatelessWidget {
           return const _PickerLoading();
         }
         if (snapshot.hasError) {
-          return _PickerError(onRetry: onRetry);
+          return _PickerError(
+            failure: AppFailure.of(snapshot.error!),
+            onRetry: onRetry,
+          );
         }
         final users = snapshot.data ?? const <SuperLoginDemoUser>[];
-        if (users.isEmpty) return _PickerError(onRetry: onRetry);
+        // An empty roster is a dev-fixture fault, not a transport one; it keeps
+        // the same retryable block the load failure gets.
+        if (users.isEmpty) {
+          return _PickerError(
+            failure: const UnknownFailure(),
+            onRetry: onRetry,
+          );
+        }
         return _PickerFilterableList(users: users, onSelect: onSelect);
       },
     );
@@ -287,21 +299,22 @@ class _PickerLoading extends StatelessWidget {
 }
 
 class _PickerError extends StatelessWidget {
-  const _PickerError({required this.onRetry});
+  const _PickerError({required this.failure, required this.onRetry});
 
+  final AppFailure failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
+    // The block owns the `super_login_plus_picker_error` identifier now, so the
+    // old wrapping Semantics would have produced a duplicate node.
+    return JeebFailureBlock.compact(
+      key: const Key('superLoginPlus.pickerError'),
+      failure: failure,
       identifier: 'super_login_plus_picker_error',
-      child: OmdsErrorState(
-        key: const Key('superLoginPlus.pickerError'),
-        message: l10n.superLoginPickerLoadingError,
-        onRetry: onRetry,
-        retryLabel: l10n.superLoginPickerRetry,
-      ),
+      bodyOverride: l10n.superLoginPickerLoadingError,
+      onRetry: onRetry,
     );
   }
 }

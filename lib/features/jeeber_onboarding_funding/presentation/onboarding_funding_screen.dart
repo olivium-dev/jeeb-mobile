@@ -4,11 +4,13 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
@@ -72,6 +74,10 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
 
   _WalletRead _read = _WalletRead.loading;
 
+  /// The classified failure behind [_WalletRead.failed], so the rung renders
+  /// kind-aware copy instead of another screen's app-bar title.
+  AppFailure? _failure;
+
   @override
   void initState() {
     super.initState();
@@ -79,26 +85,53 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
   }
 
   Future<void> _loadBalance() async {
-    final repo = widget.repository ?? sl<WalletRepository>();
+    // Unlike every sibling seam this used to throw a raw GetIt StateError when
+    // nothing was registered; a null repo now reaches the failed rung.
+    final repo =
+        widget.repository ??
+        (sl.isRegistered<WalletRepository>() ? sl<WalletRepository>() : null);
+    if (repo == null) {
+      if (mounted) {
+        setState(() {
+          _failure = const UnknownFailure();
+          _read = _WalletRead.failed;
+        });
+      }
+      return;
+    }
     try {
       final balance = await repo.fetchBalance();
       if (mounted) {
         setState(() {
           _balance = balance;
+          _failure = null;
           _read = _WalletRead.loaded;
         });
       }
-    } on WalletRepositoryException {
+    } on WalletRepositoryException catch (e) {
       // Fail-safe: the explainer is static copy, so a failed wallet fetch only
       // drops the enrichment and raises the retryable state block.
-      if (mounted) setState(() => _read = _WalletRead.failed);
-    } catch (_) {
-      if (mounted) setState(() => _read = _WalletRead.failed);
+      if (mounted) {
+        setState(() {
+          _failure = e.cause ?? const UnknownFailure();
+          _read = _WalletRead.failed;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _failure = AppFailure.of(e);
+          _read = _WalletRead.failed;
+        });
+      }
     }
   }
 
   void _retry() {
-    setState(() => _read = _WalletRead.loading);
+    setState(() {
+      _failure = null;
+      _read = _WalletRead.loading;
+    });
     _loadBalance();
   }
 
@@ -123,8 +156,9 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
               JeebTopBar(
                 identifier: 'funding_back',
                 title: l10n.fundingTitle,
-                leadingTooltip:
-                    MaterialLocalizations.of(context).backButtonTooltip,
+                leadingTooltip: MaterialLocalizations.of(
+                  context,
+                ).backButtonTooltip,
                 // Reachable by deep link with an empty stack: pop when we can,
                 // else go to the shell — never pop the last page.
                 onLeadingPressed: () =>
@@ -171,7 +205,11 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
                             ),
                             // Not in the lower third: SliverFillRemaining
                             // measures intrinsics, the illustration cannot.
-                            _WalletReadBlock(read: _read, onRetry: _retry),
+                            _WalletReadBlock(
+                              read: _read,
+                              failure: _failure,
+                              onRetry: _retry,
+                            ),
                           ]),
                         ),
                       ),
@@ -237,7 +275,8 @@ class _StarterCreditHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final money = amount;
 
@@ -290,7 +329,8 @@ class _ReservedNowStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final text = context.jeebText;
 
@@ -306,7 +346,7 @@ class _ReservedNowStat extends StatelessWidget {
             textAlign: TextAlign.end,
             style: text.caption.copyWith(color: semantic.mutedText),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: Sizes.threeXSmall),
           Text(
             value,
             textAlign: TextAlign.end,
@@ -326,36 +366,43 @@ class _ReservedNowStat extends StatelessWidget {
 /// family — an empty pocket is what a wallet with nothing to report looks like.
 /// The loaded rung draws nothing: the empty lower third is the design.
 class _WalletReadBlock extends StatelessWidget {
-  const _WalletReadBlock({required this.read, required this.onRetry});
+  const _WalletReadBlock({
+    required this.read,
+    required this.onRetry,
+    this.failure,
+  });
 
   final _WalletRead read;
+  final AppFailure? failure;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     if (read == _WalletRead.loaded) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    final failed = read == _WalletRead.failed;
 
     return Padding(
       padding: const EdgeInsetsDirectional.only(top: Spacing.medium),
-      child: JeebEmptyState.compact(
-        identifier: failed ? 'funding_wallet_error' : 'funding_wallet_loading',
-        status: failed
-            ? JeebEmptyStateStatus.error
-            : JeebEmptyStateStatus.loading,
-        variant: JeebEmptyStateVariant.pocket,
-        headline: l10n.walletHubTitle,
-        body: failed ? l10n.walletHubLoadError : null,
-        action: failed
-            ? JeebCtaButton.outline(
-                identifier: 'funding_wallet_retry',
-                label: l10n.walletHubRetry,
-                expand: false,
-                onTap: onRetry,
-              )
-            : null,
-      ),
+      child: read == _WalletRead.failed
+          ? JeebFailureBlock.compact(
+              failure: failure ?? const UnknownFailure(),
+              identifier: 'funding_wallet_error',
+              retryIdentifier: 'funding_wallet_retry',
+              exitIdentifier: 'funding_wallet_exit',
+              variant: JeebEmptyStateVariant.pocket,
+              onRetry: onRetry,
+              // R6: a 401/403 cannot be retried — the exit pill is the only act.
+              onExit: failure is UnauthorizedFailure
+                  ? () => context.go('/')
+                  : () => context.canPop() ? context.pop() : context.go('/'),
+            )
+          : JeebEmptyState.compact(
+              identifier: 'funding_wallet_loading',
+              status: JeebEmptyStateStatus.loading,
+              reason: JeebEmptyStateReason.loading,
+              variant: JeebEmptyStateVariant.pocket,
+              headline: l10n.fundingWalletLoadingHeadline,
+            ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
@@ -7,6 +8,15 @@ import 'package:jeeb_mobile/features/request_summary/domain/request_submission_s
 import '../../support/fake_request_submission_service.dart';
 
 const _draft = RequestDraft(description: 'A package to Verdun', tierId: 'flash');
+
+/// Raises something that is NOT a [RequestSubmissionException] — the parser
+/// TypeError that used to escape the cubit and pin `isSubmitting`.
+class _ThrowingSubmissionService implements RequestSubmissionService {
+  const _ThrowingSubmissionService();
+
+  @override
+  Future<String> submit(RequestDraft draft) async => throw TypeError();
+}
 
 void main() {
   group('RequestSummaryCubit.submit — T-MOB-REQSUBMIT', () {
@@ -70,17 +80,19 @@ void main() {
         isA<RequestSummaryState>()
             .having((s) => s.isSubmitting, 'isSubmitting', isFalse)
             .having((s) => s.isSubmitted, 'isSubmitted', isFalse)
-            .having((s) => s.error, 'error', isNotNull)
-            .having((s) => s.error, 'error', contains('connection')),
+            .having((s) => s.error, 'error', isA<NetworkFailure>()),
       ],
     );
 
+    // EP-06: the cubit carries the CLASSIFIED failure, never prose — the copy
+    // is chosen by `failureCopy` at the widget, in the user's locale.
     blocTest<RequestSummaryCubit, RequestSummaryState>(
-      'surfaces a distinct message for a server failure',
+      'carries a distinct AppFailure kind for a server failure',
       build: () => RequestSummaryCubit(
         FakeRequestSubmissionService(
-          error: const RequestSubmissionException(
+          error: const RequestSubmissionException.classified(
             RequestSubmissionFailure.server,
+            appFailure: ServerFailure(status: 503),
           ),
         ),
       )..setDraft(_draft),
@@ -89,8 +101,93 @@ void main() {
       expect: () => [
         isA<RequestSummaryState>()
             .having((s) => s.isSubmitted, 'isSubmitted', isFalse)
-            .having((s) => s.error, 'error', 'Something went wrong. '
-                'Please try again.'),
+            .having(
+              (s) => s.error,
+              'error',
+              const ServerFailure(status: 503),
+            ),
+      ],
+    );
+
+    // EP-23: a TypeError out of the response parser used to escape the cubit
+    // and pin `isSubmitting` forever.
+    blocTest<RequestSummaryCubit, RequestSummaryState>(
+      'classifies a non-RequestSubmissionException and clears isSubmitting',
+      build: () => RequestSummaryCubit(
+        const _ThrowingSubmissionService(),
+      )..setDraft(_draft),
+      act: (cubit) => cubit.submit(),
+      skip: 1,
+      expect: () => [
+        isA<RequestSummaryState>()
+            .having((s) => s.isSubmitting, 'isSubmitting', isFalse)
+            .having((s) => s.error, 'error', isA<UnknownFailure>()),
+      ],
+    );
+
+    // AE-01: a 409 requires-ack is its own branch, not a generic failure.
+    blocTest<RequestSummaryCubit, RequestSummaryState>(
+      'a moderation 409 carries the flagged keywords, not a blocked flag',
+      build: () => RequestSummaryCubit(
+        FakeRequestSubmissionService(
+          error: const RequestModerationRequired(
+            matches: <String>['knife'],
+            appFailure: ConflictFailure(),
+          ),
+        ),
+      )..setDraft(_draft),
+      act: (cubit) => cubit.submit(),
+      skip: 1,
+      expect: () => [
+        isA<RequestSummaryState>()
+            .having((s) => s.moderationMatches, 'matches', <String>['knife'])
+            .having((s) => s.moderationBlocked, 'blocked', isFalse)
+            .having((s) => s.isSubmitted, 'isSubmitted', isFalse),
+      ],
+    );
+
+    blocTest<RequestSummaryCubit, RequestSummaryState>(
+      'a moderation 409 BLOCKED is terminal',
+      build: () => RequestSummaryCubit(
+        FakeRequestSubmissionService(
+          error: const RequestModerationRequired(
+            matches: <String>['firearm'],
+            blocked: true,
+            appFailure: ConflictFailure(),
+          ),
+        ),
+      )..setDraft(_draft),
+      act: (cubit) => cubit.submit(),
+      skip: 1,
+      expect: () => [
+        isA<RequestSummaryState>()
+            .having((s) => s.moderationBlocked, 'blocked', isTrue),
+      ],
+    );
+
+    // AE-04: a 422's per-field messages must survive onto the state.
+    blocTest<RequestSummaryCubit, RequestSummaryState>(
+      'a ValidationFailure carries its fieldErrors onto the state',
+      build: () => RequestSummaryCubit(
+        FakeRequestSubmissionService(
+          error: const RequestSubmissionException.classified(
+            RequestSubmissionFailure.invalidInput,
+            appFailure: ValidationFailure(
+              fieldErrors: <String, List<String>>{
+                'description': <String>['Too short'],
+              },
+            ),
+          ),
+        ),
+      )..setDraft(_draft),
+      act: (cubit) => cubit.submit(),
+      skip: 1,
+      expect: () => [
+        isA<RequestSummaryState>().having(
+          (s) => s.fieldErrors['description'],
+          'fieldErrors[description]',
+          <String>['Too short'],
+        ),
       ],
     );
 

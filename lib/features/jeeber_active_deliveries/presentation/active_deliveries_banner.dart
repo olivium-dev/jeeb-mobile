@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/accessibility/accessibility.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../application/active_deliveries_cubit.dart';
@@ -62,7 +64,17 @@ class ActiveDeliveriesBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ActiveDeliveriesCubit, ActiveDeliveriesState>(
       builder: (context, state) {
-        if (!state.hasDeliveries) return const SizedBox.shrink();
+        // ES-03: loading and empty stay invisible, but a cold FAILURE must not
+        // look like "no active deliveries".
+        if (!state.hasDeliveries) {
+          if (state.phase != ActiveDeliveriesPhase.failed) {
+            return const SizedBox.shrink();
+          }
+          return _ActiveDeliveriesFailure(
+            failure: state.error ?? const UnknownFailure(),
+            onRetry: () => context.read<ActiveDeliveriesCubit>().refresh(),
+          );
+        }
         final l10n = AppLocalizations.of(context);
         return Semantics(
           container: true,
@@ -83,6 +95,35 @@ class ActiveDeliveriesBanner extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The cold-failure rung of the band, in the same 24px gutter as the cards.
+class _ActiveDeliveriesFailure extends StatelessWidget {
+  const _ActiveDeliveriesFailure({
+    required this.failure,
+    required this.onRetry,
+  });
+
+  final AppFailure failure;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: Spacing.xLarge,
+        top: Spacing.xSmall,
+        end: Spacing.xLarge,
+      ),
+      child: JeebFailureBlock.compact(
+        failure: failure,
+        identifier: 'jeeber_active_deliveries_error',
+        bodyOverride: l10n.activeDeliveriesLoadError,
+        onRetry: onRetry,
+      ),
     );
   }
 }

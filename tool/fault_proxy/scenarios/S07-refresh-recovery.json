@@ -1,0 +1,57 @@
+{
+  "scenario": "S07",
+  "rules": [
+    {
+      "id": "refresh-recovery",
+      "match": {
+        "method": "GET",
+        "path": "^/gateway/(v1/)?users/me(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 401,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://tools.ietf.org/html/rfc9110#section-15.5.2\",\"title\":\"Unauthorized\",\"status\":401,\"traceId\":\"00-00000000000000000000000000000000-0000000000000000-01\"}"
+      }
+    },
+    {
+      "id": "refresh-503",
+      "match": {
+        "method": "POST",
+        "path": "^/gateway/v1/auth/refresh(\\?.*)?$"
+      },
+      "times": 0,
+      "respond": {
+        "status": 503,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": "{\"type\":\"https://httpstatuses.com/503\",\"title\":\"Service Unavailable\",\"status\":503}"
+      }
+    }
+  ],
+  "expect": {
+    "kind": "unauthorized",
+    "copyTitle": "errorGenericTitle",
+    "copyBody": "errorReconnectingBody",
+    "retryable": true,
+    "recovering": true
+  },
+  "device": {
+    "screen": "profile",
+    "mode": "cold",
+    "expectedHits": "profile 401 + refresh 503 once",
+    "requiredIds": [
+      "customer_profile_load_error",
+      "customer_profile_retry_cta"
+    ],
+    "forbiddenPlaceholders": [
+      "Add your name",
+      "No reviews yet",
+      "?"
+    ],
+    "notes": "Contract test supplies recovering marker; device must prove refresh chain and retained session."
+  }
+}

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/single_flight_get.dart';
+import 'package:jeeb_mobile/core/session/auth_loss_signals.dart';
 
 /// Lowest-level Dio adapter that DELAYS each response until its gate completes
 /// and counts how many requests actually reach the wire. The gate lets a test
@@ -89,5 +90,34 @@ void main() {
     // The first read settled and evicted; the second must hit the wire again
     await coalescer.get('/v1/offers', queryParameters: {'requestId': 'r1'});
     expect(adapter.callCount, 2);
+  });
+
+  group('NET-24: identity is part of the key', () {
+    test('an auth-loss signal drops the coalescing slot', () async {
+      final first = coalescer.get('/v1/offers');
+
+      AuthLossSignals.instance.signal();
+
+      // Same path, new identity: it must reach the wire on its own.
+      final second = coalescer.get('/v1/offers');
+      expect(identical(first, second), isFalse);
+
+      adapter.gate.complete();
+      await first;
+      await second;
+      expect(adapter.callCount, 2);
+    });
+
+    test('clear() is enough on its own (role switch, super-login)', () async {
+      final first = coalescer.get('/v1/offers');
+      coalescer.clear();
+      final second = coalescer.get('/v1/offers');
+      expect(identical(first, second), isFalse);
+
+      adapter.gate.complete();
+      await first;
+      await second;
+      expect(adapter.callCount, 2);
+    });
   });
 }

@@ -18,6 +18,10 @@ const _templates = <String>[_prodTemplate, _devTemplate, _iosTemplate];
 const _expectedProjectId = 'jeeb-5a293';
 const _forbiddenProject = 'alrahmah';
 
+bool get _isCi =>
+    Platform.environment['CI'] == 'true' ||
+    (Platform.environment['GITHUB_ACTIONS'] ?? '').isNotEmpty;
+
 Future<bool> _isTracked(String path) async {
   final result = await Process.run('git', <String>[
     'ls-files',
@@ -89,13 +93,17 @@ void main() {
         isTrue,
         reason: '$path must stay ignored so a transient injection cannot land.',
       );
-      expect(
-        File(path).existsSync(),
-        isFalse,
-        reason:
-            '$path remained after a local build; the protected wrapper cleanup '
-            'must remove it even when the wrapped command fails.',
-      );
+      // Regime, not outcome: the build needs this file, so only CI can
+      // demand its absence. A local checkout is allowed to hold one.
+      if (_isCi) {
+        expect(
+          File(path).existsSync(),
+          isFalse,
+          reason:
+              '$path remained after a build; the protected wrapper cleanup '
+              'must remove it even when the wrapped command fails.',
+        );
+      }
     });
   }
 
@@ -142,15 +150,39 @@ void main() {
   test(
     'dev wrapper validates, exposes transiently, and always cleans up',
     () async {
-      final target = File(_devConfig);
+      // Exercise the real scripts without assuming that a developer's ignored
+      // native build inputs are absent, or touching those inputs at all.
+      final fixture = await Directory.systemTemp.createTemp('jeeb-firebase-');
+      addTearDown(() => fixture.delete(recursive: true));
+      await Directory('${fixture.path}/tool').create();
+      await Directory(
+        '${fixture.path}/android/app/src/dev',
+      ).create(recursive: true);
+      for (final script in const <String>[
+        'tool/run_with_dev_firebase_config.sh',
+        'tool/validate_dev_google_services.sh',
+      ]) {
+        await File(script).copy('${fixture.path}/$script');
+      }
+      final init = await Process.run('git', <String>[
+        'init',
+        '--quiet',
+      ], workingDirectory: fixture.path);
+      expect(init.exitCode, 0, reason: '${init.stdout}\n${init.stderr}');
+      final target = File('${fixture.path}/$_devConfig');
       expect(target.existsSync(), isFalse);
 
-      final success = await Process.run('bash', <String>[
-        'tool/run_with_dev_firebase_config.sh',
+      final success = await Process.run(
         'bash',
-        '-c',
-        'test -f android/app/src/dev/google-services.json',
-      ], environment: _syntheticDevEnvironment());
+        <String>[
+          'tool/run_with_dev_firebase_config.sh',
+          'bash',
+          '-c',
+          'test -f android/app/src/dev/google-services.json',
+        ],
+        workingDirectory: fixture.path,
+        environment: _syntheticDevEnvironment(),
+      );
       expect(
         success.exitCode,
         0,
@@ -162,18 +194,41 @@ void main() {
         reason: 'success cleanup did not run',
       );
 
-      final failure = await Process.run('bash', <String>[
-        'tool/run_with_dev_firebase_config.sh',
+      final failure = await Process.run(
         'bash',
-        '-c',
-        'exit 17',
-      ], environment: _syntheticDevEnvironment());
+        <String>[
+          'tool/run_with_dev_firebase_config.sh',
+          'bash',
+          '-c',
+          'exit 17',
+        ],
+        workingDirectory: fixture.path,
+        environment: _syntheticDevEnvironment(),
+      );
       expect(failure.exitCode, 17);
       expect(
         target.existsSync(),
         isFalse,
         reason: 'failure cleanup did not run',
       );
+
+      // Existing native input must be preserved even when injection is valid.
+      const sentinel = 'existing fixture input must remain untouched';
+      await target.writeAsString(sentinel);
+      final refusal = await Process.run(
+        'bash',
+        <String>[
+          'tool/run_with_dev_firebase_config.sh',
+          'bash',
+          '-c',
+          'exit 99',
+        ],
+        workingDirectory: fixture.path,
+        environment: _syntheticDevEnvironment(),
+      );
+      expect(refusal.exitCode, 1);
+      expect(refusal.stderr, contains('refusing to overwrite'));
+      expect(await target.readAsString(), sentinel);
     },
   );
 }

@@ -133,6 +133,9 @@ open class MainActivity : FlutterFragmentActivity() {
     // Reads the dev-seam JSON file if present; null when absent/unreadable so
     // the Dart side cleanly falls through to the next source.
     private fun readSeamFile(): String? {
+        // Debug-only on the native side too — the Dart kDebugMode check alone
+        // left profile/release builds able to read the world-writable file.
+        if (!BuildConfig.DEBUG) return null
         return try {
             val file = File(seamFilePath)
             if (file.exists() && file.canRead()) file.readText() else null

@@ -10,6 +10,7 @@ import 'package:jeeb_mobile/core/observability/session_trace/presentation/widget
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/devtool/session_logs/session_logs_page.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../support/sync_app_localizations.dart';
 
 final class _FakeSink implements ObservabilitySink {
   final List<ObsEvent> events = <ObsEvent>[];
@@ -116,9 +117,30 @@ void main() {
       await tester.pumpAndSettle();
       expect(shares, 1);
       expect(controller.lastExportSucceeded, isTrue);
+      expect(
+        find.bySemanticsIdentifier('devtool_session_logs_export_success'),
+        findsOneWidget,
+      );
     },
     skip: !kObsCompiledIn,
   );
+
+  testWidgets('Export failure surfaces the error snack', (tester) async {
+    final controller = ObsOverlayController(
+      install: () async => true,
+      buildExportBundle: (_, _) async => null,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      wrapForTest(Scaffold(body: ObsOverlayExportButton(controller: controller))),
+    );
+    await tester.tap(find.bySemanticsIdentifier('devtool.session_logs.export'));
+    await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsIdentifier('devtool_session_logs_export_error'),
+      findsOneWidget,
+    );
+  }, skip: !kObsCompiledIn);
 
   testWidgets(
     'Session Logs exposes stable identifiers and 48dp action targets',

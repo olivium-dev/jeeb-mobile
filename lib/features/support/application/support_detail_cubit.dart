@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/support_repository.dart';
 import 'support_detail_state.dart';
@@ -22,24 +23,48 @@ class SupportDetailCubit extends Cubit<SupportDetailState> {
   int _loadGeneration = 0;
 
   Future<void> load() async {
-    if (isClosed) return;
+    if (isClosed || state.phase == SupportDetailPhase.loading) return;
     if (ticketId.trim().isEmpty) {
       emit(
         state.copyWith(
           phase: SupportDetailPhase.failed,
           failure: SupportFailure.notFound,
+          appFailure: const NotFoundFailure(),
         ),
       );
       return;
     }
+    await _read(warm: false);
+  }
+
+  /// A refresh over a mounted thread never returns to the loading rung: the
+  /// messages stay and a failure lands in `refreshError` (WP7-N5).
+  Future<void> refresh() async {
+    if (isClosed) return;
+    if (state.ticket == null) {
+      await load();
+      return;
+    }
+    if (state.phase == SupportDetailPhase.sending) return;
+    await _read(warm: true);
+  }
+
+  void acknowledgeRefreshError() {
+    if (isClosed) return;
+    emit(state.copyWith(clearRefreshError: true));
+  }
+
+  Future<void> _read({required bool warm}) async {
     final generation = ++_loadGeneration;
     emit(
-      state.copyWith(
-        phase: SupportDetailPhase.loading,
-        loadingMore: false,
-        clearFailure: true,
-        clearPaginationFailure: true,
-      ),
+      warm
+          ? state.copyWith(loadingMore: false, clearRefreshError: true)
+          : state.copyWith(
+              phase: SupportDetailPhase.loading,
+              loadingMore: false,
+              clearFailure: true,
+              clearPaginationFailure: true,
+            ),
     );
     try {
       final repository = _repository;
@@ -62,29 +87,44 @@ class SupportDetailCubit extends Cubit<SupportDetailState> {
           nextCursor: nextCursor,
           clearNextCursor: nextCursor == null,
           clearFailure: true,
+          clearRefreshError: true,
           clearPaginationFailure: true,
         ),
       );
     } on SupportRepositoryException catch (error) {
       if (isClosed || generation != _loadGeneration) return;
-      emit(
-        state.copyWith(
-          phase: SupportDetailPhase.failed,
-          failure: error.failure,
-        ),
+      _emitReadFailure(
+        warm: warm,
+        kind: error.failure,
+        failure: error.appFailure ?? AppFailure.of(error),
       );
-    } catch (_) {
+    } catch (error) {
       if (isClosed || generation != _loadGeneration) return;
-      emit(
-        state.copyWith(
-          phase: SupportDetailPhase.failed,
-          failure: SupportFailure.unknown,
-        ),
+      _emitReadFailure(
+        warm: warm,
+        kind: SupportFailure.unknown,
+        failure: AppFailure.of(error),
       );
     }
   }
 
-  Future<void> refresh() => load();
+  void _emitReadFailure({
+    required bool warm,
+    required SupportFailure kind,
+    required AppFailure failure,
+  }) {
+    if (warm) {
+      emit(state.copyWith(refreshError: failure));
+      return;
+    }
+    emit(
+      state.copyWith(
+        phase: SupportDetailPhase.failed,
+        failure: kind,
+        appFailure: failure,
+      ),
+    );
+  }
 
   void setReplyBody(String value) {
     if (isClosed) return;
@@ -152,14 +192,16 @@ class SupportDetailCubit extends Cubit<SupportDetailState> {
               : SupportDetailPhase.loaded,
           ticket: error.latestTicket,
           failure: error.failure,
+          appFailure: error.appFailure ?? AppFailure.of(error),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (isClosed || generation != _loadGeneration) return;
       emit(
         state.copyWith(
           phase: SupportDetailPhase.loaded,
           failure: SupportFailure.unknown,
+          appFailure: AppFailure.of(error),
         ),
       );
     }
@@ -208,14 +250,19 @@ class SupportDetailCubit extends Cubit<SupportDetailState> {
     } on SupportRepositoryException catch (error) {
       if (isClosed || generation != _loadGeneration) return;
       emit(
-        state.copyWith(loadingMore: false, paginationFailure: error.failure),
+        state.copyWith(
+          loadingMore: false,
+          paginationFailure: error.failure,
+          paginationAppFailure: error.appFailure ?? AppFailure.of(error),
+        ),
       );
-    } catch (_) {
+    } catch (error) {
       if (isClosed || generation != _loadGeneration) return;
       emit(
         state.copyWith(
           loadingMore: false,
           paginationFailure: SupportFailure.unknown,
+          paginationAppFailure: AppFailure.of(error),
         ),
       );
     }

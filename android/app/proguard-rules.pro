@@ -3,6 +3,9 @@
 # Firebase (messaging/crashlytics/installations) and google_maps_flutter ship
 # their own consumer ProGuard rules, so only defensive keeps live here.
 
+# Keep source locations so uploaded R8 mappings can resolve crash frames.
+-keepattributes SourceFile,LineNumberTable
+
 # --- Flutter embedding -------------------------------------------------------
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }

@@ -7,7 +7,7 @@ import '../preview_test_harness.dart';
 
 /// The banner's own copy, spelled once so the expectations cannot drift apart.
 const String _kOfflineMessage =
-    'You are offline. Changes will sync when connection is restored.';
+    "You're offline. Some things won't load until you reconnect.";
 
 /// The rendered box of the message paragraph: its width is what the DISMISS
 Size _messageBox(WidgetTester tester) => tester.getSize(find.text(_kOfflineMessage));

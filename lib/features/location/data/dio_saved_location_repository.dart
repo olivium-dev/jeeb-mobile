@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/saved_location.dart';
@@ -9,14 +11,15 @@ class DioSavedLocationRepository implements SavedLocationRepository {
   DioSavedLocationRepository(this._dio, {AuthTokenStore? tokenStore})
       : _tokenStore = tokenStore ?? AuthTokenStore();
 
-  static const String _fallbackUserId = 'user-client-001';
-
   final Dio _dio;
   final AuthTokenStore _tokenStore;
 
+  /// No session id means no scope: a fallback id would read ANOTHER account's
+  /// saved-locations path.
   Future<String> _userId() async {
     final id = await _tokenStore.userId;
-    return (id == null || id.isEmpty) ? _fallbackUserId : id;
+    if (id == null || id.isEmpty) throw const UnauthorizedFailure();
+    return id;
   }
 
   Future<String> _basePath() async =>
@@ -25,8 +28,12 @@ class DioSavedLocationRepository implements SavedLocationRepository {
   @override
   Future<List<SavedLocation>> fetchSavedLocations() async {
     _log('list');
-    final response = await _dio.get<dynamic>(await _basePath());
-    return _parseList(response.data);
+    try {
+      final response = await _dio.get<dynamic>(await _basePath());
+      return _parseList(response.data);
+    } on DioException catch (e) {
+      throw AppFailure.of(e);
+    }
   }
 
   @override
@@ -160,13 +167,9 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     if (code == 409 || code == 422) {
       throw const SavedLocationCapReachedException();
     }
-    throw SavedLocationException(
-      e.message ?? 'Saved location operation failed',
-    );
+    throw AppFailure.of(e);
   }
 
-  void _log(String op) {
-    // ignore: avoid_print — observability per AC5
-    print('[jeeb] saved_location.$op');
-  }
+  void _log(String op) =>
+      Diag.event('saved_location_op', <String, Object?>{'op': op});
 }

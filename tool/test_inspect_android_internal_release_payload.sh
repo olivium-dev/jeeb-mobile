@@ -11,7 +11,7 @@ resources="${TMP_DIR}/resources.pb"
 binary="${TMP_DIR}/libapp.so"
 english_arb="${TMP_DIR}/app_en.arb"
 safe_manifest='com.olivium.jeeb com.olivium.jeeb.MainActivity com.olivium.jeeb.DevToolLauncher android.intent.action.MAIN android.intent.category.LAUNCHER'
-safe_binary='https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket Jeeber Dev Tool Gesture Logging Super Login Screen Catalog Actions Location Simulator Server URL Clear Local Data Scenario Users Apply & Restart Close Dev Tool without restarting /api/User/user-id-login /api/User/super-login/users'
+safe_binary='y6laxxj143 jeeb-clarity-sdk https://app.jeeb.fds-1.com wss://app.jeeb.fds-1.com/socket/websocket Jeeber Dev Tool Gesture Logging Super Login Screen Catalog Actions Location Simulator Server URL Clear Local Data Scenario Users Apply & Restart Close Dev Tool without restarting /api/User/user-id-login /api/User/super-login/users'
 safe_arb='{"internalDevToolRosterErrorUnreachable":"Could not reach the Dev Tool server."}'
 printf '%s' "${safe_manifest}" >"${manifest}"
 printf '%s' 'Jeeber Dev Tool firebase maps' >"${resources}"
@@ -22,6 +22,8 @@ run_inspector() {
   JEEB_INTERNAL_RELEASE="${1}" \
   JEEB_DEVTOOL_ENABLED="${2}" \
   JEEB_STAGING_DEVTOOL="${3}" \
+  JEEB_CLARITY_STAGING_INTERNAL_APPROVED="${6:-true}" \
+  JEEB_CLARITY_PROJECT_ID="${7:-y6laxxj143}" \
   JEEB_CLARITY_ENABLED="${4}" \
   JEEB_CLARITY_PRIVACY_APPROVED="${5}" \
     bash "${REPO_ROOT}/tool/inspect_android_internal_release_payload.sh" \
@@ -30,7 +32,7 @@ run_inspector() {
       wss://app.jeeb.fds-1.com/socket/websocket
 }
 
-run_inspector true true true false false >/dev/null
+run_inspector true true true true false >/dev/null
 
 for missing_launcher_marker in \
   'com.olivium.jeeb.MainActivity' \
@@ -38,7 +40,7 @@ for missing_launcher_marker in \
   'android.intent.action.MAIN' \
   'android.intent.category.LAUNCHER'; do
   printf '%s' "${safe_manifest/${missing_launcher_marker}/}" >"${manifest}"
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted missing launcher marker: %s\n' \
       "${missing_launcher_marker}" >&2
     exit 1
@@ -61,7 +63,7 @@ for required_tool_marker in \
   '/api/User/user-id-login' \
   '/api/User/super-login/users'; do
   printf '%s' "${safe_binary/${required_tool_marker}/}" >"${binary}"
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted missing full-tool marker: %s\n' \
       "${required_tool_marker}" >&2
     exit 1
@@ -75,7 +77,7 @@ for missing_mode in empty absent; do
   else
     rm -f -- "${english_arb}"
   fi
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted %s English ARB payload\n' \
       "${missing_mode}" >&2
     exit 1
@@ -88,7 +90,7 @@ for invalid_arb in \
   '{"internalDevToolRosterErrorUnreachable":false}' \
   'not-json'; do
   printf '%s' "${invalid_arb}" >"${english_arb}"
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted invalid English ARB: %s\n' \
       "${invalid_arb}" >&2
     exit 1
@@ -102,7 +104,7 @@ for forbidden_arb in \
   'unified_payment'; do
   jq --arg forbidden "${forbidden_arb}" \
     '.forbiddenTestValue = $forbidden' <<<"${safe_arb}" >"${english_arb}"
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted forbidden ARB marker: %s\n' \
       "${forbidden_arb}" >&2
     exit 1
@@ -117,7 +119,7 @@ for forbidden in \
   '/v1/matching/find-jeebers' 'JEEB_MOCK_BASE_URL' \
   'USE_MOCK_GATEWAY=true'; do
   printf ' %s' "${forbidden}" >>"${binary}"
-  if run_inspector true true true false false >/dev/null 2>&1; then
+  if run_inspector true true true true false >/dev/null 2>&1; then
     printf 'Internal inspector accepted forbidden marker: %s\n' "${forbidden}" >&2
     exit 1
   fi
@@ -125,11 +127,11 @@ for forbidden in \
 done
 
 for flags in \
-  'false true true false false' \
-  'true false true false false' \
-  'true true false false false' \
-  'true true true true false' \
-  'true true true false true'; do
+  'false true true true false' \
+  'true false true true false' \
+  'true true false true false' \
+  'true true true false false' \
+  'true true true true true'; do
   read -r internal devtool staging clarity privacy <<<"${flags}"
   if run_inspector "${internal}" "${devtool}" "${staging}" \
     "${clarity}" "${privacy}" >/dev/null 2>&1; then
@@ -137,5 +139,11 @@ for flags in \
     exit 1
   fi
 done
+
+if run_inspector true true true true false false >/dev/null 2>&1 ||
+   run_inspector true true true true false true other >/dev/null 2>&1; then
+  printf 'Internal inspector accepted staging Clarity authorization/project drift\n' >&2
+  exit 1
+fi
 
 printf '%s\n' 'Android internal-release payload positive and negative controls passed.'

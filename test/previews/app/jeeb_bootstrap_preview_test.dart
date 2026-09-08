@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/app/app.dart';
 import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/app/jeeb_bootstrap.dart';
 
 import '../preview_test_harness.dart';
 
-/// The exact line the error host renders — `'App failed to start: $error'`.
-/// Mirrors the format string in `_BootstrapErrorApp` so the test breaks if that
-String _errorLine(Object error) => 'App failed to start: $error';
+/// The failure host inlines its own last-resort table; these are the two lines
+/// it can render, pinned to the ARB by `test/app/jeeb_bootstrap_error_test.dart`.
+String _copy(String key) => kBootstrapFailureStrings['en']![key]!;
+
+/// EP-01: the host renders product copy plus, in a non-release build only, the
+/// raw payload as the block body. The previews run in debug, so the payload is
+/// what a reviewer sees under a fixed headline.
+String _errorLine(Object error) => bootstrapErrorDetail(error);
 
 /// The branded-splash host: the [MaterialApp] `_SplashApp` builds.
 /// Matches on the widget, not on its children, because the children are behind
@@ -36,7 +41,7 @@ void main() {
       'Boot failed · Arabic payload': jeebBootstrapFailedArabicPayload,
     },
     expectedText: <String, String>{
-      'Boot failed · opaque': _errorLine(jeebBootstrapOpaqueError),
+      'Boot failed · opaque': _copy('bootstrapFailedTitle'),
       'Boot failed · plugin missing': _errorLine(
         jeebBootstrapMissingPluginError,
       ),
@@ -136,7 +141,8 @@ void main() {
 
       final Finder line = find.text(_errorLine(jeebBootstrapArabicError));
       expect(line, findsOneWidget);
-      // No `locale:`, no delegates, no Directionality of its own: the inner
+      // The host resolves its OWN locale from the device, not from the canvas,
+      // so an Arabic canvas cannot flip it.
       expect(Directionality.of(tester.element(line)), TextDirection.ltr);
     });
 
@@ -153,79 +159,57 @@ void main() {
       ]) {
         await _unmount(tester);
         await pumpPreview(tester, preview);
-        final Text text = tester.widget<Text>(
-          find.descendant(
-            of: find.byType(MaterialApp).last,
-            matching: find.byType(Text),
-          ),
-        );
-        seen.add(text.data!);
+        final JeebEmptyState block =
+            tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+        seen.add(block.body!);
       }
 
       expect(seen, hasLength(4));
-      expect(
-        seen.every((String s) => s.startsWith('App failed to start: ')),
-        isTrue,
-      );
+      // Under one fixed headline: the payload is the body, never the title.
+      expect(seen.contains(_copy('bootstrapFailedTitle')), isFalse);
     });
 
-    testWidgets('the message has no scroll view and no retry affordance', (
+    testWidgets('the host offers no retry it cannot honour', (
       WidgetTester tester,
     ) async {
       await pumpPreview(tester, jeebBootstrapFailedVerbose);
 
-      // The structural half of the overflow finding below: the longest payload
-      expect(find.byType(Scrollable), findsNothing);
+      // `AppRestarter` is a dev-tool-build wrap; with none above the host, a
+      // "Try again" CTA would be inert, so the block ships without one.
       expect(find.byType(ButtonStyleButton), findsNothing);
-      final Text message = tester.widget<Text>(find.byType(Text).last);
-      expect(message.overflow, isNull);
-      expect(message.maxLines, isNull);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).action,
+        isNull,
+      );
     });
 
-    testWidgets('at 200% text the verbose payload is SILENTLY truncated', (
+    testWidgets('the release body names no payload and no exception type', (
       WidgetTester tester,
     ) async {
-      // The finding the `EN 200% text` rendering of this preview surfaces, held
-      double clippedHeight() {
-        final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
-          find.byType(Text).last,
-        );
-        return paragraph.getMaxIntrinsicHeight(paragraph.size.width) -
-            paragraph.size.height;
-      }
+      await pumpPreview(tester, jeebBootstrapFailedVerbose);
 
-      Future<void> pumpAtScale(double scale) async {
-        await _unmount(tester);
-        await tester.pumpWidget(
-          MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-            child: previewCanvas(jeebBootstrapFailedVerbose, const Locale('en')),
-          ),
-        );
-        await tester.pumpAndSettle();
-      }
+      // The debug body IS the payload; the release constant must not be.
+      expect(_copy('bootstrapFailedBody'), isNot(contains('Exception')));
+      expect(_copy('bootstrapFailedBody'), isNot(contains('channel')));
+      expect(_copy('bootstrapFailedBody'), isNot(contains(r'$')));
+    });
 
-      // The preview's own canvas box, so this measures what a reviewer sees.
+    testWidgets('the verbose payload is capped, not clipped mid-word', (
+      WidgetTester tester,
+    ) async {
+      // EP-01 replaced a silently clipped native stack trace with a bounded,
+      // explicitly elided diagnostic: the end of the line is now visible.
+      final String detail = bootstrapErrorDetail(jeebBootstrapVerboseError);
+      expect(detail.length, bootstrapErrorDetailLimit);
+      expect(detail.endsWith('\u2026'), isTrue);
+      expect(detail.contains('\n'), isFalse);
+
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = jeebBootstrapPreviewBox;
       addTearDown(tester.view.reset);
 
-      await pumpAtScale(1.0);
-      expect(
-        clippedHeight(),
-        0,
-        reason: 'at 100% the whole message fits — which is why this is easy to '
-            'miss without the large-text rendering',
-      );
-
-      await pumpAtScale(2.0);
-      expect(
-        clippedHeight(),
-        greaterThan(700),
-        reason: 'at 200% the paragraph needs ~1520 dp inside an ~796 dp box: '
-            'over half the message — the details and the stack trace — is '
-            'clipped mid-word, with no ellipsis and no scroll',
-      );
+      await pumpPreview(tester, jeebBootstrapFailedVerbose);
+      expect(find.text(detail), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

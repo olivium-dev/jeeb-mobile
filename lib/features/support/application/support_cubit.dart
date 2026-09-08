@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/idempotency/operation_id.dart';
+import '../../../core/network/app_failure.dart';
 import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/support_repository.dart';
 import 'support_state.dart';
@@ -102,21 +103,35 @@ class SupportCubit extends Cubit<SupportState> {
       );
     } on SupportRepositoryException catch (e) {
       if (isClosed) return;
-      emit(state.copyWith(phase: SupportPhase.error, failure: e.failure));
-    } catch (_) {
+      emit(
+        state.copyWith(
+          phase: SupportPhase.error,
+          failure: e.failure,
+          appFailure: e.appFailure ?? AppFailure.of(e),
+        ),
+      );
+    } catch (error) {
       if (isClosed) return;
       emit(
         state.copyWith(
           phase: SupportPhase.error,
           failure: SupportFailure.unknown,
+          appFailure: AppFailure.of(error),
         ),
       );
     }
   }
 
-  void retryFromError() {
+  /// The Retry CTA actually retries (ESC-06 mirror): `state.operationId` is
+  /// reused, so the Idempotency-Key is unchanged and no duplicate ticket lands.
+  Future<void> retryFromError() async {
     if (isClosed) return;
+    final kind = state.failure;
+    final terminal =
+        kind == SupportFailure.unauthorized || kind == SupportFailure.notFound;
+    final retryable = !terminal && (state.appFailure?.isRetryable ?? false);
     emit(state.copyWith(phase: SupportPhase.inputting, clearFailure: true));
+    if (retryable) await submit();
   }
 
   List<CaseAttachmentDraft> _attachments() => state.attachmentPaths

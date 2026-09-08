@@ -31,7 +31,46 @@ enum OtpVerifyOutcome {
   /// fine, the account is not. Telling the user "wrong code" sends them to
   /// re-enter a correct code forever.
   accountSuspended,
+
+  /// The gateway answered with a fault (5xx other than 502/503/504, an
+  /// unusable 2xx body, or an unclassifiable status). Never the connection.
+  serverError,
+
+  /// 502/503/504 — sign-in is down, not broken. Worth another try shortly.
+  serviceUnavailable,
+
   networkError,
+}
+
+/// What a send attempt produced, with the two things the outcome alone cannot
+/// carry: the server's back-off window and the code's own lifetime.
+class OtpSendResult {
+  const OtpSendResult({required this.outcome, this.retryAfter, this.ttlSeconds});
+
+  final OtpSendOutcome outcome;
+
+  /// `Retry-After` from a 429, so the resend CTA is disabled for the server's
+  /// window rather than the local policy's guess.
+  final Duration? retryAfter;
+
+  /// How long the sent code stays valid, when the gateway says.
+  final int? ttlSeconds;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OtpSendResult &&
+          other.outcome == outcome &&
+          other.retryAfter == retryAfter &&
+          other.ttlSeconds == ttlSeconds;
+
+  @override
+  int get hashCode => Object.hash(outcome, retryAfter, ttlSeconds);
+
+  @override
+  String toString() =>
+      'OtpSendResult(${outcome.name}, retryAfterSeconds: ${retryAfter?.inSeconds}, '
+      'ttlSeconds: $ttlSeconds)';
 }
 
 abstract class OtpService {
@@ -41,4 +80,10 @@ abstract class OtpService {
     required String e164Phone,
     required String code,
   });
+}
+
+/// The richer send channel, kept OFF [OtpService] so its eight implementors
+/// keep compiling; call sites feature-test with `is OtpSendResultService`.
+abstract class OtpSendResultService {
+  Future<OtpSendResult> requestCode(String e164Phone);
 }

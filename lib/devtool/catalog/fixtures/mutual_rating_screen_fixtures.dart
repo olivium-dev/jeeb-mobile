@@ -163,7 +163,7 @@ MutualRatingCubit mutualRatingScreenSubmittingCubit() =>
     );
 
 /// The submit was rejected.
-/// `errorMessage` mirrors what the cubit sets (`'ratingError'`); the screen
+/// `failure` mirrors what the cubit sets; the screen
 MutualRatingCubit mutualRatingScreenErrorCubit() =>
     MutualRatingScreenSeededCubit(
       repository: const MutualRatingScreenFailingRepository(
@@ -174,7 +174,7 @@ MutualRatingCubit mutualRatingScreenErrorCubit() =>
       seed: const MutualRatingState(
         phase: MutualRatingPhase.error,
         stars: 4,
-        errorMessage: 'ratingError',
+        failure: RatingFailure.unknown,
       ),
     );
 
@@ -189,5 +189,20 @@ MutualRatingCubit mutualRatingScreenAwaitingOtherCubit() =>
         phase: MutualRatingPhase.awaitingOther,
         stars: 5,
         tags: <String>['courtesy'],
+      ),
+    );
+
+/// The submit failed on the transport — the retryable half of the error rung.
+MutualRatingCubit mutualRatingScreenSubmitFailedNetworkCubit() =>
+    MutualRatingScreenSeededCubit(
+      repository: const MutualRatingScreenFailingRepository(
+        failure: RatingFailure.network,
+      ),
+      deliveryId: mutualRatingScreenDeliveryId,
+      isClient: true,
+      seed: const MutualRatingState(
+        phase: MutualRatingPhase.error,
+        stars: 4,
+        failure: RatingFailure.network,
       ),
     );

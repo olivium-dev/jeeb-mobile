@@ -1,27 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_footer.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_info_note.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 import 'package:jeeb_mobile/features/client_unreachable/presentation/client_unreachable_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// The screen reads its copy from the feature-local `ClientUnreachableL10n`
-/// (no ARB keys exist for it yet — see
-/// `docs/redesign-2026-08/wiring/w4-client-unreachable.md`), so the host needs
-/// only the framework delegates.
-Widget _host(Locale locale) => MaterialApp(
+import 'support/sync_app_localizations.dart';
+
+/// The six strings now have real ARB keys, so the host carries the app
+/// delegate rather than only the framework ones.
+Widget _host(Locale locale, {VoidCallback? onCallAgain}) => MaterialApp(
       theme: AppTheme.light(),
       locale: locale,
       localizationsDelegates: const <LocalizationsDelegate<Object>>[
+        SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const <Locale>[Locale('en'), Locale('ar')],
-      home: const ClientUnreachableScreen(deliveryId: 'delivery-1'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ClientUnreachableScreen(
+        deliveryId: 'delivery-1',
+        onCallAgain: onCallAgain,
+      ),
     );
 
 void main() {
@@ -62,10 +68,12 @@ void main() {
         MaterialApp(
           theme: AppTheme.light(),
           localizationsDelegates: const <LocalizationsDelegate<Object>>[
+            SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(
@@ -112,6 +120,63 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('both recovery CTAs act — neither is an inert onTap: () {}',
+        (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        _host(const Locale('en'), onCallAgain: () => calls++),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('client_unreachable_call_again_cta'),
+      );
+      await tester.pump();
+      expect(calls, 1);
+    });
+
+    testWidgets('the chat CTA routes to the chat thread', (tester) async {
+      final router = GoRouter(
+        initialLocation: '/unreachable',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/unreachable',
+            builder: (_, _) =>
+                const ClientUnreachableScreen(deliveryId: 'delivery-1'),
+          ),
+          GoRoute(
+            path: '/chat/:id',
+            name: 'chat-detail',
+            builder: (_, _) =>
+                const Scaffold(body: Text('chat-thread-landed')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: AppTheme.light(),
+          localizationsDelegates: const <LocalizationsDelegate<Object>>[
+            SyncAppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('client_unreachable_chat_cta'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('chat-thread-landed'), findsOneWidget);
     });
   });
 }

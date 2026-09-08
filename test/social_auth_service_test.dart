@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -8,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import 'package:jeeb_mobile/features/auth/social/social_auth_error.dart';
 import 'package:jeeb_mobile/features/auth/social/social_auth_service.dart';
 import 'package:jeeb_mobile/features/auth/social/social_provider.dart';
 
@@ -203,4 +205,42 @@ void main() {
       expect(firebaseCredential.appleFullPersonName?.familyName, 'Tester');
     },
   );
+
+  // AUTH-04: the Facebook branch fabricated `('facebook','facebook-oauth-grant')`
+  // and handed it to the gateway as a real credential. Until a real SDK lands,
+  // the branch resolves as cancelled and issues NO exchange.
+  test('the Facebook path never fabricates a credential', () async {
+    RequestOptions? captured;
+    final Dio dio = Dio(BaseOptions(baseUrl: 'https://gw.test'));
+    dio.httpClientAdapter = _RecordingAdapter((RequestOptions options) {
+      captured = options;
+      return ResponseBody.fromString('{}', 200);
+    });
+    final service = DefaultSocialAuthService(dio: dio);
+
+    final SocialAuthResult result =
+        await service.signIn(SocialProvider.facebook);
+
+    expect(result, isA<SocialAuthFailure>());
+    expect((result as SocialAuthFailure).error, SocialAuthError.cancelled);
+    expect(captured, isNull, reason: 'no token exchange may be attempted');
+  });
+}
+
+/// Records the one request a fabricated credential would have produced.
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this._respond);
+
+  final ResponseBody Function(RequestOptions options) _respond;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async =>
+      _respond(options);
+
+  @override
+  void close({bool force = false}) {}
 }

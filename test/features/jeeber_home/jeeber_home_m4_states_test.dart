@@ -59,9 +59,10 @@ void main() {
       // A jeeber-side quiet state — the same variant every other no-requests
       // surface on this screen already draws.
       expect(block.variant, JeebEmptyStateVariant.street);
-      expect(block.identifier, 'jeeber_feed_empty_view_empty_state');
-      expect(block.headline, l10n.jeeberFeedEmptyTitle);
-      expect(block.body, l10n.jeeberFeedEmptySubtitle);
+      // ES-25: one condition, ONE rendering — the shared JeeberFeedEmptyBlock.
+      expect(block.identifier, 'jeeber_feed_empty_state');
+      expect(block.headline, l10n.jeeberFeedQuietStreetTitle);
+      expect(block.body, l10n.jeeberFeedQuietStreetBody);
     });
 
     testWidgets('its headline is onSurface, never the accent', (tester) async {
@@ -71,7 +72,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final Text headline = tester.widget<Text>(
-        find.text(_l10n(tester).jeeberFeedEmptyTitle),
+        find.text(_l10n(tester).jeeberFeedQuietStreetTitle),
       );
       expect(headline.style?.color, scheme.onSurface);
       expect(headline.style?.color, isNot(scheme.primary));

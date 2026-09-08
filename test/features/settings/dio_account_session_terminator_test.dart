@@ -17,7 +17,9 @@ class _RecordingDio extends Fake implements Dio {
   final List<String> deletePaths = <String>[];
   final List<Map<String, dynamic>?> deleteBodies = <Map<String, dynamic>?>[];
   final List<String> postPaths = <String>[];
+  final List<String> patchPaths = <String>[];
   bool failUnregister = false;
+  bool failDeletion = false;
 
   Response<T> _ok<T>(String path) => Response<T>(
         requestOptions: RequestOptions(path: path),
@@ -35,6 +37,33 @@ class _RecordingDio extends Fake implements Dio {
     ProgressCallback? onReceiveProgress,
   }) async {
     postPaths.add(path);
+    return _ok<T>(path);
+  }
+
+
+  /// F3: `deleteAccount` now THROWS on a failed remote deletion, so the fake
+  /// has to answer the PATCH the way the gateway does.
+  @override
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    patchPaths.add(path);
+    if (failDeletion) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 500,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
     return _ok<T>(path);
   }
 

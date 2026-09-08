@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
+
+import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/masked_call_cubit.dart';
+import '../domain/masked_call_repository.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
@@ -17,10 +21,17 @@ class MaskedCallButton extends StatelessWidget {
   /// behavior: a fresh [MaskedCallCubit] is created). Lets the Dev Tool
   final MaskedCallCubit? cubit;
 
+  /// Null when DI carries none: the cubit then reports an honest failure
+  /// instead of fabricating a session id for a call nobody placed.
+  static MaskedCallRepository? _resolveRepository() =>
+      sl.isRegistered<MaskedCallRepository>()
+          ? sl<MaskedCallRepository>()
+          : null;
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => cubit ?? MaskedCallCubit(),
+      create: (_) => cubit ?? MaskedCallCubit(repository: _resolveRepository()),
       child: _MaskedCallButtonView(orderId: orderId),
     );
   }
@@ -49,10 +60,13 @@ class _MaskedCallButtonView extends StatelessWidget {
 
   void _onState(BuildContext context, MaskedCallState state) {
     if (state.failed) {
-      showOmdsErrorSnackbar(
+      showJeebErrorSnack(
         context,
         message: AppLocalizations.of(context).callInitiateFailed,
+        identifier: 'masked_call_error',
       );
+      // Without this the flag survives every rebuild and re-fires the snack.
+      context.read<MaskedCallCubit>().acknowledgeFailure();
     }
   }
 }

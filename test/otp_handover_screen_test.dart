@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,7 @@ import 'package:jeeb_mobile/features/otp_handover/domain/otp_handover_result.dar
 import 'package:jeeb_mobile/features/otp_handover/presentation/otp_handover_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import 'support/midnight_test_harness.dart';
 import 'support/sync_app_localizations.dart';
 
 class _MockRepo extends Mock implements OtpHandoverRepository {}
@@ -54,7 +57,11 @@ DeliveryTrackingInfo _tracking({
   );
 }
 
-Widget _screen(OtpHandoverCubit cubit, {required bool isClient}) {
+Widget _screen(
+  OtpHandoverCubit cubit, {
+  required bool isClient,
+  Locale locale = const Locale('en'),
+}) {
   return wrapForTest(
     BlocProvider<OtpHandoverCubit>.value(
       value: cubit,
@@ -63,6 +70,7 @@ Widget _screen(OtpHandoverCubit cubit, {required bool isClient}) {
         isClient: isClient,
       ),
     ),
+    locale: locale,
   );
 }
 
@@ -380,12 +388,12 @@ void main() {
       await cubit.submitOtp('0000');
       await tester.pump();
 
-      expect(
-        find.text('Incorrect code — please try again'),
-        findsOneWidget,
-      );
+      // The inline line is the SHARED invalid-code copy now, not a per-screen
+      // literal, and the counter is the six-sibling plural set.
+      final l10n = _l10nOf(tester);
+      expect(find.text(l10n.errorInvalidCode), findsOneWidget);
       // 1 attempt used → 2 remaining
-      expect(find.textContaining('2 attempt'), findsOneWidget);
+      expect(find.text(l10n.otpHandoverAttemptsRemaining(2)), findsOneWidget);
       await cubit.close();
     });
   });
@@ -470,4 +478,82 @@ void main() {
       await cubit.close();
     });
   });
+
+  // TEST-04 — the three rungs are findable by identifier, in both locales, and
+  // no assertion depends on the retired `'network'` / `'invalid_otp'` tokens.
+  group('rungs · identifier triple', () {
+    for (final locale in const <Locale>[Locale('en'), Locale('ar')]) {
+      testWidgets('loading is findable ($locale)', (tester) async {
+        final cubit = OtpHandoverCubit(
+          repository: _StalledRepo(),
+          deliveryId: 'DLV-770001',
+          isClient: true,
+        );
+        await tester.pumpWidget(
+          _screen(cubit, isClient: true, locale: locale),
+        );
+        await tester.pump();
+
+        expect(
+          find.bySemanticsIdentifier('otp_handover_loading'),
+          findsOneWidget,
+        );
+        await cubit.close();
+      });
+
+      testWidgets('error carries an identified retry ($locale)',
+          (tester) async {
+        final cubit = OtpHandoverCubit(
+          repository: _FailingRepo(),
+          deliveryId: 'DLV-770001',
+          isClient: true,
+        );
+        useReduceMotion(tester);
+        await tester.pumpWidget(
+          _screen(cubit, isClient: true, locale: locale),
+        );
+        // The error illustration breathes, so this pumps bounded frames.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(cubit.state.mode, OtpHandoverViewMode.error);
+        expect(cubit.state.errorKind, OtpHandoverErrorKind.network);
+        expect(
+          find.bySemanticsIdentifier('otp_handover_error'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsIdentifier('otp_handover_retry_cta'),
+          findsOneWidget,
+        );
+        await cubit.close();
+      });
+    }
+  });
+}
+
+/// Never answers: holds the cold rung open.
+class _StalledRepo implements OtpHandoverRepository {
+  @override
+  Future<OtpFetchResult> fetchHandoverCode({required String deliveryId}) =>
+      Completer<OtpFetchResult>().future;
+
+  @override
+  Future<OtpHandoverResult> submitOtp({
+    required String deliveryId,
+    required String otp,
+  }) => Completer<OtpHandoverResult>().future;
+}
+
+/// A transport failure on the cold read.
+class _FailingRepo implements OtpHandoverRepository {
+  @override
+  Future<OtpFetchResult> fetchHandoverCode({required String deliveryId}) async =>
+      throw const OtpHandoverException(OtpHandoverErrorKind.network);
+
+  @override
+  Future<OtpHandoverResult> submitOtp({
+    required String deliveryId,
+    required String otp,
+  }) async => throw const OtpHandoverException(OtpHandoverErrorKind.network);
 }

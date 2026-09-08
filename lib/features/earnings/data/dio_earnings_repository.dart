@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
 
@@ -29,16 +28,33 @@ class DioEarningsRepository implements EarningsRepository {
       );
       final data = response.data;
       if (data == null) {
-        throw const EarningsRepositoryException(EarningsErrorKind.parse);
+        throw const EarningsRepositoryException(
+          EarningsErrorKind.parse,
+          null,
+          UnknownFailure(parse: true),
+        );
       }
-      return EarningsSummary.fromJson(data);
+      // `fromJson` casts with `as`, so a wrong-typed field raises a TypeError
+      // that no `on FormatException` would ever catch (EARN-01).
+      try {
+        return EarningsSummary.fromJson(data);
+      } catch (e) {
+        throw EarningsRepositoryException(
+          EarningsErrorKind.parse,
+          e,
+          const UnknownFailure(parse: true),
+        );
+      }
+    } on EarningsRepositoryException {
+      rethrow;
     } on DioException catch (e) {
+      throw _map(AppFailure.of(e), e);
+    } catch (e) {
       throw EarningsRepositoryException(
-        e.response == null ? EarningsErrorKind.network : EarningsErrorKind.server,
+        EarningsErrorKind.server,
         e,
+        AppFailure.of(e),
       );
-    } on FormatException catch (e) {
-      throw EarningsRepositoryException(EarningsErrorKind.parse, e);
     }
   }
 
@@ -61,13 +77,24 @@ class DioEarningsRepository implements EarningsRepository {
       );
       return filePath;
     } on DioException catch (e) {
+      throw _map(AppFailure.of(e), e);
+    } catch (e) {
+      // `getTemporaryDirectory()` raises MissingPluginException on a host with
+      // no path_provider — it must not pin the CTA on `exporting`.
       throw EarningsRepositoryException(
-        e.response == null ? EarningsErrorKind.network : EarningsErrorKind.server,
+        EarningsErrorKind.server,
         e,
+        AppFailure.of(e),
       );
-    } on IOException catch (e) {
-      throw EarningsRepositoryException(EarningsErrorKind.parse, e);
     }
+  }
+
+  EarningsRepositoryException _map(AppFailure f, Object cause) {
+    final kind = switch (f) {
+      NetworkFailure() || TimeoutFailure() => EarningsErrorKind.network,
+      _ => EarningsErrorKind.server,
+    };
+    return EarningsRepositoryException(kind, cause, f);
   }
 
   static String _periodParam(EarningsPeriod period) {

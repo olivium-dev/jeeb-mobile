@@ -19,10 +19,17 @@ class DeliveryReviewsHeader extends StatelessWidget {
     super.key,
     required this.reviewCount,
     required this.onViewAll,
+    this.showCount = true,
   });
 
   final int reviewCount;
-  final VoidCallback onViewAll;
+
+  /// DMP-01: the count is a claim about loaded data — suppress it while the
+  /// band is loading, failed, or genuinely empty.
+  final bool showCount;
+
+  /// Null renders "View all" non-interactive (DMP-02: no jeeberId, no route).
+  final VoidCallback? onViewAll;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +42,11 @@ class DeliveryReviewsHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _ReviewsTitle(),
-          _CountAndViewAll(reviewCount: reviewCount, onViewAll: onViewAll),
+          _CountAndViewAll(
+            reviewCount: reviewCount,
+            onViewAll: onViewAll,
+            showCount: showCount,
+          ),
         ],
       ),
     );
@@ -59,10 +70,15 @@ class _ReviewsTitle extends StatelessWidget {
 }
 
 class _CountAndViewAll extends StatelessWidget {
-  const _CountAndViewAll({required this.reviewCount, required this.onViewAll});
+  const _CountAndViewAll({
+    required this.reviewCount,
+    required this.onViewAll,
+    required this.showCount,
+  });
 
   final int reviewCount;
-  final VoidCallback onViewAll;
+  final VoidCallback? onViewAll;
+  final bool showCount;
 
   @override
   Widget build(BuildContext context) {
@@ -73,14 +89,17 @@ class _CountAndViewAll extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Flexible(
-          child: Text(
-            l10n.deliveryManProfileReviewsCount(reviewCount),
-            style: context.jeebText.bodySmall.copyWith(
-              color: semantic.mutedText,
+        if (showCount && reviewCount > 0)
+          Flexible(
+            child: Text(
+              l10n.deliveryManProfileReviewsCount(reviewCount),
+              style: context.jeebText.bodySmall.copyWith(
+                color: semantic.mutedText,
+              ),
             ),
-          ),
-        ),
+          )
+        else
+          const SizedBox.shrink(),
         _ViewAllButton(
           label: l10n.deliveryManProfileViewAllReviews,
           onTap: onViewAll,
@@ -94,7 +113,7 @@ class _ViewAllButton extends StatelessWidget {
   const _ViewAllButton({required this.label, required this.onTap});
 
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

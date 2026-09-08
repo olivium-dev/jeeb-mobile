@@ -145,6 +145,8 @@ class DevToolShakeHost extends StatefulWidget {
     required this.child,
     super.key,
     this.initiallyOpen = false,
+    this.prepareOpen,
+    this.onClosed,
     this.shakeEnabled = true,
     this.channel = kDevToolShakeChannel,
     this.launcherChannel = kDevToolLauncherChannel,
@@ -158,6 +160,8 @@ class DevToolShakeHost extends StatefulWidget {
 
   /// Whether the Dev Tool layer is visible on the host's first frame.
   final bool initiallyOpen;
+  final bool Function()? prepareOpen;
+  final VoidCallback? onClosed;
 
   /// Whether this host owns the optional native shake channel.
   final bool shakeEnabled;
@@ -188,7 +192,7 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   @override
   void initState() {
     super.initState();
-    _open = widget.initiallyOpen;
+    _open = widget.initiallyOpen && (widget.prepareOpen?.call() ?? true);
     _claimNativeHandlers();
   }
 
@@ -248,6 +252,7 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
     if (call.method != kDevToolShakeOpenMethod) return;
     if (!mounted) return;
     if (!_gate.shouldOpen(alreadyOpen: _open, now: widget.clock())) return;
+    if (!(widget.prepareOpen?.call() ?? true)) return;
     setState(() => _open = true);
   }
 
@@ -260,6 +265,9 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _close() {
     if (!_open) return;
     setState(() => _open = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_open) widget.onClosed?.call();
+    });
   }
 
   /// Dismiss AND restart, so settings edited in the Dev Tool take effect.
@@ -273,6 +281,8 @@ class _DevToolShakeHostState extends State<DevToolShakeHost> {
   void _apply() {
     if (!_open) return;
     setState(() => _open = false);
+    // The restarted app owns a fresh analytics context. Keep this context
+    // blocked while its outgoing Dev Tool layer is still being removed.
     AppRestarter.restart(context);
   }
 
@@ -360,60 +370,75 @@ class _DevToolShakeLayerState extends State<_DevToolShakeLayer> {
     return Positioned.fill(
       child: Material(
         color: Theme.of(context).colorScheme.surface,
-        child: Stack(
+        child: Column(
           children: [
-            HeroControllerScope(
-              controller: _hero,
-              child: Navigator(
-                key: _navigator,
-                onGenerateRoute: (settings) =>
-                    MaterialPageRoute<void>(builder: widget.layerBuilder),
+            // Bound every nested page's viewport above the control band. A
+            // floating overlay let page actions receive taps on Apply instead.
+            Expanded(
+              child: HeroControllerScope(
+                controller: _hero,
+                child: Navigator(
+                  key: _navigator,
+                  onGenerateRoute: (settings) =>
+                      MaterialPageRoute<void>(builder: widget.layerBuilder),
+                ),
               ),
             ),
-            Positioned(
-              right: Spacing.medium,
-              bottom: Spacing.xLarge,
-              // NO `tooltip:` ON EITHER CONTROL. `FloatingActionButton` wraps
-              // its child in a `Tooltip` iff `tooltip != null`
-              // (material/floating_action_button.dart:822-824), and
-              // `RawTooltipState.build` asserts `debugCheckHasOverlay`
-              // (widgets/raw_tooltip.dart:865). These buttons are SIBLINGS of
-              // the layer's Navigator, and the host sits above the app's
-              // Navigator — the app's only `Overlay` — so there is no `Overlay`
-              // ancestor and the assert would replace the only exit affordances
-              // with an `ErrorWidget` on a device that has no hardware back
-              // button. `semanticLabel` and the visible label carry the
-              // accessible names instead.
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // Deliberately the LABELLED, wider control, and deliberately
-                  // NOT the one at the thumb's resting position: restarting is
-                  // the expensive, irreversible-feeling action and must be
-                  // chosen on purpose, never hit while reaching for "get me out
-                  // of here".
-                  FloatingActionButton.extended(
-                    key: kDevToolShakeApplyKey,
-                    heroTag: null,
-                    onPressed: _handleApply,
-                    icon: const Icon(Icons.restart_alt),
-                    label: const Text('Apply & Restart'),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Spacing.medium,
+                  Spacing.small,
+                  Spacing.medium,
+                  Spacing.xLarge,
+                ),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  heightFactor: 1,
+                  // NO `tooltip:` ON EITHER CONTROL. `FloatingActionButton` wraps
+                  // its child in a `Tooltip` iff `tooltip != null`
+                  // (material/floating_action_button.dart:822-824), and
+                  // `RawTooltipState.build` asserts `debugCheckHasOverlay`
+                  // (widgets/raw_tooltip.dart:865). These buttons are SIBLINGS of
+                  // the layer's Navigator, and the host sits above the app's
+                  // Navigator — the app's only `Overlay` — so there is no `Overlay`
+                  // ancestor and the assert would replace the only exit affordances
+                  // with an `ErrorWidget` on a device that has no hardware back
+                  // button. `semanticLabel` and the visible label carry the
+                  // accessible names instead.
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Deliberately the LABELLED, wider control, and deliberately
+                      // NOT the one at the thumb's resting position: restarting is
+                      // the expensive, irreversible-feeling action and must be
+                      // chosen on purpose, never hit while reaching for "get me out
+                      // of here".
+                      FloatingActionButton.extended(
+                        key: kDevToolShakeApplyKey,
+                        heroTag: null,
+                        onPressed: _handleApply,
+                        icon: const Icon(Icons.restart_alt),
+                        label: const Text('Apply & Restart'),
+                      ),
+                      const SizedBox(height: Spacing.small),
+                      // `X` keeps its universal meaning — dismiss, change nothing —
+                      // and keeps the position the muscle memory already knows.
+                      // This is the exit for an accidental shake.
+                      FloatingActionButton.small(
+                        key: kDevToolShakeCloseKey,
+                        heroTag: null,
+                        onPressed: _handleClose,
+                        child: const Icon(
+                          Icons.close,
+                          semanticLabel: 'Close Dev Tool without restarting',
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: Spacing.small),
-                  // `X` keeps its universal meaning — dismiss, change nothing —
-                  // and keeps the position the muscle memory already knows.
-                  // This is the exit for an accidental shake.
-                  FloatingActionButton.small(
-                    key: kDevToolShakeCloseKey,
-                    heroTag: null,
-                    onPressed: _handleClose,
-                    child: const Icon(
-                      Icons.close,
-                      semanticLabel: 'Close Dev Tool without restarting',
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

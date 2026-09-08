@@ -2,23 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/prohibited_acknowledgment_repository.dart';
 import '../domain/prohibited_item.dart';
 import 'cubit/prohibited_acknowledgment_cubit.dart';
 import 'cubit/prohibited_acknowledgment_state.dart';
 
+/// [matches] are the keywords a 409 `prohibited-item-requires-ack` flagged, so
+/// the user sees what tripped the policy before acknowledging it.
 Future<bool?> showProhibitedAcknowledgmentDialog(
   BuildContext context, {
   required ProhibitedAcknowledgmentRepository repository,
+  List<String> matches = const <String>[],
+  // The provider owns disposal; an injected factory owns its initial reads.
+  ProhibitedAcknowledgmentCubit Function()? cubitFactory,
 }) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: true,
     builder: (_) => BlocProvider(
       create: (_) =>
-          ProhibitedAcknowledgmentCubit(repository: repository)..load(),
+          cubitFactory?.call() ??
+          (ProhibitedAcknowledgmentCubit(
+            repository: repository,
+            matches: matches,
+          )..load()),
       child: const _ProhibitedAcknowledgmentDialog(),
     ),
   );
@@ -30,8 +44,10 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return BlocConsumer<ProhibitedAcknowledgmentCubit,
-        ProhibitedAcknowledgmentState>(
+    return BlocConsumer<
+      ProhibitedAcknowledgmentCubit,
+      ProhibitedAcknowledgmentState
+    >(
       listenWhen: (prev, curr) => prev.status != curr.status,
       listener: _handleStateChange,
       builder: (context, state) => _buildDialog(context, l10n, state),
@@ -53,9 +69,7 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     ProhibitedAcknowledgmentState state,
   ) {
     return Dialog(
-      shape: const RoundedRectangleBorder(
-        borderRadius: OmdsBorderRadius.large,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: OmdsBorderRadius.large),
       child: Padding(
         padding: const EdgeInsets.all(Spacing.xLarge),
         child: Column(
@@ -101,15 +115,20 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     switch (state.status) {
       case ProhibitedAckStatus.initial:
       case ProhibitedAckStatus.loading:
-        return const Center(
-          heightFactor: 2,
-          child: OmdsLoadingState(),
+        return JeebEmptyState.compact(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.loadingGenericHeadline,
+          identifier: 'prohibited_acknowledgment_loading',
         );
       case ProhibitedAckStatus.error:
-        return _ErrorBody(l10n: l10n);
+        return JeebFailureBlock.compact(
+          failure: state.failure ?? const UnknownFailure(),
+          identifier: 'prohibited_acknowledgment_error',
+        );
       case ProhibitedAckStatus.loaded:
       case ProhibitedAckStatus.acknowledging:
       case ProhibitedAckStatus.acknowledged:
+      case ProhibitedAckStatus.acknowledgeFailed:
         return _LoadedBody(l10n: l10n, state: state);
     }
   }
@@ -122,10 +141,34 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     if (state.status == ProhibitedAckStatus.error) {
       return _retryCta(context, l10n);
     }
+    if (state.status == ProhibitedAckStatus.acknowledgeFailed) {
+      return _acknowledgeFailedCta(context, l10n);
+    }
     if (state.status == ProhibitedAckStatus.acknowledging) {
       return _acknowledgingCta(l10n);
     }
     return _acknowledgeCta(context, l10n, state);
+  }
+
+  /// The dialog does NOT pop: nothing was recorded, so the ask must stand.
+  Widget _acknowledgeFailedCta(BuildContext context, AppLocalizations l10n) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        JeebInfoNote.error(
+          text: l10n.prohibitedAckFailedBody,
+          identifier: 'prohibited_acknowledgment_ack_failed_note',
+        ),
+        const SizedBox(height: Spacing.small),
+        JeebCtaButton.primary(
+          label: l10n.requestSubmitAcknowledgeCta,
+          identifier: 'prohibited_acknowledgment_ack_retry_cta',
+          onTap: () =>
+              context.read<ProhibitedAcknowledgmentCubit>().acknowledge(),
+        ),
+      ],
+    );
   }
 
   Widget _retryCta(BuildContext context, AppLocalizations l10n) {
@@ -185,10 +228,31 @@ class _LoadedBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          l10n.prohibitedItemsDialogBody,
-          style: theme.textTheme.bodyMedium,
-        ),
+        if (state.matches.isNotEmpty) ...[
+          Semantics(
+            identifier: 'prohibited_acknowledgment_matches',
+            container: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.prohibitedAckMatchedItemsTitle,
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: Spacing.xSmall),
+                Text(
+                  state.matches.join(' · '),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: Spacing.medium),
+        ],
+        Text(l10n.prohibitedItemsDialogBody, style: theme.textTheme.bodyMedium),
         const SizedBox(height: Spacing.medium),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 240),
@@ -216,7 +280,8 @@ class _ItemList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items
           .map(
-            (item) => _buildItemRow(item, colorScheme, context.jeebRoles, textTheme),
+            (item) =>
+                _buildItemRow(item, colorScheme, context.jeebRoles, textTheme),
           )
           .toList(growable: false),
     );
@@ -242,31 +307,9 @@ class _ItemList extends StatelessWidget {
               color: isBlock ? colorScheme.error : roles.warning,
             ),
             const SizedBox(width: Spacing.xSmall),
-            Expanded(
-              child: Text(item.name, style: textTheme.bodySmall),
-            ),
+            Expanded(child: Text(item.name, style: textTheme.bodySmall)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.l10n});
-
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.medium),
-      child: Text(
-        l10n.prohibitedItemsDialogError,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.error,
-            ),
-        textAlign: TextAlign.center,
       ),
     );
   }

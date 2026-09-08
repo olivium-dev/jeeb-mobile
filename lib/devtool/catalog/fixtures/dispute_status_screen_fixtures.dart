@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import '../../../core/network/app_failure.dart';
 import '../../../features/dispute_status/data/empty_dispute_status_repository.dart';
 import '../../../features/dispute_status/domain/dispute_status_repository.dart';
 
@@ -55,6 +56,26 @@ class DisputeStatusScreenPendingRepository implements DisputeStatusRepository {
   @override
   Future<DisputeStatus> fetchDispute(String disputeId) =>
       Completer<DisputeStatus>().future;
+}
+
+/// The first read lands, every read after it fails — the WP7-N1 warm-failure
+/// state, where the loaded dispute must stay on screen.
+class DisputeStatusScreenRefreshFailingRepository
+    implements DisputeStatusRepository {
+  DisputeStatusScreenRefreshFailingRepository(this.dispute);
+
+  final DisputeStatus dispute;
+  int calls = 0;
+
+  @override
+  Future<DisputeStatus> fetchDispute(String disputeId) async {
+    calls += 1;
+    if (calls == 1) return dispute;
+    throw const DisputeStatusRepositoryException.classified(
+      DisputeStatusFailure.network,
+      appFailure: NetworkFailure(offline: true),
+    );
+  }
 }
 
 /// A perfectly healthy read that records every id it is asked for.
@@ -176,6 +197,36 @@ abstract final class DisputeStatusScreenFixtures {
         ),
       );
 
+  /// WP7-N1: a refresh that fails over a loaded dispute — the rows stay and
+  /// `dispute_status_refresh_error` rides above them.
+  static DisputeStatusScreenDesignedState get refreshFailure =>
+      DisputeStatusScreenDesignedState(
+        disputeId: 'dsp-8',
+        repository: DisputeStatusScreenRefreshFailingRepository(
+          const DisputeStatus(
+            id: 'dsp-8',
+            state: DisputeState.pending,
+            orderRef: 'ORD-4910',
+            createdAt: '2026-07-30T08:15:00Z',
+          ),
+        ),
+      );
+
+  /// ES-20: a dispute with NO status history — the card still draws, with the
+  /// empty rung inside it.
+  static DisputeStatusScreenDesignedState get emptyHistory =>
+      const DisputeStatusScreenDesignedState(
+        disputeId: 'dsp-9',
+        repository: DisputeStatusScreenCannedRepository(
+          DisputeStatus(
+            id: 'dsp-9',
+            state: DisputeState.pending,
+            orderRef: 'ORD-4911',
+            createdAt: '2026-07-30T09:00:00Z',
+          ),
+        ),
+      );
+
   /// Cold start: the fetch is on the wire and nothing has come back.
   static DisputeStatusScreenDesignedState get coldRead =>
       const DisputeStatusScreenDesignedState(
@@ -213,10 +264,7 @@ abstract final class DisputeStatusScreenFixtures {
             state: DisputeState.unknown,
             orderRef: 'ORD-4901',
             createdAt: '2026-07-28T16:40:00Z',
-            evidence: DisputeEvidenceSummary(
-              reason: 'fraud',
-              timelineCount: 2,
-            ),
+            evidence: DisputeEvidenceSummary(reason: 'fraud', timelineCount: 2),
           ),
         ),
       );
@@ -225,12 +273,12 @@ abstract final class DisputeStatusScreenFixtures {
   /// A single instance rather than a getter: the assertion is that
   static final DisputeStatusScreenRecordingRepository blankIdRepository =
       DisputeStatusScreenRecordingRepository(
-    const DisputeStatus(
-      id: 'dsp-9',
-      state: DisputeState.closed,
-      orderRef: 'ORD-4930',
-    ),
-  );
+        const DisputeStatus(
+          id: 'dsp-9',
+          state: DisputeState.closed,
+          orderRef: 'ORD-4930',
+        ),
+      );
 
   /// A blank id in front of a repository that would have answered.
   /// Renders exactly like [notFoundFallback] — that IS the point. The dispute

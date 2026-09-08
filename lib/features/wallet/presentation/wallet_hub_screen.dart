@@ -9,6 +9,8 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
@@ -19,12 +21,17 @@ import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
+import '../../../core/widgets/jeeb/jeeb_refresh_failed_note.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
+import '../../../core/widgets/jeeb/jeeb_state_host.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../offline_mode/application/offline_cubit.dart';
 import '../application/wallet_hub_cubit.dart';
@@ -77,10 +84,14 @@ class WalletHubScreen extends StatefulWidget {
     this.repository,
     this.kycStatusGate,
     this.walletRefreshSignals,
+    this.cubitFactory,
   });
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletRepository? repository;
+
+  /// Construction seam; this screen owns and closes the returned cubit.
+  final WalletHubCubit Function()? cubitFactory;
 
   /// KYC-status source for the pending banner (AC7). Defaults to the shared
   /// `sl<JeeberKycStatusGate>()` the integrator landed (JM-036) — the same gate
@@ -98,9 +109,10 @@ class WalletHubScreen extends StatefulWidget {
 
 class _WalletHubScreenState extends State<WalletHubScreen>
     with ResumeRefetchMixin {
-  late final WalletHubCubit _cubit = WalletHubCubit(
-    repository: widget.repository ?? sl<WalletRepository>(),
-  )..load();
+  late final WalletHubCubit _cubit = widget.cubitFactory != null
+      ? widget.cubitFactory!()
+      : (WalletHubCubit(repository: widget.repository ?? sl<WalletRepository>())
+          ..load());
   StreamSubscription<void>? _walletRefreshSub;
 
   @override
@@ -108,9 +120,10 @@ class _WalletHubScreenState extends State<WalletHubScreen>
     super.initState();
     // F1 — no top-up event exists server-side; only guard-2's auto-withdraw
     // fires this bus (a top-up is caught by the resume catch-up below).
-    _walletRefreshSub = (widget.walletRefreshSignals ??
-            resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
-        ?.listen((_) => unawaited(_cubit.refresh()));
+    _walletRefreshSub =
+        (widget.walletRefreshSignals ??
+                resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
+            ?.listen((_) => unawaited(_cubit.refresh()));
   }
 
   @override
@@ -175,31 +188,56 @@ class _WalletHubView extends StatelessWidget {
                 Expanded(
                   child: BlocBuilder<WalletHubCubit, WalletHubState>(
                     builder: (context, state) {
+                      final cubit = context.read<WalletHubCubit>();
                       switch (state.status) {
                         case WalletHubStatus.initial:
                         case WalletHubStatus.loading:
-                          return _WalletStateBlock(
-                            status: JeebEmptyStateStatus.loading,
-                            headline: copy.title,
-                            identifier: 'wallet_loading',
+                          return JeebStateHost(
+                            child: JeebEmptyState(
+                              status: JeebEmptyStateStatus.loading,
+                              reason: JeebEmptyStateReason.loading,
+                              variant: JeebEmptyStateVariant.pocket,
+                              headline: copy.loadingHeadline,
+                              identifier: 'wallet_loading',
+                            ),
                           );
                         case WalletHubStatus.failed:
-                          return _WalletStateBlock(
-                            status: JeebEmptyStateStatus.error,
-                            headline: copy.title,
-                            body: copy.loadError,
-                            identifier: 'wallet_load_error',
-                            retryLabel: copy.retry,
-                            onRetry: () =>
-                                context.read<WalletHubCubit>().refresh(),
+                          return JeebStateHost(
+                            child: JeebFailureBlock(
+                              failure: state.failure ?? const UnknownFailure(),
+                              identifier: 'wallet_load_error',
+                              retryIdentifier: 'wallet_retry_cta',
+                              exitIdentifier: 'wallet_exit_cta',
+                              variant: JeebEmptyStateVariant.pocket,
+                              onRetry: cubit.load,
+                              onExit: _walletExit(context, state.failure),
+                            ),
                           );
                         case WalletHubStatus.loaded:
-                          return OmdsPullToRefresh(
-                            onRefresh: () =>
-                                context.read<WalletHubCubit>().refresh(),
+                          final balance = state.balance;
+                          if (balance == null) {
+                            return JeebStateHost(
+                              child: JeebFailureBlock(
+                                failure:
+                                    state.failure ??
+                                    const UnknownFailure(parse: true),
+                                identifier: 'wallet_load_error',
+                                retryIdentifier: 'wallet_retry_cta',
+                                exitIdentifier: 'wallet_exit_cta',
+                                variant: JeebEmptyStateVariant.pocket,
+                                onRetry: cubit.load,
+                                onExit: _walletExit(context, state.failure),
+                              ),
+                            );
+                          }
+                          return JeebPullToRefresh(
+                            onRefresh: cubit.refresh,
                             child: _LoadedBody(
-                              balance: state.balance,
+                              balance: balance,
                               copy: copy,
+                              refreshError: state.refreshError,
+                              onRetryRefresh: cubit.refresh,
+                              onDismissRefreshError: cubit.clearRefreshError,
                             ),
                           );
                       }
@@ -215,53 +253,29 @@ class _WalletHubView extends StatelessWidget {
   }
 }
 
-/// The non-loaded states, on the one Midnight pattern family (study-notes
-/// ruling 1). Scrolls so the block survives 200% text scale on a short phone.
-class _WalletStateBlock extends StatelessWidget {
-  const _WalletStateBlock({
-    required this.status,
-    required this.headline,
-    required this.identifier,
-    this.body,
-    this.retryLabel,
-    this.onRetry,
-  });
-
-  final JeebEmptyStateStatus status;
-  final String headline;
-  final String identifier;
-  final String? body;
-  final String? retryLabel;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final String? label = retryLabel;
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: status,
-          headline: headline,
-          body: body,
-          identifier: identifier,
-          action: label == null
-              ? null
-              : JeebCtaButton.primary(
-                  label: label,
-                  expand: false,
-                  onTap: onRetry,
-                ),
-        ),
-      ),
-    );
-  }
-}
+/// R6: an unrecoverable kind gets a way out, never a headline with no act. An
+/// expired session leaves to the root, where the redirect lands on sign-in.
+VoidCallback _walletExit(BuildContext context, AppFailure? failure) =>
+    failure is UnauthorizedFailure
+    ? () => context.go('/')
+    : () => context.canPop() ? context.pop() : context.go('/');
 
 class _LoadedBody extends StatelessWidget {
-  const _LoadedBody({required this.balance, required this.copy});
+  const _LoadedBody({
+    required this.balance,
+    required this.copy,
+    this.refreshError,
+    this.onRetryRefresh,
+    this.onDismissRefreshError,
+  });
 
-  final WalletBalance? balance;
+  final WalletBalance balance;
   final WalletHubL10n copy;
+
+  /// A refresh that failed over a balance the Jeeber is still reading.
+  final AppFailure? refreshError;
+  final VoidCallback? onRetryRefresh;
+  final VoidCallback? onDismissRefreshError;
 
   /// R4's link rows measure `15/16`, two steps looser than the kit default.
   static const EdgeInsetsGeometry _linkRowPadding =
@@ -270,9 +284,10 @@ class _LoadedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = balance;
-    final currency = b?.currency ?? '';
-    final affordability = b?.affordabilityState ?? WalletAffordability.empty;
-    final hasGift = (b?.giftCredit ?? 0) > 0;
+    final currency = b.currency;
+    final affordability = b.affordabilityState;
+    final hasGift = b.giftCredit > 0;
+    final warm = refreshError;
 
     return CustomScrollView(
       slivers: [
@@ -287,6 +302,18 @@ class _LoadedBody extends StatelessWidget {
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              if (warm != null)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    bottom: Spacing.small,
+                  ),
+                  child: JeebRefreshFailedNote(
+                    failure: warm,
+                    identifier: 'wallet_refresh_failed_note',
+                    onRetry: onRetryRefresh,
+                    onDismiss: onDismissRefreshError ?? () {},
+                  ),
+                ),
               // ── KYC-pending banner (D38/D39): top-up allowed, bidding not
               // yet. Gated on the shared JeeberKycStatusGate (JM-036) — the
               // same source the DELIVERY tab + offer gate read, so the banner
@@ -308,9 +335,9 @@ class _LoadedBody extends StatelessWidget {
               // ── The frosted bank-card (the screen's signature element). ────
               _BalanceCard(
                 copy: copy,
-                availableBalance: b?.availableBalance ?? 0,
-                reservedNow: b?.reservedNow ?? 0,
-                giftCredit: b?.giftCredit ?? 0,
+                availableBalance: b.availableBalance,
+                reservedNow: b.reservedNow,
+                giftCredit: b.giftCredit,
                 currency: currency,
                 hasGift: hasGift,
               ),
@@ -399,9 +426,11 @@ class _LoadedBody extends StatelessWidget {
   //    the screen never throws on a missing provider (40_GUARDRAILS_ARCH §6).
   void _onTopUp(BuildContext context) {
     if (_isOffline(context)) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(copy.offlineMoneyBlocked)));
+      showJeebErrorSnack(
+        context,
+        message: copy.offlineMoneyBlocked,
+        identifier: 'wallet_topup_offline_snack',
+      );
       return;
     }
     context.goNamed('wallet-charge-info');
@@ -411,8 +440,11 @@ class _LoadedBody extends StatelessWidget {
     try {
       return context.read<OfflineCubit>().state.status ==
           ConnectivityStatus.offline;
+    } on ProviderNotFoundException {
+      // Genuinely absent (production default) — treat as online.
+      return false;
     } catch (_) {
-      // No OfflineCubit in the tree (production default) — treat as online.
+      Diag.event('wallet_hub.offline_probe_failed');
       return false;
     }
   }
@@ -490,7 +522,8 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     // `MoneyFormat` prints the ISO code inline for anything but USD, so the
     // board's standalone `USD` suffix would double it there.
@@ -659,7 +692,8 @@ class _BalanceStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final text = context.jeebText;
 
@@ -667,11 +701,8 @@ class _BalanceStat extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: text.caption.copyWith(color: semantic.mutedText),
-        ),
-        const SizedBox(height: 2),
+        Text(label, style: text.caption.copyWith(color: semantic.mutedText)),
+        const SizedBox(height: Sizes.threeXSmall),
         Text(
           value,
           style: text.cardTitle.copyWith(
@@ -695,7 +726,8 @@ class _GiftPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
 
     return Container(
@@ -740,7 +772,8 @@ class _CashDisclaimer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
 
     return Align(
@@ -823,7 +856,8 @@ class _FeeBullet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
 
     return Padding(

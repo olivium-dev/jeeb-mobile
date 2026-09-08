@@ -1,3 +1,5 @@
+import '../../../core/network/app_failure.dart';
+
 enum WalletAffordability { enough, low, empty, allReserved }
 
 class WalletBalance {
@@ -19,13 +21,16 @@ class WalletBalance {
 enum WalletFailure { network, unauthorized, unknown }
 
 class WalletRepositoryException implements Exception {
-  const WalletRepositoryException(this.failure, [this.message]);
+  const WalletRepositoryException(this.failure, {this.cause});
 
   final WalletFailure failure;
-  final String? message;
+
+  /// The classified transport failure. Diagnostics + the screen's copy
+  /// source; never rendered verbatim.
+  final AppFailure? cause;
 
   @override
-  String toString() => 'WalletRepositoryException($failure, $message)';
+  String toString() => 'WalletRepositoryException(${failure.name})';
 }
 
 abstract class WalletRepository {

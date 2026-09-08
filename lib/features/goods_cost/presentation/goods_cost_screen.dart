@@ -7,6 +7,7 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/app_failure_copy.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
@@ -16,7 +17,7 @@ import '../../../l10n/app_localizations.dart';
 import '../application/goods_cost_cubit.dart';
 import '../application/goods_cost_state.dart';
 import '../data/dio_goods_cost_repository.dart';
-import '../data/fake_goods_cost_repository.dart';
+import '../data/unavailable_goods_cost_repository.dart';
 import '../domain/goods_cost.dart';
 import '../domain/goods_cost_repository.dart';
 
@@ -43,11 +44,7 @@ import '../domain/goods_cost_repository.dart';
 /// belongs here.
 // ORPHAN (JEBV4-227, verified 2026-07-12): zero external refs; its backend endpoint is also broken — see docs/project-understanding/reconciliation/orphans.md
 class GoodsCostScreen extends StatelessWidget {
-  const GoodsCostScreen({
-    super.key,
-    required this.deliveryId,
-    this.repository,
-  });
+  const GoodsCostScreen({super.key, required this.deliveryId, this.repository});
 
   final String deliveryId;
 
@@ -64,17 +61,19 @@ class GoodsCostScreen extends StatelessWidget {
     if (sl.isRegistered<Dio>()) {
       return DioGoodsCostRepository(sl<Dio>());
     }
-    return FakeGoodsCostRepository();
+    // GEN-01: a DI miss used to record goods costs against an in-memory fake
+    // and pop a fabricated success.
+    assert(false, 'GoodsCostRepository is not registered');
+    return const UnavailableGoodsCostRepository();
   }
 
   @override
   Widget build(BuildContext context) {
     final repo = _resolveRepository();
     return BlocProvider<GoodsCostCubit>(
-      create: (_) => GoodsCostCubit(
-        repository: repo,
-        deliveryId: deliveryId,
-      )..loadCurrency(),
+      create: (_) =>
+          GoodsCostCubit(repository: repo, deliveryId: deliveryId)
+            ..loadCurrency(),
       child: const _GoodsCostView(),
     );
   }
@@ -104,8 +103,9 @@ class _GoodsCostView extends StatelessWidget {
                 title: l10n.goodsCostTitle,
                 subtitle: l10n.goodsCostHeadline,
                 identifier: 'goods_cost_back',
-                leadingTooltip:
-                    MaterialLocalizations.of(context).backButtonTooltip,
+                leadingTooltip: MaterialLocalizations.of(
+                  context,
+                ).backButtonTooltip,
               ),
               const Expanded(child: _CostFieldAndSubmit()),
             ],
@@ -145,8 +145,8 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
   /// neutral "Goods Cost".
   String _label(AppLocalizations l10n, String? currency) =>
       (currency != null && currency.isNotEmpty)
-          ? l10n.goodsCostFieldLabel(currency)
-          : l10n.goodsCostFieldLabelNeutral;
+      ? l10n.goodsCostFieldLabel(currency)
+      : l10n.goodsCostFieldLabelNeutral;
 
   @override
   Widget build(BuildContext context) {
@@ -181,13 +181,31 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    JeebSectionLabel(_label(l10n, state.currency)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: JeebSectionLabel(_label(l10n, state.currency)),
+                        ),
+                        if (state.currencyUnavailable)
+                          JeebCtaButton.text(
+                            identifier: 'goods_cost_currency_retry',
+                            label: l10n.actionRetry,
+                            onTap: () =>
+                                context.read<GoodsCostCubit>().loadCurrency(),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: Spacing.small),
                     _AmountField(
                       controller: _controller,
                       isEnabled: !submitting,
+                      // UX-38: only a VALIDATION rejection is the field's
+                      // fault; every other kind renders on the note below.
                       errorText:
-                          failed ? _errorCopy(l10n, state.submitError) : null,
+                          failed &&
+                              state.submitError == GoodsCostFailure.validation
+                          ? l10n.goodsCostErrorValidation
+                          : null,
                       onChanged: (_) {
                         if (failed) {
                           context.read<GoodsCostCubit>().acknowledgeError();
@@ -196,6 +214,26 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
                         }
                       },
                     ),
+                    if (failed &&
+                        state.submitError != GoodsCostFailure.validation) ...[
+                      const SizedBox(height: Spacing.small),
+                      Semantics(
+                        liveRegion: true,
+                        child: JeebInfoNote.error(
+                          icon: Icons.error_outline,
+                          text: _errorCopy(l10n, state),
+                          identifier: 'goods_cost_error_note',
+                        ),
+                      ),
+                    ],
+                    if (state.currencyUnavailable) ...[
+                      const SizedBox(height: Spacing.small),
+                      JeebInfoNote.warning(
+                        icon: Icons.help_outline,
+                        text: l10n.goodsCostCurrencyUnavailable,
+                        identifier: 'goods_cost_currency_note',
+                      ),
+                    ],
                     const SizedBox(height: Spacing.medium),
                     // The honest cash line, in the board's repeated note shape
                     // (17's wallet strip sits in exactly this slot). Copy is the
@@ -224,17 +262,26 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
     );
   }
 
-  static String _errorCopy(AppLocalizations l10n, GoodsCostFailure? failure) {
-    switch (failure) {
+  /// Feature copy where the gateway named a reason; the shared failure family
+  /// otherwise, so a 5xx and a timeout no longer read alike (R6).
+  static String _errorCopy(AppLocalizations l10n, GoodsCostState state) {
+    switch (state.submitError) {
       case GoodsCostFailure.network:
         return l10n.goodsCostErrorNetwork;
       case GoodsCostFailure.notFound:
         return l10n.goodsCostErrorNotFound;
       case GoodsCostFailure.validation:
         return l10n.goodsCostErrorValidation;
+      case GoodsCostFailure.currencyUnavailable:
+        return l10n.goodsCostCurrencyUnavailable;
+      case GoodsCostFailure.amountUnconfirmed:
+        return l10n.goodsCostErrorAmountUnconfirmed;
       case GoodsCostFailure.unknown:
       case null:
-        return l10n.goodsCostErrorGeneric;
+        final cause = state.failure;
+        return cause == null
+            ? l10n.goodsCostErrorGeneric
+            : failureCopy(l10n, cause).body;
     }
   }
 }
@@ -341,8 +388,8 @@ class _AmountField extends StatelessWidget {
   Widget _editableCore(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     // The box mirrors, so the digits must hug the leading edge from whichever
     // side it lands on — while the run itself stays LTR.
     final alignment = Directionality.of(context) == TextDirection.rtl
@@ -352,7 +399,9 @@ class _AmountField extends StatelessWidget {
     return Semantics(
       identifier: 'goods_cost_amount_field',
       textField: true,
-      child: TextField( // EXEMPT(flutter-omds-design-system-usage): see class doc.
+      // Raw field is deliberate — see the class doc. The marker sits inline
+      // because `dart format` relocates a trailing `//` after an open paren.
+      child: /* EXEMPT(flutter-omds-design-system-usage) */ TextField(
         controller: controller,
         enabled: isEnabled,
         onChanged: onChanged,

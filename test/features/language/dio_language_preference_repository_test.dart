@@ -74,6 +74,9 @@ void main() {
           )).thenThrow(DioException(
         requestOptions:
             RequestOptions(path: DioLanguagePreferenceRepository.setPath),
+        // `mapDioException` only reads the response on a badResponse — a
+        // fixture without it silently loses the status.
+        type: DioExceptionType.badResponse,
         response: Response<void>(
           requestOptions:
               RequestOptions(path: DioLanguagePreferenceRepository.setPath),
@@ -87,6 +90,33 @@ void main() {
           (e) => e.failure,
           'failure',
           LanguagePreferenceFailure.unauthorized,
+        )),
+      );
+    });
+
+    // A 403 is a permission answer, not a dead session: folding it into
+    // `unauthorized` routed it to AuthLossSignals and logged the user out.
+    test('403 does NOT map to unauthorized', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(DioException(
+        requestOptions:
+            RequestOptions(path: DioLanguagePreferenceRepository.setPath),
+        type: DioExceptionType.badResponse,
+        response: Response<void>(
+          requestOptions:
+              RequestOptions(path: DioLanguagePreferenceRepository.setPath),
+          statusCode: 403,
+        ),
+      ));
+
+      await expectLater(
+        repo.save('ar'),
+        throwsA(isA<LanguagePreferenceException>().having(
+          (e) => e.failure,
+          'failure',
+          LanguagePreferenceFailure.unknown,
         )),
       );
     });

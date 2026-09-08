@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import '../catalog_models.dart';
+import '../fixtures/first_group_transition_fixtures.dart';
+import '../../../features/account_status/application/account_status_cubit.dart';
 
 import '../../../features/account_status/presentation/account_status_screen.dart';
 import '../fixtures/account_status_screen_fixtures.dart';
@@ -16,12 +20,12 @@ import '../../../features/biometric_login/presentation/biometric_prompt_screen.d
 import '../fixtures/biometric_prompt_screen_fixtures.dart';
 
 List<CatalogEntry> get batch01Entries => <CatalogEntry>[
-      _accountStatusEntry,
-      _activeDeliveryJeeberEntry,
-      _setPasswordEntry,
-      _biometricLockEntry,
-      _biometricPromptEntry,
-    ];
+  _accountStatusEntry,
+  _activeDeliveryJeeberEntry,
+  _setPasswordEntry,
+  _biometricLockEntry,
+  _biometricPromptEntry,
+];
 
 final CatalogEntry _accountStatusEntry = CatalogEntry(
   feature: 'account_status',
@@ -62,6 +66,35 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
       'Load failed',
       (context) => const AccountStatusScreen(
         repository: AccountStatusScreenFailingRepository(),
+      ),
+    ),
+    CatalogState(
+      'Forbidden (403) — exit CTA, no Retry',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenThrowingRepository.forbidden,
+      ),
+    ),
+    CatalogState(
+      'Server error (5xx) — retryable',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenThrowingRepository.serverError,
+      ),
+    ),
+    CatalogState(
+      'Refresh failed over a loaded banner',
+      (context) => AccountStatusScreen(
+        cubitFactory: () {
+          final cubit = AccountStatusCubit(
+            repository: AccountStatusScreenRefreshFailingRepository(
+              accountStatusScreenSuspended,
+            ),
+          );
+          unawaited(() async {
+            await cubit.load();
+            if (!cubit.isClosed) await cubit.refresh();
+          }());
+          return cubit;
+        },
       ),
     ),
   ],
@@ -121,6 +154,43 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Error — GPS upload stopped',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.gpsUploadStopped,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — not found (exit CTA)',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.loadFailedNotFound,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Error — proof photo refused',
+      (context) => catalogProofPhotoFailure(ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        repository: ActiveDeliveryScreenReadThenFailRepository(),
+        photoPicker: const ActiveDeliveryScreenDeniedPhotoPicker(),
+      )),
+    ),
+    CatalogState(
+      'Warm — refresh failed over a live delivery',
+      (context) => catalogActiveRefresh(ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        repository: ActiveDeliveryScreenReadThenFailRepository(failRefresh: true),
+      )),
+    ),
   ],
 );
 
@@ -143,6 +213,23 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
       'Validation error — mismatch',
       (context) =>
           const SetPasswordScreen(cubitFactory: setPasswordScreenMismatchCubit),
+    ),
+    CatalogState(
+      'Set password — network',
+      (context) => const SetPasswordScreen(
+        cubitFactory: setPasswordScreenNetworkFailureCubit,
+      ),
+    ),
+    CatalogState(
+      'Set password — invalid token',
+      (context) => const SetPasswordScreen(
+        cubitFactory: setPasswordScreenInvalidTokenCubit,
+      ),
+    ),
+    CatalogState(
+      'Set password — weak (server rejected)',
+      (context) =>
+          const SetPasswordScreen(cubitFactory: setPasswordScreenWeakCubit),
     ),
   ],
 );
@@ -174,6 +261,20 @@ final CatalogEntry _biometricLockEntry = CatalogEntry(
         screen: BiometricLockScreen(),
       ),
     ),
+    CatalogState(
+      'Locked out (terminal)',
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenLockedOutCubit,
+        screen: BiometricLockScreen(),
+      ),
+    ),
+    CatalogState(
+      'Not enrolled (terminal)',
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenNotEnrolledCubit,
+        screen: BiometricLockScreen(),
+      ),
+    ),
   ],
 );
 
@@ -183,27 +284,23 @@ final CatalogEntry _biometricPromptEntry = CatalogEntry(
   states: [
     CatalogState(
       'Checking',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenCheckingCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenCheckingCubit()),
     ),
     CatalogState(
       'Available',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenAvailableCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenAvailableCubit()),
     ),
     CatalogState(
       'Unavailable',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenUnavailableCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenUnavailableCubit()),
     ),
     CatalogState(
       'Failed',
-      (context) => BiometricPromptScreen(
-        cubit: biometricPromptScreenFailedCubit(),
-      ),
+      (context) =>
+          BiometricPromptScreen(cubit: biometricPromptScreenFailedCubit()),
     ),
   ],
 );

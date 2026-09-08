@@ -12,6 +12,7 @@ import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
+import '../../../core/session/auth_loss_signals.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
@@ -158,12 +159,21 @@ class _RegistrationViewState extends State<_RegistrationView> {
   bool _pushedOtp = false;
   bool _pushedNameStep = false;
 
+  /// NET-18: the session died mid-flight and the user was dropped here with no
+  /// explanation. Read once at mount and clear, so a rebuild does not repeat it.
+  AuthLossReason? _authLossReason;
+
   @override
   void initState() {
     super.initState();
     _phoneController = TextEditingController(
       text: context.read<RegistrationCubit>().state.phoneInput,
     );
+    final reason = AuthLossSignals.instance.lastReason;
+    if (reason != null) AuthLossSignals.instance.clearReason();
+    // A deliberate sign-out is NOT a session loss and must not say so; the two
+    // involuntary reasons keep "sign in again" (keystore copy: deferred, ARB).
+    _authLossReason = reason == AuthLossReason.signedOut ? null : reason;
   }
 
   @override
@@ -339,6 +349,10 @@ class _RegistrationViewState extends State<_RegistrationView> {
                                   children: [
                                     const _WelcomeBlock(),
                                     const SizedBox(height: _kWelcomeToFormGap),
+                                    if (_authLossReason != null) ...[
+                                      const _SessionExpiredNote(),
+                                      const SizedBox(height: Spacing.medium),
+                                    ],
                                     _PhoneEntryBody(
                                       state: state,
                                       phoneController: _phoneController,
@@ -373,6 +387,25 @@ class _RegistrationViewState extends State<_RegistrationView> {
     } else {
       await _navigateHome();
     }
+  }
+}
+
+/// The one line that explains why the user is back on the login route.
+class _SessionExpiredNote extends StatelessWidget {
+  const _SessionExpiredNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'registration_session_expired_note',
+      container: true,
+      liveRegion: true,
+      child: JeebInfoNote.error(
+        icon: Icons.info_outline,
+        text: l10n.errorSessionExpiredBody,
+      ),
+    );
   }
 }
 
@@ -446,7 +479,9 @@ class _SendCodeButton extends StatelessWidget {
           raw: phoneController.text,
         ) !=
         null;
-    final canTap = renderedReady && !state.isSendingCode;
+    // AE-17: dead for the server's 429 window, not merely labelled as such.
+    final canTap =
+        renderedReady && !state.isSendingCode && !state.isRateLimitedNow;
     return JeebCtaButton.accent(
       key: const Key('registration.sendCode'),
       identifier: 'register_phone_submit_cta',
@@ -760,5 +795,7 @@ String _phoneErrorCopy(RegistrationPhoneError error, AppLocalizations l10n) {
       return l10n.registrationPhoneRateLimited;
     case RegistrationPhoneError.networkError:
       return l10n.registrationPhoneNetworkError;
+    case RegistrationPhoneError.serverError:
+      return l10n.registrationPhoneServerError;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/app_failure.dart';
 import '../domain/customer_profile_repository.dart';
 import '../domain/customer_profile_view_data.dart';
 
@@ -30,7 +31,11 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
       if (phone == null || phone.trim().isEmpty) return parsed;
       return parsed.copyWith(email: phone.trim());
     } on DioException catch (e) {
-      throw CustomerProfileRepositoryException(_map(e), e.message);
+      throw CustomerProfileRepositoryException.classified(
+        _map(e),
+        message: e.message,
+        appFailure: AppFailure.of(e),
+      );
     }
   }
 
@@ -80,7 +85,8 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
         clearRating: average == null,
       );
     } on DioException {
-      return profile;
+      // A review-service outage is not "no reviews yet" (UX-33).
+      return profile.copyWith(ratingUnavailable: true, clearRating: true);
     }
   }
 
@@ -161,7 +167,7 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   double? _numOrNull(Object? value) => value is num ? value.toDouble() : null;
 
   CustomerProfileFailure _map(DioException e) {
-    if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+    if (e.response?.statusCode == 401) {
       return CustomerProfileFailure.unauthorized;
     }
     switch (e.type) {

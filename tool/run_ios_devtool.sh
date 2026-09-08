@@ -27,6 +27,12 @@ if [[ "${mock_prefixes}" != "true" && "${mock_prefixes}" != "false" ]]; then
   exit 64
 fi
 
+# Env-index decrypt key comes from the shell, never from this file (public repo).
+extra_defines=()
+if [[ -n "${JEEB_ENV_INDEX_KEY:-}" ]]; then
+  extra_defines+=(--dart-define=JEEB_ENV_INDEX_KEY="${JEEB_ENV_INDEX_KEY}")
+fi
+
 exec "${flutter_bin}" run \
   --device-id "${device}" \
   --debug \
@@ -37,4 +43,5 @@ exec "${flutter_bin}" run \
   --dart-define=JEEB_OBS_OVERLAY=true \
   --dart-define=JEEB_REALTIME_TRACKING=true \
   --dart-define=JEEB_REALTIME_SOCKET_URL="${realtime_socket_url}" \
+  ${extra_defines[@]+"${extra_defines[@]}"} \
   --route=/devtool

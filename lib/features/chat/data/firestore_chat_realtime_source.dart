@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/firebase/jeeb_firestore.dart';
 import '../domain/chat_firebase_identity.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/chat_realtime_source.dart';
@@ -10,7 +12,7 @@ import 'firestore_chat_message_mapper.dart';
 
 class FirestoreChatRealtimeSource implements ChatRealtimeSource {
   FirestoreChatRealtimeSource({
-    required FirebaseFirestore Function() firestore,
+    FirebaseFirestore Function() firestore = JeebFirestore.instance,
     required ChatFirebaseIdentity identity,
     required FirestoreChatMessageMapper mapper,
     int window = kChatRealtimeWindow,
@@ -51,6 +53,11 @@ class FirestoreChatRealtimeSource implements ChatRealtimeSource {
         'conversation_id': conversationId,
         'reason': 'no_identity',
       });
+      ChatDiagnostics.degraded(
+        stage: ChatDiagStage.firestore,
+        reason: 'no_identity',
+        conversationId: conversationId,
+      );
       return;
     }
     if (events.isClosed) return;
@@ -118,6 +125,11 @@ class FirestoreChatRealtimeSource implements ChatRealtimeSource {
       'reason': reason,
       if (error != null) 'error': error.toString(),
     });
+    ChatDiagnostics.degraded(
+      stage: ChatDiagStage.firestore,
+      reason: reason,
+      conversationId: conversationId,
+    );
   }
 
   bool _live = false;

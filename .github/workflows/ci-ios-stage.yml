@@ -99,8 +99,14 @@ jobs:
           test ! -e ios/Runner/GoogleService-Info.plist
           test ! -e ios/Flutter/ProtectedFirebase.xcconfig
 
+      - name: Verify Crashlytics symbol distribution failure controls
+        run: python3 tool/test_upload_ios_crashlytics_symbols.py
+
       - name: Validate signed iOS inspector negative contracts
         run: bash tool/test_inspect_signed_ios_release.sh
+
+      - name: Validate staging capture payload negative contracts
+        run: python3 tool/test_inspect_ios_staging_clarity_payload.py
 
       - name: Validate entitlement files
         run: |

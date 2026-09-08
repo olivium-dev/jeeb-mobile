@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
@@ -59,8 +60,10 @@ DioException _offline(String path) => DioException(
 
 DioException _throttled(String path) => DioException(
   requestOptions: RequestOptions(path: path),
+  type: DioExceptionType.badResponse,
   response: Response<dynamic>(
     statusCode: 429,
+    data: <String, dynamic>{'status': 429, 'retry_after': 30},
     requestOptions: RequestOptions(path: path),
   ),
 );
@@ -88,9 +91,9 @@ void _loadArbs() {
   _syncDelegate = _SyncDelegate({'en': en, 'ar': ar});
 }
 
-Widget _harness(ClientHomeCubit cubit) => MaterialApp(
+Widget _harness(ClientHomeCubit cubit, {Locale locale = const Locale('en')}) => MaterialApp(
   theme: AppTheme.light(),
-  locale: const Locale('en'),
+  locale: locale,
   supportedLocales: AppLocalizations.supportedLocales,
   localizationsDelegates: [
     _syncDelegate,
@@ -172,12 +175,49 @@ void main() {
       final snapshot = await repo.loadSnapshot();
 
       expect(snapshot.rateLimited, isTrue);
+      expect(snapshot.requestsFailure, isA<RateLimitedFailure>());
+      expect(snapshot.inProgressFailure, isA<RateLimitedFailure>());
+      expect(snapshot.retryAfter, const Duration(seconds: 30));
+      expect(
+        (snapshot.requestsFailure! as RateLimitedFailure).retryAfter,
+        const Duration(seconds: 30),
+      );
       expect(
         snapshot.loadFailed,
         isFalse,
         reason: 'the pinned cold-429-stays-READY contract must survive',
       );
     });
+
+    for (final locale in const [Locale('en'), Locale('ar')]) {
+      testWidgets('${locale.languageCode}: a real 429 renders error, not empty', (
+        tester,
+      ) async {
+        when(
+          () => dio.get<dynamic>(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          ),
+        ).thenAnswer((invocation) async {
+          final path = invocation.positionalArguments.first as String;
+          if (path == '/requests') throw _throttled(path);
+          return _resp(path, {'items': [], 'shipments': []});
+        });
+        final cubit = ClientHomeCubit(repository: repo, greetingNameProvider: () => 'Sami');
+        addTearDown(cubit.close);
+        await cubit.load();
+        await tester.pumpWidget(_harness(cubit, locale: locale));
+        await tester.pumpAndSettle();
+        expect(cubit.state.status, ClientHomeStatus.ready);
+        expect(cubit.state.pendingError, isA<RateLimitedFailure>());
+        expect(find.bySemanticsIdentifier('pending_error_state'), findsOneWidget);
+        expect(find.bySemanticsIdentifier('pending_empty_state'), findsNothing);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(ClientHomeScreen)),
+        );
+        expect(find.text(l10n.errorRateLimitedRetryIn(30)), findsWidgets);
+      });
+    }
   });
 
   group('ClientHomeCubit honours loadFailed (B1)', () {
@@ -185,7 +225,10 @@ void main() {
       'a cold all-failed load lands on FAILED, not an empty READY',
       () async {
         final repo = _ScriptedRepo([
-          const ClientHomeSnapshot(loadFailed: true),
+          const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         ]);
         final cubit = ClientHomeCubit(
           repository: repo,
@@ -204,7 +247,10 @@ void main() {
       () async {
         final repo = _ScriptedRepo([
           const ClientHomeSnapshot(inProgress: [_order]),
-          const ClientHomeSnapshot(loadFailed: true),
+          const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         ]);
         final cubit = ClientHomeCubit(
           repository: repo,
@@ -226,7 +272,10 @@ void main() {
       tester,
     ) async {
       final repo = _ScriptedRepo([
-        const ClientHomeSnapshot(loadFailed: true),
+        const ClientHomeSnapshot(
+            requestsFailure: NetworkFailure(offline: true),
+            inProgressFailure: NetworkFailure(offline: true),
+          ),
         const ClientHomeSnapshot(pending: [_order]),
       ]);
       final cubit = ClientHomeCubit(

@@ -16,6 +16,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
+import 'support/midnight_test_harness.dart';
 
 void main() {
   test('staging Maestro flow pins the real wallet funding journey', () {
@@ -960,9 +961,75 @@ void main() {
     );
   });
 
-  testWidgets('Scenario Users roster uses the OMDS loading state', (
+  testWidgets('Scenario Users failure retries the real roster', (tester) async {
+    useReduceMotion(tester);
+    final dio = _WalletFundingDio(
+      includeRosterJeeber: true,
+      rosterFailureCalls: 2,
+    );
+    await tester.pumpWidget(
+      _testApp(ScenarioUsersPage(client: DevGatewayClient(dio: dio))),
+    );
+    await tester.pumpAndSettle();
+    final error = find.bySemanticsIdentifier(
+      'devtool_scenario_users_roster_error',
+    );
+    await tester.ensureVisible(error);
+    await tester.pumpAndSettle();
+    expect(error, findsOneWidget);
+    final retry = find.bySemanticsIdentifier(
+      'devtool_scenario_users_roster_retry_cta',
+    );
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(find.text('demo_jeeber'), findsOneWidget);
+  });
+
+  testWidgets('Scenario Users empty roster uses its own rung', (tester) async {
+    useReduceMotion(tester);
+    await tester.pumpWidget(
+      _testApp(
+        ScenarioUsersPage(
+          client: DevGatewayClient(dio: _WalletFundingDio(rosterUsers: [])),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsIdentifier('devtool_scenario_users_roster_empty'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Scenario Users action failure surfaces the error snack', (
     tester,
   ) async {
+    useReduceMotion(tester);
+    await tester.pumpWidget(
+      _testApp(
+        ScenarioUsersPage(
+          client: DevGatewayClient(
+            dio: _WalletFundingDio(seedFailureStatus: 403),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final create = find.bySemanticsIdentifier('devtool.scenarioUsers.create');
+    await tester.ensureVisible(create);
+    await tester.tap(create);
+    await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsIdentifier('devtool_scenario_users_action_error'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Scenario Users roster uses the JEEB loading rung', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
     final rosterGate = Completer<void>();
     final client = DevGatewayClient(
       dio: _WalletFundingDio(rosterGate: rosterGate),
@@ -971,7 +1038,10 @@ void main() {
     await tester.pumpWidget(_testApp(ScenarioUsersPage(client: client)));
     await tester.pump();
 
-    expect(find.byType(OmdsLoadingState), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('devtool_scenario_users_roster_loading'),
+      findsOneWidget,
+    );
     rosterGate.complete();
     await tester.pumpAndSettle();
   });
@@ -979,6 +1049,7 @@ void main() {
   testWidgets(
     'dedicated Dev Tool entry selects any existing Jeeber and supports re-entry',
     (tester) async {
+      useReduceMotion(tester);
       final client = DevGatewayClient(
         dio: _WalletFundingDio(
           rosterUsers: <Map<String, dynamic>>[
@@ -1034,9 +1105,10 @@ void main() {
     skip: !kDevToolEnabled,
   );
 
-  testWidgets('wallet picker renders OMDS loading and empty states', (
+  testWidgets('wallet picker renders JEEB loading and empty rungs', (
     tester,
   ) async {
+    useReduceMotion(tester);
     final rosterGate = Completer<void>();
     final client = DevGatewayClient(
       dio: _WalletFundingDio(rosterGate: rosterGate),
@@ -1046,35 +1118,58 @@ void main() {
       _testApp(FundJeeberWalletPickerPage(client: client)),
     );
     await tester.pump();
-    expect(find.byType(OmdsLoadingState), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('devtool_wallet_funding_picker_loading'),
+      findsOneWidget,
+    );
 
     rosterGate.complete();
     await tester.pumpAndSettle();
-    expect(find.byType(OmdsEmptyState), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('devtool_wallet_funding_picker_empty'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier(
+        'devtool_wallet_funding_picker_empty_retry_cta',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('No Jeeber accounts found'), findsOneWidget);
   });
 
-  testWidgets('wallet picker shows an OMDS error and retries the real roster', (
-    tester,
-  ) async {
-    final client = DevGatewayClient(
-      dio: _WalletFundingDio(includeRosterJeeber: true, rosterFailureCalls: 2),
-    );
+  testWidgets(
+    'wallet picker shows a JEEB failure and retries the real roster',
+    (tester) async {
+      useReduceMotion(tester);
+      final client = DevGatewayClient(
+        dio: _WalletFundingDio(
+          includeRosterJeeber: true,
+          rosterFailureCalls: 2,
+        ),
+      );
 
-    await tester.pumpWidget(
-      _testApp(FundJeeberWalletPickerPage(client: client)),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(OmdsErrorState), findsOneWidget);
+      await tester.pumpWidget(
+        _testApp(FundJeeberWalletPickerPage(client: client)),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsIdentifier('devtool_wallet_funding_picker_error'),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
-    expect(find.text('demo_jeeber'), findsOneWidget);
-  });
+      await tester.tap(
+        find.bySemanticsIdentifier('devtool_wallet_funding_picker_retry_cta'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('demo_jeeber'), findsOneWidget);
+    },
+  );
 
   testWidgets('wallet picker localizes Arabic copy and keeps RTL direction', (
     tester,
   ) async {
+    useReduceMotion(tester);
     final client = DevGatewayClient(
       dio: _WalletFundingDio(includeRosterJeeber: true),
     );
@@ -1096,6 +1191,7 @@ void main() {
   testWidgets(
     'Scenario Users creates a Jeeber and opens its real Add money flow',
     (tester) async {
+      useReduceMotion(tester);
       final dio = _WalletFundingDio();
       final client = DevGatewayClient(dio: dio);
 
@@ -1123,6 +1219,7 @@ void main() {
   testWidgets('Scenario Users localizes the Arabic Add money entry', (
     tester,
   ) async {
+    useReduceMotion(tester);
     final client = DevGatewayClient(dio: _WalletFundingDio());
 
     await tester.pumpWidget(
@@ -1147,6 +1244,7 @@ void main() {
   testWidgets('Scenario Users localizes Arabic roster metadata with bidi ID', (
     tester,
   ) async {
+    useReduceMotion(tester);
     final client = DevGatewayClient(
       dio: _WalletFundingDio(includeRosterJeeber: true),
     );
@@ -1203,6 +1301,7 @@ class _WalletFundingDio extends Fake implements Dio {
     this.includeRosterJeeber = false,
     this.rosterUsers,
     this.rosterFailureCalls = 0,
+    this.seedFailureStatus,
     this.rosterGate,
     this.otpThreshold = 50,
     this.omitOtpPolicy = false,
@@ -1237,6 +1336,7 @@ class _WalletFundingDio extends Fake implements Dio {
   final bool includeRosterJeeber;
   final List<Map<String, dynamic>>? rosterUsers;
   int rosterFailureCalls;
+  final int? seedFailureStatus;
   final Completer<void>? rosterGate;
   final double otpThreshold;
   final bool omitOtpPolicy;
@@ -1282,6 +1382,16 @@ class _WalletFundingDio extends Fake implements Dio {
     ProgressCallback? onReceiveProgress,
   }) async {
     calls.add(_Call('POST', path, _map(data), _authorization(options)));
+    if (path == '/dev/seed/user' && seedFailureStatus != null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<Object?>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: seedFailureStatus,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
     if (path == '/dev/partner/credentials' && credentialFailureBeforeCreate) {
       throw DioException(
         requestOptions: RequestOptions(path: path),

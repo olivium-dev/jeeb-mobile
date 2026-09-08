@@ -277,6 +277,12 @@ void _registerIosContracts() {
     _expectContainsAll(signedBuilder, [
       '-hideShellScriptEnvironment',
       'APP_FLAVOR=staging',
+      '--dart-define=JEEB_DIAG=true',
+      r'--dart-define="JEEB_APP_VERSION=${BUILD_NAME}+${BUILD_NUMBER}"',
+      r'--dart-define="JEEB_BUILD_SHA=${REVIEWED_SHA}"',
+      'BUILD_NUMBER REVIEWED_SHA GATEWAY_URL',
+      'REVIEWED_SHA must be an explicit immutable commit',
+      'diagnostic source revision differs from checked-out candidate',
       'https://app.jeeb.fds-1.com',
       'IOS_EXPORT_OPTIONS_PATH',
       'APP_STORE_CONNECT_API_KEY_PATH',
@@ -711,7 +717,10 @@ void _registerCiContracts() {
       '.elements[0].versionCode == \$build_number',
       'build/provenance/android-rc.json',
       'build/provenance/ios-rc.json',
-      r'$ARGS.named + {clarity_enabled: false, retained: true,',
+      r'$ARGS.named + {clarity_enabled: true,',
+      'clarity_privacy_approved: false',
+      'clarity_staging_internal_approved: true',
+      'staging-internal-consent-masked-v1',
       'uses: ./.github/actions/run-build-runner',
       'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
       'retention-days: 7',
@@ -731,10 +740,9 @@ void _registerCiContracts() {
     expect(workflow, isNot(contains(r'(\.[0-9]+){1,2}')));
   });
 
-  test('every release build keeps Clarity explicitly disabled', () {
+  test('production remains off; internal staging uses separate approval', () {
     for (final path in [
       '.github/workflows/trusted-mobile-rc.yml',
-      'tool/build_signed_ios_internal_candidate.sh',
       'tool/build_unsigned_ios_release_contract.sh',
     ]) {
       final source = _source(path);
@@ -746,6 +754,16 @@ void _registerCiContracts() {
       );
       expect(source, isNot(contains('JEEB_CLARITY_ENABLED=true')));
       expect(source, isNot(contains('JEEB_CLARITY_PROJECT_ID=')));
+    }
+    final internal = _source('tool/build_signed_ios_internal_candidate.sh');
+    for (final flag in [
+      'JEEB_CLARITY_ENABLED=true',
+      'JEEB_CLARITY_PRIVACY_APPROVED=false',
+      'JEEB_CLARITY_STAGING_INTERNAL_APPROVED=true',
+      'JEEB_CLARITY_PROJECT_ID=y6laxxj143',
+      'JEEB_INTERNAL_RELEASE=true',
+    ]) {
+      expect(internal, contains(flag));
     }
   });
 
@@ -941,8 +959,26 @@ void _registerCiContracts() {
     expect(ios, isNot(contains('latest_testflight_build_number')));
     expect(ios, isNot(contains('deliver(')));
     expect(ios, isNot(contains('submit_for_review')));
-    expect(_source('Gemfile'), contains("gem 'fastlane', '2.238.0'"));
-    expect(_source('Gemfile.lock'), contains('fastlane (2.238.0)'));
+    const fastlaneCommit = '56ee6ca6717d3d0a2b182f6a517211fe9d85f860';
+    const fastlaneRepository = 'https://github.com/fastlane/fastlane.git';
+    expect(
+      _source('Gemfile'),
+      contains(
+        "gem 'fastlane', git: '$fastlaneRepository', ref: '$fastlaneCommit'",
+      ),
+    );
+    final gemLock = _source('Gemfile.lock');
+    expect(
+      gemLock,
+      contains(
+        'GIT\n  remote: $fastlaneRepository\n'
+        '  revision: $fastlaneCommit\n  ref: $fastlaneCommit\n',
+      ),
+    );
+    expect(gemLock, contains('rubyzip (>= 3.4.0, < 4.0.0)'));
+    expect(gemLock, contains('    rubyzip (3.6.0)\n'));
+    expect(gemLock, isNot(matches(RegExp(r'^PATH$', multiLine: true))));
+    expect(gemLock, isNot(matches(RegExp(r'^  branch:', multiLine: true))));
 
     final preflight = _source('fastlane/Fastfile');
     _expectContainsAll(preflight, [

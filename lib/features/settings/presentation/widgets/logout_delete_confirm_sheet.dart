@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/app_failure.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
 import '../../../../core/theme/jeeb_scrim.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/widgets/jeeb/app_failure_copy.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/dio_account_session_terminator.dart';
 import '../../domain/account_deletion_policy.dart';
@@ -79,6 +82,10 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
   late final AccountSessionTerminator _terminator = _resolveTerminator();
   bool _inFlight = false;
 
+  /// F3: a failed deletion used to pop the sheet and route home, so the user
+  /// believed an account that still exists had been deleted.
+  AppFailure? _failure;
+
   AccountSessionTerminator _resolveTerminator() {
     final explicit = widget.terminator;
     if (explicit != null) return explicit;
@@ -93,13 +100,25 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
 
   Future<void> _run(LogoutDeleteMode action) async {
     if (_inFlight) return;
-    setState(() => _inFlight = true);
-    switch (action) {
-      case LogoutDeleteMode.delete:
-        await _terminator.deleteAccount();
-      case LogoutDeleteMode.logout:
-      case LogoutDeleteMode.both:
-        await _terminator.logout();
+    setState(() {
+      _inFlight = true;
+      _failure = null;
+    });
+    try {
+      switch (action) {
+        case LogoutDeleteMode.delete:
+          await _terminator.deleteAccount();
+        case LogoutDeleteMode.logout:
+        case LogoutDeleteMode.both:
+          await _terminator.logout();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _inFlight = false;
+        _failure = AppFailure.of(e);
+      });
+      return;
     }
     if (!mounted) return;
     widget.onCompleted?.call();
@@ -181,6 +200,17 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_failure != null) ...[
+                  const SizedBox(height: Spacing.medium),
+                  Semantics(
+                    identifier: 'logout_delete_error',
+                    container: true,
+                    liveRegion: true,
+                    child: JeebInfoNote.error(
+                      text: failureCopy(l10n, _failure!).body,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: Spacing.twoXLarge),
                 ...confirmCtas,
                 const SizedBox(height: Spacing.small),

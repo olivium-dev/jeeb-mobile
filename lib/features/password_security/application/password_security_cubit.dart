@@ -11,6 +11,8 @@ class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
 
   final ChangePasswordPolicy _policy;
 
+  bool _inFlight = false;
+
   void toggleCurrentObscured() =>
       emit(state.copyWith(currentObscured: !state.currentObscured));
 
@@ -34,7 +36,8 @@ class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
     required String newPassword,
     required String confirm,
   }) {
-    if (state.status == PasswordSecurityStatus.submitting) return;
+    if (state.status == PasswordSecurityStatus.submitting || _inFlight) return;
+    _inFlight = true;
 
     final validation = _policy.validate(
       current: current,
@@ -46,12 +49,15 @@ class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
         status: PasswordSecurityStatus.failed,
         validation: validation,
       ));
+      _inFlight = false;
       return;
     }
 
     emit(state.copyWith(
       status: PasswordSecurityStatus.unavailable,
+      unavailableNonce: state.unavailableNonce + 1,
       clearValidation: true,
     ));
+    _inFlight = false;
   }
 }

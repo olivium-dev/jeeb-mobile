@@ -80,7 +80,7 @@ void main() {
       await pump(tester, _failing);
 
       // The frame under test really is the failed one, not the loaded body.
-      expect(emptyState(tester).status, JeebEmptyStateStatus.error);
+      expect(emptyState(tester).effectiveStatus, JeebEmptyStateStatus.error);
       expect(emptyState(tester).identifier, LiveSettingsScreen.errorIdentifier);
       expect(find.byKey(const Key('settings-row-sign-out')), findsNothing);
 
@@ -91,7 +91,7 @@ void main() {
         (tester) async {
       await pump(tester, _pending);
 
-      expect(emptyState(tester).status, JeebEmptyStateStatus.loading);
+      expect(emptyState(tester).effectiveStatus, JeebEmptyStateStatus.loading);
       // Same harness, same finder, opposite answer — so `findsOneWidget` above
       // is a measured difference, not a finder that always matches.
       expect(signOut(), findsNothing);

@@ -77,6 +77,10 @@ class BackgroundGpsState extends Equatable {
   bool get isBlockedOnPermission =>
       phase == BackgroundGpsPhase.permissionDenied;
 
+  /// True when the uploader tore itself down after repeated upload failures.
+  /// Nothing rendered this phase before, so the loop died invisibly.
+  bool get isGpsFailed => phase == BackgroundGpsPhase.error;
+
   /// True when a blocked uploader cannot recover from an in-app foreground
   /// permission prompt and must send the jeeber to OS settings.
   bool get needsSystemSettings =>

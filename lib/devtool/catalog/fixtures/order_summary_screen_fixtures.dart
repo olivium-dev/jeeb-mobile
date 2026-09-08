@@ -106,11 +106,67 @@ abstract final class OrderSummaryScreenFixtures {
           summary: const OrderSummary(
             deliveryId: 'DEL-2101',
             requestId: 'DEL-2101',
-            conversationId: '',
-            price: 0,
-            currency: 'USD',
+            conversationId: null,
+            price: null,
+            currency: null,
             jeeberName: kOrderSummaryScreenJeeberId,
             tier: '',
+          ),
+        ),
+      );
+
+  /// The wire carried no amount: the ticket says "unavailable", never $0.00.
+  static OrderSummaryScreenDesignedState get priceUnavailable =>
+      OrderSummaryScreenDesignedState(
+        deliveryId: 'DEL-2102',
+        repository: FakeOrderSummaryRepository(
+          summary: const OrderSummary(
+            deliveryId: 'DEL-2102',
+            requestId: 'REQ-2102',
+            conversationId: 'CONV-2102',
+            price: null,
+            currency: null,
+            jeeberName: 'Rami Chidiac',
+            tier: 'express',
+          ),
+        ),
+      );
+
+  /// Two of the three secondary reads failed — the partial-data note rides
+  /// above a ticket that is otherwise complete.
+  static OrderSummaryScreenDesignedState get partialSecondaryReads =>
+      OrderSummaryScreenDesignedState(
+        deliveryId: 'DEL-2103',
+        repository: FakeOrderSummaryRepository(
+          summary: const OrderSummary(
+            deliveryId: 'DEL-2103',
+            requestId: 'REQ-2103',
+            conversationId: 'CONV-2103',
+            price: 14.5,
+            currency: 'USD',
+            jeeberName: 'Rami Chidiac',
+            tier: 'express',
+            partialSections: <OrderSummarySection>{
+              OrderSummarySection.offers,
+              OrderSummarySection.jeeber,
+            },
+          ),
+        ),
+      );
+
+  /// No conversation id on the wire: the Chat CTA is hidden, not guessed.
+  static OrderSummaryScreenDesignedState get noConversationId =>
+      OrderSummaryScreenDesignedState(
+        deliveryId: 'DEL-2104',
+        repository: FakeOrderSummaryRepository(
+          summary: const OrderSummary(
+            deliveryId: 'DEL-2104',
+            requestId: 'REQ-2104',
+            conversationId: null,
+            price: 9.0,
+            currency: 'USD',
+            jeeberName: 'Rami Chidiac',
+            tier: 'standard',
           ),
         ),
       );

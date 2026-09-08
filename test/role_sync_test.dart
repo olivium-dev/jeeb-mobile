@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/network/app_failure.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
@@ -42,6 +43,28 @@ class _CountingProfileRepository implements CustomerProfileRepository {
 }
 
 class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
+
+/// Throws the CLASSIFIED exception the Dio repository raises, so the failure
+/// the UI renders is the transport's own.
+class _ClassifiedThrowingProfileRepository
+    implements CustomerProfileRepository {
+  @override
+  Future<CustomerProfileViewData> fetchProfile() async {
+    throw const CustomerProfileRepositoryException.classified(
+      CustomerProfileFailure.network,
+      appFailure: NetworkFailure(offline: true),
+    );
+  }
+}
+
+/// Holds the read open so the LOADING rung is observable.
+class _PendingProfileRepository implements CustomerProfileRepository {
+  final Completer<CustomerProfileViewData> completer =
+      Completer<CustomerProfileViewData>();
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() => completer.future;
+}
 
 class _ThrowingProfileRepository implements CustomerProfileRepository {
   @override
@@ -158,6 +181,203 @@ void main() {
     expect(h.avail.state.roles, isEmpty);
     addTearDown(h.role.close);
     addTearDown(h.avail.close);
+  });
+
+  // F2/F3: a swallowed getMe failure made "gateway down" indistinguishable
+  // from "not a jeeber", and the shell invited an approved jeeber to register.
+  group('F2/F3: the capability read publishes its own state', () {
+    test('a successful sync resolves', () async {
+      final h = await harness(
+        repository: _FakeProfileRepository(
+          const CustomerProfileViewData(
+            activeRole: 'jeeber',
+            availableRoles: ['client', 'jeeber'],
+          ),
+        ),
+      );
+      expect(h.avail.state.status, RoleAvailabilityStatus.resolved);
+      expect(h.avail.state.failure, isNull);
+      addTearDown(h.role.close);
+      addTearDown(h.avail.close);
+    });
+
+    test('a throwing repository emits failed and leaves roles untouched',
+        () async {
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs, initialRole: UserRole.jeeber);
+      final avail = RoleAvailabilityCubit(
+        const RoleAvailability(
+          roles: ['client', 'jeeber'],
+          status: RoleAvailabilityStatus.resolved,
+        ),
+      );
+      final sync = RoleSync(
+        roleCubit: role,
+        availabilityCubit: avail,
+        repository: _ThrowingProfileRepository(),
+      );
+
+      await sync.sync();
+
+      expect(avail.state.status, RoleAvailabilityStatus.failed);
+      expect(avail.state.failure, isA<UnauthorizedFailure>());
+      expect(avail.state.roles, ['client', 'jeeber']);
+      expect(role.state, UserRole.jeeber);
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
+
+    test('a classified exception carries its own AppFailure through', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs);
+      final avail = RoleAvailabilityCubit();
+      final sync = RoleSync(
+        roleCubit: role,
+        availabilityCubit: avail,
+        repository: _ClassifiedThrowingProfileRepository(),
+      );
+
+      await sync.sync();
+
+      expect(avail.state.status, RoleAvailabilityStatus.failed);
+      expect(avail.state.failure, const NetworkFailure(offline: true));
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
+
+    test('the read is LOADING while it is in flight', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs);
+      final avail = RoleAvailabilityCubit();
+      final repo = _PendingProfileRepository();
+      final sync = RoleSync(
+        roleCubit: role,
+        availabilityCubit: avail,
+        repository: repo,
+      );
+
+      final pending = sync.sync();
+      await pumpEventQueue();
+      expect(avail.state.status, RoleAvailabilityStatus.loading);
+
+      repo.completer.complete(
+        const CustomerProfileViewData(
+          activeRole: 'client',
+          availableRoles: ['client'],
+        ),
+      );
+      await pending;
+      expect(avail.state.status, RoleAvailabilityStatus.resolved);
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
+
+    test('RoleSync hydrates the cached roles for the SAME account', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        RoleAvailabilityCubit.availableRolesPrefKey: <String>[
+          'client',
+          'jeeber',
+        ],
+        RoleAvailabilityCubit.availableRolesOwnerPrefKey: 'karim',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs);
+      final avail = RoleAvailabilityCubit(
+        const RoleAvailability(),
+        prefs,
+        () async => 'karim',
+      );
+
+      RoleSync(roleCubit: role, availabilityCubit: avail);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(avail.state.roles, ['client', 'jeeber']);
+      expect(avail.state.status, RoleAvailabilityStatus.unknown);
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
+
+    test('a cache stamped for ANOTHER account is never hydrated', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        RoleAvailabilityCubit.availableRolesPrefKey: <String>[
+          'client',
+          'jeeber',
+        ],
+        RoleAvailabilityCubit.availableRolesOwnerPrefKey: 'karim',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs);
+      final avail = RoleAvailabilityCubit(
+        const RoleAvailability(),
+        prefs,
+        () async => 'fresh-client',
+      );
+
+      RoleSync(roleCubit: role, availabilityCubit: avail);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(avail.state.roles, isEmpty,
+          reason: 'a Super-Login switch must not inherit jeeber tabs');
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
+
+    test('an UNSTAMPED legacy cache is never hydrated', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        RoleAvailabilityCubit.availableRolesPrefKey: <String>['client'],
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final avail = RoleAvailabilityCubit(
+        const RoleAvailability(),
+        prefs,
+        () async => 'karim',
+      );
+
+      await avail.hydrate();
+
+      expect(avail.state.roles, isEmpty);
+      addTearDown(avail.close);
+    });
+
+    test('a resolved read stamps the cache with the signed-in user', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
+      final avail = RoleAvailabilityCubit(
+        const RoleAvailability(),
+        prefs,
+        () async => 'karim',
+      );
+
+      avail.setAvailableRoles(const <String>['client', 'jeeber']);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        prefs.getString(RoleAvailabilityCubit.availableRolesOwnerPrefKey),
+        'karim',
+      );
+      addTearDown(avail.close);
+    });
+
+    test('the cubit re-runs the sync through the attached refresher', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final role = RoleCubit(prefs: prefs);
+      final avail = RoleAvailabilityCubit();
+      final repo = _CountingProfileRepository(
+        const CustomerProfileViewData(
+          activeRole: 'client',
+          availableRoles: ['client'],
+        ),
+      );
+      RoleSync(roleCubit: role, availabilityCubit: avail, repository: repo);
+
+      expect(avail.canRefresh, isTrue);
+      await avail.refresh();
+
+      expect(repo.calls, 1);
+      expect(avail.state.status, RoleAvailabilityStatus.resolved);
+      addTearDown(role.close);
+      addTearDown(avail.close);
+    });
   });
 
   // DEFECT-C2: RoleSync.sync must fire on the authenticated session transition

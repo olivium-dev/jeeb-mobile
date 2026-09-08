@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/chat_connection_state.dart';
 import '../domain/connection_status.dart';
@@ -11,9 +12,17 @@ import '../../../core/previews/jeeb_preview.dart';
 
 /// Uses raw Material colors (Theme.of(context).colorScheme, not Colors.X) to stay inside OMDS M3 tokens.
 class ChatConnectionBanner extends StatelessWidget {
-  const ChatConnectionBanner({super.key, required this.state});
+  const ChatConnectionBanner({
+    super.key,
+    required this.state,
+    this.onReconnect,
+  });
 
   final ChatConnectionState state;
+
+  /// Re-establishes the thread. Rendered only while the transport is down —
+  /// a Reconnect pill on a healthy socket is an act that does nothing.
+  final VoidCallback? onReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -21,34 +30,57 @@ class ChatConnectionBanner extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final (label, bg, fg, icon) = _decoration(state.status, scheme, l10n);
-    return Container(
-      key: const Key('chat-connection-banner'),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
-      ),
-      color: bg,
-      child: Row(
-        children: [
-          Icon(icon, size: Sizes.medium, color: fg),
-          const SizedBox(width: Spacing.xSmall),
-          Expanded(
-            child: Text(
-              label,
-              style: textTheme.labelLarge?.copyWith(
-                color: fg,
-                fontWeight: FontWeight.w600,
+    final bool showReconnect = onReconnect != null && state.isOffline;
+    return Semantics(
+      identifier: 'chat_connection_banner',
+      container: true,
+      liveRegion: true,
+      child: Container(
+        key: const Key('chat-connection-banner'),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.xSmall,
+        ),
+        color: bg,
+        child: Row(
+          children: [
+            Icon(icon, size: Sizes.medium, color: fg),
+            const SizedBox(width: Spacing.xSmall),
+            Expanded(
+              child: Text(
+                label,
+                style: textTheme.labelLarge?.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          if (state.pendingCount > 0)
-            Text(
-              l10n.chatPendingMessages(state.pendingCount),
-              key: const Key('chat-pending-badge'),
-              style: textTheme.labelMedium?.copyWith(color: fg),
-            ),
-        ],
+            // Flexible, not fixed: at a 2.0 text scale on a 320 dp phone the
+            // badge and the CTA together overflow a rigid Row.
+            if (state.pendingCount > 0)
+              Flexible(
+                child: Text(
+                  l10n.chatPendingMessages(state.pendingCount),
+                  key: const Key('chat-pending-badge'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelMedium?.copyWith(color: fg),
+                ),
+              ),
+            if (showReconnect)
+              Flexible(
+                child: JeebCtaButton.text(
+                  label: l10n.chatConnectionReconnectCta,
+                  expand: false,
+                  shrinkLabelToFit: true,
+                  labelStyle: textTheme.labelLarge?.copyWith(color: fg),
+                  identifier: 'chat_connection_reconnect',
+                  onTap: onReconnect,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -63,7 +95,7 @@ class ChatConnectionBanner extends StatelessWidget {
         return (
           l10n.chatStatusConnected,
           scheme.secondaryContainer,
-          scheme.onPrimary,
+          scheme.onSecondaryContainer,
           Icons.cloud_done_outlined,
         );
       case ConnectionStatus.connecting:
@@ -123,15 +155,17 @@ Widget _chatConnectionBannerHosted(
   ConnectionStatus status, {
   int pending = 0,
   int reconnectAttempt = 0,
-  String? lastError,
+  ChatConnectionFailure? lastFailure,
+  bool reconnect = false,
 }) =>
     ChatConnectionBanner(
       state: ChatConnectionState(
         status: status,
         reconnectAttempt: reconnectAttempt,
         pending: _chatConnectionBannerOutbox(pending),
-        lastError: lastError,
+        lastFailure: lastFailure,
       ),
+      onReconnect: reconnect ? () {} : null,
     );
 
 /// The happy path: socket up, outbox empty. The strip is still rendered (it is
@@ -157,7 +191,7 @@ Widget chatConnectionBannerReconnecting() => _chatConnectionBannerHosted(
       ConnectionStatus.reconnecting,
       pending: 3,
       reconnectAttempt: 3,
-      lastError: 'WebSocketChannelException: connection closed',
+      lastFailure: ChatConnectionFailure.connectFailed,
     );
 
 /// Layout ceiling: the longest label the widget can show, next to the widest
@@ -166,7 +200,7 @@ Widget chatConnectionBannerReconnecting() => _chatConnectionBannerHosted(
 Widget chatConnectionBannerOfflineFullOutbox() => _chatConnectionBannerHosted(
       ConnectionStatus.disconnected,
       pending: 12,
-      lastError: 'SocketException: Network is unreachable',
+      lastFailure: ChatConnectionFailure.connectFailed,
     );
 
 /// The singular plural branch, which no other preview reaches.
@@ -174,3 +208,17 @@ Widget chatConnectionBannerOfflineFullOutbox() => _chatConnectionBannerHosted(
 @JeebPreview(group: 'chat', name: 'Offline + one pending', size: _chatConnectionBannerTallStripBox)
 Widget chatConnectionBannerOfflineOnePending() =>
     _chatConnectionBannerHosted(ConnectionStatus.disconnected, pending: 1);
+
+/// The affordance the strip used to lack: a way to ask for the thread back.
+@JeebPreview(
+  group: 'chat',
+  name: 'Disconnected + reconnect CTA',
+  size: _chatConnectionBannerTallStripBox,
+)
+Widget chatConnectionBannerDisconnectedReconnect() =>
+    _chatConnectionBannerHosted(
+      ConnectionStatus.disconnected,
+      pending: 2,
+      lastFailure: ChatConnectionFailure.connectFailed,
+      reconnect: true,
+    );

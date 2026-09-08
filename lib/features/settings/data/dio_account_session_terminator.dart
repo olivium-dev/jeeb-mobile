@@ -1,7 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/diagnostics/diag.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/notifications/data/shared_prefs_local_push_inbox.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/session/firebase_identity_teardown.dart';
@@ -31,7 +34,10 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     try {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_deviceIdPrefsKey);
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_device_id_read_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
       return null;
     }
   }
@@ -43,6 +49,8 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     await _clearLocalSession();
   }
 
+  /// Throws the classified [AppFailure] when the remote deletion fails; the
+  /// local teardown runs only after the account is really gone.
   @override
   Future<void> deleteAccount() async {
     await _requestAccountDeletion();
@@ -57,7 +65,8 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
         '/v1/auth/logout',
         data: <String, dynamic>{'refreshToken': ?refreshToken},
       );
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_revoke_failed', {'kind': AppFailure.of(e).kind.name});
     }
   }
 
@@ -69,34 +78,49 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
         '/api/PushNotification/device',
         data: <String, dynamic>{'deviceId': deviceId},
       );
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_push_unregister_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
   Future<void> _requestAccountDeletion() async {
+    final String? userId = await _tokenStore.userId;
+    if (userId == null) throw const UnauthorizedFailure();
     try {
-      final userId = await _tokenStore.userId;
-      if (userId == null) return;
       await _dio.patch<void>(
         '/v1/users/$userId/status',
         data: const <String, dynamic>{'status': 'deleted'},
       );
-    } catch (_) {
+    } catch (e) {
+      final AppFailure failure = AppFailure.of(e);
+      Diag.event('account_delete_failed', {'kind': failure.kind.name});
+      throw failure;
     }
   }
 
   Future<void> _clearLocalSession() async {
     try {
       await _tokenStore.clear();
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_token_clear_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
     try {
       await _clearCachedIdentity();
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_identity_clear_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
     try {
       await _firebaseSignOut();
-    } catch (_) {
+    } catch (e) {
+      Diag.event('logout_firebase_signout_failed', {
+        'kind': AppFailure.of(e).kind.name,
+      });
     }
   }
 
@@ -107,9 +131,13 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     for (final key in const <String>[
       SharedPrefsProfileRepository.profilePrefsKey,
       RoleAvailabilityCubit.availableRolesPrefKey,
+      RoleAvailabilityCubit.availableRolesOwnerPrefKey,
       RoleCubit.rolePrefKey,
     ]) {
       await prefs.remove(key);
     }
+    // F7: the local push inbox outlived the token too, so the next account
+    // inherited the previous one's notification rows.
+    await SharedPrefsLocalPushInbox.clearAll(prefs);
   }
 }

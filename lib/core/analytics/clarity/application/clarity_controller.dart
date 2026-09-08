@@ -45,6 +45,7 @@ final class ClarityController extends ChangeNotifier
   bool _needsAuthenticatedBoundary = false;
   bool _resumeRequired = false;
   bool _lifecycleActive = true;
+  bool _devToolVisible = false;
   bool _disposed = false;
   String? _latestScreenName;
   int _consentMutationEpoch = 0;
@@ -163,12 +164,33 @@ final class ClarityController extends ChangeNotifier
     unawaited(_enqueue(_reconcile));
   }
 
+  /// Close capture before the Dev Tool is mounted. If the SDK cannot confirm
+  /// pause, the caller must keep the tool closed. No notification is emitted
+  /// here because the initial tool may be opened during widget construction.
+  bool prepareDevToolOpen() {
+    if (_disposed) return false;
+    _devToolVisible = true;
+    _invalidateActivation();
+    _captureActive = false;
+    if (!_initializationRequested) return true;
+    _resumeRequired = true;
+    _analyticsConsentApplied = false;
+    return _denyConsentAndPause();
+  }
+
+  void didCloseDevTool() {
+    if (_disposed || !_devToolVisible) return;
+    _devToolVisible = false;
+    unawaited(_enqueue(_reconcile));
+  }
+
   Future<void> _reconcile() async {
     final context = _context;
     if (!available ||
         !_authenticated ||
         !_consent.isGranted ||
         !_lifecycleActive ||
+        _devToolVisible ||
         context == null ||
         !context.mounted) {
       return;
@@ -313,6 +335,7 @@ final class ClarityController extends ChangeNotifier
         _authenticated &&
         _consent.isGranted &&
         _lifecycleActive &&
+        !_devToolVisible &&
         context != null &&
         context.mounted;
   }

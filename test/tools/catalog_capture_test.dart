@@ -17,12 +17,14 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_omds_tokens.dart';
 import 'package:jeeb_mobile/devtool/catalog/screen_catalog.dart';
+import 'package:jeeb_mobile/features/home_client/domain/client_home_display_clock.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:omds/omds.dart';
 
@@ -101,21 +103,25 @@ void main() {
         addTearDown(router.dispose);
 
         await tester.pumpWidget(
-          OmdsColorTokensProvider(
-            tokens: jeebMidnightOmdsTokens,
-            child: MaterialApp.router(
-              // The DEBUG ribbon is chrome the board never draws; it sat over
-              // the top-end corner of every capture.
-              debugShowCheckedModeBanner: false,
-              theme: withCaptureTestFonts(AppTheme.midnight()),
-              supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: const <LocalizationsDelegate<Object?>>[
-                SyncAppLocalizationsDelegate(),
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              routerConfig: router,
+          RepositoryProvider<ClientHomeDisplayClock>.value(
+            // The approved home masters use device-local evening display copy.
+            value: ClientHomeDisplayClock(now: () => DateTime(2026, 9, 7, 18)),
+            child: OmdsColorTokensProvider(
+              tokens: jeebMidnightOmdsTokens,
+              child: MaterialApp.router(
+                // The DEBUG ribbon is chrome the board never draws; it sat over
+                // the top-end corner of every capture.
+                debugShowCheckedModeBanner: false,
+                theme: withCaptureTestFonts(AppTheme.midnight()),
+                supportedLocales: AppLocalizations.supportedLocales,
+                localizationsDelegates: const <LocalizationsDelegate<Object?>>[
+                  SyncAppLocalizationsDelegate(),
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                routerConfig: router,
+              ),
             ),
           ),
         );

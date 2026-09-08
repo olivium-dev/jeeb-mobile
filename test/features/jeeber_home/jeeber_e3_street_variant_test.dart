@@ -138,7 +138,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(JeeberNoRequestsView.rootKey), findsOneWidget);
-      expect(find.text('You are offline'), findsOneWidget);
+      // OFF-16: duty-off vocabulary — "offline" is reserved for connectivity.
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(JeeberNoRequestsView)),
+      );
+      expect(cubit.state.status.isOnline, isFalse);
+      expect(find.text(l10n.jeeberFeedDutyOffEmptyHeadline), findsOneWidget);
+      expect(find.text(l10n.jeeberFeedDutyOffEmptyBody), findsOneWidget);
+      expect(find.text(l10n.jeeberFeedQuietStreetTitle), findsNothing);
       expect(find.textContaining("you're online"), findsNothing);
       _expectStreet(tester);
     });
@@ -210,7 +217,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsOneWidget);
+      // The FROZEN retry id rides JeebFailureBlock's CTA (the widget Key the
+      // hand-rolled pill carried does not survive the kit swap).
+      expect(
+        find.bySemanticsIdentifier('jeeber_home_load_error_retry_cta'),
+        findsOneWidget,
+      );
       _expectStreet(tester);
     });
   });

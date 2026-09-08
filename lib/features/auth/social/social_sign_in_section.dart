@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../l10n/app_localizations.dart';
 import 'social_auth_cubit.dart';
 import 'social_auth_error.dart';
@@ -45,13 +46,13 @@ class SocialSignInSection extends StatelessWidget {
           prev.status != curr.status || prev.error != curr.error,
       listener: (context, state) async {
         if (state.status == SocialAuthStatus.failed && state.error != null) {
-          final message = _errorCopy(state.error!, l10n);
-          // EXEMPT(omds-snackbar): OMDS ships `showOmdsErrorSnackbar` for
-          // display but does not expose a hide-current helper. We dedupe
-          // back-to-back failures here before delegating to OMDS for the
-          // actual presentation. Tracked under JEEB-58.
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          showOmdsErrorSnackbar(context, message: message);
+          // The kit primitive hides the current snack itself, so the
+          // back-to-back dedupe no longer needs a hand-rolled hide.
+          showJeebErrorSnack(
+            context,
+            message: _errorCopy(state.error!, l10n),
+            identifier: 'social_signin_error_snack',
+          );
           context.read<SocialAuthCubit>().clearError();
         }
         if (state.status == SocialAuthStatus.collision) {

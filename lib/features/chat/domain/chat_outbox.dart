@@ -1,5 +1,9 @@
 import '../domain/chat_message.dart';
 
+abstract interface class AccountScopedChatOutbox {
+  ChatOutbox forAccount(String userId);
+}
+
 abstract class ChatOutbox {
   Future<List<ChatMessage>> load();
 
