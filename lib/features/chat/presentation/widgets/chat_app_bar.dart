@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_text_styles.dart';
@@ -81,6 +82,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final router = GoRouter.maybeOf(context);
     return Material(
       color: Theme.of(context).colorScheme.surface,
       elevation: 0,
@@ -89,6 +91,11 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: JeebTopBar.identity(
           identifier: 'chat_detail_back_button',
           leadingTooltip: l10n.chatBackA11y,
+          // Acceptance replaces the route stack, including while resolving or
+          // showing an error. Keep pushed-chat Back and router-less hosts intact.
+          onLeadingPressed: router == null
+              ? null
+              : () => router.canPop() ? router.pop() : router.go('/'),
           title: title,
           // The board's subtitle reads `★ 4.9 · usually replies in 1 min`.
           // TODO(redesign-24): needs gateway reply-latency — omitted, not faked.
