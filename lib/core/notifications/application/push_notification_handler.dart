@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../diagnostics/diag.dart';
+import '../../network/auth_token_store.dart';
 import '../../observability/session_trace/session_trace.dart';
+import '../../session/reviews_refresh_signals.dart';
 import '../data/push_transport.dart';
 import '../domain/active_chat_thread.dart';
 import '../domain/foreground_push_display.dart';
@@ -65,17 +68,22 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     LocalPushInbox? localInbox,
     Set<String> Function()? localRoles,
     Set<String> Function()? openChatThreadIds,
-  })  : _openChatThreadIds =
-            openChatThreadIds ?? (() => ActiveChatThread.instance.openIds),
-        _transport = transport,
-        _badgeCount = badgeCount,
-        _historyLimit = historyLimit,
-        _onToken = onToken,
-        _refreshSignals = refreshSignals,
-        _offerLifecycleSignals = offerLifecycleSignals,
-        _localInbox = localInbox,
-        _localRoles = localRoles,
-        super(const PushNotificationState()) {
+    AuthTokenStore? tokenStore,
+    ReviewsRefreshSignals? reviewsRefreshSignals,
+  }) : _openChatThreadIds =
+           openChatThreadIds ?? (() => ActiveChatThread.instance.openIds),
+       _tokenStore = tokenStore ?? AuthTokenStore(),
+       _reviewsRefreshSignals =
+           reviewsRefreshSignals ?? ReviewsRefreshSignals.instance,
+       _transport = transport,
+       _badgeCount = badgeCount,
+       _historyLimit = historyLimit,
+       _onToken = onToken,
+       _refreshSignals = refreshSignals,
+       _offerLifecycleSignals = offerLifecycleSignals,
+       _localInbox = localInbox,
+       _localRoles = localRoles,
+       super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
     _tokenSub = transport.onTokenRefresh.listen((token) {
@@ -95,6 +103,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final Set<String> Function()? _localRoles;
 
   final Set<String> Function() _openChatThreadIds;
+  final AuthTokenStore _tokenStore;
+  final ReviewsRefreshSignals _reviewsRefreshSignals;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   static const int _seenIdsLimit = 128;
@@ -184,24 +194,61 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       data: message.data,
       openChatThreadIds: _openChatThreadIds(),
     );
-    emit(showBanner
-        ? state.copyWith(banner: message, history: history)
-        : state.copyWith(history: history));
+    emit(
+      showBanner
+          ? state.copyWith(banner: message, history: history)
+          : state.copyWith(history: history),
+    );
     _maybeSignalStatusChange(message);
     _maybeSignalOfferLifecycle(message);
+    unawaited(_maybeSignalReviewsChanged(message));
+  }
+
+  Future<void> _maybeSignalReviewsChanged(NotificationMessage message) async {
+    // A generic "rating" push is a prompt, not evidence of a revealed review.
+    // This is the existing owner's explicit visibility event and closed payload.
+    final eventType = message.data['type'] ?? message.data['notification_type'];
+    if (eventType != 'jeeb.rating_auto_revealed') return;
+    try {
+      final recipients = <String>{};
+      final flat = message.data['user_id'];
+      if (flat != null && flat.isNotEmpty) recipients.add(flat);
+      for (final key in const ['payload', 'data']) {
+        final raw = message.data[key];
+        if (raw == null || raw.isEmpty) continue;
+        final nested = jsonDecode(raw);
+        if (nested is! Map) return;
+        final recipient = nested['user_id'];
+        if (recipient is String && recipient.isNotEmpty) {
+          recipients.add(recipient);
+        }
+      }
+      // No guessing from delivery ids, role, display name, or unbound recipients.
+      if (recipients.length != 1) return;
+      final actorId = await _tokenStore.userId;
+      if (isClosed || actorId == null || recipients.single != actorId) return;
+      // Invalidation only: the owner-filtered read decides visibility/count/score.
+      _reviewsRefreshSignals.signalChanged(rateeId: actorId, source: this);
+    } catch (_) {
+      // Malformed routing data or unavailable session storage is not a review.
+    }
   }
 
   void _persistNewRequest(NotificationMessage message) {
     final inbox = _localInbox;
     if (inbox == null) return;
-    unawaited(inbox.append(LocalPushRecord(
-      id: message.id,
-      type: kNewRequestPushType,
-      title: message.title,
-      body: message.body,
-      ts: message.receivedAt.toUtc().toIso8601String(),
-      ref: message.data['requestId'] ?? message.data['request_id'],
-    )));
+    unawaited(
+      inbox.append(
+        LocalPushRecord(
+          id: message.id,
+          type: kNewRequestPushType,
+          title: message.title,
+          body: message.body,
+          ts: message.receivedAt.toUtc().toIso8601String(),
+          ref: message.data['requestId'] ?? message.data['request_id'],
+        ),
+      ),
+    );
   }
 
   void _maybeSignalOfferLifecycle(NotificationMessage message) {
@@ -241,7 +288,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     };
     if (!orderish.contains(message.category)) return;
     final data = message.data;
-    final id = data['delivery_id'] ??
+    final id =
+        data['delivery_id'] ??
         data['order_id'] ??
         data['requestId'] ??
         data['request_id'];

@@ -111,6 +111,7 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
     final status = _str(json['status']);
 
     return CustomerProfileViewData(
+      userId: _str(json['userId'] ?? json['user_id'] ?? json['id']),
       name: _str(json['name'] ?? json['fullName'] ?? json['displayName']),
       email: _publicEmail(json['email']),
       avatarUrl: _str(

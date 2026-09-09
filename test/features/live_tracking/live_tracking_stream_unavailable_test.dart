@@ -85,7 +85,7 @@ void main() {
     await cubit.close();
   });
 
-  test('a resume does NOT re-open a channel that never opened (D14)',
+  test('each explicit lifecycle resume can recover an initial open failure',
       () async {
     final channel = _RefusingChannel(CourierPositionOpenFailure.transport);
     final cubit = LiveTrackingCubit(
@@ -103,8 +103,8 @@ void main() {
 
     expect(
       channel.opens,
-      1,
-      reason: 'a re-open per resume would be a poll wearing a lifecycle hook',
+      3,
+      reason: 'one bounded attempt per resume, with no retry timer',
     );
     await cubit.close();
   });

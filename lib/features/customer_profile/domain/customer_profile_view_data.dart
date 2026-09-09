@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 class CustomerProfileViewData extends Equatable {
   const CustomerProfileViewData({
+    this.userId,
     this.name,
     this.email,
     this.avatarUrl,
@@ -13,6 +14,9 @@ class CustomerProfileViewData extends Equatable {
     this.activeRole,
     this.availableRoles = const <String>[],
   });
+
+  /// Opaque identity for invalidation/account scoping; never rendered.
+  final String? userId;
 
   final String? name;
 
@@ -50,6 +54,7 @@ class CustomerProfileViewData extends Equatable {
       availableRoles.contains('client') && availableRoles.contains('jeeber');
 
   CustomerProfileViewData copyWith({
+    String? userId,
     String? name,
     String? email,
     String? avatarUrl,
@@ -63,6 +68,7 @@ class CustomerProfileViewData extends Equatable {
     bool clearRating = false,
   }) {
     return CustomerProfileViewData(
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       email: email ?? this.email,
       avatarUrl: avatarUrl ?? this.avatarUrl,
@@ -78,6 +84,7 @@ class CustomerProfileViewData extends Equatable {
 
   @override
   List<Object?> get props => [
+    userId,
     name,
     email,
     avatarUrl,

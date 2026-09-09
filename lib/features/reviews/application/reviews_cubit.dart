@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/app_failure.dart';
+import '../../../core/session/reviews_refresh_signals.dart';
 import '../domain/reviews_repository.dart';
 import 'reviews_state.dart';
 
@@ -18,21 +19,56 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   final String _jeeberId;
   final int _pageSize;
   int _readGeneration = 0;
+  bool _sessionEnded = false;
+  bool _firstPageReading = false;
+  String get jeeberId => _jeeberId;
+
+  void endSession() {
+    if (isClosed) return;
+    _sessionEnded = true;
+    _readGeneration++;
+    emit(
+      const ReviewsState(
+        status: ReviewsStatus.failed,
+        error: ReviewsFailure.unauthorized,
+        appFailure: UnauthorizedFailure(),
+      ),
+    );
+  }
+
+  Future<void> refreshAndNotify() async {
+    await refresh();
+    if (isClosed ||
+        _sessionEnded ||
+        state.status != ReviewsStatus.loaded ||
+        state.refreshError != null) {
+      return;
+    }
+    ReviewsRefreshSignals.instance.signalChanged(
+      rateeId: _jeeberId,
+      source: this,
+    );
+  }
 
   Future<void> load() async {
-    if (state.status != ReviewsStatus.initial) return;
+    if (isClosed || _sessionEnded || state.status != ReviewsStatus.initial) {
+      return;
+    }
     emit(state.copyWith(status: ReviewsStatus.loading, clearError: true));
     await _readFirstPage(warm: false);
   }
 
   /// The cold-error retry: unlike [refresh] it shows the loading rung first.
   Future<void> retry() async {
-    if (state.status == ReviewsStatus.loading) return;
+    if (isClosed || _sessionEnded || state.status == ReviewsStatus.loading) {
+      return;
+    }
     emit(state.copyWith(status: ReviewsStatus.loading, clearError: true));
     await _readFirstPage(warm: false);
   }
 
   void acknowledgeRefreshError() {
+    if (isClosed || _sessionEnded) return;
     emit(state.copyWith(clearRefreshError: true));
   }
 
@@ -42,7 +78,10 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   /// The single first-page read behind [load], [retry] and [refresh]. The
   /// generation counter drops a stale response from an overlapping pull.
   Future<void> _readFirstPage({required bool warm}) async {
+    if (isClosed || _sessionEnded) return;
     final generation = ++_readGeneration;
+    _firstPageReading = true;
+    if (state.loadingMore) emit(state.copyWith(loadingMore: false));
     try {
       final page = await _repository.fetchReviews(
         jeeberId: _jeeberId,
@@ -73,6 +112,8 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     } catch (error) {
       if (isClosed || generation != _readGeneration) return;
       _emitReadFailure(warm, ReviewsFailure.unknown, AppFailure.of(error));
+    } finally {
+      if (generation == _readGeneration) _firstPageReading = false;
     }
   }
 
@@ -92,16 +133,19 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   }
 
   Future<void> loadMore() async {
+    if (isClosed || _sessionEnded || _firstPageReading) return;
     if (state.status != ReviewsStatus.loaded) return;
     if (!state.hasMore || state.loadingMore) return;
     emit(state.copyWith(loadingMore: true, loadMoreError: false));
     final next = state.page + 1;
+    final generation = _readGeneration;
     try {
       final page = await _repository.fetchReviews(
         jeeberId: _jeeberId,
         page: next,
         pageSize: _pageSize,
       );
+      if (isClosed || _sessionEnded || generation != _readGeneration) return;
       emit(
         state.copyWith(
           reviews: _merge(state.reviews, page.reviews),
@@ -111,6 +155,7 @@ class ReviewsCubit extends Cubit<ReviewsState> {
         ),
       );
     } on ReviewsRepositoryException catch (e) {
+      if (isClosed || _sessionEnded || generation != _readGeneration) return;
       emit(
         state.copyWith(
           loadingMore: false,
@@ -119,6 +164,7 @@ class ReviewsCubit extends Cubit<ReviewsState> {
         ),
       );
     } catch (error) {
+      if (isClosed || _sessionEnded || generation != _readGeneration) return;
       emit(
         state.copyWith(
           loadingMore: false,
@@ -130,12 +176,14 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   }
 
   Future<void> retryLoadMore() async {
+    if (isClosed || _sessionEnded) return;
     if (!state.loadMoreError) return;
     emit(state.copyWith(loadMoreError: false, clearLoadMoreFailure: true));
     await loadMore();
   }
 
   Future<void> reportReview(String reviewId) async {
+    if (isClosed || _sessionEnded) return;
     if (reviewId.isEmpty) return;
     if (state.reportStatus == ReportStatus.inFlight) return;
     emit(
@@ -147,6 +195,7 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     );
     try {
       await _repository.reportReview(reviewId);
+      if (isClosed || _sessionEnded) return;
       emit(
         state.copyWith(
           reportStatus: ReportStatus.succeeded,
@@ -154,6 +203,7 @@ class ReviewsCubit extends Cubit<ReviewsState> {
         ),
       );
     } catch (error) {
+      if (isClosed || _sessionEnded) return;
       emit(
         state.copyWith(
           reportStatus: ReportStatus.failed,
@@ -166,6 +216,7 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   }
 
   void acknowledgeReport() {
+    if (isClosed || _sessionEnded) return;
     if (state.reportStatus == ReportStatus.idle) return;
     emit(
       state.copyWith(
@@ -174,6 +225,12 @@ class ReviewsCubit extends Cubit<ReviewsState> {
         clearReportFailure: true,
       ),
     );
+  }
+
+  @override
+  Future<void> close() {
+    _readGeneration++;
+    return super.close();
   }
 
   List<ReviewItem> _merge(

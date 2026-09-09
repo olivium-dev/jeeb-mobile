@@ -23,7 +23,8 @@ class AppConfig {
     defaultValue: '',
   );
 
-  /// Device-reachable Phoenix WebSocket URL.
+  /// Device-reachable Phoenix WebSocket URL for live location tracking only.
+  /// Chat uses chat-service-owned Firebase/Firestore and never reads this value.
   ///
   /// Staging and production builds must inject this explicitly. The empty
   /// default is intentional: realtime fails closed instead of guessing a host.

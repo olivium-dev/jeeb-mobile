@@ -13,11 +13,18 @@ class DeliveryManProfileReviewsState extends Equatable {
     this.hasMore = false,
     this.error,
     this.refreshError,
+    this.averageScore,
+    this.hasFreshSummary = false,
   });
 
   final DeliveryManProfileReviewsStatus status;
   final List<DeliveryReviewData> reviews;
   final int reviewCount;
+  final double? averageScore;
+  final bool hasFreshSummary;
+  bool get coldStart =>
+      reviewCount < DeliveryManProfileViewData.coldStartThreshold ||
+      averageScore == null;
   final bool hasMore;
 
   /// The cold failure that owns the reviews band.
@@ -41,25 +48,35 @@ class DeliveryManProfileReviewsState extends Equatable {
     AppFailure? refreshError,
     bool clearError = false,
     bool clearRefreshError = false,
+    double? averageScore,
+    bool clearAverageScore = false,
+    bool? hasFreshSummary,
   }) {
     return DeliveryManProfileReviewsState(
       status: status ?? this.status,
       reviews: reviews ?? this.reviews,
       reviewCount: reviewCount ?? this.reviewCount,
+      averageScore: clearAverageScore
+          ? null
+          : (averageScore ?? this.averageScore),
+      hasFreshSummary: hasFreshSummary ?? this.hasFreshSummary,
       hasMore: hasMore ?? this.hasMore,
       error: clearError ? error : (error ?? this.error),
-      refreshError:
-          clearRefreshError ? refreshError : (refreshError ?? this.refreshError),
+      refreshError: clearRefreshError
+          ? refreshError
+          : (refreshError ?? this.refreshError),
     );
   }
 
   @override
   List<Object?> get props => <Object?>[
-        status,
-        reviews,
-        reviewCount,
-        hasMore,
-        error,
-        refreshError,
-      ];
+    status,
+    reviews,
+    reviewCount,
+    averageScore,
+    hasFreshSummary,
+    hasMore,
+    error,
+    refreshError,
+  ];
 }

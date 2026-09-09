@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/realtime/realtime_socket_policy.dart';
 import 'package:jeeb_mobile/features/live_tracking/data/realtime_courier_position_channel.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/courier_position_channel.dart';
 
-import '../../support/fake_web_socket_channel.dart';
+import 'support/acknowledging_courier_socket.dart';
 
 /// `GET /v1/realtime/jeeb:delivery:{id}` → subscribe, or degrade.
 /// ## The claim under test is the DEGRADATION, not the happy path
@@ -16,7 +18,7 @@ void main() {
   const socketPolicy = RealtimeSocketPolicy(configuredUrl: canonicalSocketUrl);
 
   late List<Uri> dialled;
-  late FakeWebSocketChannel ws;
+  late AcknowledgingCourierSocket ws;
   late List<String> requestedPaths;
 
   Map<String, dynamic> descriptor({
@@ -77,7 +79,7 @@ void main() {
     RealtimeSocketPolicy? policy,
   }) {
     dialled = <Uri>[];
-    ws = FakeWebSocketChannel();
+    ws = AcknowledgingCourierSocket();
     return RealtimeCourierPositionChannel(
       dio,
       channelFactory: (uri) {
@@ -94,6 +96,64 @@ void main() {
   });
 
   group('the happy path — POSITIVE CONTROL for every degrade below', () {
+    test(
+      'cancelling an attempt aborts a pending join and releases the socket',
+      () async {
+        final channel = channelOver(dioAnswering(body: descriptor()));
+        ws.acknowledgeJoin = false;
+        final attempt = channel.openAttempt(deliveryId: deliveryId);
+        await pumpEventQueue();
+        expect(ws.sentByClient.any((f) => f.contains('phx_join')), isTrue);
+        await attempt.cancel();
+        expect((await attempt.result).isOpen, isFalse);
+        expect(ws.sinkClosed, isTrue);
+      },
+    );
+
+    test(
+      'cancelling descriptor resolution cannot dial after a late response',
+      () async {
+        final pending = Completer<void>();
+        final dio = Dio(BaseOptions(baseUrl: 'https://gateway.test'));
+        CancelToken? token;
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) async {
+              token = options.cancelToken;
+              await pending.future;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: descriptor(),
+                ),
+              );
+            },
+          ),
+        );
+        final channel = channelOver(dio);
+        final attempt = channel.openAttempt(deliveryId: deliveryId);
+        await pumpEventQueue();
+        await attempt.cancel();
+        expect(token!.isCancelled, isTrue);
+        pending.complete();
+        expect((await attempt.result).isOpen, isFalse);
+        expect(dialled, isEmpty);
+      },
+    );
+
+    test(
+      'a rejected Phoenix join returns a classified failure, not an open stream',
+      () async {
+        final channel = channelOver(dioAnswering(body: descriptor()));
+        ws.joinStatus = 'error';
+        final result = await channel.openWithOutcome(deliveryId: deliveryId);
+        expect(result.isOpen, isFalse);
+        expect(result.failure, CourierPositionOpenFailure.joinRejected);
+        expect(ws.sinkClosed, isTrue);
+      },
+    );
+
     test('a full descriptor opens a subscription on the descriptor socketUrl, '
         'channel and token', () async {
       final channel = channelOver(dioAnswering(body: descriptor()));

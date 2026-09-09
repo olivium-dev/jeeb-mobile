@@ -40,7 +40,6 @@ import '../chat/data/firestore_chat_message_mapper.dart';
 import '../chat/data/firestore_chat_realtime_source.dart';
 import '../chat/data/gateway_chat_firebase_token_minter.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
-import '../chat/data/chat_realtime_resolver.dart';
 import '../chat/data/realtime_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
 import '../chat/domain/chat_realtime_admission.dart';
@@ -879,10 +878,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final httpGateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
-      realtimeResolver: ChatRealtimeResolver(
-        dio: dio,
-        currentUserId: currentUserId,
-      ),
       // The phase read queries the conversation aggregate by its correlation
       // key (== request id). Passing the resolved request id makes the poll hit
       // `?correlationKey={requestId}` (200) instead of
