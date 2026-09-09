@@ -1,0 +1,27 @@
+# Critical hermetic paths that provide fast PR feedback.
+#
+# This suite is deliberately duplicated by the complete coverage run. Keep the
+# list small enough to finish its test body in three minutes or less.
+test/app/bootstrap_minimal_test.dart
+test/app/jeeb_bootstrap_test.dart
+test/app/offline_mount_test.dart
+test/core/network/refresh_wire_pipeline_test.dart
+test/core/session/session_cubit_test.dart
+test/dio_otp_service_test.dart
+test/features/active_delivery_jeeber/active_delivery_lifecycle_test.dart
+test/features/active_delivery_jeeber/dio_active_delivery_transition_map_test.dart
+test/features/chat/chat_message_retry_test.dart
+test/features/chat/chat_realtime_resolver_test.dart
+test/features/chat/offer_accept_test.dart
+test/features/client_offers/offer_accept_double_accept_b01_test.dart
+test/features/home_client/dio_client_home_repository_accepted_test.dart
+test/features/kyc/kyc_submission_test.dart
+test/features/location/location_confirm_creates_request_b11_test.dart
+test/features/offer_kyc_gate/offer_kyc_gate_retry_test.dart
+test/features/request_summary/dio_request_submission_service_test.dart
+test/features/request_summary/request_idempotency_key_test.dart
+test/features/shell/shell_dual_role_landing_test.dart
+test/features/wallet/wallet_ledger_cubit_test.dart
+test/push_registration_e2e_test.dart
+test/registration_cubit_test.dart
+test/core/notifications/push_tap_routing_test.dart

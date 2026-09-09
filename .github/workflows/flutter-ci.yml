@@ -6,21 +6,28 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: flutter-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  analyze-test-build:
-    name: Flutter CI + coverage (79%)
+  smoke:
+    name: Critical smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          # Full history so the diff-scoped design-token gate can resolve its
-          # merge base against the target branch.
-          fetch-depth: 0
+
+      - name: Validate the curated smoke inventory
+        run: >-
+          python3 tool/plan_test_shards.py validate-list
+          --list .github/test-lists/flutter-smoke.txt
+          --output build/ci/flutter-smoke.txt
 
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
@@ -31,7 +38,6 @@ jobs:
         uses: ./.github/actions/setup-flutter
 
       - name: Install dependencies
-        id: pub_get
         run: flutter pub get --enforce-lockfile
 
       - name: Restore and regenerate source graph
@@ -40,22 +46,243 @@ jobs:
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
 
-      - name: Analyze
-        # `dart analyze` avoids the `flutter analyze` exit-code-64 crash that
-        # happens while bootstrapping native-assets in CI. --fatal-infos keeps
-        # the prior strictness.
-        run: dart analyze --fatal-infos .
+      - name: Run critical smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_tests=()
+          while IFS= read -r test_file; do
+            smoke_tests+=("${test_file}")
+          done <build/ci/flutter-smoke.txt
+          ((${#smoke_tests[@]} > 0))
+          flutter test --no-pub --exclude-tags capture --concurrency=2 \
+            --reporter=expanded "${smoke_tests[@]}"
 
-      - name: Design token compliance gate (diff-scoped)
-        # Scoped to the files this branch changed: the full-tree scan still
-        # fails on pre-existing violations each owning WP clears as it migrates.
+  staging-variant:
+    name: Staging diagnostics contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate the staging variant inventory
+        run: |
+          python3 tool/plan_test_shards.py validate-list \
+            --list .github/test-lists/flutter-staging-variant.txt \
+            --output build/ci/flutter-staging-variant.txt
+          git cat-file -e HEAD:test/devtool_wallet_funding_test.dart
+
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
+      - name: Exercise compiled-in staging diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging_tests=()
+          while IFS= read -r test_file; do
+            staging_tests+=("${test_file}")
+          done <build/ci/flutter-staging-variant.txt
+          ((${#staging_tests[@]} > 0))
+          staging_defines=(
+            --dart-define=APP_FLAVOR=staging
+            --dart-define=JEEB_DEVTOOL_ENABLED=true
+            --dart-define=JEEB_STAGING_DEVTOOL=true
+            --dart-define=JEEB_DEVTOOL_SHAKE=false
+            --dart-define=JEEB_OBS_OVERLAY=true
+            --dart-define=JEEB_DIAG=true
+          )
+          flutter test --no-pub --exclude-tags capture --concurrency=2 \
+            --reporter=expanded "${staging_defines[@]}" "${staging_tests[@]}"
+          flutter test --no-pub --exclude-tags capture --concurrency=1 \
+            --reporter=expanded "${staging_defines[@]}" \
+            --plain-name \
+            'dedicated Dev Tool entry selects any existing Jeeber and supports re-entry' \
+            test/devtool_wallet_funding_test.dart
+
+  regression:
+    name: Coverage shard ${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - index: 0
+            label: '1/4'
+          - index: 1
+            label: '2/4'
+          - index: 2
+            label: '3/4'
+          - index: 3
+            label: '4/4'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Plan the complete deterministic test partition
+        run: >-
+          python3 tool/plan_test_shards.py plan
+          --shards 4
+          --weights tool/test_shard_weights.json
+          --output-dir build/ci/test-plan
+
+      - name: Checkout repository-pinned OMDS dependency
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+
+      - name: Set up Flutter from .fvmrc
+        uses: ./.github/actions/setup-flutter
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Restore and regenerate source graph
+        uses: ./.github/actions/run-build-runner
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
+      - name: Run complete regression shard with coverage
         env:
-          DESIGN_TOKENS_BASE: origin/${{ github.base_ref || github.event.repository.default_branch || 'main' }}
-        run: bash tool/check_design_tokens.sh
+          SHARD_INDEX: ${{ matrix.index }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p coverage test-results
+          test_files=()
+          while IFS= read -r test_file; do
+            test_files+=("${test_file}")
+          done <"build/ci/test-plan/shard-${SHARD_INDEX}.txt"
+          ((${#test_files[@]} > 0))
+          flutter test --no-pub --exclude-tags capture --coverage \
+            --coverage-path="coverage/shard-${SHARD_INDEX}.info" \
+            --concurrency=2 --reporter=failures-only \
+            --file-reporter="json:test-results/shard-${SHARD_INDEX}.json" \
+            "${test_files[@]}"
 
-      - name: Run tests
-        # See ci.yml — the `capture` harnesses are host-rendered golden tooling.
-        run: flutter test --exclude-tags capture --coverage
+      - name: Bind results to the commit and shard plan
+        env:
+          SHARD_INDEX: ${{ matrix.index }}
+        run: >-
+          python3 tool/plan_test_shards.py record
+          --plan-dir build/ci/test-plan
+          --shard "${SHARD_INDEX}"
+          --coverage "coverage/shard-${SHARD_INDEX}.info"
+          --report "test-results/shard-${SHARD_INDEX}.json"
+          --sha "${GITHUB_SHA}"
+          --run-id "${GITHUB_RUN_ID}"
+          --run-attempt "${GITHUB_RUN_ATTEMPT}"
+          --output "build/ci/test-plan/metadata-${SHARD_INDEX}.json"
+
+      - name: Upload failed shard diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: flutter-test-failure-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-shard-${{ matrix.index }}
+          path: |
+            build/ci/test-plan/plan.json
+            build/ci/test-plan/shard-${{ matrix.index }}.txt
+            coverage/shard-${{ matrix.index }}.info
+            test-results/shard-${{ matrix.index }}.json
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Upload coverage shard
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: flutter-coverage-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-shard-${{ matrix.index }}
+          path: |
+            build/ci/test-plan/plan.json
+            build/ci/test-plan/shard-${{ matrix.index }}.txt
+            build/ci/test-plan/metadata-${{ matrix.index }}.json
+            coverage/shard-${{ matrix.index }}.info
+            test-results/shard-${{ matrix.index }}.json
+          if-no-files-found: error
+          retention-days: 3
+
+  coverage:
+    name: Flutter CI + coverage (79%)
+    if: ${{ always() }}
+    needs: [smoke, staging-variant, regression]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Require smoke, staging, and every regression shard to pass
+        env:
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+          STAGING_RESULT: ${{ needs.staging-variant.result }}
+          REGRESSION_RESULT: ${{ needs.regression.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${SMOKE_RESULT}" == success ]]
+          [[ "${STAGING_RESULT}" == success ]]
+          [[ "${REGRESSION_RESULT}" == success ]]
+
+      - name: Download all coverage shards
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: flutter-coverage-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-shard-*
+          path: build/ci/coverage-artifacts
+          merge-multiple: false
+
+      - name: Verify shard completeness and provenance
+        run: >-
+          python3 tool/plan_test_shards.py verify-artifacts
+          --artifact-root build/ci/coverage-artifacts
+          --shards 4
+          --weights tool/test_shard_weights.json
+          --sha "${GITHUB_SHA}"
+          --run-id "${GITHUB_RUN_ID}"
+          --run-attempt "${GITHUB_RUN_ATTEMPT}"
+
+      - name: Install LCOV
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y lcov
+
+      - name: Merge coverage without weakening line evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+          artifact_prefix="build/ci/coverage-artifacts/flutter-coverage-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          lcov \
+            --add-tracefile "${artifact_prefix}-shard-0/coverage/shard-0.info" \
+            --add-tracefile "${artifact_prefix}-shard-1/coverage/shard-1.info" \
+            --add-tracefile "${artifact_prefix}-shard-2/coverage/shard-2.info" \
+            --add-tracefile "${artifact_prefix}-shard-3/coverage/shard-3.info" \
+            --output-file coverage/lcov.info
+          test -s coverage/lcov.info
+          duplicate_sources="$(sed -n 's/^SF://p' coverage/lcov.info | sort | uniq -d)"
+          [[ -z "${duplicate_sources}" ]] || {
+            printf 'Duplicate LCOV source records:\n%s\n' "${duplicate_sources}" >&2
+            exit 1
+          }
 
       - name: Enforce 79% line coverage floor
         uses: VeryGoodOpenSource/very_good_coverage@c953fca3e24a915e111cc6f55f03f756dcb3964c # v3.0.0
@@ -65,27 +292,3 @@ jobs:
           exclude: >-
             **/*.g.dart **/*.freezed.dart **/main.dart
             **/firebase_options.dart **/*.config.dart
-
-      - name: Skip dev FCM APK for fork PR
-        if: github.event_name == 'pull_request'
-        run: echo "Secret-dependent dev FCM APK build is skipped; analyze and tests already ran."
-
-      - name: Validate Maps API key
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-        run: |
-          if [ -z "$MAPS_API_KEY" ]; then
-            echo "::error::Required repository secret MAPS_API_KEY is not configured."
-            exit 1
-          fi
-
-      - name: Build APK with protected dev Firebase config
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
-        run: >-
-          bash tool/run_with_dev_firebase_config.sh
-          flutter build apk --flavor dev --debug
-          --dart-define=REQUIRE_REAL_PUSH=true

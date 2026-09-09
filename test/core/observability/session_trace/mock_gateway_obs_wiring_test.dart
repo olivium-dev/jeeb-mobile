@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/idempotency/operation_id.dart';
 import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/capture/obs_dio_interceptor.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/model/obs_event.dart';
@@ -31,12 +32,20 @@ final class _FakeSink implements ObservabilitySink {
 }
 
 final class _JsonAdapter implements HttpClientAdapter {
+  String? requestId;
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    for (final entry in options.headers.entries) {
+      if (entry.key.toLowerCase() == 'x-request-id') {
+        requestId = entry.value?.toString();
+        break;
+      }
+    }
     return ResponseBody.fromString(
       jsonEncode(<String, Object?>{
         'outcome': 'accepted',
@@ -45,7 +54,7 @@ final class _JsonAdapter implements HttpClientAdapter {
       201,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-        'x-correlation-id': <String>['corr-real-client'],
+        'x-correlation-id': <String>['corr-response-safe'],
       },
     );
   }
@@ -181,8 +190,9 @@ void main() {
       Observability.instance.sink = sink;
       Observability.instance.currentScreen = '/request-detail';
       ObservabilityConfig.instance.enabled = true;
+      final adapter = _JsonAdapter();
       final dio = MockGatewayClient.createDio(baseUrl: 'http://localhost:10090')
-        ..httpClientAdapter = _JsonAdapter();
+        ..httpClientAdapter = adapter;
 
       await dio.post<Map<String, dynamic>>(
         '/v1/requests',
@@ -195,7 +205,16 @@ void main() {
       expect(event.path, '/v1/requests');
       expect(event.statusCode, 201);
       expect(event.durationMs, greaterThanOrEqualTo(0));
-      expect(event.correlationId, 'corr-real-client');
+      expect(adapter.requestId, isNotNull);
+      expect(isOperationId(adapter.requestId!), isTrue);
+      // Generated request IDs are opaque and therefore intentionally hidden
+      // from the exportable session trace; the live diagnostic stream keeps
+      // the raw correlation value for on-device debugging.
+      expect(event.correlationId, SecretRedactor.redacted);
+      expect(
+        event.responseHeaders,
+        containsPair('x-correlation-id', 'corr-response-safe'),
+      );
       expect(event.screen, '/request-detail');
       expect(event.requestBody, containsPair('kind', 'parcel'));
       expect(event.requestBody, containsPair('phone', SecretRedactor.redacted));

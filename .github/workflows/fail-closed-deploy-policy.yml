@@ -17,6 +17,8 @@ jobs:
         run: python3 tool/check_fail_closed_deployment.py
       - name: Verify maintainable CI topology
         run: python3 tool/check_ci_topology.py
+      - name: Verify deterministic Flutter test sharding
+        run: python3 tool/test_plan_test_shards.py
       - name: Verify isolated store preflight gates
         run: python3 tool/test_store_inventory_preflight.py
       - name: Set up repository Ruby for credential-free fixtures
