@@ -805,6 +805,8 @@ const Set<String> kAuditedStaticInteractionIdentifiers = <String>{
   'tracking_cancelled_state',
   'tracking_courier_card',
   'tracking_deadline_label',
+  'tracking_delivered_receipt_cta',
+  'tracking_delivered_state',
   'tracking_dispute_cta',
   'tracking_distance_label',
   'tracking_error_state',

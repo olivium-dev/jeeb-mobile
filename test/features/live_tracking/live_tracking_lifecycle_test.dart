@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/core/lifecycle/app_lifecycle_gate.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
+import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_state.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
@@ -22,7 +23,7 @@ const _resumePollInterval = Duration(minutes: 1);
 class _CountingLiveTrackingRepository implements LiveTrackingRepository {
   _CountingLiveTrackingRepository(this._responses);
 
-  final List<DeliveryTrackingInfo> _responses;
+  final List<Object> _responses;
   int calls = 0;
 
   @override
@@ -31,7 +32,10 @@ class _CountingLiveTrackingRepository implements LiveTrackingRepository {
   }) {
     final index = calls < _responses.length ? calls : _responses.length - 1;
     calls++;
-    return Future<DeliveryTrackingInfo>.value(_responses[index]);
+    final response = _responses[index];
+    return response is DeliveryTrackingInfo
+        ? Future<DeliveryTrackingInfo>.value(response)
+        : Future<DeliveryTrackingInfo>.error(response);
   }
 }
 
@@ -282,10 +286,12 @@ void main() {
     await cubit.close();
   });
 
-  test('AC10 retry re-arms the watchers through an explicit re-fetch', () {
+  test('AC10 retry recovers a cold failure and preserves live push refresh', () {
     fakeAsync((async) {
-      final repository = _CountingLiveTrackingRepository(<DeliveryTrackingInfo>[
-        _trackingInfo('Cancelled'),
+      // Retry belongs to the load-error surface, not to a terminal cancelled
+      // row. A completed/cancelled delivery must never be revived by Retry.
+      final repository = _CountingLiveTrackingRepository(<Object>[
+        const LiveTrackingException(LiveTrackingErrorKind.network),
         _trackingInfo('InTransit'),
       ]);
       final bus = StreamController<void>.broadcast();
@@ -297,20 +303,28 @@ void main() {
 
       async.flushMicrotasks();
       expect(repository.calls, 1);
-      expect(cubit.debugPushRefreshWired, isFalse,
-          reason: 'a cold load onto a terminal row must never arm anything');
+      expect(cubit.state.mode, LiveTrackingViewMode.error);
+      expect(cubit.state.trackingInfo, isNull);
+      expect(cubit.state.errorKind, LiveTrackingErrorKind.network);
+      expect(cubit.debugPushRefreshWired, isTrue,
+          reason: 'a cold failure is not terminal; pushes may recover it too');
 
       cubit.retry();
       async.flushMicrotasks();
       expect(repository.calls, 2);
+      expect(cubit.state.mode, LiveTrackingViewMode.ready);
+      expect(cubit.state.failure, isNull);
+      expect(cubit.state.errorKind, isNull);
+      expect(cubit.state.trackingInfo?.currentStage, TrackingStage.inTransit);
       expect(cubit.state.trackingInfo?.isCancelled, isFalse);
       expect(cubit.debugPushRefreshWired, isTrue,
-          reason: 'retry landing on a LIVE row must arm the push subscription — '
+          reason: 'retry landing on a LIVE row must retain a push subscription — '
               'otherwise Retry paints once and the screen goes deaf');
 
       bus.add(null);
       async.flushMicrotasks();
-      expect(repository.calls, 3);
+      expect(repository.calls, 3,
+          reason: 'one push still adds exactly one read, not duplicate listeners');
 
       unawaited(cubit.close());
       async.flushMicrotasks();
