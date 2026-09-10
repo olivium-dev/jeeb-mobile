@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/live_tracking/data/courier_position_socket.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/courier_position_channel.dart';
 
-import '../../support/fake_web_socket_channel.dart';
+import 'support/acknowledging_courier_socket.dart';
 
 /// The WIRE CONTRACT of the courier-position subscription, asserted frame by
 /// frame against the shapes `realtime-comunication-service` actually
@@ -14,14 +14,23 @@ void main() {
   const channelName = 'topic:jeeb:delivery:DLV-1';
   const stream = 'location';
 
-  late FakeWebSocketChannel ws;
+  late AcknowledgingCourierSocket ws;
   late List<Uri> dialled;
 
   CourierPositionSocket build({
     String token = 'guardian-jwt',
     Duration keepAlive = const Duration(seconds: 20),
+    Duration joinTimeout = kCourierPositionJoinTimeout,
+    Duration closeTimeout = kCourierPositionCloseTimeout,
+    bool acknowledgeJoin = true,
+    Future<void>? ready,
+    Future<void>? closeCompletion,
   }) {
-    ws = FakeWebSocketChannel();
+    ws = AcknowledgingCourierSocket(
+      acknowledgeJoin: acknowledgeJoin,
+      ready: ready,
+      closeCompletion: closeCompletion,
+    );
     dialled = <Uri>[];
     return CourierPositionSocket(
       socketUri: Uri.parse('ws://realtime.test/socket/websocket'),
@@ -29,6 +38,8 @@ void main() {
       channel: channelName,
       stream: stream,
       keepAlive: keepAlive,
+      joinTimeout: joinTimeout,
+      closeTimeout: closeTimeout,
       channelFactory: (uri) {
         dialled.add(uri);
         return ws;
@@ -47,61 +58,192 @@ void main() {
     Object? accuracy,
     String? timestamp,
     String? jeeberId,
-  }) =>
-      jsonEncode(<Object?>[
-        '1',
-        null,
-        topic,
-        event,
-        <String, Object?>{
-          'v': 1,
-          'id': '01HXYZ',
-          'type': 'event',
-          'topic': 'jeeb:delivery:DLV-1',
-          'stream': envelopeStream,
-          'ts': 1785600000000,
-          'seq': 7,
-          'meta': <String, Object?>{},
-          'data': <String, Object?>{
-            'lat': lat,
-            'lng': lng,
-            'accuracy': ?accuracy,
-            'deliveryId': 'DLV-1',
-            'jeeberId': ?jeeberId,
-            'timestamp': ?timestamp,
-          },
-        },
-      ]);
+  }) => jsonEncode(<Object?>[
+    '1',
+    null,
+    topic,
+    event,
+    <String, Object?>{
+      'v': 1,
+      'id': '01HXYZ',
+      'type': 'event',
+      'topic': 'jeeb:delivery:DLV-1',
+      'stream': envelopeStream,
+      'ts': 1785600000000,
+      'seq': 7,
+      'meta': <String, Object?>{},
+      'data': <String, Object?>{
+        'lat': lat,
+        'lng': lng,
+        'accuracy': ?accuracy,
+        'deliveryId': 'DLV-1',
+        'jeeberId': ?jeeberId,
+        'timestamp': ?timestamp,
+      },
+    },
+  ]);
 
   List<dynamic> decodeFrame(String raw) => jsonDecode(raw) as List<dynamic>;
 
   group('CourierPositionSocket — connect + join', () {
-    test('dials with the gateway credential as `token` and vsn=2.0.0', () async {
-      final socket = build(token: 'scoped-subscribe-jwt');
-      await socket.connect();
+    test('transport readiness is not success: require matching join refs and '
+        'ignore positions before the acknowledgement', () async {
+      final socket = build(acknowledgeJoin: false);
+      var connected = false;
+      final fixes = <CourierPositionFix>[];
+      socket.positions.listen(fixes.add);
+      final connecting = socket.connect().then((_) => connected = true);
+      await pumpEventQueue();
+      expect(connected, isFalse);
+      expect(ws.sentByClient, hasLength(1));
 
-      // The token param is what `LiveCommSocket.connect/3` reads; without it
-      expect(dialled.single.queryParameters['token'], 'scoped-subscribe-jwt');
-      expect(dialled.single.queryParameters['vsn'], '2.0.0');
-      await socket.close();
-    });
+      for (final ack in <List<Object?>>[
+        [
+          'old',
+          '1',
+          channelName,
+          'phx_reply',
+          {'status': 'ok'},
+        ],
+        [
+          '1',
+          'other',
+          channelName,
+          'phx_reply',
+          {'status': 'ok'},
+        ],
+        [
+          '1',
+          '1',
+          'topic:jeeb:delivery:other',
+          'phx_reply',
+          {'status': 'ok'},
+        ],
+      ]) {
+        ws.serverToClient.add(jsonEncode(ack));
+      }
+      ws.serverToClient.add(envelopeFrame());
+      await pumpEventQueue();
+      expect(connected, isFalse);
+      expect(fixes, isEmpty);
 
-    test('joins the descriptor CHANNEL with {"streams":["location"]}', () async {
-      final socket = build();
-      await socket.connect();
-
-      final join = decodeFrame(
-        ws.sentByClient.firstWhere((f) => f.contains('phx_join')),
+      ws.serverToClient.add(
+        jsonEncode([
+          '1',
+          '1',
+          channelName,
+          'phx_reply',
+          {'status': 'ok', 'response': {}},
+        ]),
       );
-      // [joinRef, ref, topic, event, payload]
-      expect(join[0], isNotNull, reason: 'a v2 join must carry a joinRef');
-      expect(join[2], channelName,
-          reason: 'the routing prefix comes from the gateway descriptor, '
-              'never reconstructed here');
-      expect(join[3], 'phx_join');
-      expect((join[4]! as Map)['streams'], <String>['location']);
+      await connecting;
+      ws.serverToClient.add(envelopeFrame(lat: 1, lng: 2));
+      await pumpEventQueue();
+      expect(fixes.single.lat, 1);
       await socket.close();
     });
+
+    test('a denied join fails safely and closes its transport', () async {
+      final socket = build();
+      ws.joinStatus = 'error';
+      await expectLater(
+        socket.connect(),
+        throwsA(
+          isA<CourierPositionSocketException>().having(
+            (e) => e.failure,
+            'failure',
+            CourierPositionOpenFailure.joinRejected,
+          ),
+        ),
+      );
+      expect(ws.sinkClosed, isTrue);
+    });
+
+    for (final transportReady in [true, false]) {
+      test(
+        'bounded deadline closes a ${transportReady ? 'missing join ack' : 'stalled transport'}',
+        () async {
+          final readiness = Completer<void>();
+          final socket = build(
+            acknowledgeJoin: false,
+            ready: transportReady ? null : readiness.future,
+            joinTimeout: const Duration(milliseconds: 20),
+          );
+          await expectLater(
+            socket.connect().timeout(const Duration(seconds: 2)),
+            throwsA(
+              isA<CourierPositionSocketException>().having(
+                (e) => e.failure,
+                'failure',
+                CourierPositionOpenFailure.joinTimeout,
+              ),
+            ),
+          );
+          expect(ws.sinkClosed, isTrue);
+          // A late transport completion cannot resurrect the closed channel.
+          readiness.complete();
+          await pumpEventQueue();
+          expect(
+            ws.sentByClient.where((f) => f.contains('phx_join')).length,
+            transportReady ? 1 : 0,
+          );
+          expect(ws.sentByClient.where((f) => f.contains('"ping"')), isEmpty);
+        },
+      );
+    }
+
+    test(
+      'closing an in-flight join aborts it and never arms keepalive',
+      () async {
+        final socket = build(acknowledgeJoin: false);
+        final failed = expectLater(
+          socket.connect(),
+          throwsA(isA<CourierPositionSocketException>()),
+        );
+        await pumpEventQueue();
+        await socket.close();
+        await failed;
+        expect(ws.sinkClosed, isTrue);
+        expect(ws.sentByClient.where((f) => f.contains('"ping"')), isEmpty);
+      },
+    );
+
+    test(
+      'dials with the gateway credential as `token` and vsn=2.0.0',
+      () async {
+        final socket = build(token: 'scoped-subscribe-jwt');
+        await socket.connect();
+
+        // The token param is what `LiveCommSocket.connect/3` reads; without it
+        expect(dialled.single.queryParameters['token'], 'scoped-subscribe-jwt');
+        expect(dialled.single.queryParameters['vsn'], '2.0.0');
+        await socket.close();
+      },
+    );
+
+    test(
+      'joins the descriptor CHANNEL with {"streams":["location"]}',
+      () async {
+        final socket = build();
+        await socket.connect();
+
+        final join = decodeFrame(
+          ws.sentByClient.firstWhere((f) => f.contains('phx_join')),
+        );
+        // [joinRef, ref, topic, event, payload]
+        expect(join[0], isNotNull, reason: 'a v2 join must carry a joinRef');
+        expect(
+          join[2],
+          channelName,
+          reason:
+              'the routing prefix comes from the gateway descriptor, '
+              'never reconstructed here',
+        );
+        expect(join[3], 'phx_join');
+        expect((join[4]! as Map)['streams'], <String>['location']);
+        await socket.close();
+      },
+    );
   });
 
   group('CourierPositionSocket — inbound', () {
@@ -112,11 +254,13 @@ void main() {
       socket.positions.listen(fixes.add);
       await socket.connect();
 
-      ws.serverToClient.add(envelopeFrame(
-        accuracy: 12.5,
-        timestamp: '2026-08-01T09:00:00.0000000Z',
-        jeeberId: 'jeeber-7',
-      ));
+      ws.serverToClient.add(
+        envelopeFrame(
+          accuracy: 12.5,
+          timestamp: '2026-08-01T09:00:00.0000000Z',
+          jeeberId: 'jeeber-7',
+        ),
+      );
       await pumpEventQueue();
 
       expect(fixes, hasLength(1));
@@ -155,25 +299,37 @@ void main() {
       // 1. Another stream on the same topic. The server does NOT filter its
       ws.serverToClient.add(envelopeFrame(envelopeStream: 'chat'));
       // 2. Phoenix lifecycle frames.
-      ws.serverToClient.add(jsonEncode(
-          <Object?>['1', '1', channelName, 'phx_reply', <String, Object?>{}]));
-      ws.serverToClient.add(jsonEncode(<Object?>[
-        null,
-        null,
-        channelName,
-        'presence_state',
-        <String, Object?>{}
-      ]));
+      ws.serverToClient.add(
+        jsonEncode(<Object?>[
+          '1',
+          '1',
+          channelName,
+          'phx_reply',
+          <String, Object?>{},
+        ]),
+      );
+      ws.serverToClient.add(
+        jsonEncode(<Object?>[
+          null,
+          null,
+          channelName,
+          'presence_state',
+          <String, Object?>{},
+        ]),
+      );
       // 3. A replay — a position the courier has already left.
       ws.serverToClient.add(envelopeFrame(event: 'replay_event'));
       // 4. A frame addressed to a different channel.
-      ws.serverToClient
-          .add(envelopeFrame(topic: 'topic:jeeb:delivery:SOMEONE-ELSE'));
+      ws.serverToClient.add(
+        envelopeFrame(topic: 'topic:jeeb:delivery:SOMEONE-ELSE'),
+      );
       // 5. A malformed coordinate.
       ws.serverToClient.add(envelopeFrame(lat: 'thirty-three'));
       // 6. Not a v2 frame at all.
       ws.serverToClient.add('not json');
-      ws.serverToClient.add(jsonEncode(<String, Object?>{'v1': 'object shape'}));
+      ws.serverToClient.add(
+        jsonEncode(<String, Object?>{'v1': 'object shape'}),
+      );
       await pumpEventQueue();
 
       expect(fixes, isEmpty, reason: 'none of the above is a location fix');
@@ -198,8 +354,11 @@ void main() {
 
         // NEGATIVE CONTROL: one tick short of the interval.
         async.elapse(const Duration(seconds: 19));
-        expect(ws.sentByClient.where((f) => f.contains('"ping"')), isEmpty,
-            reason: 'the timer must not fire early');
+        expect(
+          ws.sentByClient.where((f) => f.contains('"ping"')),
+          isEmpty,
+          reason: 'the timer must not fire early',
+        );
 
         async.elapse(const Duration(seconds: 2));
 
@@ -237,22 +396,78 @@ void main() {
         unawaited(socket.connect());
         async.flushMicrotasks();
         async.elapse(const Duration(seconds: 25));
-        expect(ws.sentByClient.any((f) => f.contains('"ping"')), isTrue,
-            reason: 'POSITIVE CONTROL: it was pinging before close');
+        expect(
+          ws.sentByClient.any((f) => f.contains('"ping"')),
+          isTrue,
+          reason: 'POSITIVE CONTROL: it was pinging before close',
+        );
 
         unawaited(socket.close());
         async.flushMicrotasks();
         final afterClose = ws.sentByClient.length;
         async.elapse(const Duration(minutes: 5));
 
-        expect(ws.sentByClient, hasLength(afterClose),
-            reason: 'a live timer after close is a leaked socket');
+        expect(
+          ws.sentByClient,
+          hasLength(afterClose),
+          reason: 'a live timer after close is a leaked socket',
+        );
         expect(async.periodicTimerCount, 0);
       });
     });
   });
 
   group('CourierPositionSocket — teardown', () {
+    test('a wedged close handshake cannot defeat the join deadline', () async {
+      final closed = Completer<void>();
+      final socket = build(
+        acknowledgeJoin: false,
+        joinTimeout: const Duration(milliseconds: 20),
+        closeTimeout: const Duration(milliseconds: 20),
+        closeCompletion: closed.future,
+      );
+      await expectLater(
+        socket.connect().timeout(const Duration(seconds: 2)),
+        throwsA(
+          isA<CourierPositionSocketException>().having(
+            (e) => e.failure,
+            'failure',
+            CourierPositionOpenFailure.joinTimeout,
+          ),
+        ),
+      );
+      expect(ws.sinkClosed, isTrue);
+      closed.complete();
+      await socket.close();
+    });
+
+    for (final event in ['phx_close', 'phx_error']) {
+      test(
+        '$event closes a channel even when the WebSocket stays open',
+        () async {
+          final socket = build();
+          var done = false;
+          socket.positions.listen((_) {}, onDone: () => done = true);
+          await socket.connect();
+          ws.serverToClient.add(
+            jsonEncode(['old', null, channelName, event, {}]),
+          );
+          await pumpEventQueue();
+          expect(
+            done,
+            isFalse,
+            reason: 'an unrelated old join cannot close this one',
+          );
+          ws.serverToClient.add(
+            jsonEncode(['1', null, channelName, event, {}]),
+          );
+          await pumpEventQueue();
+          expect(done, isTrue);
+          expect(ws.sinkClosed, isTrue);
+        },
+      );
+    }
+
     test('cancelling the subscription CLOSES the socket (not merely stops '
         'reading it)', () async {
       final socket = build();
@@ -294,9 +509,13 @@ void main() {
       await pumpEventQueue();
 
       expect(done, isTrue);
-      expect(surfaced, isNull,
-          reason: 'the transport reports its own death by ENDING, so a '
-              'caller that forgets onError cannot be faulted by it');
+      expect(
+        surfaced,
+        isNull,
+        reason:
+            'the transport reports its own death by ENDING, so a '
+            'caller that forgets onError cannot be faulted by it',
+      );
     });
 
     test('close() is idempotent', () async {

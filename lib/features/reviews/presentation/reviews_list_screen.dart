@@ -8,6 +8,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/session/profile_review_refresh_scope.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -132,10 +133,11 @@ class ReviewsListScreen extends StatefulWidget {
   }
 
   Widget _buildFor(String resolvedJeeberId) => BlocProvider<ReviewsCubit>(
+    key: ValueKey(resolvedJeeberId),
     create: (_) => ReviewsCubit(
       repository: _resolveRepository(),
       jeeberId: resolvedJeeberId,
-    )..load(),
+    ),
     child: const _ReviewsView(),
   );
 
@@ -270,7 +272,16 @@ class _ReviewsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copy = ReviewsL10n.of(context);
-    return _ReviewsScaffold(child: _body(context, copy));
+    final cubit = context.read<ReviewsCubit>();
+    return ProfileReviewRefreshScope(
+      source: cubit,
+      rateeId: () => cubit.jeeberId,
+      onSessionEnded: cubit.endSession,
+      onRefresh: () => cubit.state.status == ReviewsStatus.initial
+          ? cubit.load()
+          : cubit.refresh(),
+      child: _ReviewsScaffold(child: _body(context, copy)),
+    );
   }
 
   Widget _body(BuildContext context, ReviewsL10n copy) {
@@ -325,7 +336,7 @@ class _ReviewsView extends StatelessWidget {
           case ReviewsStatus.loaded:
             final cubit = context.read<ReviewsCubit>();
             return JeebPullToRefresh(
-              onRefresh: cubit.refresh,
+              onRefresh: cubit.refreshAndNotify,
               child: Column(
                 children: [
                   if (state.refreshError != null)

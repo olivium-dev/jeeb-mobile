@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/session/profile_review_refresh_scope.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_failure_block.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -96,6 +98,7 @@ class DeliveryManProfileScreen extends StatelessWidget {
                 ),
                 Expanded(
                   child: BlocProvider<DeliveryManProfileReviewsCubit>(
+                    key: ValueKey(data.jeeberId),
                     create: (_) {
                       final cubit = DeliveryManProfileReviewsCubit(
                         repository: _resolveRepository(),
@@ -103,16 +106,6 @@ class DeliveryManProfileScreen extends StatelessWidget {
                         seedReviews: data.reviews,
                         seedReviewCount: data.reviewCount,
                       );
-                      // Seeded rows are already visible: refresh in place
-                      // rather than flip them back to the skeleton (R6).
-                      if (cubit.canLoad) {
-                        if (cubit.state.status ==
-                            DeliveryManProfileReviewsStatus.loaded) {
-                          cubit.refresh();
-                        } else {
-                          cubit.load();
-                        }
-                      }
                       return cubit;
                     },
                     child: _DeliveryManProfileBody(data: data),
@@ -161,31 +154,48 @@ class _DeliveryManProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? jeeberId = data.jeeberId;
+    final cubit = context.read<DeliveryManProfileReviewsCubit>();
     final bool canOpenAll = jeeberId != null && jeeberId.isNotEmpty;
-    return BlocBuilder<
-      DeliveryManProfileReviewsCubit,
-      DeliveryManProfileReviewsState
-    >(
-      builder: (context, reviews) => ListView(
-        key: DeliveryManProfileScreen.rootKey,
-        padding: const EdgeInsetsDirectional.only(
-          top: Spacing.small,
-          bottom: Spacing.xLarge,
-        ),
-        children: [
-          _Header(data: data),
-          // Block rhythm between the identity band and the reviews band.
-          const SizedBox(height: Spacing.xLarge),
-          DeliveryReviewsHeader(
-            reviewCount: reviews.reviewCount,
-            showCount: reviews.showCount,
-            // DMP-02: no id, no route — the link goes inert rather than
-            // showing the CLIENT's own reviews.
-            onViewAll: canOpenAll ? () => _openAllReviews(context) : null,
+    return ProfileReviewRefreshScope(
+      source: cubit,
+      rateeId: () => jeeberId,
+      onSessionEnded: cubit.endSession,
+      onRefresh: () =>
+          cubit.state.status == DeliveryManProfileReviewsStatus.loaded
+          ? cubit.refresh()
+          : cubit.load(),
+      child:
+          BlocBuilder<
+            DeliveryManProfileReviewsCubit,
+            DeliveryManProfileReviewsState
+          >(
+            builder: (context, reviews) => JeebPullToRefresh(
+              onRefresh: cubit.refreshAndNotify,
+              child: ListView(
+                key: DeliveryManProfileScreen.rootKey,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsetsDirectional.only(
+                  top: Spacing.small,
+                  bottom: Spacing.xLarge,
+                ),
+                children: [
+                  _Header(data: data),
+                  // Block rhythm between the identity band and the reviews band.
+                  const SizedBox(height: Spacing.xLarge),
+                  DeliveryReviewsHeader(
+                    reviewCount: reviews.reviewCount,
+                    showCount: reviews.showCount,
+                    // DMP-02: no id, no route — the link goes inert rather than
+                    // showing the CLIENT's own reviews.
+                    onViewAll: canOpenAll
+                        ? () => _openAllReviews(context)
+                        : null,
+                  ),
+                  _ReviewsBand(state: reviews),
+                ],
+              ),
+            ),
           ),
-          _ReviewsBand(state: reviews),
-        ],
-      ),
     );
   }
 
@@ -256,12 +266,16 @@ class _Header extends StatelessWidget {
       name: data.name,
       avatarUrl: data.avatarUrl,
       isVerified: data.isVerified,
-      rating: data.rating,
+      rating: reviews.hasFreshSummary
+          ? (reviews.averageScore ?? 0)
+          : data.rating,
       reviewCount: loaded ? reviews.reviewCount : data.reviewCount,
       showCount: reviews.showCount,
       location: data.location,
       isAvailable: data.isAvailable,
-      isColdStart: data.isColdStart, // D59 — hide score until N>=5.
+      isColdStart: reviews.hasFreshSummary
+          ? reviews.coldStart
+          : data.isColdStart,
     );
   }
 }

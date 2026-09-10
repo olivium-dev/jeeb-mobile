@@ -74,6 +74,17 @@ class _RefusingChannel
       );
 }
 
+class _RecoveringChannel implements CourierPositionChannel {
+  int opens = 0;
+  final recovery = Completer<Stream<CourierPositionFix>?>();
+
+  @override
+  Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async {
+    opens++;
+    return opens == 1 ? null : recovery.future;
+  }
+}
+
 LiveTrackingCubit _cubit(
   LiveTrackingRepository repository, {
   CourierPositionChannel? channel,
@@ -158,6 +169,35 @@ void main() {
         find.bySemanticsIdentifier('tracking_stream_unavailable'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('[$tag] unavailable warning offers Retry, then recovers in place', (tester) async {
+      useReduceMotion(tester);
+      final channel = _RecoveringChannel();
+      final cubit = _cubit(const _StaticRepository(), channel: channel);
+      final positions = StreamController<CourierPositionFix>();
+      addTearDown(() async {
+        await cubit.close();
+        await positions.close();
+      });
+      await tester.pumpWidget(_harness(cubit, locale));
+      await tester.pumpAndSettle();
+      final retry = find.bySemanticsIdentifier('tracking_stream_retry_cta');
+      expect(retry, findsOneWidget);
+      await tester.tap(retry);
+      await tester.pump();
+      expect(channel.opens, 2);
+      expect(cubit.state.streamConnecting, isTrue);
+      expect(retry, findsNothing, reason: 'an in-flight retry is not tappable');
+      expect(find.bySemanticsIdentifier('tracking_loading'), findsNothing);
+      channel.recovery.complete(positions.stream);
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('tracking_stream_unavailable'), findsNothing);
+      expect(cubit.state.streamConnecting, isFalse);
+      positions.add(const CourierPositionFix(lat: 1, lng: 2));
+      await tester.pumpAndSettle();
+      expect(cubit.state.trackingInfo!.markerIsLive, isTrue);
+      expect(tester.takeException(), isNull);
     });
   }
 }

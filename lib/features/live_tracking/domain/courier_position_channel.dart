@@ -24,7 +24,7 @@ abstract class CourierPositionChannel {
   Future<Stream<CourierPositionFix>?> open({required String deliveryId});
 }
 
-/// Why a live-position stream could not be opened. `open()` collapses all four
+/// Why a live-position stream could not be opened. `open()` collapses these
 /// into one null, which is why the cubit asks for the outcome instead.
 enum CourierPositionOpenFailure {
   /// No descriptor, no socket URL, or the delivery has no stream at all.
@@ -38,6 +38,12 @@ enum CourierPositionOpenFailure {
 
   /// The socket itself refused to connect.
   connectFailed,
+
+  /// Phoenix rejected the delivery-channel join.
+  joinRejected,
+
+  /// Transport readiness or an acknowledged channel join exceeded its deadline.
+  joinTimeout,
 }
 
 class CourierPositionOpenResult {
@@ -57,4 +63,20 @@ abstract class CourierPositionChannelOutcome {
   Future<CourierPositionOpenResult> openWithOutcome({
     required String deliveryId,
   });
+}
+
+/// Each screen owns its attempt, even when the channel service is shared.
+/// Cancelling must abort both a descriptor request and a pending socket join.
+class CourierPositionOpenAttempt {
+  const CourierPositionOpenAttempt({
+    required this.result,
+    required this.cancel,
+  });
+
+  final Future<CourierPositionOpenResult> result;
+  final Future<void> Function() cancel;
+}
+
+abstract class CancellableCourierPositionChannel {
+  CourierPositionOpenAttempt openAttempt({required String deliveryId});
 }

@@ -46,7 +46,9 @@ class CustomerProfileStatusBlock extends StatelessWidget {
   /// True while the read is in flight and there is nothing seeded to show —
   /// `isBlank` is the same predicate the cubit's cold-failure branch takes.
   static bool isBlankLoad(CustomerProfileState state) =>
-      state.status == CustomerProfileStatus.loading && state.data.isBlank;
+      (state.status == CustomerProfileStatus.initial ||
+          state.status == CustomerProfileStatus.loading) &&
+      state.data.isBlank;
 
   /// The cold-read failure that owns the whole body, or null.
   static AppFailure? coldFailure(CustomerProfileState state) =>

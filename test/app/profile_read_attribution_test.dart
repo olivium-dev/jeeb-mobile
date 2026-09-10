@@ -68,9 +68,7 @@ void main() {
   setUp(() async {
     await sl.reset();
     await NetworkReachabilitySignals.debugReset();
-    SharedPreferences.setMockInitialValues({
-      'app.onboarding.completed': true,
-    });
+    SharedPreferences.setMockInitialValues({'app.onboarding.completed': true});
   });
 
   tearDown(() async {
@@ -78,37 +76,75 @@ void main() {
     await NetworkReachabilitySignals.debugReset();
   });
 
-  testWidgets('cold app profile reads belong to three distinct consumers', (
-    tester,
-  ) async {
-    final dio = _AttributionDio();
-    sl.registerSingleton<Dio>(dio, dispose: (value) => value.close(force: true));
-    await tester.pumpWidget(
-      JeebApp(
-        preferences: await SharedPreferences.getInstance(),
-        localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
-        sessionGate: const AlwaysAuthenticatedSessionGate(),
-      ),
-    );
-    for (var frame = 0; frame < 8; frame += 1) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    expect(find.byType(ShellScreen), findsOneWidget);
-    expect(dio.profileCallers, hasLength(3));
-    for (final consumer in const [
-      'RoleSync.sync',
-      'GreetingProfileCubit.load',
-      'CustomerProfileCubit.load',
-    ]) {
-      expect(
-        dio.profileCallers.where((stack) => stack.contains(consumer)),
-        hasLength(1),
-        reason: '$consumer must account for exactly one cold read',
+  testWidgets(
+    'profile reads belong to two startup consumers then the visible tab',
+    (tester) async {
+      final dio = _AttributionDio();
+      sl.registerSingleton<Dio>(
+        dio,
+        dispose: (value) => value.close(force: true),
       );
-    }
-    await tester.pump(const Duration(seconds: 6));
-    expect(dio.profileCallers, hasLength(3), reason: 'No extra consumer profile read');
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 200));
-  });
+      await tester.pumpWidget(
+        JeebApp(
+          preferences: await SharedPreferences.getInstance(),
+          localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
+          sessionGate: const AlwaysAuthenticatedSessionGate(),
+        ),
+      );
+      for (var frame = 0; frame < 8; frame += 1) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byType(ShellScreen), findsOneWidget);
+      expect(dio.profileCallers, hasLength(2));
+      for (final consumer in const [
+        'RoleSync.sync',
+        'GreetingProfileCubit.load',
+      ]) {
+        expect(
+          dio.profileCallers.where((stack) => stack.contains(consumer)),
+          hasLength(1),
+          reason: '$consumer must account for exactly one startup read',
+        );
+      }
+      expect(
+        dio.profileCallers.where(
+          (stack) => stack.contains('CustomerProfileCubit.load'),
+        ),
+        isEmpty,
+        reason: 'The hidden Profile tab must not read eagerly',
+      );
+      await tester.pump(const Duration(seconds: 6));
+      expect(
+        dio.profileCallers,
+        hasLength(2),
+        reason: 'No hidden profile polling',
+      );
+
+      await tester.tap(find.bySemanticsIdentifier('shell_tab_profile'));
+      for (var frame = 0; frame < 8; frame += 1) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(dio.profileCallers, hasLength(3));
+      expect(dio.profileCallers.last, contains('CustomerProfileCubit.load'));
+      for (final consumer in const [
+        'RoleSync.sync',
+        'GreetingProfileCubit.load',
+        'CustomerProfileCubit.load',
+      ]) {
+        expect(
+          dio.profileCallers.where((stack) => stack.contains(consumer)),
+          hasLength(1),
+          reason: '$consumer must account for exactly one read',
+        );
+      }
+      await tester.pump(const Duration(seconds: 6));
+      expect(
+        dio.profileCallers,
+        hasLength(3),
+        reason: 'No extra consumer profile read',
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 200));
+    },
+  );
 }

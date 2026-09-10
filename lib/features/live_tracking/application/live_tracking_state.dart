@@ -24,6 +24,7 @@ class LiveTrackingState extends Equatable {
     this.refreshError,
     this.lastSuccessAt,
     this.streamUnavailable = false,
+    this.streamConnecting = false,
     this.streamFailure,
     this.pendingEvent = LiveTrackingEvent.none,
     this.handoverCode,
@@ -45,6 +46,8 @@ class LiveTrackingState extends Equatable {
   /// The live-position socket could not be opened.
   final bool streamUnavailable;
 
+  final bool streamConnecting;
+
   final CourierPositionOpenFailure? streamFailure;
 
   final LiveTrackingEvent pendingEvent;
@@ -64,6 +67,7 @@ class LiveTrackingState extends Equatable {
     bool clearRefreshError = false,
     DateTime? lastSuccessAt,
     bool? streamUnavailable,
+    bool? streamConnecting,
     CourierPositionOpenFailure? streamFailure,
     LiveTrackingEvent? pendingEvent,
     String? handoverCode,
@@ -77,6 +81,7 @@ class LiveTrackingState extends Equatable {
           clearRefreshError ? null : (refreshError ?? this.refreshError),
       lastSuccessAt: lastSuccessAt ?? this.lastSuccessAt,
       streamUnavailable: streamUnavailable ?? this.streamUnavailable,
+      streamConnecting: streamConnecting ?? this.streamConnecting,
       streamFailure: (streamUnavailable ?? this.streamUnavailable)
           ? (streamFailure ?? this.streamFailure)
           : null,
@@ -94,6 +99,7 @@ class LiveTrackingState extends Equatable {
         refreshError,
         lastSuccessAt,
         streamUnavailable,
+        streamConnecting,
         streamFailure,
         pendingEvent,
         handoverCode,

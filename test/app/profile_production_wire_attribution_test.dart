@@ -18,11 +18,8 @@ import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 
 import '../support/sync_app_localizations.dart';
 
-const _consumers = [
-  'RoleSync.sync',
-  'GreetingProfileCubit.load',
-  'CustomerProfileCubit.load',
-];
+const _startupConsumers = ['RoleSync.sync', 'GreetingProfileCubit.load'];
+const _consumers = [..._startupConsumers, 'CustomerProfileCubit.load'];
 
 void main() {
   setUp(() async {
@@ -67,13 +64,61 @@ void main() {
               await tester.pump(const Duration(milliseconds: 100));
             }
             expect(find.byType(ShellScreen), findsOneWidget);
+            expect(spy.roots, hasLength(2));
+            expect(spy.roots.every((root) => root.completed), isTrue);
+            for (final consumer in _startupConsumers) {
+              expect(
+                spy.roots.where((root) => root.stack.contains(consumer)),
+                hasLength(1),
+                reason: '$consumer must account for one completed startup read',
+              );
+            }
+            expect(
+              spy.roots.where(
+                (root) => root.stack.contains('CustomerProfileCubit.load'),
+              ),
+              isEmpty,
+              reason: 'The hidden Profile tab must not read eagerly',
+            );
+            final startupIds = spy.roots.map((root) => root.requestId).toSet();
+            expect(startupIds, hasLength(2));
+            expect(
+              startupIds.every((id) => id != null && id.isNotEmpty),
+              isTrue,
+            );
+            expect(spy.roots.map((root) => root.status), everyElement(status));
+            final arrivalsBeforeProfile = transport.arrivals.length;
+            final logsBeforeProfile = logs.length;
+            for (var frame = 0; frame < 20; frame++) {
+              await tester.pump(const Duration(milliseconds: 100));
+            }
+            expect(
+              spy.roots,
+              hasLength(2),
+              reason: 'No hidden profile polling',
+            );
+            expect(transport.arrivals, hasLength(arrivalsBeforeProfile));
+            expect(
+              logs
+                  .skip(logsBeforeProfile)
+                  .where((line) => line.startsWith('[http→]')),
+              isEmpty,
+              reason: 'Completed startup reads must remain quiet',
+            );
+
+            await tester.tap(find.bySemanticsIdentifier('shell_tab_profile'));
+            for (var frame = 0; frame < 80; frame++) {
+              await tester.pump(const Duration(milliseconds: 100));
+            }
             expect(spy.roots, hasLength(3));
+            expect(spy.roots.last.stack, contains('CustomerProfileCubit.load'));
+            expect(startupIds, isNot(contains(spy.roots.last.requestId)));
             expect(spy.roots.every((root) => root.completed), isTrue);
             for (final consumer in _consumers) {
               expect(
                 spy.roots.where((root) => root.stack.contains(consumer)),
                 hasLength(1),
-                reason: '$consumer must account for one completed cold read',
+                reason: '$consumer must account for one completed read',
               );
             }
             final ids = spy.roots.map((root) => root.requestId).toSet();
@@ -138,7 +183,7 @@ void main() {
             expect(
               spy.roots,
               hasLength(3),
-              reason: 'No additional cold consumer',
+              reason: 'No additional consumer after showing Profile',
             );
             expect(transport.arrivals, hasLength(arrivalsBeforeQuiet));
             expect(

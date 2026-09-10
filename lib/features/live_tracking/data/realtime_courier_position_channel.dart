@@ -36,19 +36,25 @@ class DeliveryPositionChannelDescriptor {
 /// Gateway descriptor + Phoenix socket. Gateway mints credential narrowed to
 /// one topic; do not fall back to realtime's open `/api/auth/token`.
 class RealtimeCourierPositionChannel
-    implements CourierPositionChannel, CourierPositionChannelOutcome {
+    implements
+        CourierPositionChannel,
+        CourierPositionChannelOutcome,
+        CancellableCourierPositionChannel {
   RealtimeCourierPositionChannel(
     this._dio, {
     WebSocketChannel Function(Uri uri)? channelFactory,
     Duration keepAlive = kCourierPositionKeepAlive,
+    Duration joinTimeout = kCourierPositionJoinTimeout,
     RealtimeSocketPolicy socketPolicy = const RealtimeSocketPolicy(),
   }) : _channelFactory = channelFactory,
        _keepAlive = keepAlive,
+       _joinTimeout = joinTimeout,
        _socketPolicy = socketPolicy;
 
   final Dio _dio;
   final WebSocketChannel Function(Uri uri)? _channelFactory;
   final Duration _keepAlive;
+  final Duration _joinTimeout;
   final RealtimeSocketPolicy _socketPolicy;
 
   @override
@@ -59,8 +65,31 @@ class RealtimeCourierPositionChannel
   @override
   Future<CourierPositionOpenResult> openWithOutcome({
     required String deliveryId,
-  }) async {
-    _lastResolveFailure = null;
+  }) => openAttempt(deliveryId: deliveryId).result;
+
+  @override
+  CourierPositionOpenAttempt openAttempt({required String deliveryId}) {
+    final cancellation = CancelToken();
+    CourierPositionSocket? socket;
+    final result = _open(
+      deliveryId,
+      cancellation,
+      (created) => socket = created,
+    );
+    return CourierPositionOpenAttempt(
+      result: result,
+      cancel: () async {
+        cancellation.cancel();
+        await socket?.close();
+      },
+    );
+  }
+
+  Future<CourierPositionOpenResult> _open(
+    String deliveryId,
+    CancelToken cancellation,
+    void Function(CourierPositionSocket) onSocket,
+  ) async {
     // The descriptor's `socketUrl` must normalize to this compile-time
     // mobile-owned authority. If it is absent, no descriptor can ever open a
     // socket, so avoid an otherwise guaranteed gateway bootstrap failure (for
@@ -70,9 +99,17 @@ class RealtimeCourierPositionChannel
         CourierPositionOpenFailure.unavailable,
       );
     }
-    final descriptor = await resolve(deliveryId);
+    final resolved = await _resolve(deliveryId, cancelToken: cancellation);
+    final descriptor = resolved.descriptor;
+    if (cancellation.isCancelled) {
+      return const CourierPositionOpenResult.failed(
+        CourierPositionOpenFailure.transport,
+      );
+    }
     if (descriptor == null) {
-      return CourierPositionOpenResult.failed(_resolveFailureKind());
+      return CourierPositionOpenResult.failed(
+        _resolveFailureKind(resolved.failure),
+      );
     }
     final socketUri = _socketUriOf(descriptor);
     if (socketUri == null || descriptor.token.isEmpty) {
@@ -87,9 +124,14 @@ class RealtimeCourierPositionChannel
       stream: descriptor.stream,
       channelFactory: _channelFactory,
       keepAlive: _keepAlive,
+      joinTimeout: _joinTimeout,
     );
+    onSocket(socket);
     try {
       await socket.connect();
+    } on CourierPositionSocketException catch (error) {
+      await socket.close();
+      return CourierPositionOpenResult.failed(error.failure);
     } catch (_) {
       await socket.close();
       return const CourierPositionOpenResult.failed(
@@ -99,10 +141,7 @@ class RealtimeCourierPositionChannel
     return CourierPositionOpenResult.opened(socket.positions);
   }
 
-  AppFailure? _lastResolveFailure;
-
-  CourierPositionOpenFailure _resolveFailureKind() {
-    final AppFailure? failure = _lastResolveFailure;
+  CourierPositionOpenFailure _resolveFailureKind(AppFailure? failure) {
     if (failure == null) return CourierPositionOpenFailure.unavailable;
     return switch (failure.kind) {
       AppFailureKind.unauthorized ||
@@ -115,19 +154,19 @@ class RealtimeCourierPositionChannel
   }
 
   /// Fetch descriptor; null on any failure (tracking screen never faulted).
-  /// The classification is kept aside so [openWithOutcome] can say why.
-  Future<DeliveryPositionChannelDescriptor?> resolve(String deliveryId) async {
+  Future<DeliveryPositionChannelDescriptor?> resolve(String deliveryId) async =>
+      (await _resolve(deliveryId)).descriptor;
+
+  Future<({DeliveryPositionChannelDescriptor? descriptor, AppFailure? failure})>
+  _resolve(String deliveryId, {CancelToken? cancelToken}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/realtime/jeeb:delivery:$deliveryId',
+        cancelToken: cancelToken,
       );
-      return _parse(deliveryId, response.data);
-    } on DioException catch (e) {
-      _lastResolveFailure = AppFailure.of(e);
-      return null;
+      return (descriptor: _parse(deliveryId, response.data), failure: null);
     } catch (e) {
-      _lastResolveFailure = AppFailure.of(e);
-      return null;
+      return (descriptor: null, failure: AppFailure.of(e));
     }
   }
 

@@ -4,15 +4,22 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/session/reviews_refresh_signals.dart';
 import '../domain/entities/rating_status.dart';
 import '../domain/rating_repository.dart';
 
 class DioRatingRepository implements RatingRepository {
-  DioRatingRepository(this._dio, {AuthTokenStore? tokenStore})
-      : _tokenStore = tokenStore ?? AuthTokenStore();
+  DioRatingRepository(
+    this._dio, {
+    AuthTokenStore? tokenStore,
+    ReviewsRefreshSignals? reviewsRefreshSignals,
+  }) : _tokenStore = tokenStore ?? AuthTokenStore(),
+       _reviewsRefreshSignals =
+           reviewsRefreshSignals ?? ReviewsRefreshSignals.instance;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
+  final ReviewsRefreshSignals _reviewsRefreshSignals;
 
   @override
   Future<void> submitRating({
@@ -24,7 +31,7 @@ class DioRatingRepository implements RatingRepository {
   }) async {
     try {
       final raterId = await _tokenStore.userId;
-      await _dio.post<Map<String, dynamic>>(
+      final response = await _dio.post<Map<String, dynamic>>(
         '/v1/ratings/jeeb/submit',
         data: <String, dynamic>{
           'deliveryId': deliveryId,
@@ -47,6 +54,25 @@ class DioRatingRepository implements RatingRepository {
           },
         ),
       );
+      // The submit response is authoritative about reveal state but contains no
+      // counterpart UUID. Only invalidate this actor's own received-review view;
+      // never infer the other profile from a role/name or increment a blind count.
+      final data = response.data;
+      if (raterId != null &&
+          raterId.isNotEmpty &&
+          data?['deliveryId'] == deliveryId.trim() &&
+          data?['state'] == 'revealed') {
+        try {
+          if (await _tokenStore.userId == raterId) {
+            _reviewsRefreshSignals.signalChanged(
+              rateeId: raterId,
+              source: this,
+            );
+          }
+        } catch (_) {
+          // A successful rating must stay successful if session invalidation fails.
+        }
+      }
     } on DioException catch (e) {
       throw RatingRepositoryException(_map(e));
     }

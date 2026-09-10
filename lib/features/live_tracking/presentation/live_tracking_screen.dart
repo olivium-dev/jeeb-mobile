@@ -110,7 +110,8 @@ class LiveTrackingScreen extends StatelessWidget {
   }
 
   bool _hasNewEvent(LiveTrackingState prev, LiveTrackingState next) =>
-      next.pendingEvent != LiveTrackingEvent.none;
+      next.pendingEvent != LiveTrackingEvent.none &&
+      next.pendingEvent != prev.pendingEvent;
 
   void _onEvent(BuildContext context, LiveTrackingState state) {
     final l10n = AppLocalizations.of(context);
@@ -185,6 +186,7 @@ class _TrackingStateView extends StatelessWidget {
           handoverCode: state.handoverCode,
           refreshError: state.refreshError,
           streamUnavailable: state.streamUnavailable,
+          streamConnecting: state.streamConnecting,
         );
     }
   }
@@ -392,6 +394,7 @@ class _TrackingBody extends StatelessWidget {
     this.handoverCode,
     this.refreshError,
     this.streamUnavailable = false,
+    this.streamConnecting = false,
   });
 
   /// How much of the viewport the sheet may claim before it scrolls internally
@@ -414,6 +417,7 @@ class _TrackingBody extends StatelessWidget {
 
   /// The live-position socket could not be opened.
   final bool streamUnavailable;
+  final bool streamConnecting;
 
   @override
   Widget build(BuildContext context) {
@@ -443,6 +447,7 @@ class _TrackingBody extends StatelessWidget {
                 handoverCode: handoverCode,
                 refreshError: refreshError,
                 streamUnavailable: streamUnavailable,
+                streamConnecting: streamConnecting,
               ),
             ),
           ),
@@ -464,6 +469,7 @@ class _TrackingSheet extends StatelessWidget {
     required this.handoverCode,
     this.refreshError,
     this.streamUnavailable = false,
+    this.streamConnecting = false,
   });
 
   /// The board insets the sheet from the phone edge by 4 and rounds its
@@ -485,6 +491,7 @@ class _TrackingSheet extends StatelessWidget {
   final String? handoverCode;
   final AppFailure? refreshError;
   final bool streamUnavailable;
+  final bool streamConnecting;
 
   @override
   Widget build(BuildContext context) {
@@ -532,6 +539,7 @@ class _TrackingSheet extends StatelessWidget {
                       handoverCode: handoverCode,
                       refreshError: refreshError,
                       streamUnavailable: streamUnavailable,
+                      streamConnecting: streamConnecting,
                     ),
                   ),
                 ),
@@ -552,6 +560,7 @@ class _SheetContent extends StatelessWidget {
     required this.handoverCode,
     required this.refreshError,
     required this.streamUnavailable,
+    required this.streamConnecting,
   });
 
   final DeliveryTrackingInfo info;
@@ -560,6 +569,7 @@ class _SheetContent extends StatelessWidget {
   final String? handoverCode;
   final AppFailure? refreshError;
   final bool streamUnavailable;
+  final bool streamConnecting;
 
   @override
   Widget build(BuildContext context) {
@@ -600,6 +610,15 @@ class _SheetContent extends StatelessWidget {
             identifier: 'tracking_stream_unavailable',
             icon: Icons.location_disabled,
             text: l10n.trackingPositionUnavailable,
+            linkIdentifier: 'tracking_stream_retry_cta',
+            linkLabel: streamConnecting ? null : l10n.actionRetry,
+            onLink: () => context.read<LiveTrackingCubit>().retryPositionStream(),
+            trailing: streamConnecting
+                ? const SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
           ),
           const SizedBox(height: Spacing.small),
         ],

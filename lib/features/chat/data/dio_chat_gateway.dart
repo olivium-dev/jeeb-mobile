@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import '../../../core/diagnostics/chat_diagnostics.dart';
 import '../../../core/diagnostics/diag.dart';
 import '../../client_offers/domain/offers_repository.dart'
     show OfferAcceptResult, acceptResponseDeliveryId;
@@ -12,28 +11,19 @@ import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/chat_delta_reader.dart';
 import '../domain/chat_gateway.dart';
-import '../domain/chat_socket.dart';
 import '../domain/conversation_lookup.dart';
 import '../domain/delivery_chat_message.dart';
 import 'chat_message_codec.dart';
-import 'chat_realtime_resolver.dart';
-import 'web_socket_chat_socket.dart';
 
 class DioChatGateway implements ChatGateway, ChatDeltaReader {
   DioChatGateway({
     required Dio dio,
     required this.currentUserId,
     String? conversationCorrelationKey,
-    ChatSocket Function(String conversationId)? socketFactory,
-    Uri? socketBaseUri,
-    ChatRealtimeResolver? realtimeResolver,
     HandoverCodeStore? handoverCodeStore,
     CdnAssetGateway? assetGateway,
   }) : _dio = dio,
        _correlationKey = conversationCorrelationKey,
-       _socketBaseUri = socketBaseUri,
-       _socketFactory = socketFactory,
-       _realtimeResolver = realtimeResolver,
        _handoverCodeStore = handoverCodeStore,
        _assetGateway = assetGateway;
 
@@ -47,14 +37,8 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
 
   final String? _correlationKey;
 
-  final Uri? _socketBaseUri;
-  final ChatSocket Function(String conversationId)? _socketFactory;
-  final ChatRealtimeResolver? _realtimeResolver;
-
   late final String _fallbackSenderScope = _mintFallbackSenderScope();
 
-  ChatSocket? _socket;
-  bool _socketResolutionInFlight = false;
   final StreamController<ChatEvent> _events =
       StreamController<ChatEvent>.broadcast();
 
@@ -235,7 +219,8 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
 
   @override
   Stream<ChatEvent> subscribe(String conversationId) {
-    _ensureSocket(conversationId);
+    // HTTP accept emits local phase events. Remote messages come exclusively
+    // from the chat-service-owned Firestore source in RealtimeChatGateway.
     return _events.stream;
   }
 
@@ -361,82 +346,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   }
 
   Future<void> dispose() async {
-    await _socket?.close();
     if (!_events.isClosed) await _events.close();
-  }
-
-  void _ensureSocket(String conversationId) {
-    if (_isUnresolvedConversation(conversationId) ||
-        _socket != null ||
-        _socketResolutionInFlight) {
-      return;
-    }
-    final explicitFactory = _socketFactory;
-    if (explicitFactory != null) {
-      final socket = explicitFactory(conversationId);
-      _socket = socket;
-      unawaited(_connectAndJoin(socket, conversationId));
-      return;
-    }
-    final explicitBase = _socketBaseUri;
-    if (explicitBase != null) {
-      final socket = WebSocketChatSocket(uri: explicitBase);
-      _socket = socket;
-      unawaited(_connectAndJoin(socket, conversationId));
-      return;
-    }
-    final resolver = _realtimeResolver;
-    if (resolver == null) return;
-    _socketResolutionInFlight = true;
-    unawaited(
-      resolver
-          .connect(conversationId)
-          .then((socket) async {
-            if (socket == null || _socket != null) return;
-            _socket = socket;
-            await _connectAndJoin(socket, conversationId);
-          })
-          .whenComplete(() => _socketResolutionInFlight = false),
-    );
-  }
-
-  Future<void> _connectAndJoin(ChatSocket socket, String conversationId) async {
-    try {
-      await socket.connect();
-      socket.send(<String, Object?>{
-        'event': 'phx_join',
-        'topic': 'jeeb:chat:$conversationId',
-        'payload': <String, Object?>{},
-        'ref': '1',
-      });
-      socket.events.listen(_handleFrame);
-    } catch (error) {
-      ChatDiagnostics.degraded(
-        stage: ChatDiagStage.socket,
-        reason: 'join_threw_${error.runtimeType}',
-        conversationId: conversationId,
-      );
-    }
-  }
-
-  void _handleFrame(Map<String, Object?> frame) {
-    if (_events.isClosed) return;
-    final event = frame['event'] as String?;
-    if (event != 'new_msg') return;
-    final payload = frame['payload'];
-    if (payload is! Map) return;
-    try {
-      final message = _parseMessage(payload.cast<String, dynamic>());
-      _events.add(IncomingMessage(message));
-    } catch (error) {
-      // A silently dropped frame is a message the thread will never show and
-      // no retry can fetch. Report it, and tell the cubit.
-      Diag.event('chat_frame_dropped', <String, Object?>{
-        'topic': frame['topic'],
-        'error': error.runtimeType.toString(),
-      });
-      if (!_events.isClosed) _events.add(const MessageDropped('parse'));
-    }
   }
 
   Map<String, Object?> _bodyFor(DeliveryChatMessage message) {

@@ -412,8 +412,7 @@ void main() {
       await cubit.close();
     });
 
-    test('a channel that cannot open costs exactly ONE attempt, not one per '
-        'resume', () async {
+    test('a failed initial channel can retry on a lifecycle resume', () async {
       final channel = _FakeChannel(returnsNull: true);
       final cubit = LiveTrackingCubit(
         repository: _Repo(),
@@ -426,7 +425,7 @@ void main() {
       await cubit.refreshNow();
       await pumpEventQueue();
 
-      expect(channel.opens, 1);
+      expect(channel.opens, 3);
       await cubit.close();
     });
   });

@@ -9,7 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
+import '../../../core/network/auth_token_store.dart';
+import '../../../core/session/profile_refresh_signals.dart';
+import '../../../core/session/profile_review_refresh_scope.dart';
+import '../../../core/session/reviews_refresh_signals.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_pull_to_refresh.dart';
 import '../../../core/widgets/jeeb/jeeb_snack.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../rate_app/domain/app_review_launcher.dart';
@@ -88,9 +93,14 @@ class CustomerProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<CustomerProfileCubit>(
-      create: (_) =>
-          CustomerProfileCubit(seed: data, repository: _resolveRepository())
-            ..load(),
+      key: ValueKey(data.userId),
+      create: (_) => CustomerProfileCubit(
+        seed: data,
+        repository: _resolveRepository(),
+        accountId: repository == null && sl.isRegistered<Dio>()
+            ? () => AuthTokenStore().userId
+            : null,
+      ),
       child: _CustomerProfileView(
         reviewLauncher: _resolveReviewLauncher(),
         onExit: onExit,
@@ -107,21 +117,49 @@ class _CustomerProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'customer_profile_root',
-      container: true,
-      child: JeebMidnightField(
-        variant: JeebFieldVariant.content,
-        glowPlacement: JeebFieldGlowPlacement.topEnd,
-        animateDecor: false,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: SafeArea(
-            child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
-              builder: (context, state) => _Body(
-                state: state,
-                reviewLauncher: reviewLauncher,
-                onExit: onExit,
+    final cubit = context.read<CustomerProfileCubit>();
+    return ProfileReviewRefreshScope(
+      source: cubit,
+      rateeId: () => cubit.state.data.userId,
+      profileChanges: sl.isRegistered<ProfileRefreshSignals>()
+          ? sl<ProfileRefreshSignals>().stream
+          : null,
+      onSessionEnded: cubit.endSession,
+      onRefresh: () => cubit.state.status == CustomerProfileStatus.initial
+          ? cubit.load()
+          : cubit.refresh(),
+      child: Semantics(
+        identifier: 'customer_profile_root',
+        container: true,
+        child: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
+                builder: (context, state) => JeebPullToRefresh(
+                  onRefresh: () async {
+                    await cubit.refresh();
+                    final id = cubit.state.data.userId;
+                    if (!cubit.isClosed &&
+                        id != null &&
+                        cubit.state.status == CustomerProfileStatus.loaded &&
+                        cubit.state.refreshError == null &&
+                        !cubit.state.data.ratingUnavailable) {
+                      ReviewsRefreshSignals.instance.signalChanged(
+                        rateeId: id,
+                        source: cubit,
+                      );
+                    }
+                  },
+                  child: _Body(
+                    state: state,
+                    reviewLauncher: reviewLauncher,
+                    onExit: onExit,
+                  ),
+                ),
               ),
             ),
           ),
@@ -172,6 +210,7 @@ class _Body extends StatelessWidget {
       // not paint an identity card, a rating or a "Register" row from the seed.
       return ListView(
         key: CustomerProfileScreen.rootKey,
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: padding,
         children: [
           CustomerProfileStatusBlock(
@@ -192,6 +231,7 @@ class _Body extends StatelessWidget {
     }
     return ListView(
       key: CustomerProfileScreen.rootKey,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: padding,
       children: [
         CustomerProfileHeader(
@@ -202,16 +242,8 @@ class _Body extends StatelessWidget {
           rating: data.rating,
           ratingCount: data.ratingCount,
           ratingUnavailable: data.ratingUnavailable,
-          // F5: into the PR #232 avatar edit flow; re-read /me on return —
-          // IndexedStack keeps this tab mounted, nothing else refreshes it.
-          onAvatarTap: () {
-            final cubit = context.read<CustomerProfileCubit>();
-            unawaited(
-              context.pushNamed('settings-profile').then((_) {
-                if (!cubit.isClosed) unawaited(cubit.refresh());
-              }),
-            );
-          },
+          // Route visibility owns the single refresh on return, edited or not.
+          onAvatarTap: () => context.pushNamed('settings-profile'),
         ),
         if (CustomerProfileStatusBlock.showsFor(state)) ...[
           const SizedBox(height: Spacing.small),

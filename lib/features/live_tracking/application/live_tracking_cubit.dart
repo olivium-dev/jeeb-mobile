@@ -69,6 +69,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   StreamSubscription<CourierPositionFix>? _streamedPositionLeg;
 
   bool _positionStreamArmed = false;
+  bool _positionStreamOpening = false;
+  int _positionStreamGeneration = 0;
+  Future<void>? _positionStreamTeardown;
+  CourierPositionOpenAttempt? _positionStreamAttempt;
 
   @visibleForTesting
   int get debugStreamedPositionCount => _streamedPositionCount;
@@ -96,7 +100,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   Future<void> _fetchAndSchedule(LivePositionReadCause cause) async {
     await Future.wait([_hydrateHandoverCode(), _fetch(cause)]);
-    _armWatchers();
+    _armWatchers(retryPositionStream: cause == LivePositionReadCause.retry);
   }
 
   Future<void> _refreshFromPush() async {
@@ -292,26 +296,47 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     return LiveTrackingEvent.none;
   }
 
-  void _armWatchers() {
+  void _armWatchers({bool retryPositionStream = false}) {
     if (isClosed) return;
     if (_isTerminal) {
       _retireWatchers();
       return;
     }
     _refreshSubscription ??= _refreshSignals?.listen((_) => _refreshFromPush());
-    unawaited(_armPositionStream());
+    unawaited(_armPositionStream(retry: retryPositionStream));
   }
 
-  Future<void> _armPositionStream() async {
+  /// Reconnect only on an explicit action or a lifecycle edge, never a timer.
+  Future<void> retryPositionStream() => _armPositionStream(retry: true);
+
+  Future<void> _armPositionStream({bool retry = false}) async {
     final channel = _positionChannel;
     if (channel == null) return;
-    if (_positionStreamArmed || isClosed || _isTerminal) return;
+    if (isClosed || _isTerminal || _positionStreamOpening ||
+        _streamedPositionLeg != null || (_positionStreamArmed && !retry)) {
+      return;
+    }
     _positionStreamArmed = true;
+    _positionStreamOpening = true;
+    final generation = ++_positionStreamGeneration;
+    emit(state.copyWith(streamConnecting: true, pendingEvent: state.pendingEvent));
     Stream<CourierPositionFix>? positions;
     CourierPositionOpenFailure? openFailure;
     Object? failure;
     try {
-      if (channel is CourierPositionChannelOutcome) {
+      // Do not overlap a replacement connection with a retiring subscription.
+      await _positionStreamTeardown;
+      if (isClosed || _isTerminal || generation != _positionStreamGeneration) {
+        return;
+      }
+      if (channel is CancellableCourierPositionChannel) {
+        final attempt = (channel as CancellableCourierPositionChannel)
+            .openAttempt(deliveryId: deliveryId);
+        _positionStreamAttempt = attempt;
+        final result = await attempt.result;
+        positions = result.positions;
+        openFailure = result.failure;
+      } else if (channel is CourierPositionChannelOutcome) {
         final result = await (channel as CourierPositionChannelOutcome)
             .openWithOutcome(deliveryId: deliveryId);
         positions = result.positions;
@@ -322,6 +347,20 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     } catch (e) {
       failure = e;
       positions = null;
+    } finally {
+      if (generation == _positionStreamGeneration) {
+        _positionStreamAttempt = null;
+        _positionStreamOpening = false;
+        if (!isClosed) {
+          emit(state.copyWith(streamConnecting: false, pendingEvent: state.pendingEvent));
+        }
+      }
+    }
+    // A status change or teardown may have overtaken the asynchronous open.
+    // Even a late successful join must release its socket, never re-arm a Done screen.
+    if (isClosed || _isTerminal || generation != _positionStreamGeneration) {
+      await positions?.listen(null).cancel();
+      return;
     }
     if (positions == null) {
       // D14: an unsubscribable channel used to be indistinguishable from a
@@ -335,16 +374,13 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         emit(state.copyWith(
           streamUnavailable: true,
           streamFailure: openFailure ?? CourierPositionOpenFailure.unavailable,
+          pendingEvent: state.pendingEvent,
         ));
       }
       return;
     }
     if (!isClosed && state.streamUnavailable) {
-      emit(state.copyWith(streamUnavailable: false));
-    }
-    if (isClosed || _isTerminal) {
-      unawaited(positions.listen(null).cancel());
-      return;
+      emit(state.copyWith(streamUnavailable: false, pendingEvent: state.pendingEvent));
     }
     _streamedPositionLeg = positions.listen(
       _onStreamedPosition,
@@ -374,12 +410,32 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     });
   }
 
-  /// D14: a leg that DIED (socket drop, backgrounding) may re-open on the next
-  /// push/resume edge. A channel that never opened stays at one attempt.
+  /// A dropped channel is visible and can reopen on the next lifecycle/action
+  /// edge. Closing/terminal transitions also invalidate any asynchronous open.
   void _retirePositionStream({bool rearmable = false}) {
     final wasArmed = _streamedPositionLeg != null;
-    unawaited(_streamedPositionLeg?.cancel());
+    if (rearmable && !wasArmed) return;
+    _positionStreamGeneration++;
+    _positionStreamOpening = false;
+    final attempt = _positionStreamAttempt;
+    _positionStreamAttempt = null;
+    final cancellation = _streamedPositionLeg?.cancel();
+    if (attempt != null || cancellation != null) {
+      _positionStreamTeardown = Future.wait<void>([
+        ?_positionStreamTeardown,
+        if (attempt != null) attempt.cancel(),
+        ?cancellation,
+      ]).then((_) {});
+    }
     _streamedPositionLeg = null;
+    if (!isClosed) {
+      emit(state.copyWith(
+        streamConnecting: false,
+        streamUnavailable: rearmable && !_isTerminal,
+        streamFailure: rearmable ? CourierPositionOpenFailure.connectFailed : null,
+        pendingEvent: state.pendingEvent,
+      ));
+    }
     if (!rearmable || !wasArmed) return;
     _positionStreamArmed = false;
     Diag.event(kTrackingStreamDroppedEvent, <String, Object?>{
@@ -396,9 +452,6 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   void retry() {
     if (isClosed) return;
-    // D14: a channel that never opened costs ONE attempt, so only the user's
-    // own Retry re-arms it — a re-open per resume would be a poll.
-    if (state.streamFailure != null) _positionStreamArmed = false;
     _consecutivePositionMisses = 0;
     emit(state.copyWith(
       mode: LiveTrackingViewMode.loading,
@@ -418,14 +471,15 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     } finally {
       _statusReadInFlight = false;
     }
-    if (!isClosed) _armWatchers();
+    if (!isClosed) _armWatchers(retryPositionStream: true);
   }
 
 
 
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _retireWatchers();
-    return super.close();
+    await super.close();
+    await _positionStreamTeardown;
   }
 }

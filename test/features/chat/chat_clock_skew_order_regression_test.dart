@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_state.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_chat_gateway.dart';
-import 'package:jeeb_mobile/features/chat/domain/chat_socket.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 
@@ -99,24 +98,11 @@ class _ChatWire {
 }
 
 /// Never connects — the WS transport is out of scope here.
-class _DeadSocket implements ChatSocket {
-  @override
-  Stream<Map<String, Object?>> get events => const Stream.empty();
-  @override
-  Stream<Object> get errors => const Stream.empty();
-  @override
-  Future<void> connect() async {}
-  @override
-  void send(Map<String, Object?> envelope) {}
-  @override
-  Future<void> close() async {}
-}
 
 DioChatGateway _gateway(_ChatWire wire, {required String viewerId}) {
   final gateway = DioChatGateway(
     dio: wire.dio,
     currentUserId: viewerId,
-    socketFactory: (_) => _DeadSocket(),
   );
   addTearDown(gateway.dispose);
   return gateway;

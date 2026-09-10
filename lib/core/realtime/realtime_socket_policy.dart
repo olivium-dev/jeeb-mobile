@@ -1,6 +1,7 @@
 import '../config/app_config.dart';
 
-/// Validates the one compile-time Phoenix socket authority used by mobile.
+/// Validates the compile-time Phoenix authority for mobile location tracking.
+/// Chat uses Firebase/Firestore and does not depend on this socket policy.
 class RealtimeSocketPolicy {
   const RealtimeSocketPolicy({
     this.configuredUrl = AppConfig.realtimeSocketUrl,
