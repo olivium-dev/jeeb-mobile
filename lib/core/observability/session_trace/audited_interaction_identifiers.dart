@@ -826,6 +826,7 @@ const Set<String> kAuditedStaticInteractionIdentifiers = <String>{
   'tracking_root',
   'tracking_status_panel',
   'tracking_stepper',
+  'tracking_stream_retry_cta',
   'tracking_stream_unavailable',
   'tracking_under_review_state',
   'txn_detail',
