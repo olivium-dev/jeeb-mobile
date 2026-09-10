@@ -127,7 +127,7 @@ void main() {
           find.byKey(const Key('live-tracking-delivered-state')),
           findsOneWidget,
         );
-        expect(find.text('Delivered'), findsOneWidget);
+        expect(find.text('Delivered successfully'), findsOneWidget);
         expect(find.text('This delivery is complete.'), findsOneWidget);
         expect(find.bySemanticsIdentifier('tracking_back'), findsOneWidget);
         expect(cubit.state.handoverCode, isNull);

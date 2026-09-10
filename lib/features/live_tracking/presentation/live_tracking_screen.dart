@@ -305,7 +305,7 @@ class _TrackingDeliveredBody extends StatelessWidget {
     return _TerminalBody(
       stateKey: const Key('live-tracking-delivered-state'),
       identifier: 'tracking_delivered_state',
-      headline: l10n.deliveryDetailDeliveredBanner,
+      headline: l10n.deliveryCompletedBanner,
       body: l10n.deliveryDetailDeliveredBannerBody,
       ctaIdentifier: 'tracking_delivered_receipt_cta',
       ctaKey: const Key('tracking-delivered-receipt-cta'),
