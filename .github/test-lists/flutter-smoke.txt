@@ -11,7 +11,7 @@ test/dio_otp_service_test.dart
 test/features/active_delivery_jeeber/active_delivery_lifecycle_test.dart
 test/features/active_delivery_jeeber/dio_active_delivery_transition_map_test.dart
 test/features/chat/chat_message_retry_test.dart
-test/features/chat/chat_realtime_resolver_test.dart
+test/features/chat/firebase_only_chat_gateway_test.dart
 test/features/chat/offer_accept_test.dart
 test/features/client_offers/offer_accept_double_accept_b01_test.dart
 test/features/home_client/dio_client_home_repository_accepted_test.dart
