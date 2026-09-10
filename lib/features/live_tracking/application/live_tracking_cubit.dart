@@ -126,8 +126,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (store == null) return;
     try {
       final code = await store.read(deliveryId: deliveryId);
-      if (code != null && !isClosed) {
-        emit(state.copyWith(handoverCode: code));
+      if (code != null && !isClosed && !_isTerminal) {
+        emit(state.copyWith(
+          handoverCode: code,
+          pendingEvent: state.pendingEvent,
+        ));
       }
     } catch (e) {
       // Decorative: a missing code hides the row, it never faults the screen.
@@ -138,23 +141,29 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   }
 
   Future<void> _fetch(LivePositionReadCause cause) async {
+    if (isClosed || _isTerminal) return;
     try {
       final info =
           await _repository.fetchDeliveryStatus(deliveryId: deliveryId);
-      if (!isClosed) {
-        emit(state.copyWith(
-          mode: LiveTrackingViewMode.ready,
-          trackingInfo: info,
-          clearError: true,
-          clearRefreshError: true,
-          lastSuccessAt: DateTime.now(),
-          pendingEvent: _detectEvent(info),
-        ));
-        if (_isTerminal) _retireWatchers();
-      }
+      // A concurrent retry/resume may have already observed completion. An
+      // older active response must never rewind that terminal state.
+      if (isClosed || _isTerminal) return;
+      final terminal = info.isPollTerminal || info.isDelivered;
+      emit(state.copyWith(
+        mode: LiveTrackingViewMode.ready,
+        trackingInfo: info,
+        clearError: true,
+        clearRefreshError: true,
+        lastSuccessAt: DateTime.now(),
+        pendingEvent: _detectEvent(info),
+        clearHandoverCode: terminal,
+        streamUnavailable: terminal ? false : null,
+        streamConnecting: terminal ? false : null,
+      ));
+      if (_isTerminal) _retireWatchers();
       if (!isClosed && !_isTerminal) await _readLivePosition(cause);
     } on LiveTrackingException catch (e) {
-      if (isClosed) return;
+      if (isClosed || _isTerminal) return;
       final AppFailure failure = e.appFailure ?? _failureFor(e.kind);
       if (state.trackingInfo == null) {
         emit(state.copyWith(
@@ -170,7 +179,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         refreshError: failure,
       ));
     } catch (e) {
-      if (isClosed) return;
+      if (isClosed || _isTerminal) return;
       final AppFailure failure = AppFailure.of(e);
       if (state.trackingInfo == null) {
         emit(state.copyWith(
@@ -226,7 +235,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     } finally {
       _positionReadInFlight = false;
     }
-    if (isClosed) return;
+    if (isClosed || _isTerminal) return;
     if (overlay != null) _positionReadCount++;
     var applied = _applyLivePosition(overlay);
     if (applied) {
@@ -266,7 +275,9 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   }
 
   bool _applyLivePosition(DeliveryLivePosition? overlay) {
-    if (overlay == null || isClosed || overlay.isNothingToSay) return false;
+    if (overlay == null || isClosed || _isTerminal || overlay.isNothingToSay) {
+      return false;
+    }
     final current = state.trackingInfo;
     if (current == null) return false;
     emit(state.copyWith(
@@ -445,13 +456,15 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   }
 
   void _retireWatchers() {
+    _pendingPushEdge = false;
+    _pendingPositionCause = null;
     unawaited(_refreshSubscription?.cancel());
     _refreshSubscription = null;
     _retirePositionStream();
   }
 
   void retry() {
-    if (isClosed) return;
+    if (isClosed || _isTerminal) return;
     _consecutivePositionMisses = 0;
     emit(state.copyWith(
       mode: LiveTrackingViewMode.loading,

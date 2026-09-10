@@ -175,6 +175,13 @@ class _TrackingStateView extends StatelessWidget {
         if (info.isExpired) {
           return const _BackBarScaffold(child: _TrackingExpiredBody());
         }
+        // A cold/deep-link entry can mount after the one-shot receipt event.
+        // The builder must still be terminal-safe without running navigation.
+        if (info.isDelivered) {
+          return _BackBarScaffold(
+            child: _TrackingDeliveredBody(deliveryId: deliveryId),
+          );
+        }
         if (info.isUnderReview) {
           return const _BackBarScaffold(child: _TrackingUnderReviewBody());
         }
@@ -196,7 +203,7 @@ class _TrackingStateView extends StatelessWidget {
 /// Midnight `content` field.
 ///
 /// [OrderTrackingStepper]'s sheet only exists in the ready state, so loading,
-/// error and the three terminal bodies would otherwise have no way back.
+/// error and the terminal bodies would otherwise have no way back.
 class _BackBarScaffold extends StatelessWidget {
   const _BackBarScaffold({required this.child});
 
@@ -285,6 +292,32 @@ class _TrackingCancelledBody extends StatelessWidget {
   }
 }
 
+/// Completed tracking has no live map, arrival estimate, or handover code.
+/// Keep the existing receipt/rating flow reachable if auto-advance was missed.
+class _TrackingDeliveredBody extends StatelessWidget {
+  const _TrackingDeliveredBody({required this.deliveryId});
+
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _TerminalBody(
+      stateKey: const Key('live-tracking-delivered-state'),
+      identifier: 'tracking_delivered_state',
+      headline: l10n.deliveryDetailDeliveredBanner,
+      body: l10n.deliveryDetailDeliveredBannerBody,
+      ctaIdentifier: 'tracking_delivered_receipt_cta',
+      ctaKey: const Key('tracking-delivered-receipt-cta'),
+      ctaLabel: l10n.receiptTitle,
+      onCta: () => context.goNamed(
+        'delivered-receipt',
+        pathParameters: {'id': deliveryId},
+      ),
+    );
+  }
+}
+
 /// P6/A3: terminal state for an EXPIRED request. Structurally identical to
 /// [_TrackingCancelledBody] but with its own ids + copy — cancel and expire
 /// carry different fee/strike semantics and must never share a message.
@@ -332,7 +365,7 @@ class _TrackingUnderReviewBody extends StatelessWidget {
   }
 }
 
-/// The shared shape of the three terminal bodies — one [JeebEmptyState] block
+/// The shared shape of the terminal bodies — one [JeebEmptyState] block
 /// with an optional exit CTA.
 class _TerminalBody extends StatelessWidget {
   const _TerminalBody({
@@ -343,6 +376,7 @@ class _TerminalBody extends StatelessWidget {
     this.ctaIdentifier,
     this.ctaKey,
     this.ctaLabel,
+    this.onCta,
   });
 
   final Key stateKey;
@@ -352,6 +386,7 @@ class _TerminalBody extends StatelessWidget {
   final String? ctaIdentifier;
   final Key? ctaKey;
   final String? ctaLabel;
+  final VoidCallback? onCta;
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +411,7 @@ class _TerminalBody extends StatelessWidget {
                     expand: true,
                     // `context.go('/')` resolves the role-aware shell home — the
                     // same terminal destination the cancel-request sheet uses.
-                    onTap: () => context.go('/'),
+                    onTap: onCta ?? () => context.go('/'),
                   ),
                 ),
         ),

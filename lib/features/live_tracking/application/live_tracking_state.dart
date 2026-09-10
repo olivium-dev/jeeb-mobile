@@ -71,6 +71,7 @@ class LiveTrackingState extends Equatable {
     CourierPositionOpenFailure? streamFailure,
     LiveTrackingEvent? pendingEvent,
     String? handoverCode,
+    bool clearHandoverCode = false,
   }) {
     return LiveTrackingState(
       mode: mode ?? this.mode,
@@ -86,7 +87,7 @@ class LiveTrackingState extends Equatable {
           ? (streamFailure ?? this.streamFailure)
           : null,
       pendingEvent: pendingEvent ?? LiveTrackingEvent.none,
-      handoverCode: handoverCode ?? this.handoverCode,
+      handoverCode: clearHandoverCode ? null : (handoverCode ?? this.handoverCode),
     );
   }
 
