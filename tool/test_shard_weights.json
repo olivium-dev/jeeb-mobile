@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "durations_ms": {
+    "test/features/home_client/client_home_retry_reloads_greeting_test.dart": 9000,
+    "test/core/dev_seam/session_seam_journey_test.dart": 11000,
+    "test/core/observability/session_trace/secret_redactor_test.dart": 62000,
+    "test/features/home_client/client_home_inline_recording_test.dart": 14000,
+    "test/features/home_client/client_home_recording_focus_test.dart": 25000,
+    "test/features/shell/shell_role_labels_and_root_back_test.dart": 10000,
+    "test/internal_devtool/internal_android_contract_test.dart": 32000,
+    "test/previews/preview_structure_test.dart": 13000,
+    "test/tools/catalog_smoke_test.dart": 70000
+  }
+}

@@ -121,14 +121,24 @@ Device validations: see [the creation-ledger and cleanup rule](docs/device-valid
 ## CI
 
 The small `ci.yml` orchestrator calls three reusable stages:
-`ci-flutter-stage.yml` (analyze → test), `ci-android-stage.yml` (development APK
-and release-signing contracts), and `ci-ios-stage.yml` (native release
-contracts). Android and iOS run in parallel after Flutter succeeds. The stable
-`CI ready` result fails unless every stage passes, so release policy does not
-depend on internal job names. `flutter-ci.yml` remains the blocking 79%
-coverage lane, and `mobile-ci.yml` remains the localization parity gate.
-`tool/check_ci_topology.py` prevents stage wiring or the aggregate gate from
-silently drifting.
+`ci-flutter-stage.yml` (strict analysis), `ci-android-stage.yml` (development
+APK and release-signing contracts), and `ci-ios-stage.yml` (parallel dev
+Firebase and unsigned-release contracts). Android and iOS fan out as soon as
+analysis succeeds. The stable `CI ready` result fails unless every stage
+passes, so release policy does not depend on internal job names.
+
+`flutter-ci.yml` runs independently and in parallel. It gives fast feedback
+through a curated critical smoke suite, exercises staging/devtool branches
+that are compiled out of the ordinary no-define test configuration, and
+divides the complete non-capture suite across four deterministic weighted
+coverage shards. Known slow-test timings seed the weights and source size is
+the fallback. The aggregate job verifies that all four manifests are disjoint
+and complete, proves every listed suite was loaded, checks each artifact
+against the exact commit and workflow attempt, merges LCOV, and only then
+enforces the blocking 79% line floor. The full regression therefore runs once
+rather than once without coverage and again with coverage. `mobile-ci.yml`
+remains the localization parity gate. `tool/check_ci_topology.py` prevents the
+parallel wiring or aggregate gates from silently drifting.
 
 **CI is expected green. There is no standing waiver** — a red run is a real
 failure, not inherited noise. If a check cannot pass, fix it or skip the single
@@ -138,16 +148,33 @@ expectation with a written reason; do not merge on red.
   the phone APKs with. CI used to sit on 3.38.9, two minor versions behind every
   dev machine, which is what made `main` permanently red: ~21 tests asserted
   behaviour only the newer framework produces.
-- **Coverage is a release gate.** `flutter-ci.yml` requires at least 79% line
-  coverage through the commit-pinned `very_good_coverage` action. Tests and the
-  threshold are both blocking.
+- **Coverage is a release gate.** `flutter-ci.yml` requires at least 79% merged
+  line coverage through the commit-pinned `very_good_coverage` action. Every
+  shard, the critical smoke inventory, and the compiled-in staging diagnostics
+  must pass before the stable coverage result can succeed.
+- **Smoke is additive, not a reduced regression gate.** The allowlist in
+  `.github/test-lists/flutter-smoke.txt` is also included in the complete
+  non-capture regression. It improves time-to-first-failure without removing
+  any PR coverage.
+- **Coverage artifacts are attempt-bound.** If a matrix shard needs a retry,
+  use **Re-run all jobs** (or push a new commit). A partial rerun intentionally
+  fails closed instead of combining shards from different workflow attempts.
+- **Device staging tests remain isolated from PR CI.** Existing Maestro flows
+  use shared OTP identities and mutable request or wallet state. They must not
+  be parallelized or promoted to a required gate until each worker has unique
+  seeded accounts and deterministic cleanup. Production validation stays
+  limited to native release contracts and non-mutating store-candidate checks.
 - **Generated sources are reproducible.** Every ordinary CI lane runs the
   cached `build_runner build --delete-conflicting-outputs` composite action
   after dependency resolution.
-- **`--exclude-tags capture`**: `test/tools/catalog_capture_test.dart` and
-  `m6_jeeber_orange_budget_capture_test.dart` are golden-PNG *review* harnesses,
-  not gates. Their goldens are host-rendered and cannot match a Linux runner.
-  Run them locally: `flutter test --tags capture`.
+- **`--exclude-tags capture`**: the explicit, planner-validated
+  `.github/test-lists/flutter-capture-only.txt` manifest contains
+  `test/tools/catalog_capture_test.dart` and
+  `m6_jeeber_orange_budget_capture_test.dart`. These are golden-PNG *review*
+  harnesses, not gates, and their host-rendered goldens cannot match a Linux
+  runner. Keeping the exclusion explicit prevents comments or string literals
+  containing `@Tags` from silently weakening regression coverage. Run them
+  locally: `flutter test --tags capture`.
 - **`tool/check_firebase_core_pin.sh`** runs after every `flutter pub get` and
   fails if the resolved `firebase_core` leaves `>=3.13.1 <3.15.0`. `pubspec.lock`
   is gitignored, so without this gate each machine silently resolves its own —

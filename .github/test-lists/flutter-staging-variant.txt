@@ -1,0 +1,19 @@
+# Tests whose staging/devtool/observability branches are compiled out of the
+# ordinary product-mode regression run.
+test/app/jeeb_root_initial_route_test.dart
+test/core/dev_flags_test.dart
+test/core/network/auth_interceptor_test.dart
+test/core/observability/session_trace/capture/obs_dio_interceptor_test.dart
+test/core/observability/session_trace/capture/obs_interaction_observer_test.dart
+test/core/observability/session_trace/capture/obs_nav_observer_test.dart
+test/core/observability/session_trace/capture/obs_notification_recorder_test.dart
+test/core/observability/session_trace/mock_gateway_obs_wiring_test.dart
+test/core/observability/session_trace/obs_file_writer_test.dart
+test/core/observability/session_trace/obs_overlay_controller_test.dart
+test/core/observability/session_trace/obs_overlay_controls_widget_test.dart
+test/core/observability/session_trace/observability_test.dart
+test/devtool/shake_to_devtool_test.dart
+test/features/case_evidence/dio_case_evidence_uploader_test.dart
+test/features/kyc/dio_cdn_asset_gateway_test.dart
+test/features/shell/shell_role_labels_and_root_back_test.dart
+test/internal_devtool/full_devtool_launcher_widget_test.dart

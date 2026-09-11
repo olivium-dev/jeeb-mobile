@@ -610,35 +610,44 @@ void _registerCiContracts() {
     ]);
   });
 
-  test(
-    'ordinary CI regenerates source and gates the measured coverage floor',
-    () {
-      for (final path in [
-        '.github/workflows/ci-flutter-stage.yml',
-        '.github/workflows/ci-android-stage.yml',
-        '.github/workflows/ci-ios-stage.yml',
-        '.github/workflows/flutter-ci.yml',
-        '.github/workflows/mobile-ci.yml',
-      ]) {
-        expect(
-          _source(path),
-          contains('uses: ./.github/actions/run-build-runner'),
-        );
-      }
-      final codegen = _source('.github/actions/run-build-runner/action.yml');
-      _expectContainsAll(codegen, [
-        'path: .dart_tool/build',
-        "hashFiles('.fvmrc', 'pubspec.lock', 'build.yaml')",
-        'dart run build_runner build --delete-conflicting-outputs',
-      ]);
-      final coverage = _source('.github/workflows/flutter-ci.yml');
-      _expectContainsAll(coverage, [
-        'VeryGoodOpenSource/very_good_coverage@c953fca3e24a915e111cc6f55f03f756dcb3964c',
-        'min_coverage: 79',
-      ]);
-      expect(coverage, isNot(contains('continue-on-error')));
-    },
-  );
+  test('ordinary CI regenerates source and gates the measured coverage floor', () {
+    for (final path in [
+      '.github/workflows/ci-flutter-stage.yml',
+      '.github/workflows/ci-android-stage.yml',
+      '.github/workflows/ci-ios-stage.yml',
+      '.github/workflows/flutter-ci.yml',
+      '.github/workflows/mobile-ci.yml',
+    ]) {
+      expect(
+        _source(path),
+        contains('uses: ./.github/actions/run-build-runner'),
+      );
+    }
+    final codegen = _source('.github/actions/run-build-runner/action.yml');
+    _expectContainsAll(codegen, [
+      'path: .dart_tool/build',
+      "hashFiles('.fvmrc', 'pubspec.lock', 'build.yaml')",
+      'dart run build_runner build --delete-conflicting-outputs',
+    ]);
+    final coverage = _source('.github/workflows/flutter-ci.yml');
+    _expectContainsAll(coverage, [
+      'VeryGoodOpenSource/very_good_coverage@c953fca3e24a915e111cc6f55f03f756dcb3964c',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+      'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093',
+      'tool/plan_test_shards.py verify-artifacts',
+      'flutter-coverage-run-\${{ github.run_id }}-attempt-\${{ github.run_attempt }}',
+      '--run-id "\${GITHUB_RUN_ID}"',
+      '--run-attempt "\${GITHUB_RUN_ATTEMPT}"',
+      'merge-multiple: false',
+      'needs: [smoke, staging-variant, regression]',
+      'max-parallel: 4',
+      'fail-fast: false',
+      'if: \${{ always() }}',
+      'min_coverage: 79',
+    ]);
+    expect(coverage, isNot(contains('continue-on-error')));
+    expect(coverage, isNot(contains('--total-shards')));
+  });
 
   test('trusted RC is protected-main-only, immutable, signed, and retained', () {
     final workflow = _source('.github/workflows/trusted-mobile-rc.yml');

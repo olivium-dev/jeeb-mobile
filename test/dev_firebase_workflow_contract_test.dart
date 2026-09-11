@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 // wrapper rather than materializing a persistent client config itself.
 
 const _analyzeGate = 'dart analyze --fatal-infos .';
-const _testGate = 'flutter test --exclude-tags capture';
+const _testGate = '--exclude-tags capture';
 const _pinGate = 'bash tool/check_firebase_core_pin.sh';
 const _protectedInjectionSecret = 'DEV_GOOGLE_SERVICES_JSON_B64';
 const _protectedInjectionWrapper = 'tool/run_with_dev_firebase_config.sh';
@@ -33,28 +33,31 @@ void main() {
     'workflow re-enable readiness (Phase P depends on these surviving)',
     () {
       test(
-        'Flutter stage and coverage lane keep strict analyze + test gates',
+        'Analyze and sharded coverage keep strict, non-duplicated gates',
         () {
-          for (final path in const <String>[
-            '.github/workflows/ci-flutter-stage.yml',
-            '.github/workflows/flutter-ci.yml',
-          ]) {
-            final workflow = File(path).readAsStringSync();
-            expect(
-              workflow,
-              contains(_analyzeGate),
-              reason:
-                  '$path must keep --fatal-infos analyze strictness so '
-                  'Phase P does not silently re-enable a looser gate',
-            );
-            expect(
-              workflow,
-              contains(_testGate),
-              reason:
-                  '$path must keep excluding the host-rendered capture-tag '
-                  'goldens while still running the rest of the suite',
-            );
-          }
+          const analyzePath = '.github/workflows/ci-flutter-stage.yml';
+          final analyze = File(analyzePath).readAsStringSync();
+          expect(analyze, contains(_analyzeGate));
+          expect(
+            analyze,
+            isNot(contains('flutter test')),
+            reason:
+                '$analyzePath must stay analyze-only so Android and iOS can '
+                'start without waiting for the full regression suite',
+          );
+
+          const coveragePath = '.github/workflows/flutter-ci.yml';
+          final coverage = File(coveragePath).readAsStringSync();
+          expect(coverage, contains(_testGate));
+          expect(coverage, contains('tool/plan_test_shards.py plan'));
+          expect(coverage, contains('--coverage-path='));
+          expect(
+            coverage,
+            isNot(contains(_analyzeGate)),
+            reason:
+                '$coveragePath must not duplicate the authoritative analysis '
+                'already required through CI ready',
+          );
         },
       );
 
@@ -80,46 +83,42 @@ void main() {
         },
       );
 
-      test(
-        'Android stage and coverage lane use the protected dev config wrapper',
-        () {
-          for (final path in const <String>[
-            '.github/workflows/ci-android-stage.yml',
-            '.github/workflows/flutter-ci.yml',
-          ]) {
-            final workflow = File(path).readAsStringSync();
-            expect(
-              workflow,
-              contains(_protectedInjectionSecret),
-              reason:
-                  '$path must receive the protected dev Firebase payload only '
-                  'for the main-branch hardware build.',
-            );
-            expect(
-              workflow,
-              contains(_protectedInjectionWrapper),
-              reason:
-                  '$path must build through $_protectedInjectionWrapper so the '
-                  'validated 0600 file is removed on success and failure.',
-            );
-            expect(
-              workflow,
-              isNot(contains(_rawConfigRedirect)),
-              reason:
-                  '$path must not write the protected config directly; direct '
-                  'redirection bypasses validation, permissions, and cleanup.',
-            );
-            expect(
-              workflow,
-              isNot(contains(_secretControlledProject)),
-              reason:
-                  '$path must validate Firebase project identity from the '
-                  'committed Jeeb contract, not from a secret that can drift '
-                  'together with the protected config.',
-            );
-          }
-        },
-      );
+      test('Android stage owns the protected dev config build', () {
+        for (final path in const <String>[
+          '.github/workflows/ci-android-stage.yml',
+        ]) {
+          final workflow = File(path).readAsStringSync();
+          expect(
+            workflow,
+            contains(_protectedInjectionSecret),
+            reason:
+                '$path must receive the protected dev Firebase payload only '
+                'for the main-branch hardware build.',
+          );
+          expect(
+            workflow,
+            contains(_protectedInjectionWrapper),
+            reason:
+                '$path must build through $_protectedInjectionWrapper so the '
+                'validated 0600 file is removed on success and failure.',
+          );
+          expect(
+            workflow,
+            isNot(contains(_rawConfigRedirect)),
+            reason:
+                '$path must not write the protected config directly; direct '
+                'redirection bypasses validation, permissions, and cleanup.',
+          );
+          expect(
+            workflow,
+            isNot(contains(_secretControlledProject)),
+            reason:
+                '$path must validate Firebase project identity from the '
+                'committed Jeeb contract, not from a secret that can drift '
+                'together with the protected config.',
+          );
+        }
+      });
 
       test(
         'top-level workflows still gate pull requests, not just main pushes',
