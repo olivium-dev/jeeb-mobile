@@ -481,6 +481,7 @@ const Set<String> kAuditedStaticInteractionIdentifiers = <String>{
   'offer_accepted_track_cta',
   'offer_card_no_ratings',
   'offer_composer_close_cta',
+  'offer_composer_conflict_back_cta',
   'offer_composer_duplicate_cta',
   'offer_composer_duplicate_note',
   'offer_composer_error_note',

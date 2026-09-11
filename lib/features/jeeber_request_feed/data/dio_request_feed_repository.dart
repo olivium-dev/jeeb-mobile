@@ -143,14 +143,26 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   }
 
   DeliveryRequest? _parseRequest(Map<String, dynamic> json) {
-
     final id = (json['requestId'] as String?) ?? (json['id'] as String?);
     if (id == null) return null;
+
+    // The gateway expresses the offer window as a server-relative duration.
+    // A non-positive value is authoritative evidence that the row is no
+    // longer actionable, even if a stale projection still says `pending`.
+    final rawRemaining = json['offerDeadlineInSeconds'];
+    if (rawRemaining is num && (!rawRemaining.isFinite || rawRemaining <= 0)) {
+      Diag.event('feed.row_deadline_elapsed', <String, Object?>{
+        'requestId': id,
+        'remainingSeconds': rawRemaining,
+      });
+      return null;
+    }
 
     // UX-21: nothing reads a row's coordinates (only `.label`) and the frozen
     // envelope makes both nullable — degrade and record, never hide the row.
     final pickup =
-        _parseFeedLocation(json['pickup']) ?? _parseLiveLocation(json, 'pickup');
+        _parseFeedLocation(json['pickup']) ??
+        _parseLiveLocation(json, 'pickup');
     final dropoff =
         _parseFeedLocation(json['dropoff']) ??
         _parseLiveLocation(json, 'dropoff');
@@ -172,7 +184,9 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
         : JeeberFeedItemStatus.incoming;
 
     final amount = json['amount'];
-    final offerFee = hasOffer ? (myOffer['feeCents'] as num?)?.toDouble() : null;
+    final offerFee = hasOffer
+        ? (myOffer['feeCents'] as num?)?.toDouble()
+        : null;
     final parsedEarnings =
         (json['potentialEarnings'] as num?)?.toDouble() ??
         _amountValue(amount) ??
@@ -186,14 +200,13 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
 
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
 
-    final rawRemaining = json['offerDeadlineInSeconds'];
     final DateTime? expires;
     if (rawRemaining is num) {
       expires = _now().add(
-        Duration(seconds: rawRemaining.toInt().clamp(0, 1 << 31)),
+        Duration(seconds: rawRemaining.ceil().clamp(1, 1 << 31)),
       );
     } else {
-      expires = null; 
+      expires = null;
     }
     final createdRaw = json['createdAt'] as String?;
     final requestStatus = ServerRequestStatus.normalize(json['status']);
@@ -223,15 +236,18 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
       receivedAt: createdRaw != null ? _parseServerTime(createdRaw) : null,
       feedStatus: feedStatus,
 
-      requestIsOpen: requestStatus.isEmpty ||
-          ServerRequestStatus.isOpen(requestStatus),
+      requestIsOpen:
+          requestStatus.isEmpty || ServerRequestStatus.isOpen(requestStatus),
     );
   }
 
   /// Label-only placeholder: no consumer reads these coordinates, and the row
   /// must still reach the jeeber.
-  static const RequestLocation _unknownLocation =
-      RequestLocation(label: '', latitude: 0, longitude: 0);
+  static const RequestLocation _unknownLocation = RequestLocation(
+    label: '',
+    latitude: 0,
+    longitude: 0,
+  );
 
   static DateTime? _parseServerTime(String raw) => ServerTime.parse(raw);
 

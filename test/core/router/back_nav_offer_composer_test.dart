@@ -34,49 +34,78 @@ class _FakeOfferRepo implements OfferSubmissionRepository {
       const OfferSubmissionResult(offerId: 'off-1', conversationId: 'conv-1');
 }
 
+class _ConflictOfferRepo implements OfferSubmissionRepository {
+  @override
+  Future<OfferSubmissionResult> submitOffer({
+    required String requestId,
+    required double priceUsd,
+    required int etaMinutes,
+    String? note,
+  }) => throw const OfferSubmissionException(OfferSubmissionFailure.conflict);
+}
+
 void main() {
   // A router that mounts the REAL offer composer wrapped exactly as
-  GoRouter buildRouter() => GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('HOME-SHELL'))),
+  GoRouter buildRouter({OfferSubmissionRepository? repository}) => GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('HOME-SHELL'))),
+      ),
+      GoRoute(
+        path: '/jeeber/requests/:id/offer',
+        name: 'jeeber-offer-submission',
+        builder: (context, state) => RootAwareBackScope(
+          fallbackLocation: '/',
+          child: OfferSubmissionScreen(
+            requestId: state.pathParameters['id'] ?? '',
+            submissionService: null,
+            repository: repository ?? _FakeOfferRepo(),
+            onWithdrawn: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+            onRequestGone: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+            onConflict: () => context.go('/'),
           ),
-          GoRoute(
-            path: '/jeeber/requests/:id/offer',
-            builder: (context, state) => RootAwareBackScope(
-              fallbackLocation: '/',
-              child: OfferSubmissionScreen(
-                requestId: state.pathParameters['id'] ?? '',
-                submissionService: null,
-                repository: _FakeOfferRepo(),
-                onWithdrawn: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/');
-                  }
-                },
-                onRequestGone: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/');
-                  }
-                },
+        ),
+      ),
+      GoRoute(
+        path: '/jeeber/requests/:id',
+        builder: (context, state) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () => context.pushNamed(
+                'jeeber-offer-submission',
+                pathParameters: {'id': state.pathParameters['id'] ?? ''},
               ),
+              child: const Text('MAKE-OFFER'),
             ),
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 
   Widget collapseNullChild(BuildContext context, Widget? child) =>
       child ?? const SizedBox.shrink();
 
-  Future<GoRouter> pump(WidgetTester tester) async {
-    final router = buildRouter();
+  Future<GoRouter> pump(
+    WidgetTester tester, {
+    OfferSubmissionRepository? repository,
+  }) async {
+    final router = buildRouter(repository: repository);
     addTearDown(router.dispose);
     await tester.pumpWidget(
       MaterialApp.router(
@@ -115,6 +144,36 @@ void main() {
       await tester.pumpAndSettle();
 
       // Landed back on the shell instead of exiting; surface never blank.
+      expect(locationOf(router), '/');
+      expect(find.text('HOME-SHELL'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'feed → request detail → offer → ambiguous conflict re-roots at feed',
+    (tester) async {
+      final router = await pump(tester, repository: _ConflictOfferRepo());
+
+      router.go('/jeeber/requests/req-1');
+      await tester.pumpAndSettle();
+      expect(find.text('MAKE-OFFER'), findsOneWidget);
+      router.push('/jeeber/requests/req-1/offer');
+      await tester.pumpAndSettle();
+      expect(find.byType(OfferSubmissionScreen), findsOneWidget);
+      expect(
+        router.canPop(),
+        isTrue,
+        reason: 'the stale request detail remains underneath the composer',
+      );
+
+      await tester.enterText(find.byType(EditableText).first, '7');
+      await tester.tap(find.bySemanticsIdentifier('offer_composer_send_cta'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.bySemanticsIdentifier('offer_composer_conflict_back_cta'),
+      );
+      await tester.pumpAndSettle();
+
       expect(locationOf(router), '/');
       expect(find.text('HOME-SHELL'), findsOneWidget);
     },

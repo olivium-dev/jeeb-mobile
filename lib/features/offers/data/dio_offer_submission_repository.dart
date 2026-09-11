@@ -127,7 +127,11 @@ class DioOfferSubmissionRepository
           OfferSubmissionFailure.sameRoleViolation,
         'offer-out-of-range' => OfferSubmissionFailure.outOfRange,
         'request-not-open-for-offers' => OfferSubmissionFailure.requestNotOpen,
-        _ => OfferSubmissionFailure.requestGone,
+        'offer-submit-conflict' ||
+        'offers-per-request-exceeded' => OfferSubmissionFailure.conflict,
+        // A future/legacy 409 is non-terminal until its machine type proves
+        // otherwise. Never turn an unknown conflict into "request expired".
+        _ => OfferSubmissionFailure.conflict,
       }, cause: f),
       GoneFailure() || NotFoundFailure() => OfferSubmissionException(
         OfferSubmissionFailure.requestGone,

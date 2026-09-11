@@ -82,18 +82,44 @@ Future<void> _send(WidgetTester tester) async {
 }
 
 void main() {
-  test('out-of-range remains editable and can submit after correction', () async {
-    final repository = _ThrowingRepo(OfferSubmissionFailure.outOfRange);
-    final cubit = OfferFormCubit(repository: repository);
-    await cubit.submit(requestId: 'request', priceUsd: 7, etaMinutes: 40);
-    expect(repository.submissions, 1);
-    cubit.acknowledgeError();
-    expect(cubit.state.mode, OfferFormMode.idle);
-    await cubit.submit(requestId: 'request', priceUsd: 9, etaMinutes: 80);
-    expect(repository.submissions, 2);
-    expect(cubit.state.errorReason, OfferSubmissionFailure.outOfRange);
-    await cubit.close();
-  });
+  test(
+    'out-of-range remains editable and can submit after correction',
+    () async {
+      final repository = _ThrowingRepo(OfferSubmissionFailure.outOfRange);
+      final cubit = OfferFormCubit(repository: repository);
+      await cubit.submit(requestId: 'request', priceUsd: 7, etaMinutes: 40);
+      expect(repository.submissions, 1);
+      cubit.acknowledgeError();
+      expect(cubit.state.mode, OfferFormMode.idle);
+      await cubit.submit(requestId: 'request', priceUsd: 9, etaMinutes: 80);
+      expect(repository.submissions, 2);
+      expect(cubit.state.errorReason, OfferSubmissionFailure.outOfRange);
+      await cubit.close();
+    },
+  );
+
+  test(
+    'unknown conflict is latched until the composer returns to the feed',
+    () async {
+      final repository = _ThrowingRepo(OfferSubmissionFailure.conflict);
+      final cubit = OfferFormCubit(repository: repository);
+      await cubit.submit(requestId: 'request', priceUsd: 7, etaMinutes: 40);
+
+      expect(cubit.state.mode, OfferFormMode.error);
+      expect(cubit.state.errorReason, OfferSubmissionFailure.conflict);
+      cubit.acknowledgeError();
+      await cubit.submit(requestId: 'request', priceUsd: 7, etaMinutes: 40);
+
+      expect(
+        repository.submissions,
+        1,
+        reason: 'an identical conflict POST must not loop without refresh',
+      );
+      expect(cubit.state.errorReason, OfferSubmissionFailure.conflict);
+      await cubit.close();
+    },
+  );
+
   group('the 409 discriminators map one-to-one', () {
     Future<OfferSubmissionFailure> failureFor(Object? body) async {
       try {
@@ -141,9 +167,63 @@ void main() {
           'title': 'Conflict',
           'detail': 'offer 9c37b6af-4e21-4e4a-9c1b-1f2a3b4c2013 conflicts',
         }),
-        OfferSubmissionFailure.requestGone,
+        OfferSubmissionFailure.conflict,
       );
     });
+
+    test('offer-submit-conflict → conflict', () async {
+      expect(
+        await failureFor(_problem('offer-submit-conflict')),
+        OfferSubmissionFailure.conflict,
+      );
+    });
+  });
+
+  testWidgets('generic conflict keeps the draft but requires back-to-feed', (
+    tester,
+  ) async {
+    useReduceMotion(tester);
+    final repository = _ThrowingRepo(OfferSubmissionFailure.conflict);
+    var exits = 0;
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferSubmissionScreen(
+          requestId: 'request',
+          submissionService: null,
+          repository: repository,
+          onWithdrawn: () => exits++,
+          onConflict: () => exits++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _send(tester);
+
+    expect(
+      find.bySemanticsIdentifier('offer_composer_error_note'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('offer_composer_conflict_back_cta'),
+      findsOneWidget,
+    );
+    final send = tester.widget<JeebCtaButton>(
+      find.byWidgetPredicate(
+        (w) => w is JeebCtaButton && w.identifier == 'offer_composer_send_cta',
+      ),
+    );
+    expect(send.isEnabled, isFalse);
+    expect(
+      find.text('7'),
+      findsOneWidget,
+      reason: 'the rejected draft remains visible for reconciliation',
+    );
+
+    await tester.tap(
+      find.bySemanticsIdentifier('offer_composer_conflict_back_cta'),
+    );
+    expect(exits, 1);
+    expect(repository.submissions, 1);
   });
 
   for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
