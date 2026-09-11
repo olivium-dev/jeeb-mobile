@@ -53,6 +53,11 @@ enum OfferSubmissionFailure {
   /// 409 `request-not-open-for-offers` — the request stopped taking offers.
   requestNotOpen,
 
+  /// A 409 whose problem type does not prove a terminal request. The current
+  /// draft stays visible, but must be reconciled through a refreshed feed
+  /// before another submit.
+  conflict,
+
   /// 400/422 `offer-fee-too-low` — the price field is at fault.
   feeTooLow,
 

@@ -13,12 +13,7 @@ import 'request_feed_state.dart';
 
 typedef SoundNotifier = void Function();
 
-enum RequestFeedRepositoryOwnership {
-
-  owned,
-
-  borrowed,
-}
+enum RequestFeedRepositoryOwnership { owned, borrowed }
 
 class RequestFeedCubit extends Cubit<RequestFeedState>
     implements PollingVisibility {
@@ -26,28 +21,30 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     required RequestFeedRepository repository,
     RequestFeedRepositoryOwnership repositoryOwnership =
         RequestFeedRepositoryOwnership.owned,
-    Duration expiredLinger = const Duration(seconds: 30),
+    // Source-compatible only: expired rows no longer enter a linger state.
+    @Deprecated('Expired feed rows are removed immediately')
+    Duration expiredLinger = Duration.zero,
     Duration sweepInterval = const Duration(seconds: 1),
     SoundNotifier? onNewRequestSound,
     DateTime Function()? clock,
     Stream<void>? refreshSignals,
-  })  : _repository = repository,
-        _refreshSignals = refreshSignals,
-        _source =
-            repository is PollingSource ? repository as PollingSource : null,
-        _repositoryOwnership = repositoryOwnership,
-        _expiredLinger = expiredLinger,
-        _sweepInterval = sweepInterval,
-        _onNewRequestSound = onNewRequestSound,
-        _clock = clock ?? DateTime.now,
-        super(const RequestFeedState());
+  }) : _repository = repository,
+       _refreshSignals = refreshSignals,
+       _source = repository is PollingSource
+           ? repository as PollingSource
+           : null,
+       _repositoryOwnership = repositoryOwnership,
+       assert(!expiredLinger.isNegative),
+       _sweepInterval = sweepInterval,
+       _onNewRequestSound = onNewRequestSound,
+       _clock = clock ?? DateTime.now,
+       super(const RequestFeedState());
 
   final RequestFeedRepository _repository;
   final PollingSource? _source;
   final RequestFeedRepositoryOwnership _repositoryOwnership;
   bool _pollingVisible = false;
 
-  final Duration _expiredLinger;
   final Duration _sweepInterval;
   final SoundNotifier? _onNewRequestSound;
   final DateTime Function() _clock;
@@ -69,8 +66,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   final Map<String, DateTime> _deadlines = {};
 
-  final Map<String, DateTime> _removals = {};
-
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
@@ -83,7 +78,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   @override
   void setPollingVisible(bool visible) {
-
     _sweepPoller.setPollingVisible(visible);
 
     _refreshGate.setPollingVisible(visible);
@@ -117,76 +111,78 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   Future<void> _refresh() async {
     final isInitial = state.status == RequestFeedStatus.initial;
     if (isInitial) {
-      emit(state.copyWith(
-        status: RequestFeedStatus.loading,
-        error: null,
-      ));
+      emit(state.copyWith(status: RequestFeedStatus.loading, error: null));
     }
     try {
       final snapshot = await _repository.refresh();
 
       final existingById = {for (final r in state.requests) r.id: r};
       final reconciled = <String, DeliveryRequest>{};
-      final expiredIds = <String>{...state.expiredIds};
-      final serverClosedIds = <String>{};
+      final expiredIds = <String>{};
+      final nonActionableIds = <String>{};
       for (final r in snapshot) {
-
-        if (!r.requestIsOpen) {
-          serverClosedIds.add(r.id);
-          expiredIds.remove(r.id);
+        if (!r.requestIsOpen || _hasElapsed(r)) {
+          nonActionableIds.add(r.id);
           _deadlines.remove(r.id);
-          _removals.remove(r.id);
           continue;
         }
-
-        expiredIds.remove(r.id);
 
         _trackDeadline(r);
         reconciled[r.id] = r;
       }
       for (final entry in existingById.entries) {
         if (reconciled.containsKey(entry.key)) continue;
-        if (serverClosedIds.contains(entry.key)) continue;
+        if (nonActionableIds.contains(entry.key)) continue;
+        if (_hasElapsed(entry.value)) {
+          _deadlines.remove(entry.key);
+          continue;
+        }
         final inFlight =
             state.actionStatusFor(entry.key) != RequestActionStatus.idle;
-        if (inFlight || expiredIds.contains(entry.key)) {
+        if (inFlight) {
           reconciled[entry.key] = entry.value;
         } else {
           _deadlines.remove(entry.key);
-          _removals.remove(entry.key);
         }
       }
-      emit(state.copyWith(
-        status: RequestFeedStatus.ready,
-        requests: _sorted(reconciled.values),
-        expiredIds: expiredIds,
-        error: null,
-        refreshError: null,
-      ));
+      emit(
+        state.copyWith(
+          status: RequestFeedStatus.ready,
+          requests: _sorted(reconciled.values),
+          expiredIds: expiredIds,
+          error: null,
+          refreshError: null,
+        ),
+      );
     } catch (e) {
       final failure = AppFailure.of(e);
       // A warm failure keeps the rows; only a cold one owns the screen.
-      emit(state.requests.isEmpty
-          ? state.copyWith(
-              status: RequestFeedStatus.error,
-              error: failure,
-              refreshError: null,
-            )
-          : state.copyWith(
-              status: RequestFeedStatus.ready,
-              refreshError: failure,
-            ));
+      emit(
+        state.requests.isEmpty
+            ? state.copyWith(
+                status: RequestFeedStatus.error,
+                error: failure,
+                refreshError: null,
+              )
+            : state.copyWith(
+                status: RequestFeedStatus.ready,
+                refreshError: failure,
+              ),
+      );
     }
   }
 
-  Future<void> accept(String id) =>
-      _act(id: id, busy: RequestActionStatus.accepting, call: _repository.accept);
+  Future<void> accept(String id) => _act(
+    id: id,
+    busy: RequestActionStatus.accepting,
+    call: _repository.accept,
+  );
 
   Future<void> decline(String id) => _act(
-        id: id,
-        busy: RequestActionStatus.declining,
-        call: _repository.decline,
-      );
+    id: id,
+    busy: RequestActionStatus.declining,
+    call: _repository.decline,
+  );
 
   Future<void> _act({
     required String id,
@@ -198,11 +194,12 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       return;
     }
 
-    if (state.isExpired(id)) return;
+    if (state.isExpired(id) || _hasElapsed(state.requests[requestIndex])) {
+      _removeElapsed(<String>{id});
+      return;
+    }
     if (state.actionStatusFor(id) != RequestActionStatus.idle) return;
-    emit(state.copyWith(
-      actionStatuses: {...state.actionStatuses, id: busy},
-    ));
+    emit(state.copyWith(actionStatuses: {...state.actionStatuses, id: busy}));
     RequestActionOutcome outcome;
     AppFailure? failure;
     try {
@@ -215,8 +212,25 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       state.actionStatuses,
     )..remove(id);
     if (outcome == RequestActionOutcome.networkError) {
-
-      emit(state.copyWith(
+      emit(
+        state.copyWith(
+          actionStatuses: pendingRemoved,
+          lastEffect: RequestActionEffect(
+            requestId: id,
+            action: busy,
+            outcome: outcome,
+            failure: failure,
+          ),
+        ),
+      );
+      return;
+    }
+    _deadlines.remove(id);
+    emit(
+      state.copyWith(
+        requests: state.requests
+            .where((r) => r.id != id)
+            .toList(growable: false),
         actionStatuses: pendingRemoved,
         lastEffect: RequestActionEffect(
           requestId: id,
@@ -224,21 +238,8 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
           outcome: outcome,
           failure: failure,
         ),
-      ));
-      return;
-    }
-    _deadlines.remove(id);
-    _removals.remove(id);
-    emit(state.copyWith(
-      requests: state.requests.where((r) => r.id != id).toList(growable: false),
-      actionStatuses: pendingRemoved,
-      lastEffect: RequestActionEffect(
-        requestId: id,
-        action: busy,
-        outcome: outcome,
-        failure: failure,
       ),
-    ));
+    );
   }
 
   void clearEffect() {
@@ -252,9 +253,8 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   }
 
   void _onIncoming(DeliveryRequest request) {
-    if (!request.requestIsOpen) {
+    if (!request.requestIsOpen || _hasElapsed(request)) {
       _deadlines.remove(request.id);
-      _removals.remove(request.id);
       final requests = state.requests
           .where((r) => r.id != request.id)
           .toList(growable: false);
@@ -262,12 +262,14 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       final actionStatuses = Map<String, RequestActionStatus>.from(
         state.actionStatuses,
       )..remove(request.id);
-      emit(state.copyWith(
-        status: RequestFeedStatus.ready,
-        requests: requests,
-        expiredIds: expiredIds,
-        actionStatuses: actionStatuses,
-      ));
+      emit(
+        state.copyWith(
+          status: RequestFeedStatus.ready,
+          requests: requests,
+          expiredIds: expiredIds,
+          actionStatuses: actionStatuses,
+        ),
+      );
       return;
     }
     final exists = state.requests.any((r) => r.id == request.id);
@@ -277,11 +279,13 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     if (!exists) _onNewRequestSound?.call();
 
     final expiredIds = <String>{...state.expiredIds}..remove(request.id);
-    emit(state.copyWith(
-      status: RequestFeedStatus.ready,
-      requests: _sorted(byId.values),
-      expiredIds: expiredIds,
-    ));
+    emit(
+      state.copyWith(
+        status: RequestFeedStatus.ready,
+        requests: _sorted(byId.values),
+        expiredIds: expiredIds,
+      ),
+    );
   }
 
   void _onTransport(FeedTransportUpdate update) {
@@ -291,36 +295,31 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   void _sweepExpired() {
     final now = _clock();
-    final newlyExpired = _deadlines.entries
+    final elapsedIds = _deadlines.entries
         .where((entry) => !entry.value.isAfter(now))
         .map((entry) => entry.key)
-        .toList(growable: false);
-    for (final id in newlyExpired) {
+        .toSet();
+    if (elapsedIds.isEmpty) return;
+    _removeElapsed(elapsedIds);
+  }
+
+  void _removeElapsed(Set<String> elapsedIds) {
+    for (final id in elapsedIds) {
       _deadlines.remove(id);
-      _removals[id] = now.add(_expiredLinger);
     }
-    final removed = _removals.entries
-        .where((entry) => !entry.value.isAfter(now))
-        .map((entry) => entry.key)
-        .toList(growable: false);
-    for (final id in removed) {
-      _removals.remove(id);
-    }
-    if (newlyExpired.isEmpty && removed.isEmpty) return;
-    final expiredIds = <String>{...state.expiredIds, ...newlyExpired}
-      ..removeAll(removed);
+    final expiredIds = <String>{...state.expiredIds}..removeAll(elapsedIds);
     final pendingRemoved = Map<String, RequestActionStatus>.from(
       state.actionStatuses,
-    )..removeWhere(
-        (id, _) => newlyExpired.contains(id) || removed.contains(id),
-      );
-    emit(state.copyWith(
-      requests: state.requests
-          .where((r) => !removed.contains(r.id))
-          .toList(growable: false),
-      expiredIds: expiredIds,
-      actionStatuses: pendingRemoved,
-    ));
+    )..removeWhere((id, _) => elapsedIds.contains(id));
+    emit(
+      state.copyWith(
+        requests: state.requests
+            .where((r) => !elapsedIds.contains(r.id))
+            .toList(growable: false),
+        expiredIds: expiredIds,
+        actionStatuses: pendingRemoved,
+      ),
+    );
   }
 
   void _trackDeadline(DeliveryRequest request) {
@@ -330,7 +329,11 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     } else {
       _deadlines[request.id] = expiresAt;
     }
-    _removals.remove(request.id);
+  }
+
+  bool _hasElapsed(DeliveryRequest request) {
+    final expiresAt = request.expiresAt;
+    return expiresAt != null && !expiresAt.isAfter(_clock());
   }
 
   List<DeliveryRequest> _sorted(Iterable<DeliveryRequest> requests) {

@@ -74,7 +74,9 @@ import 'widgets/jeeb_money_field.dart';
 ///     (AC4; differs from the legacy T-MOB-030 chat hand-off).
 ///   * 402 (insufficient) → `insufficient_balance_sheet` (JM-046, AC5) — the
 ///     draft is preserved.
-///   * 409 → request-gone snack + back to feed.
+///   * typed 409 request-closed → request-gone snack + feed; duplicate → the
+///     pending-offers recovery; ambiguous conflicts preserve the draft but
+///     require a feed refresh before another submit.
 ///
 /// Money lines read the wallet (W1m via [WalletRepository], seam-driven). The
 /// constructor signature is unchanged so the integrator-owned router builder
@@ -88,6 +90,7 @@ class OfferSubmissionScreen extends StatelessWidget {
     required this.onWithdrawn,
     this.onSubmitted,
     this.onRequestGone,
+    this.onConflict,
     this.repository,
     this.walletRepository,
     this.walletRefreshSignals,
@@ -110,6 +113,10 @@ class OfferSubmissionScreen extends StatelessWidget {
 
   /// Retained for back-compat. The screen handles the 409 snack + feed return.
   final VoidCallback? onRequestGone;
+
+  /// An ambiguous 409 must re-root at a refreshed feed, never pop back to the
+  /// stale request detail that launched this composer.
+  final VoidCallback? onConflict;
 
   /// Offer repository. Injectable for tests; resolved from DI when omitted.
   final OfferSubmissionRepository? repository;
@@ -152,6 +159,7 @@ class OfferSubmissionScreen extends StatelessWidget {
       onWithdrawn: onWithdrawn,
       onSubmitted: onSubmitted,
       onRequestGone: onRequestGone,
+      onConflict: onConflict,
     );
     if (providedCubit != null) {
       return BlocProvider<OfferFormCubit>.value(
@@ -174,6 +182,7 @@ class _OfferComposer extends StatefulWidget {
     this.walletRefreshSignals,
     this.onSubmitted,
     this.onRequestGone,
+    this.onConflict,
   });
 
   final String requestId;
@@ -182,6 +191,7 @@ class _OfferComposer extends StatefulWidget {
   final VoidCallback onWithdrawn;
   final void Function(String conversationId)? onSubmitted;
   final VoidCallback? onRequestGone;
+  final VoidCallback? onConflict;
 
   @override
   State<_OfferComposer> createState() => _OfferComposerState();
@@ -354,6 +364,7 @@ class _OfferComposerState extends State<_OfferComposer>
     return switch (state.errorReason) {
       OfferSubmissionFailure.network => networkFailureFromReachability(),
       OfferSubmissionFailure.server => const ServerFailure(status: 500),
+      OfferSubmissionFailure.conflict => const ConflictFailure(),
       OfferSubmissionFailure.invalidInput => const ValidationFailure(),
       _ => const UnknownFailure(),
     };
@@ -372,6 +383,20 @@ class _OfferComposerState extends State<_OfferComposer>
     if (cubit.state.mode == OfferFormMode.error ||
         cubit.state.mode == OfferFormMode.duplicate) {
       cubit.acknowledgeError();
+    }
+  }
+
+  void _exitConflict() {
+    final callback = widget.onConflict;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      context.go('/');
+    } else {
+      widget.onWithdrawn();
     }
   }
 
@@ -485,6 +510,7 @@ class _OfferComposerState extends State<_OfferComposer>
                 !_insufficientForEnteredPrice &&
                 state.mode != OfferFormMode.requestGone &&
                 state.errorReason != OfferSubmissionFailure.sameRoleViolation &&
+                state.errorReason != OfferSubmissionFailure.conflict &&
                 state.mode != OfferFormMode.duplicate,
             isLoading: state.isSubmitting,
             onTap: () => _onSendTapped(context),
@@ -628,10 +654,13 @@ class _OfferComposerState extends State<_OfferComposer>
       );
     }
     if ((state.mode != OfferFormMode.error &&
-         state.mode != OfferFormMode.requestGone) ||
+            state.mode != OfferFormMode.requestGone) ||
         _isFieldRejection(state.errorReason)) {
       return const SizedBox.shrink();
     }
+    final requiresBack =
+        state.errorReason == OfferSubmissionFailure.sameRoleViolation ||
+        state.errorReason == OfferSubmissionFailure.conflict;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
@@ -646,12 +675,19 @@ class _OfferComposerState extends State<_OfferComposer>
           text: state.mode == OfferFormMode.requestGone
               ? l10n.requestGone
               : _errorNoteText(context, l10n, state),
-          linkLabel: state.errorReason == OfferSubmissionFailure.sameRoleViolation
-              ? AppLocalizations.of(context).actionBack : null,
-          onLink: state.errorReason == OfferSubmissionFailure.sameRoleViolation
-              ? widget.onWithdrawn : null,
-          linkIdentifier: state.errorReason == OfferSubmissionFailure.sameRoleViolation
-              ? 'offer_composer_terminal_exit_cta' : null,
+          linkLabel: requiresBack
+              ? AppLocalizations.of(context).actionBack
+              : null,
+          onLink: state.errorReason == OfferSubmissionFailure.conflict
+              ? _exitConflict
+              : requiresBack
+              ? widget.onWithdrawn
+              : null,
+          linkIdentifier: state.errorReason == OfferSubmissionFailure.conflict
+              ? 'offer_composer_conflict_back_cta'
+              : state.errorReason == OfferSubmissionFailure.sameRoleViolation
+              ? 'offer_composer_terminal_exit_cta'
+              : null,
           identifier: 'offer_composer_error_note',
         ),
       ),

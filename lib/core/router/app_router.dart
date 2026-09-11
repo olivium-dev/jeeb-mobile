@@ -1360,8 +1360,9 @@ class AppRouter {
         GoRoute(
           path: '/jeeber/requests/:id/offer',
           name: 'jeeber-offer-submission',
-          // T-MOB-030: Bid composition entry-point with full form wired to
-          // POST /v1/offers. Navigates to chat on success; pops to feed on 409.
+          // Bid composition entry-point with full form wired to offer submit.
+          // Ambiguous conflicts re-root to the feed so a stale detail cannot
+          // immediately resubmit the same unresolved request.
           builder: (context, state) {
             final requestId = state.pathParameters['id'] ?? '';
             // The composer is reachable as a stack ROOT (a push-notification /
@@ -1391,6 +1392,7 @@ class AppRouter {
                     context.go('/');
                   }
                 },
+                onConflict: () => context.go('/'),
               ),
             );
           },

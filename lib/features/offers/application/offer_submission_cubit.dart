@@ -126,7 +126,8 @@ class OfferFormCubit extends Cubit<OfferFormState> {
     // A double-tap on the docked CTA would otherwise post the offer twice.
     if (state.isSubmitting ||
         state.mode == OfferFormMode.requestGone ||
-        state.errorReason == OfferSubmissionFailure.sameRoleViolation) {
+        state.errorReason == OfferSubmissionFailure.sameRoleViolation ||
+        state.errorReason == OfferSubmissionFailure.conflict) {
       return;
     }
 
@@ -268,6 +269,7 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       case OfferSubmissionFailure.invalidInput:
       case OfferSubmissionFailure.outOfRange:
       case OfferSubmissionFailure.sameRoleViolation:
+      case OfferSubmissionFailure.conflict:
       case OfferSubmissionFailure.network:
       case OfferSubmissionFailure.server:
         emit(
@@ -289,9 +291,12 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   }
 
   void acknowledgeError() {
-    // Changing a draft cannot change ownership of the addressed request.
-    // Keep this refusal latched until the request-scoped composer is closed.
-    if (state.errorReason == OfferSubmissionFailure.sameRoleViolation) return;
+    // Neither ownership nor an ambiguous upstream state changes when a field
+    // is edited. Reconcile those refusals through a fresh feed first.
+    if (state.errorReason == OfferSubmissionFailure.sameRoleViolation ||
+        state.errorReason == OfferSubmissionFailure.conflict) {
+      return;
+    }
     if (state.mode == OfferFormMode.error ||
         state.mode == OfferFormMode.duplicate) {
       emit(
