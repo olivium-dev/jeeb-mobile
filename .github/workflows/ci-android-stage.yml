@@ -9,6 +9,7 @@ permissions:
 jobs:
   build-apk:
     name: Build APK (dev)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -38,12 +39,7 @@ jobs:
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
 
-      - name: Skip dev FCM APK for pull requests
-        if: github.event_name == 'pull_request'
-        run: echo "Secret-dependent dev FCM APK build is skipped; Flutter checks already ran."
-
       - name: Validate Maps API key
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
@@ -53,7 +49,6 @@ jobs:
           fi
 
       - name: Build APK with protected dev Firebase config
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
           DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}

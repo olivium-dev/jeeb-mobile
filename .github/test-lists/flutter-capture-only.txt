@@ -1,0 +1,3 @@
+# Visual review harnesses that write golden PNGs; intentionally not CI gates.
+test/tools/catalog_capture_test.dart
+test/tools/m6_jeeber_orange_budget_capture_test.dart

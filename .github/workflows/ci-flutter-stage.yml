@@ -47,34 +47,3 @@ jobs:
         env:
           DESIGN_TOKENS_BASE: origin/${{ github.base_ref || github.event.repository.default_branch || 'main' }}
         run: bash tool/check_design_tokens.sh
-
-  test:
-    name: Test
-    needs: analyze
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Checkout repository-pinned OMDS dependency
-        uses: ./.github/actions/checkout-omds
-        with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
-
-      - name: Set up Flutter from .fvmrc
-        uses: ./.github/actions/setup-flutter
-
-      - name: Install dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Restore and regenerate source graph
-        uses: ./.github/actions/run-build-runner
-
-      - name: firebase_core pin gate
-        run: bash tool/check_firebase_core_pin.sh
-
-      - name: Run tests
-        # Capture-tagged golden PNGs are local review tools, not Linux gates.
-        run: flutter test --exclude-tags capture --reporter=expanded
