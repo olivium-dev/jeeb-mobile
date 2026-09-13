@@ -62,7 +62,15 @@ without_rg_path() {
   local tool tool_path
   for tool in bash dirname grep jq shasum awk; do
     tool_path="$(command -v "${tool}")"
-    ln -sf "${tool_path}" "${bin_dir}/${tool}"
+    if [[ "${tool}" == shasum ]]; then
+      # macOS shasum locates its versioned Perl script beside its invocation
+      # path, so call the real path instead of symlinking it into the fixture.
+      printf '#!%s\nexec "%s" "$@"\n' "$(command -v bash)" "${tool_path}" \
+        >"${bin_dir}/${tool}"
+      chmod +x "${bin_dir}/${tool}"
+    else
+      ln -sf "${tool_path}" "${bin_dir}/${tool}"
+    fi
   done
 
   printf '%s\n' "${bin_dir}"
@@ -75,7 +83,15 @@ broken_grep_path() {
   local tool tool_path bash_path
   for tool in bash dirname jq shasum awk; do
     tool_path="$(command -v "${tool}")"
-    ln -sf "${tool_path}" "${bin_dir}/${tool}"
+    if [[ "${tool}" == shasum ]]; then
+      # macOS shasum locates its versioned Perl script beside its invocation
+      # path, so call the real path instead of symlinking it into the fixture.
+      printf '#!%s\nexec "%s" "$@"\n' "$(command -v bash)" "${tool_path}" \
+        >"${bin_dir}/${tool}"
+      chmod +x "${bin_dir}/${tool}"
+    else
+      ln -sf "${tool_path}" "${bin_dir}/${tool}"
+    fi
   done
   bash_path="$(command -v bash)"
   printf '#!%s\nexit 2\n' "${bash_path}" >"${bin_dir}/grep"
@@ -105,6 +121,12 @@ expect_contract_failure chat-disabled '.chatEnabled = false'
 expect_contract_failure wrong-producer '.pushProducer = "gateway"'
 expect_contract_failure wrong-version '.schemaVersion = 2'
 expect_apps_failure wrong-ios-dev-app '.ios.dev.appId = "1:1051234312170:ios:aaaaaaaaaaaaaaaa"'
+expect_apps_failure staging-project-for-dev '.environments.dev.projectId = "jeeb-5a293"'
+expect_apps_failure staging-number-for-dev '.environments.dev.projectNumber = "1051234312170"'
+expect_apps_failure dev-project-for-staging '.environments.staging.projectId = "jeeb-development-msi"'
+expect_apps_failure dev-number-for-staging '.environments.staging.projectNumber = "313705546061"'
+expect_apps_failure retired-android-dev-app '.android.dev.appId = "1:1051234312170:android:146d7f24f109e38523dc93"'
+expect_apps_failure retired-ios-dev-app '.ios.dev.appId = "1:1051234312170:ios:30f909a175df7f5b23dc93"'
 expect_apps_failure named-dev-database '.environments.dev.firestoreDatabaseId = "staging"'
 expect_apps_failure wrong-staging-app '.environments.staging.iosApp = "dev"'
 expect_apps_failure extra-app-key '.ios.dev.unreviewed = true'

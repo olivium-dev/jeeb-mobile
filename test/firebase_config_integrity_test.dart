@@ -44,9 +44,9 @@ Future<bool> _isIgnored(String path) async {
 }
 
 Map<String, String> _syntheticDevEnvironment() {
-  const projectNumber = '1051234312170';
-  const projectId = 'jeeb-5a293';
-  const appId = '1:1051234312170:android:146d7f24f109e38523dc93';
+  const projectNumber = '313705546061';
+  const projectId = 'jeeb-development-msi';
+  const appId = '1:313705546061:android:4d59f9a169002473b6f704';
   final apiKey = 'AIza${List<String>.filled(35, 'A').join()}';
   final config = <String, Object>{
     'project_info': <String, String>{
@@ -127,7 +127,7 @@ void main() {
     expect(raw, isNot(contains('"package_name": "app.jeeb.mobile"')));
   });
 
-  test('.firebaserc pins the one existing Firebase project', () {
+  test('.firebaserc preserves the staging CLI default project', () {
     final firebaserc = File('.firebaserc');
     expect(firebaserc.existsSync(), isTrue);
     final raw = firebaserc.readAsStringSync();

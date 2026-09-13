@@ -4,7 +4,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/android/app/google-services.json}"
-CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
 APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 REQUIRED_PLAY_APP_SIGNING_SHA1="2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12"
 EXPECTED_UPLOAD_SHA1="${ANDROID_UPLOAD_CERT_SHA1:-}"
@@ -20,8 +19,8 @@ fail() {
 [[ -s "${CONFIG_PATH}" ]] || fail 'config file is missing or empty'
 command -v jq >/dev/null 2>&1 || fail 'jq is required for structural validation'
 bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
-REQUIRED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
-REQUIRED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
+REQUIRED_PROJECT_ID="$(jq -r '.environments.staging.projectId' "${APPS}")"
+REQUIRED_PROJECT_NUMBER="$(jq -r '.environments.staging.projectNumber' "${APPS}")"
 REQUIRED_PACKAGE="$(jq -r '.android.store.packageName' "${APPS}")"
 EXPECTED_APP_ID="$(jq -r '.android.store.appId' "${APPS}")"
 [[ "${EXPECTED_UPLOAD_SHA1}" =~ ^([0-9A-Fa-f]{2}:){19}[0-9A-Fa-f]{2}$ ]] ||

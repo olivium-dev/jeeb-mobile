@@ -90,23 +90,86 @@ write_dev_config() {
 JSON
 }
 
+IOS_PLIST="ios/Runner/GoogleService-Info.plist"
+write_ios_config() {
+  python3 - "$1" "$IOS_PLIST" <<'PYTHON'
+import json
+import plistlib
+import sys
+
+with open("contracts/jeeb-mobile-firebase-apps-v1.json") as handle:
+    apps = json.load(handle)
+environment = apps["environments"][sys.argv[1]]
+app = apps["ios"][environment["iosApp"]]
+with open(sys.argv[2], "wb") as handle:
+    plistlib.dump({
+        "PROJECT_ID": environment["projectId"],
+        "GCM_SENDER_ID": environment["projectNumber"],
+        "BUNDLE_ID": app["bundleId"],
+        "GOOGLE_APP_ID": app["appId"],
+    }, handle)
+PYTHON
+}
+
+for ios_environment in dev staging; do
+  stash "$IOS_PLIST"
+  write_ios_config "$ios_environment"
+  if ! bash tool/firebase_doctor.sh >/dev/null 2>&1; then
+    echo "Doctor rejected the contracted $ios_environment iOS identity" >&2
+    exit 1
+  fi
+  restore_all
+  PASSES=$((PASSES + 1))
+  echo "POSITIVE CONTROL: doctor accepts the $ios_environment iOS identity"
+done
+
+stash "$IOS_PLIST"
+write_ios_config staging
+python3 - "$IOS_PLIST" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    config = plistlib.load(handle)
+config["BUNDLE_ID"] = "app.jeeb.jeebMobile.dev"
+config["GOOGLE_APP_ID"] = "1:1051234312170:ios:30f909a175df7f5b23dc93"
+with open(sys.argv[1], "wb") as handle:
+    plistlib.dump(config, handle)
+PYTHON
+expect_fail "staging Firebase project used by iOS dev" \
+  "does not match its contracted environment project/app identity"
+
 stash "$DEV_GSJ"
-write_dev_config "alrahmah-d7a33" "1051234312170" "app.jeeb.mobile.dev"
+write_dev_config "jeeb-development-msi" "313705546061" "app.jeeb.mobile.dev"
+if ! bash tool/firebase_doctor.sh >/dev/null 2>&1; then
+  echo "Doctor rejected the contracted development project" >&2
+  exit 1
+fi
+restore_all
+PASSES=$((PASSES + 1))
+echo "POSITIVE CONTROL: doctor accepts the development project"
+
+stash "$DEV_GSJ"
+write_dev_config "jeeb-5a293" "1051234312170" "app.jeeb.mobile.dev"
+expect_fail "staging Firebase project used by dev" \
+  "project_id is 'jeeb-5a293'"
+
+stash "$DEV_GSJ"
+write_dev_config "alrahmah-d7a33" "313705546061" "app.jeeb.mobile.dev"
 expect_fail "wrong project_id in a config on disk" \
   "project_id is 'alrahmah-d7a33'"
 
 stash "$DEV_GSJ"
-write_dev_config "jeeb-5a293" "999999999999" "app.jeeb.mobile.dev"
+write_dev_config "jeeb-development-msi" "999999999999" "app.jeeb.mobile.dev"
 expect_fail "wrong project_number in a config on disk" \
   "project_number is '999999999999'"
 
 stash "$DEV_GSJ"
-write_dev_config "jeeb-5a293" "1051234312170" "com.example.other"
+write_dev_config "jeeb-development-msi" "313705546061" "com.example.other"
 expect_fail "foreign package_name in a config on disk" \
   "unknown package_name 'com.example.other'"
 
 stash "$DEV_GSJ"
-write_dev_config "jeeb-5a293" "1051234312170" "com.olivium.jeeb"
+write_dev_config "jeeb-development-msi" "313705546061" "com.olivium.jeeb"
 expect_fail "dev config with no app.jeeb.mobile.dev client" \
   "has no client for 'app.jeeb.mobile.dev'"
 
@@ -167,7 +230,7 @@ expect_fail "firebase_core drifts into the pigeon-poison range" \
 
 # CI-only regime check: a config on disk must fail under CI and only warn locally.
 stash "$DEV_GSJ"
-write_dev_config "jeeb-5a293" "1051234312170" "app.jeeb.mobile.dev"
+write_dev_config "jeeb-development-msi" "313705546061" "app.jeeb.mobile.dev"
 if bash tool/firebase_doctor.sh >/dev/null 2>&1; then
   echo "MUTATION PROVEN: a valid config on disk is a local WARN, not a FAIL"
   PASSES=$((PASSES + 1))

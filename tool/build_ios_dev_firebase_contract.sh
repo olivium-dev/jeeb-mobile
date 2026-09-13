@@ -9,10 +9,10 @@ TEMPLATE="${REPO_ROOT}/ios/Runner/GoogleService-Info.plist.template"
 TMP_DIR="$(mktemp -d)"
 CONFIG="${TMP_DIR}/GoogleService-Info.plist"
 MAPS_KEY_FILE="${TMP_DIR}/maps-api-key"
-SENDER_ID='1051234312170'
-APP_ID='1:1051234312170:ios:30f909a175df7f5b23dc93'
-CLIENT_ID='1051234312170-syntheticdev.apps.googleusercontent.com'
-REVERSED_ID='com.googleusercontent.apps.1051234312170-syntheticdev'
+SENDER_ID='313705546061'
+APP_ID='1:313705546061:ios:800ef6ec4bf51312b6f704'
+CLIENT_ID='313705546061-syntheticdev.apps.googleusercontent.com'
+REVERSED_ID='com.googleusercontent.apps.313705546061-syntheticdev'
 FIREBASE_API_KEY="AIza$(printf 'A%.0s' {1..35})"
 MAPS_API_KEY="AIza$(printf 'M%.0s' {1..35})"
 
@@ -31,8 +31,8 @@ flutter_version="$("${FLUTTER_BIN}" --version --machine | jq -er '.frameworkVers
 cp "${TEMPLATE}" "${CONFIG}"
 /usr/libexec/PlistBuddy -c "Set :API_KEY ${FIREBASE_API_KEY}" "${CONFIG}"
 /usr/libexec/PlistBuddy -c "Set :GCM_SENDER_ID ${SENDER_ID}" "${CONFIG}"
-/usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-5a293' "${CONFIG}"
-/usr/libexec/PlistBuddy -c 'Set :STORAGE_BUCKET jeeb-5a293.appspot.com' \
+/usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-development-msi' "${CONFIG}"
+/usr/libexec/PlistBuddy -c 'Set :STORAGE_BUCKET jeeb-development-msi.appspot.com' \
   "${CONFIG}"
 /usr/libexec/PlistBuddy -c 'Set :BUNDLE_ID app.jeeb.jeebMobile.dev' "${CONFIG}"
 /usr/libexec/PlistBuddy -c "Set :GOOGLE_APP_ID ${APP_ID}" "${CONFIG}"

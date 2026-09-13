@@ -41,22 +41,26 @@ jobs:
 
       - name: Validate Maps API key
         env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+          MAPS_API_KEY: ${{ secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_ANDROID_GOOGLE_MAPS_API_KEY }}
         run: |
           if [ -z "${MAPS_API_KEY}" ]; then
-            echo "::error::Required repository secret MAPS_API_KEY is not configured."
+            echo "::error::Required organization secret JEEB_DEVELOPMENT_JEEB_MOBILE_ANDROID_GOOGLE_MAPS_API_KEY is not configured."
             exit 1
           fi
 
       - name: Build APK with protected dev Firebase config
         env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
-        run: >-
-          bash tool/run_with_dev_firebase_config.sh
-          flutter build apk --flavor dev --debug
-          --dart-define=APP_FLAVOR=dev
-          --dart-define=REQUIRE_REAL_PUSH=true
+          MAPS_API_KEY: ${{ secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_ANDROID_GOOGLE_MAPS_API_KEY }}
+          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_ANDROID_GOOGLE_SERVICES_JSON_B64 }}
+          JEEB_DEV_GATEWAY_BASE_URL: ${{ vars.JEEB_DEV_GATEWAY_BASE_URL }}
+        run: |
+          set -euo pipefail
+          : "${JEEB_DEV_GATEWAY_BASE_URL:?Required repository variable JEEB_DEV_GATEWAY_BASE_URL is not configured}"
+          bash tool/run_with_dev_firebase_config.sh \
+            flutter build apk --flavor dev --debug \
+            --dart-define=APP_FLAVOR=dev \
+            --dart-define=REQUIRE_REAL_PUSH=true \
+            --dart-define="JEEB_DEV_GATEWAY_BASE_URL=${JEEB_DEV_GATEWAY_BASE_URL}"
 
   release-contracts:
     name: Android release signing contracts

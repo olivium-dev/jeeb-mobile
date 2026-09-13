@@ -132,10 +132,10 @@ void _registerAndroidContracts() {
     final validator = _source('tool/validate_android_google_services.sh');
     final wrapper = _source('tool/run_with_android_firebase_config.sh');
     _expectContainsAll(validator, [
-      'contracts/jeeb-firebase-v1.json',
+      'tool/validate_jeeb_firebase_contract.sh',
       'contracts/jeeb-mobile-firebase-apps-v1.json',
-      "'.projectId'",
-      "'.projectNumber'",
+      "'.environments.staging.projectId'",
+      "'.environments.staging.projectNumber'",
       "'.android.store.appId'",
       'ANDROID_UPLOAD_CERT_SHA1',
       'ANDROID_UPLOAD_CERT_SHA256',
@@ -213,7 +213,7 @@ void _registerIosContracts() {
       'CLIENT_ID',
       'REVERSED_CLIENT_ID',
       'IS_SIGNIN_ENABLED',
-      'contracts/jeeb-firebase-v1.json',
+      'tool/validate_jeeb_firebase_contract.sh',
       'contracts/jeeb-mobile-firebase-apps-v1.json',
       'IOS_FIREBASE_VARIANT',
       'IOS_FIREBASE_EXPECTED_CLIENT_ID',
@@ -541,7 +541,10 @@ void _registerCiContracts() {
       'sdk_inventory="\$(xcodebuild -showsdks)"',
       "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
     ]);
-    expect(ios, contains('secrets.MAPS_API_KEY'));
+    expect(
+      ios,
+      contains('secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_IOS_GOOGLE_MAPS_API_KEY'),
+    );
     expect(ios, isNot(contains('secrets.IOS_GOOGLE_MAPS_API_KEY')));
     _expectContainsAll(_source('lib/app/app.dart'), [
       "bool.fromEnvironment('REQUIRE_REAL_PUSH')",
