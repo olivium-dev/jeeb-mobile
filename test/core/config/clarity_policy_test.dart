@@ -32,6 +32,16 @@ void main() {
     expect(staging(project: 'abc123'), isFalse);
     expect(staging(mode: AppBuildMode.debug), isFalse);
     expect(staging(mode: AppBuildMode.profile), isFalse);
+    expect(
+      AppConfig.clarityPolicyAllowsCapture(
+        buildMode: AppBuildMode.release,
+        enabled: true,
+        privacyApproved: true,
+        projectId: 'y6laxxj143',
+        flavor: 'staging',
+      ),
+      isFalse,
+    );
   });
   const validProjectId = 'y6laxxj143';
 
@@ -40,11 +50,13 @@ void main() {
     bool enabled = true,
     bool approved = true,
     String projectId = validProjectId,
+    String flavor = 'production',
   }) => AppConfig.clarityPolicyAllowsCapture(
     buildMode: mode,
     enabled: enabled,
     privacyApproved: approved,
     projectId: projectId,
+    flavor: flavor,
   );
 
   test('only a fully approved release configuration allows capture', () {
@@ -53,6 +65,9 @@ void main() {
     expect(allows(mode: AppBuildMode.profile), isFalse);
     expect(allows(enabled: false), isFalse);
     expect(allows(approved: false), isFalse);
+    expect(allows(flavor: 'dev'), isFalse);
+    expect(allows(flavor: 'staging'), isFalse);
+    expect(allows(flavor: 'other'), isFalse);
   });
 
   test('project ID must be non-empty, trimmed, lowercase alphanumeric', () {
