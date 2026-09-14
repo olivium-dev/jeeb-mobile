@@ -4,8 +4,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/android/app/src/dev/google-services.json}"
-REQUIRED_PACKAGE="app.jeeb.mobile.dev"
-CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
 APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 
 fail() {
@@ -22,8 +20,9 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
-EXPECTED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
-EXPECTED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
+EXPECTED_PROJECT_NUMBER="$(jq -r '.environments.dev.projectNumber' "${APPS}")"
+EXPECTED_PROJECT_ID="$(jq -r '.environments.dev.projectId' "${APPS}")"
+REQUIRED_PACKAGE="$(jq -r '.android.dev.packageName' "${APPS}")"
 EXPECTED_APP_ID="$(jq -r '.android.dev.appId' "${APPS}")"
 
 if ! jq -e 'type == "object"' "${CONFIG_PATH}" >/dev/null 2>&1; then

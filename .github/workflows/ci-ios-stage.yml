@@ -63,10 +63,11 @@ jobs:
       - name: Build iOS dev with canonical protected Firebase config
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+          IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_IOS_GOOGLE_SERVICE_INFO_PLIST_B64 }}
           IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID: ${{ secrets.IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID }}
           IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID: ${{ secrets.IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID }}
-          IOS_GOOGLE_MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+          IOS_GOOGLE_MAPS_API_KEY: ${{ secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_IOS_GOOGLE_MAPS_API_KEY }}
+          JEEB_DEV_GATEWAY_BASE_URL: ${{ vars.JEEB_DEV_GATEWAY_BASE_URL }}
         run: |
           set -euo pipefail
           required=(
@@ -74,6 +75,7 @@ jobs:
             IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID
             IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID
             IOS_GOOGLE_MAPS_API_KEY
+            JEEB_DEV_GATEWAY_BASE_URL
           )
           for variable in "${required[@]}"; do
             [[ -n "${!variable:-}" ]] || {
@@ -93,7 +95,8 @@ jobs:
             bash tool/run_with_ios_dev_firebase_config.sh \
               flutter build ios --flavor dev --debug --simulator --no-pub \
               --dart-define=APP_FLAVOR=dev \
-              --dart-define=REQUIRE_REAL_PUSH=true
+              --dart-define=REQUIRE_REAL_PUSH=true \
+              --dart-define="JEEB_DEV_GATEWAY_BASE_URL=${JEEB_DEV_GATEWAY_BASE_URL}"
           bash tool/inspect_ios_dev_firebase_artifact.sh \
             build/ios/iphonesimulator/Runner.app
           test ! -e ios/Runner/GoogleService-Info.plist

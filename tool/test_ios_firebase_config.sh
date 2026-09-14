@@ -11,7 +11,10 @@ TARGET="${REPO_ROOT}/ios/Runner/GoogleService-Info.plist"
 PROTECTED_XCCONFIG="${REPO_ROOT}/ios/Flutter/ProtectedFirebase.xcconfig"
 SYNTHETIC_SENDER_ID="1051234312170"
 EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:1036d2eaaf63036a23dc93"
-DEV_EXPECTED_APP_ID="1:${SYNTHETIC_SENDER_ID}:ios:30f909a175df7f5b23dc93"
+DEV_SENDER_ID="313705546061"
+DEV_EXPECTED_APP_ID="1:${DEV_SENDER_ID}:ios:800ef6ec4bf51312b6f704"
+DEV_CLIENT_ID="${DEV_SENDER_ID}-syntheticfixture.apps.googleusercontent.com"
+DEV_REVERSED_CLIENT_ID="com.googleusercontent.apps.${DEV_SENDER_ID}-syntheticfixture"
 STORE_BUNDLE_ID="com.olivium.jeeb"
 DEV_BUNDLE_ID="app.jeeb.jeebMobile.dev"
 SYNTHETIC_CLIENT_ID="${SYNTHETIC_SENDER_ID}-syntheticfixture.apps.googleusercontent.com"
@@ -29,24 +32,38 @@ write_valid_fixture() {
   local path="$1"
   local bundle_id="${2:-${STORE_BUNDLE_ID}}"
   local app_id="${3:-${EXPECTED_APP_ID}}"
+  local project_id=jeeb-5a293 sender_id="${SYNTHETIC_SENDER_ID}"
+  local client_id="${SYNTHETIC_CLIENT_ID}" reversed_id="${SYNTHETIC_REVERSED_CLIENT_ID}"
+  if [[ "${bundle_id}" == "${DEV_BUNDLE_ID}" ]]; then
+    project_id=jeeb-development-msi
+    sender_id="${DEV_SENDER_ID}"
+    client_id="${DEV_CLIENT_ID}"
+    reversed_id="${DEV_REVERSED_CLIENT_ID}"
+  fi
   cp "${REPO_ROOT}/ios/Runner/GoogleService-Info.plist.template" "${path}"
   /usr/libexec/PlistBuddy -c "Set :API_KEY ${SYNTHETIC_API_KEY}" "${path}"
-  /usr/libexec/PlistBuddy -c "Set :GCM_SENDER_ID ${SYNTHETIC_SENDER_ID}" "${path}"
-  /usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-5a293' "${path}"
-  /usr/libexec/PlistBuddy -c 'Set :STORAGE_BUCKET jeeb-5a293.appspot.com' "${path}"
+  /usr/libexec/PlistBuddy -c "Set :GCM_SENDER_ID ${sender_id}" "${path}"
+  /usr/libexec/PlistBuddy -c "Set :PROJECT_ID ${project_id}" "${path}"
+  /usr/libexec/PlistBuddy -c "Set :STORAGE_BUCKET ${project_id}.appspot.com" "${path}"
   /usr/libexec/PlistBuddy -c "Set :BUNDLE_ID ${bundle_id}" "${path}"
   /usr/libexec/PlistBuddy -c "Set :GOOGLE_APP_ID ${app_id}" "${path}"
-  /usr/libexec/PlistBuddy -c "Set :CLIENT_ID ${SYNTHETIC_CLIENT_ID}" "${path}"
+  /usr/libexec/PlistBuddy -c "Set :CLIENT_ID ${client_id}" "${path}"
   /usr/libexec/PlistBuddy -c \
-    "Set :REVERSED_CLIENT_ID ${SYNTHETIC_REVERSED_CLIENT_ID}" "${path}"
+    "Set :REVERSED_CLIENT_ID ${reversed_id}" "${path}"
   chmod 0600 "${path}"
 }
 
 expect_failure() {
   local label="$1"
-  local path="$2"
-  if IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
-    IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
+  local path="$2" variant="${3:-store}"
+  local client_id="${SYNTHETIC_CLIENT_ID}" reversed_id="${SYNTHETIC_REVERSED_CLIENT_ID}"
+  if [[ "${variant}" == dev ]]; then
+    client_id="${DEV_CLIENT_ID}"
+    reversed_id="${DEV_REVERSED_CLIENT_ID}"
+  fi
+  if IOS_FIREBASE_VARIANT="${variant}" \
+    IOS_FIREBASE_EXPECTED_CLIENT_ID="${client_id}" \
+    IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${reversed_id}" \
     bash "${VALIDATOR}" "${path}" >/dev/null 2>&1; then
     printf 'Expected validator failure: %s\n' "${label}" >&2
     exit 1
@@ -77,9 +94,29 @@ done
 valid_dev="${TMP_DIR}/valid-dev.plist"
 write_valid_fixture "${valid_dev}" "${DEV_BUNDLE_ID}" "${DEV_EXPECTED_APP_ID}"
 IOS_FIREBASE_VARIANT=dev \
-  IOS_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
-  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_CLIENT_ID="${DEV_CLIENT_ID}" \
+  IOS_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${DEV_REVERSED_CLIENT_ID}" \
   bash "${VALIDATOR}" "${valid_dev}" >/dev/null
+
+staging_dev="${TMP_DIR}/staging-dev.plist"
+cp "${valid_dev}" "${staging_dev}"
+/usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-5a293' "${staging_dev}"
+/usr/libexec/PlistBuddy -c 'Set :GCM_SENDER_ID 1051234312170' "${staging_dev}"
+/usr/libexec/PlistBuddy -c \
+  'Set :GOOGLE_APP_ID 1:1051234312170:ios:30f909a175df7f5b23dc93' "${staging_dev}"
+expect_failure retired-staging-dev-registration "${staging_dev}" dev
+
+development_store="${TMP_DIR}/development-store.plist"
+cp "${valid}" "${development_store}"
+/usr/libexec/PlistBuddy -c 'Set :PROJECT_ID jeeb-development-msi' "${development_store}"
+/usr/libexec/PlistBuddy -c 'Set :GCM_SENDER_ID 313705546061' "${development_store}"
+/usr/libexec/PlistBuddy -c "Set :GOOGLE_APP_ID ${DEV_EXPECTED_APP_ID}" "${development_store}"
+expect_failure development-project-for-store "${development_store}"
+
+missing_dev_client="${TMP_DIR}/missing-dev-client.plist"
+cp "${valid_dev}" "${missing_dev_client}"
+/usr/libexec/PlistBuddy -c 'Delete :CLIENT_ID' "${missing_dev_client}"
+expect_failure missing-dev-oauth-client "${missing_dev_client}" dev
 
 maps_key="${TMP_DIR}/maps-api-key"
 printf '%s\n' "${SYNTHETIC_MAPS_KEY}" >"${maps_key}"
@@ -212,8 +249,8 @@ encoded_dev_fixture="$(base64 <"${valid_dev}" | tr -d '\n')"
 (
   cd "${REPO_ROOT}"
   IOS_DEV_GOOGLE_SERVICE_INFO_PLIST_B64="${encoded_dev_fixture}" \
-  IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID="${SYNTHETIC_CLIENT_ID}" \
-  IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${SYNTHETIC_REVERSED_CLIENT_ID}" \
+  IOS_DEV_FIREBASE_EXPECTED_CLIENT_ID="${DEV_CLIENT_ID}" \
+  IOS_DEV_FIREBASE_EXPECTED_REVERSED_CLIENT_ID="${DEV_REVERSED_CLIENT_ID}" \
   IOS_GOOGLE_MAPS_API_KEY_FILE="${maps_key}" \
     bash "${DEV_WRAPPER}" bash -c '
       test -s ios/Runner/GoogleService-Info.plist

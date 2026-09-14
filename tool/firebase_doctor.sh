@@ -20,6 +20,7 @@ MAIN_GSJ="android/app/google-services.json"
 DEV_GSJ="android/app/src/dev/google-services.json"
 IOS_PLIST="ios/Runner/GoogleService-Info.plist"
 CONTRACT="contracts/jeeb-firebase-v1.json"
+APPS="contracts/jeeb-mobile-firebase-apps-v1.json"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 LOCK="pubspec.lock"
 FIRESTORE_SEAM="lib/core/firebase/jeeb_firestore.dart"
@@ -156,24 +157,32 @@ EXPECTED_PROJECT_ID="${CONTRACT_PROJECT_ID:-jeeb-5a293}"
 
 # ---- OUTCOME check: whatever config is on disk must BE the contract ----------
 check_config_identity() {
-  local f="$1" required_package="$2"
+  local f="$1" required_package="$2" environment="$3"
   [ -e "$f" ] || return 0
   if [ "$HAVE_JQ" = "no" ] || [ -z "$CONTRACT_PROJECT_ID" ]; then return 0; fi
 
-  local pid pnum
+  local pid pnum expected_project_id expected_project_number
+  expected_project_id="$(jq -r --arg environment "$environment" \
+    '.environments[$environment].projectId // empty' "$APPS")"
+  expected_project_number="$(jq -r --arg environment "$environment" \
+    '.environments[$environment].projectNumber // empty' "$APPS")"
+  if [ -z "$expected_project_id" ] || [ -z "$expected_project_number" ]; then
+    fail "$APPS does not declare the $environment project identity"
+    return 0
+  fi
   pid="$(jq -r '.project_info.project_id // empty' "$f" 2>/dev/null || echo '')"
   pnum="$(jq -r '.project_info.project_number // empty' "$f" 2>/dev/null || echo '')"
 
-  if [ "$pid" = "$CONTRACT_PROJECT_ID" ]; then
-    pass "$f project_id is $CONTRACT_PROJECT_ID"
+  if [ "$pid" = "$expected_project_id" ]; then
+    pass "$f project_id is $expected_project_id"
   else
-    fail "$f project_id is '$pid', but $CONTRACT pins '$CONTRACT_PROJECT_ID'"
+    fail "$f project_id is '$pid', but $APPS $environment pins '$expected_project_id'"
   fi
 
-  if [ "$pnum" = "$CONTRACT_PROJECT_NUMBER" ]; then
-    pass "$f project_number is $CONTRACT_PROJECT_NUMBER"
+  if [ "$pnum" = "$expected_project_number" ]; then
+    pass "$f project_number is $expected_project_number"
   else
-    fail "$f project_number is '$pnum', but $CONTRACT pins '$CONTRACT_PROJECT_NUMBER'"
+    fail "$f project_number is '$pnum', but $APPS $environment pins '$expected_project_number'"
   fi
 
   local packages pkg
@@ -200,18 +209,41 @@ EOF
 
 check_ios_identity() {
   [ -e "$IOS_PLIST" ] || return 0
-  [ -n "$CONTRACT_PROJECT_ID" ] || return 0
-  local raw
-  raw="$(tr -d ' \t' < "$IOS_PLIST")"
-  if printf '%s' "$raw" | grep -q "<string>${CONTRACT_PROJECT_ID}</string>"; then
-    pass "$IOS_PLIST names $CONTRACT_PROJECT_ID"
-  else
-    fail "$IOS_PLIST does not name the contract project '$CONTRACT_PROJECT_ID'"
+  [ -f "$APPS" ] || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    fail 'python3 is required to validate the iOS plist identity'
+    return 0
   fi
-  if printf '%s' "$raw" | grep -q "<string>${CONTRACT_PROJECT_NUMBER}</string>"; then
-    pass "$IOS_PLIST names GCM sender $CONTRACT_PROJECT_NUMBER"
+  if python3 - "$APPS" "$IOS_PLIST" <<'PYTHON'
+import json
+import plistlib
+import sys
+
+try:
+    with open(sys.argv[1]) as handle:
+        apps = json.load(handle)
+    with open(sys.argv[2], "rb") as handle:
+        config = plistlib.load(handle)
+    variant = next(
+        name for name, app in apps["ios"].items()
+        if app["bundleId"] == config.get("BUNDLE_ID")
+    )
+    environment = "dev" if variant == "dev" else "staging"
+    project = apps["environments"][environment]
+    expected = {
+        "PROJECT_ID": project["projectId"],
+        "GCM_SENDER_ID": project["projectNumber"],
+        "GOOGLE_APP_ID": apps["ios"][variant]["appId"],
+    }
+    if any(config.get(key) != value for key, value in expected.items()):
+        raise ValueError("environment identity mismatch")
+except (OSError, ValueError, KeyError, StopIteration):
+    sys.exit(1)
+PYTHON
+  then
+    pass "$IOS_PLIST matches the project and app pinned for its bundle"
   else
-    fail "$IOS_PLIST does not name the contract project number '$CONTRACT_PROJECT_NUMBER'"
+    fail "$IOS_PLIST does not match its contracted environment project/app identity"
   fi
 }
 
@@ -230,9 +262,9 @@ check_protected_config "$MAIN_GSJ"
 check_protected_config "$DEV_GSJ"
 check_protected_config "$IOS_PLIST"
 
-# Whatever is on disk, whichever flavor, must BE the contracted project.
-check_config_identity "$MAIN_GSJ" "com.olivium.jeeb"
-check_config_identity "$DEV_GSJ" "app.jeeb.mobile.dev"
+# Each native input must match the project pinned for its selected environment.
+check_config_identity "$MAIN_GSJ" "com.olivium.jeeb" staging
+check_config_identity "$DEV_GSJ" "app.jeeb.mobile.dev" dev
 check_ios_identity
 for tenant_scoped in "$MAIN_GSJ" "$DEV_GSJ" "$IOS_PLIST"; do
   check_no_foreign_tenant "$tenant_scoped"

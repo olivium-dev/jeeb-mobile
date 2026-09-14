@@ -67,4 +67,17 @@ if bash "${REPO_ROOT}/tool/validate_android_google_services.sh" "${wrong_path}" 
   exit 1
 fi
 
+development_path="${WORK_DIR}/development-project.json"
+jq '
+  .project_info.project_id = "jeeb-development-msi"
+  | .project_info.project_number = "313705546061"
+  | .client[0].client_info.mobilesdk_app_id = "1:313705546061:android:4d59f9a169002473b6f704"
+' "${CONFIG_PATH}" >"${development_path}"
+chmod 0600 "${development_path}"
+if bash "${REPO_ROOT}/tool/validate_android_google_services.sh" "${development_path}" \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'store validator accepted the development Firebase project' >&2
+  exit 1
+fi
+
 printf '%s\n' 'Android Firebase injection contracts passed.'

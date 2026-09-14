@@ -9,6 +9,22 @@ const _canonicalResolution =
 
 String _source(String path) => File(path).readAsStringSync();
 
+String _workflowJob(String workflow, String jobId) {
+  final lines = workflow.split('\n');
+  final start = lines.indexOf('  $jobId:');
+  expect(start, greaterThanOrEqualTo(0), reason: 'Missing workflow job $jobId');
+  final block = <String>[lines[start]];
+  for (final line in lines.skip(start + 1)) {
+    if (line.trim().isNotEmpty &&
+        (!line.startsWith(' ') ||
+            RegExp(r'^  [A-Za-z0-9_-]+:').hasMatch(line))) {
+      break;
+    }
+    block.add(line);
+  }
+  return block.join('\n');
+}
+
 String _sha256(String path) =>
     sha256.convert(File(path).readAsBytesSync()).toString();
 
@@ -132,10 +148,10 @@ void _registerAndroidContracts() {
     final validator = _source('tool/validate_android_google_services.sh');
     final wrapper = _source('tool/run_with_android_firebase_config.sh');
     _expectContainsAll(validator, [
-      'contracts/jeeb-firebase-v1.json',
+      'tool/validate_jeeb_firebase_contract.sh',
       'contracts/jeeb-mobile-firebase-apps-v1.json',
-      "'.projectId'",
-      "'.projectNumber'",
+      "'.environments.staging.projectId'",
+      "'.environments.staging.projectNumber'",
       "'.android.store.appId'",
       'ANDROID_UPLOAD_CERT_SHA1',
       'ANDROID_UPLOAD_CERT_SHA256',
@@ -213,7 +229,7 @@ void _registerIosContracts() {
       'CLIENT_ID',
       'REVERSED_CLIENT_ID',
       'IS_SIGNIN_ENABLED',
-      'contracts/jeeb-firebase-v1.json',
+      'tool/validate_jeeb_firebase_contract.sh',
       'contracts/jeeb-mobile-firebase-apps-v1.json',
       'IOS_FIREBASE_VARIANT',
       'IOS_FIREBASE_EXPECTED_CLIENT_ID',
@@ -541,7 +557,10 @@ void _registerCiContracts() {
       'sdk_inventory="\$(xcodebuild -showsdks)"',
       "grep -Eq -- '-sdk iphoneos26\\.[0-9]+' <<<\"\${sdk_inventory}\"",
     ]);
-    expect(ios, contains('secrets.MAPS_API_KEY'));
+    expect(
+      ios,
+      contains('secrets.JEEB_DEVELOPMENT_JEEB_MOBILE_IOS_GOOGLE_MAPS_API_KEY'),
+    );
     expect(ios, isNot(contains('secrets.IOS_GOOGLE_MAPS_API_KEY')));
     _expectContainsAll(_source('lib/app/app.dart'), [
       "bool.fromEnvironment('REQUIRE_REAL_PUSH')",
@@ -549,8 +568,26 @@ void _registerCiContracts() {
     ]);
     for (final workflow in [android, ios]) {
       expect(workflow, isNot(contains('flutter build ipa')));
-      expect(workflow, isNot(contains('upload-artifact')));
     }
+    // Synthetic signing contracts must never publish their build outputs.
+    // The separate protected development build retains its APK for devices.
+    expect(
+      _workflowJob(android, 'release-contracts'),
+      isNot(contains('upload-artifact')),
+    );
+    expect(ios, isNot(contains('upload-artifact')));
+    final developmentBuild = _workflowJob(android, 'build-apk');
+    _expectContainsAll(developmentBuild, [
+      "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+      'flutter build apk --flavor dev --debug',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+      'path: build/app/outputs/flutter-apk/app-dev-debug.apk',
+      'if-no-files-found: error',
+    ]);
+    expect(
+      android.replaceFirst(developmentBuild, ''),
+      isNot(contains('upload-artifact')),
+    );
   });
 
   test('Flutter and Gradle toolchains are repository-pinned', () {

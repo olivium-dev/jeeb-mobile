@@ -8,9 +8,9 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 PASS_COUNT=0
-EXPECTED_PROJECT_NUMBER="1051234312170"
-EXPECTED_PROJECT_ID="jeeb-5a293"
-EXPECTED_APP_ID="1:1051234312170:android:146d7f24f109e38523dc93"
+EXPECTED_PROJECT_NUMBER="313705546061"
+EXPECTED_PROJECT_ID="jeeb-development-msi"
+EXPECTED_APP_ID="1:313705546061:android:4d59f9a169002473b6f704"
 
 run_validator() {
   bash "${VALIDATOR}" "$1"
@@ -21,14 +21,14 @@ write_valid_fixture() {
   cat >"${output_path}" <<'JSON'
 {
   "project_info": {
-    "project_number": "1051234312170",
-    "project_id": "jeeb-5a293",
-    "storage_bucket": "jeeb-5a293.firebasestorage.app"
+    "project_number": "313705546061",
+    "project_id": "jeeb-development-msi",
+    "storage_bucket": "jeeb-development-msi.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1051234312170:android:146d7f24f109e38523dc93",
+        "mobilesdk_app_id": "1:313705546061:android:4d59f9a169002473b6f704",
         "android_client_info": {
           "package_name": "app.jeeb.mobile.dev"
         }
@@ -155,6 +155,18 @@ expect_fail \
   "${IDENTITY_MISMATCH_CONFIG}" \
   "does not match the committed canonical Firebase identity"
 
+STAGING_PROJECT_CONFIG="${TMP_DIR}/staging-project.json"
+jq '
+  .project_info.project_id = "jeeb-5a293"
+  | .project_info.project_number = "1051234312170"
+  | .project_info.storage_bucket = "jeeb-5a293.appspot.com"
+  | .client[0].client_info.mobilesdk_app_id = "1:1051234312170:android:146d7f24f109e38523dc93"
+' "${VALID_CONFIG}" >"${STAGING_PROJECT_CONFIG}"
+expect_fail \
+  "retired dev registration in the staging project" \
+  "${STAGING_PROJECT_CONFIG}" \
+  "does not match the committed canonical Firebase identity"
+
 WRONG_PACKAGE_CONFIG="${TMP_DIR}/wrong-package.json"
 jq '.client[0].client_info.android_client_info.package_name = "app.other.mobile.dev"' \
   "${VALID_CONFIG}" >"${WRONG_PACKAGE_CONFIG}"
@@ -171,7 +183,7 @@ expect_fail \
   "${PROD_ONLY_CONFIG}" \
   "exactly one client must match the required dev package"
 
-WRONG_APP_ID="1:1051234312170:android:fedcba9876543210fedcba9876543210"
+WRONG_APP_ID="1:313705546061:android:fedcba9876543210fedcba9876543210"
 WRONG_API_KEY="AIzaSyzyxwvutsrqponmlkjihgfedcba987654321"
 VALID_API_KEY="AIzaSy0123456789abcdefghijklmnopqrstuvw"
 DUPLICATE_CLIENT_MESSAGE="exactly one client must match the required dev package"

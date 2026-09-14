@@ -4,7 +4,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${1:-${REPO_ROOT}/ios/Runner/GoogleService-Info.plist}"
-CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
 APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 FIREBASE_VARIANT="${IOS_FIREBASE_VARIANT:-store}"
 EXPECTED_CLIENT_ID="${IOS_FIREBASE_EXPECTED_CLIENT_ID:-}"
@@ -16,7 +15,7 @@ fail() {
 }
 
 if [[ ! -s "${CONFIG_PATH}" ]]; then
-  fail 'config file is missing or empty; inject the protected production config'
+  fail 'config file is missing or empty; inject the protected selected config'
 fi
 
 if [[ ! -x /usr/libexec/PlistBuddy ]]; then
@@ -26,11 +25,14 @@ command -v jq >/dev/null 2>&1 || fail 'jq is required for contract validation'
 bash "${REPO_ROOT}/tool/validate_jeeb_firebase_contract.sh" >/dev/null
 
 case "${FIREBASE_VARIANT}" in
-  dev | store) ;;
+  dev) FIREBASE_ENVIRONMENT=dev ;;
+  store) FIREBASE_ENVIRONMENT=staging ;;
   *) fail "unknown iOS Firebase variant '${FIREBASE_VARIANT}'" ;;
 esac
-REQUIRED_PROJECT_ID="$(jq -r '.projectId' "${CONTRACT}")"
-REQUIRED_PROJECT_NUMBER="$(jq -r '.projectNumber' "${CONTRACT}")"
+REQUIRED_PROJECT_ID="$(jq -r --arg environment "${FIREBASE_ENVIRONMENT}" \
+  '.environments[$environment].projectId' "${APPS}")"
+REQUIRED_PROJECT_NUMBER="$(jq -r --arg environment "${FIREBASE_ENVIRONMENT}" \
+  '.environments[$environment].projectNumber' "${APPS}")"
 REQUIRED_BUNDLE_ID="$(jq -r --arg variant "${FIREBASE_VARIANT}" \
   '.ios[$variant].bundleId' "${APPS}")"
 EXPECTED_APP_ID="$(jq -r --arg variant "${FIREBASE_VARIANT}" \
@@ -87,7 +89,7 @@ signin_enabled="$(plist_value IS_SIGNIN_ENABLED)"
 [[ "${plist_version}" == "1" ]] ||
   fail 'plist version must be 1'
 [[ "${gcm_enabled}" == "true" ]] ||
-  fail 'FCM must be enabled in the production config'
+  fail 'FCM must be enabled in the selected config'
 [[ "${client_id}" =~ ^[0-9]+-[0-9A-Za-z_-]+\.apps\.googleusercontent\.com$ ]] ||
   fail 'Google Sign-In client id is missing or malformed'
 [[ "${reversed_client_id}" =~ ^com\.googleusercontent\.apps\.[0-9]+-[0-9A-Za-z_-]+$ ]] ||

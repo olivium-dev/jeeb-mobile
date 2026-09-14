@@ -4,14 +4,18 @@ Contract, not prose. If you are about to touch anything Firebase/FCM/push in
 this repo, read this first. Every rule below exists because breaking it once
 already caused a real incident — see the SHA cited per rule.
 
-## 1. The one true project
+## 1. Projects pinned by environment
 
-- Project: **`jeeb-5a293`**, project_number **`1051234312170`**. This is the
-  only Firebase project this app ever talks to — production, staging, and
-  dev flavor all resolve to the same project and Firestore database
-  **`(default)`**. The machine-readable source of truth is
-  `contracts/jeeb-firebase-v1.json`; native app registrations are pinned in
-  `contracts/jeeb-mobile-firebase-apps-v1.json`.
+- Development uses **`jeeb-development-msi`** / **`313705546061`**; staging uses
+  **`jeeb-5a293`** / **`1051234312170`**. Environment project identities and
+  native app registrations are pinned in
+  `contracts/jeeb-mobile-firebase-apps-v1.json`. A config from one environment
+  must not pass validation for the other, even if its native package matches.
+- The shared `contracts/jeeb-firebase-v1.json` stays byte-for-byte unchanged:
+  it pins the existing canonical project, Firestore database **`(default)`**,
+  chat enablement, and durable push producer. Development also uses its own
+  project's **`(default)`** database. Production configuration is postponed;
+  its legacy app mapping is unchanged.
 - **`alrahmah-d7a33` is FORBIDDEN.** Never point any Firebase config,
   `google-services.json`, plist, or Firestore rule at it. No commit in this
   repo's history has ever done so, but the risk is live enough that
@@ -31,7 +35,7 @@ already caused a real incident — see the SHA cited per rule.
 | `android/app/src/dev/google-services.json` | **NO — protected injection** | The dev wrapper validates the existing `app.jeeb.mobile.dev` registration and removes the mode-0600 file on success or failure. |
 | `*.template` files (both flavors) | YES | Reference/onboarding copies with `TODO_*` sentinels. |
 | `pubspec.lock` | **YES** | Pins the resolved Firebase package graph (firebase_core/auth/messaging/cloud_firestore/crashlytics + all `*_platform_interface`/`*_web` transitives) so a fresh `pub get` can't silently re-roll into the pigeon-poison range (§3). Mirrors `ios/Podfile.lock`, which has always been tracked. |
-| `ios/Runner/GoogleService-Info.plist` | **NO — protected injection** | The iOS wrappers validate the store or dev app registration against the same canonical project, then remove the file after compile/archive, including failure paths. |
+| `ios/Runner/GoogleService-Info.plist` | **NO — protected injection** | The iOS wrappers validate the store or dev app registration against its contracted environment project, then remove the file after compile/archive, including failure paths. |
 | `lib/core/firebase/firebase_options.dart` | **DELETED** | Dead placeholder (`DefaultFirebaseOptions.currentPlatform` always threw). Zero references repo-wide; native config drives initialization (see §5). |
 
 **All four real native configs must be gitignored, untracked, and absent when
@@ -175,12 +179,19 @@ a 0% observed rate, so any hit is worth investigating immediately.
 
 - **Staging and production share the permanent native identity**
   `com.olivium.jeeb`; staging is selected through runtime defines, not a package
-  suffix. Protected configuration and source gates are green, while real
-  store-installed Firebase/FCM behavior remains an explicit acceptance gate.
-- **Dev uses separate native app registrations in the same project.** Android
-  uses `app.jeeb.mobile.dev`; iOS uses `app.jeeb.jeebMobile.dev`. Different
-  provider files are required because package/bundle identity is part of each
-  file, but both files are contract-checked to `jeeb-5a293` / `(default)`.
+  suffix. Real store-installed Firebase/FCM behavior remains an explicit
+  acceptance gate.
+- **Dev uses separate native app registrations in `jeeb-development-msi`.**
+  Android uses `app.jeeb.mobile.dev`; iOS uses `app.jeeb.jeebMobile.dev`.
+  Provider files must match the development project and app IDs; staging
+  remains pinned to `jeeb-5a293`. Both use their project's `(default)` database.
+  Structural validation does not establish live FCM delivery or Google Sign-In
+  readiness: those require actual provider OAuth configuration and device proof.
+- Protected development CI builds require the repository variable
+  `JEEB_DEV_GATEWAY_BASE_URL` and pass it to the Flutter build. Assign the verified
+  development gateway; an absent value must fail the build before it can ship
+  the `gateway.dev.invalid` fallback. Firebase and Maps inputs use their
+  development or staging organization secret names for the selected platform.
 - **`notification-service` is the sole durable push producer.** The
   push-notification service is the FCM relay; gateway direct delivery remains
   denied except registration/recovery. Treat any second durable sender as a

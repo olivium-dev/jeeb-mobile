@@ -75,7 +75,7 @@ jq -e '
   and (.ios | keys == ["dev", "store"])
   and .android.dev == {
     packageName: "app.jeeb.mobile.dev",
-    appId: "1:1051234312170:android:146d7f24f109e38523dc93"
+    appId: "1:313705546061:android:4d59f9a169002473b6f704"
   }
   and .android.store == {
     packageName: "com.olivium.jeeb",
@@ -83,7 +83,7 @@ jq -e '
   }
   and .ios.dev == {
     bundleId: "app.jeeb.jeebMobile.dev",
-    appId: "1:1051234312170:ios:30f909a175df7f5b23dc93"
+    appId: "1:313705546061:ios:800ef6ec4bf51312b6f704"
   }
   and .ios.store == {
     bundleId: "com.olivium.jeeb",
@@ -91,11 +91,15 @@ jq -e '
   }
   and .environments == {
     dev: {
+      projectId: "jeeb-development-msi",
+      projectNumber: "313705546061",
       androidApp: "dev",
       iosApp: "dev",
       firestoreDatabaseId: "(default)"
     },
     staging: {
+      projectId: "jeeb-5a293",
+      projectNumber: "1051234312170",
       androidApp: "store",
       iosApp: "store",
       firestoreDatabaseId: "(default)"
@@ -140,4 +144,4 @@ if search_quiet 'DEV_FIREBASE_EXPECTED_PROJECT_(ID|NUMBER)|FIREBASE_EXPECTED_APP
   fail 'expected Firebase project/app identity is secret-controlled instead of contract-controlled'
 fi
 
-printf '%s\n' 'Jeeb mobile Firebase contract is canonical for dev, staging, and production.'
+printf '%s\n' 'Jeeb mobile Firebase development and staging identities match; the legacy production contract is unchanged.'

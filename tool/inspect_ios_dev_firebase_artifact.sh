@@ -5,7 +5,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="${1:-${REPO_ROOT}/build/ios/iphonesimulator/Runner.app}"
 APP_DELEGATE="${JEEB_IOS_APP_DELEGATE_PATH:-${REPO_ROOT}/ios/Runner/AppDelegate.swift}"
-CONTRACT="${REPO_ROOT}/contracts/jeeb-firebase-v1.json"
 APPS="${REPO_ROOT}/contracts/jeeb-mobile-firebase-apps-v1.json"
 
 fail() {
@@ -24,8 +23,8 @@ FIREBASE_PLIST="${APP_PATH}/GoogleService-Info.plist"
 [[ -s "${FIREBASE_PLIST}" ]] || fail 'bundled GoogleService-Info.plist is missing'
 [[ -s "${APP_DELEGATE}" ]] || fail 'AppDelegate source is missing'
 
-EXPECTED_PROJECT_ID="$(jq -er '.projectId' "${CONTRACT}")"
-EXPECTED_PROJECT_NUMBER="$(jq -er '.projectNumber' "${CONTRACT}")"
+EXPECTED_PROJECT_ID="$(jq -er '.environments.dev.projectId' "${APPS}")"
+EXPECTED_PROJECT_NUMBER="$(jq -er '.environments.dev.projectNumber' "${APPS}")"
 EXPECTED_BUNDLE_ID="$(jq -er '.ios.dev.bundleId' "${APPS}")"
 EXPECTED_APP_ID="$(jq -er '.ios.dev.appId' "${APPS}")"
 

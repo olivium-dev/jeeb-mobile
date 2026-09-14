@@ -4,7 +4,7 @@
   "android": {
     "dev": {
       "packageName": "app.jeeb.mobile.dev",
-      "appId": "1:1051234312170:android:146d7f24f109e38523dc93"
+      "appId": "1:313705546061:android:4d59f9a169002473b6f704"
     },
     "store": {
       "packageName": "com.olivium.jeeb",
@@ -14,7 +14,7 @@
   "ios": {
     "dev": {
       "bundleId": "app.jeeb.jeebMobile.dev",
-      "appId": "1:1051234312170:ios:30f909a175df7f5b23dc93"
+      "appId": "1:313705546061:ios:800ef6ec4bf51312b6f704"
     },
     "store": {
       "bundleId": "com.olivium.jeeb",
@@ -23,11 +23,15 @@
   },
   "environments": {
     "dev": {
+      "projectId": "jeeb-development-msi",
+      "projectNumber": "313705546061",
       "androidApp": "dev",
       "iosApp": "dev",
       "firestoreDatabaseId": "(default)"
     },
     "staging": {
+      "projectId": "jeeb-5a293",
+      "projectNumber": "1051234312170",
       "androidApp": "store",
       "iosApp": "store",
       "firestoreDatabaseId": "(default)"
