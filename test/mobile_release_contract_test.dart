@@ -9,6 +9,22 @@ const _canonicalResolution =
 
 String _source(String path) => File(path).readAsStringSync();
 
+String _workflowJob(String workflow, String jobId) {
+  final lines = workflow.split('\n');
+  final start = lines.indexOf('  $jobId:');
+  expect(start, greaterThanOrEqualTo(0), reason: 'Missing workflow job $jobId');
+  final block = <String>[lines[start]];
+  for (final line in lines.skip(start + 1)) {
+    if (line.trim().isNotEmpty &&
+        (!line.startsWith(' ') ||
+            RegExp(r'^  [A-Za-z0-9_-]+:').hasMatch(line))) {
+      break;
+    }
+    block.add(line);
+  }
+  return block.join('\n');
+}
+
 String _sha256(String path) =>
     sha256.convert(File(path).readAsBytesSync()).toString();
 
@@ -552,8 +568,26 @@ void _registerCiContracts() {
     ]);
     for (final workflow in [android, ios]) {
       expect(workflow, isNot(contains('flutter build ipa')));
-      expect(workflow, isNot(contains('upload-artifact')));
     }
+    // Synthetic signing contracts must never publish their build outputs.
+    // The separate protected development build retains its APK for devices.
+    expect(
+      _workflowJob(android, 'release-contracts'),
+      isNot(contains('upload-artifact')),
+    );
+    expect(ios, isNot(contains('upload-artifact')));
+    final developmentBuild = _workflowJob(android, 'build-apk');
+    _expectContainsAll(developmentBuild, [
+      "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+      'flutter build apk --flavor dev --debug',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+      'path: build/app/outputs/flutter-apk/app-dev-debug.apk',
+      'if-no-files-found: error',
+    ]);
+    expect(
+      android.replaceFirst(developmentBuild, ''),
+      isNot(contains('upload-artifact')),
+    );
   });
 
   test('Flutter and Gradle toolchains are repository-pinned', () {
