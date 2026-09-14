@@ -28,7 +28,7 @@ jobs:
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
         with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq

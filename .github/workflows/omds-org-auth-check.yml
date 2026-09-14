@@ -1,0 +1,75 @@
+name: Validate OMDS organization credential
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact protected main commit approved for validation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omds-org-auth-check
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate pinned OMDS checkout
+    if: github.actor == 'oudaykhaled' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact reviewed Jeeb revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          persist-credentials: false
+
+      - name: Require the reviewed protected default branch revision
+        env:
+          EXPECTED_ACTOR: oudaykhaled
+          REF_PROTECTED: ${{ github.ref_protected }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          RUN_ACTOR: ${{ github.actor }}
+          TRIGGER_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY}" == olivium-dev/jeeb-mobile ]]
+          [[ "${GITHUB_REF}" == refs/heads/main ]]
+          [[ "${REF_PROTECTED}" == true ]]
+          [[ "${RUN_ACTOR}" == "${EXPECTED_ACTOR}" ]]
+          [[ "${REVIEWED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${TRIGGER_SHA}" == "${REVIEWED_SHA}" ]]
+          [[ "$(git rev-parse HEAD)" == "${REVIEWED_SHA}" ]]
+
+      - name: Require the selected organization secret
+        env:
+          JEEB_MOBILE_OMDS_READ_TOKEN: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
+        shell: bash
+        run: test -n "${JEEB_MOBILE_OMDS_READ_TOKEN}"
+
+      - name: Checkout repository-pinned OMDS dependency
+        id: omds
+        uses: ./.github/actions/checkout-omds
+        with:
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
+
+      - name: Verify the dependency identity without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          dependency="$(dirname "${GITHUB_WORKSPACE}")/omds-flutter"
+          expected="$(tr -d '[:space:]' <.omds-revision)"
+          actual="$(git -C "${dependency}" rev-parse HEAD)"
+          remote="$(git -C "${dependency}" remote get-url origin)"
+          [[ "${actual}" == "${expected}" ]]
+          [[ "${actual}" == '${{ steps.omds.outputs.revision }}' ]]
+          [[ -f "${dependency}/omds_library/pubspec.yaml" ]]
+          [[ -z "$(git -C "${dependency}" status --porcelain)" ]]
+          [[ "${remote}" == https://github.com/olivium-dev/omds-flutter || \
+            "${remote}" == https://github.com/olivium-dev/omds-flutter.git ]]
+          printf '%s\n' 'OMDS checkout verified at the repository-pinned revision.'
