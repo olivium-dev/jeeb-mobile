@@ -6,7 +6,33 @@ import 'package:jeeb_mobile/core/config/dev_base_url.dart';
 import 'package:jeeb_mobile/core/diagnostics/chat_diagnostics.dart';
 import 'package:jeeb_mobile/devtool/diagnostics/chat_push_diagnostics_page.dart';
 import 'package:jeeb_mobile/devtool/diagnostics/dev_base_url_banner.dart';
+import 'package:jeeb_mobile/devtool/diagnostics/firebase_backend_auth_canary.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeFirebaseBackendAuthCanary
+    implements FirebaseBackendAuthCanaryRunner {
+  var runs = 0;
+
+  @override
+  void close() {}
+
+  @override
+  Future<FirebaseBackendAuthCanaryResult> run() async {
+    runs += 1;
+    return const FirebaseBackendAuthCanaryResult(
+      passed: true,
+      reason: 'firebase_backend_token_verification_pass',
+      environment: 'staging',
+      projectId: 'jeeb-5a293',
+      route: 'https://app.jeeb.fds-1.com/v1/auth/diagnostics/firebase-token',
+      provider: 'custom',
+      validTokenStatus: 200,
+      invalidSignatureStatus: 401,
+      userSha256Prefix: '0000000000000000',
+      tokenSha256Prefix: '1111111111111111',
+    );
+  }
+}
 
 Future<SharedPreferences> _prefsWith(Map<String, Object> values) async {
   SharedPreferences.setMockInitialValues(values);
@@ -110,10 +136,7 @@ void main() {
     );
 
     expect(find.text('Matches REST host'), findsOneWidget);
-    expect(
-      find.textContaining('does not match REST host'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('does not match REST host'), findsOneWidget);
   });
 
   testWidgets('recorded chat degradations are listed', (tester) async {
@@ -154,6 +177,37 @@ void main() {
 
     expect(find.textContaining('PRESENT'), findsOneWidget);
     expect(find.textContaining('survives uninstall'), findsOneWidget);
+  });
+
+  testWidgets('the Firebase verifier canary renders only redacted evidence', (
+    tester,
+  ) async {
+    final prefs = await _prefsWith(<String, Object>{});
+    GetIt.instance.registerSingleton<SharedPreferences>(prefs);
+    final canary = _FakeFirebaseBackendAuthCanary();
+
+    await pump(
+      tester,
+      ChatPushDiagnosticsPage(
+        seamChannel: _seamChannelReturning(null),
+        firebaseAuthCanary: canary,
+      ),
+    );
+
+    final run = find.byKey(
+      const ValueKey('devtool.diagnostics.firebaseBackendCanary'),
+    );
+    expect(run, findsOneWidget);
+    await tester.tap(run);
+    await tester.pumpAndSettle();
+
+    expect(canary.runs, 1);
+    expect(find.text('PASS'), findsOneWidget);
+    expect(find.text('200'), findsOneWidget);
+    expect(find.text('401'), findsOneWidget);
+    expect(find.text('custom'), findsOneWidget);
+    expect(find.text('0000000000000000'), findsOneWidget);
+    expect(find.text('1111111111111111'), findsOneWidget);
   });
 
   group('DevBaseUrlBanner', () {
