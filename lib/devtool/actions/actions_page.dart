@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/observability/crashlytics_collection_policy.dart';
 import '../../core/theme/jeeb_color_roles.dart';
 import '../../core/theme/jeeb_radii.dart';
 import '../gateway/dev_gateway_client.dart';
@@ -371,6 +372,47 @@ class _ActionsPageState extends State<ActionsPage> {
                   color: _resultIsError
                       ? context.jeebRoles.error
                       : context.jeebRoles.success,
+                ),
+              ),
+            ),
+          ],
+          if (CrashlyticsCollectionPolicy.testProbeAvailable) ...[
+            const SizedBox(height: 24),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Crashlytics probe',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sends one non-production fatal test exception. Use once, '
+                      'then verify it in the matching Firebase project.',
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      key: const ValueKey('devtool.crashlytics.testProbe'),
+                      onPressed: () {
+                        FlutterError.reportError(
+                          FlutterErrorDetails(
+                            exception: StateError(
+                              'Jeeb non-production Crashlytics test probe',
+                            ),
+                            stack: StackTrace.current,
+                            library: 'jeeb_crashlytics_probe',
+                            context: ErrorDescription(
+                              'sending the explicitly enabled test probe',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Send test exception'),
+                    ),
+                  ],
                 ),
               ),
             ),

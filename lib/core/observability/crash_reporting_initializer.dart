@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'crash_reporter.dart';
 
 class CrashReportingInitializer {
-
   CrashReportingInitializer(this._reporter);
   final CrashReporter _reporter;
 
@@ -11,7 +10,7 @@ class CrashReportingInitializer {
       _reporter.recordError(
         details.exception,
         details.stack ?? StackTrace.current,
-        fatal: false,
+        fatal: true,
       );
     };
 
