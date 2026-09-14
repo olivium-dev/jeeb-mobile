@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -15,6 +16,7 @@ import '../core/diagnostics/diag_file_sink.dart';
 import '../core/network/auth_token_store.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
+import '../core/observability/crashlytics_collection_policy.dart';
 import '../core/observability/firebase_crashlytics_reporter.dart';
 import '../core/observability/session_trace/session_trace.dart';
 import '../core/observability/swappable_crash_reporter.dart';
@@ -95,6 +97,16 @@ class Bootstrap {
   static Future<CrashReporter> _defaultCrashReporterFactory() async {
     try {
       await Firebase.initializeApp().timeout(_crashReporterInitTimeout);
+      final collectionOverride = CrashlyticsCollectionPolicy.collectionOverride;
+      if (collectionOverride != null) {
+        final crashlytics = FirebaseCrashlytics.instance;
+        await crashlytics
+            .setCrashlyticsCollectionEnabled(collectionOverride)
+            .timeout(_crashReporterInitTimeout);
+        if (crashlytics.isCrashlyticsCollectionEnabled != collectionOverride) {
+          throw StateError('Crashlytics collection override was not applied.');
+        }
+      }
       return FirebaseCrashlyticsReporter();
     } catch (error, stack) {
       debugPrint('Crashlytics init failed; falling back to Noop: $error');
