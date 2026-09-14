@@ -11,14 +11,22 @@ import '../../core/di/injection_container.dart';
 import '../../core/diagnostics/chat_diagnostics.dart';
 import '../../core/firebase/jeeb_firestore.dart';
 import '../../core/realtime/realtime_socket_policy.dart';
+import 'firebase_backend_auth_canary.dart';
 
 /// Read-only snapshot of every value that decides whether chat and push work
 /// on this install. Each has silently disagreed with its neighbour in an outage.
 class ChatPushDiagnosticsPage extends StatefulWidget {
-  const ChatPushDiagnosticsPage({super.key, this.seamChannel});
+  const ChatPushDiagnosticsPage({
+    super.key,
+    this.seamChannel,
+    this.firebaseAuthCanary,
+  });
 
   /// Android channel that reads `/data/local/tmp/jeeb-dev-seam.json`.
   final MethodChannel? seamChannel;
+
+  /// Test seam. The live runner is created only when the internal action runs.
+  final FirebaseBackendAuthCanaryRunner? firebaseAuthCanary;
 
   @override
   State<ChatPushDiagnosticsPage> createState() =>
@@ -36,6 +44,8 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
   String _fcmStatus = 'reading…';
   String _seamStatus = 'reading…';
   String _applicationId = 'reading…';
+  FirebaseBackendAuthCanaryResult? _authCanaryResult;
+  bool _authCanaryRunning = false;
 
   @override
   void initState() {
@@ -103,11 +113,36 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
     );
   }
 
+  Future<void> _runFirebaseAuthCanary() async {
+    if (_authCanaryRunning) return;
+    setState(() {
+      _authCanaryRunning = true;
+      _authCanaryResult = null;
+    });
+    final ownsRunner = widget.firebaseAuthCanary == null;
+    FirebaseBackendAuthCanaryRunner? runner;
+    FirebaseBackendAuthCanaryResult result;
+    try {
+      runner = widget.firebaseAuthCanary ?? FirebaseBackendAuthCanary.live();
+      result = await runner.run();
+    } catch (_) {
+      result = const FirebaseBackendAuthCanaryResult(
+        passed: false,
+        reason: 'canary_execution_failed',
+      );
+    } finally {
+      if (ownsRunner) runner?.close();
+    }
+    if (!mounted) return;
+    setState(() {
+      _authCanaryRunning = false;
+      _authCanaryResult = result;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final resolved = resolveBaseUrlForBuild(
-      override: DevBaseUrl.read(_prefs),
-    );
+    final resolved = resolveBaseUrlForBuild(override: DevBaseUrl.read(_prefs));
     final socketUri = const RealtimeSocketPolicy().configuredUri();
     final restHost = Uri.tryParse(resolved.value)?.host ?? '';
     final socketHost = socketUri?.host ?? '';
@@ -120,10 +155,7 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           if (resolved.isOverridden)
-            _OverrideBanner(
-              resolved: resolved,
-              onClear: _clearOverride,
-            ),
+            _OverrideBanner(resolved: resolved, onClear: _clearOverride),
           _Section(
             title: 'REST base URL',
             rows: <_Row>[
@@ -141,7 +173,10 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
                       'time, so a Server URL switch never moves it — chat and '
                       'live tracking keep dialling the old backend, silently.',
             rows: <_Row>[
-              _Row('JEEB_REALTIME_SOCKET_URL', socketUri?.toString() ?? 'unset'),
+              _Row(
+                'JEEB_REALTIME_SOCKET_URL',
+                socketUri?.toString() ?? 'unset',
+              ),
               _Row('Matches REST host', hostsAgree ? 'yes' : 'NO'),
             ],
           ),
@@ -154,6 +189,11 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
               _Row('Application id', _applicationId),
               _Row('Sender id', _firebaseValue((o) => o.messagingSenderId)),
             ],
+          ),
+          _FirebaseBackendAuthCanarySection(
+            running: _authCanaryRunning,
+            result: _authCanaryResult,
+            onRun: _runFirebaseAuthCanary,
           ),
           _Section(
             title: 'Firestore',
@@ -224,6 +264,56 @@ class _ChatPushDiagnosticsPageState extends State<ChatPushDiagnosticsPage> {
   }
 }
 
+class _FirebaseBackendAuthCanarySection extends StatelessWidget {
+  const _FirebaseBackendAuthCanarySection({
+    required this.running,
+    required this.result,
+    required this.onRun,
+  });
+
+  final bool running;
+  final FirebaseBackendAuthCanaryResult? result;
+  final VoidCallback onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = result;
+    return _Section(
+      title: 'Firebase backend verifier',
+      rows: <_Row>[
+        _Row(
+          'Result',
+          running
+              ? 'running…'
+              : value == null
+              ? 'not run'
+              : value.passed
+              ? 'PASS'
+              : 'FAILED: ${value.reason}',
+        ),
+        if (value?.environment != null)
+          _Row('Environment', value!.environment!),
+        if (value?.projectId != null) _Row('Project', value!.projectId!),
+        if (value?.provider != null) _Row('Provider', value!.provider!),
+        if (value?.route != null) _Row('Route', value!.route!),
+        if (value?.validTokenStatus != null)
+          _Row('Valid token HTTP', '${value!.validTokenStatus}'),
+        if (value?.invalidSignatureStatus != null)
+          _Row('Corrupted signature HTTP', '${value!.invalidSignatureStatus}'),
+        if (value?.userSha256Prefix != null)
+          _Row('User SHA-256', value!.userSha256Prefix!),
+        if (value?.tokenSha256Prefix != null)
+          _Row('Token SHA-256', value!.tokenSha256Prefix!),
+      ],
+      footer: FilledButton.tonal(
+        key: const ValueKey('devtool.diagnostics.firebaseBackendCanary'),
+        onPressed: running ? null : onRun,
+        child: Text(running ? 'Running…' : 'Run verifier canary'),
+      ),
+    );
+  }
+}
+
 class _OverrideBanner extends StatelessWidget {
   const _OverrideBanner({required this.resolved, required this.onClear});
 
@@ -243,18 +333,18 @@ class _OverrideBanner extends StatelessWidget {
           children: [
             Text(
               'Server URL override is ACTIVE',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: scheme.onErrorContainer,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: scheme.onErrorContainer),
             ),
             const SizedBox(height: 4),
             Text(
               'This app is talking to ${resolved.value}, not the build default '
               '${resolved.buildValue}. The override lives in SharedPreferences '
               '(${DevBaseUrl.prefsKey}) and survives a reinstall.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onErrorContainer,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onErrorContainer),
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(
@@ -323,11 +413,17 @@ class _Row {
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.rows, this.warning});
+  const _Section({
+    required this.title,
+    required this.rows,
+    this.warning,
+    this.footer,
+  });
 
   final String title;
   final List<_Row> rows;
   final String? warning;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +466,7 @@ class _Section extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(color: scheme.error),
             ),
           ],
+          if (footer != null) ...[const SizedBox(height: 8), footer!],
         ],
       ),
     );
