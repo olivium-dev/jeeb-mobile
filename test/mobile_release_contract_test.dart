@@ -647,6 +647,49 @@ void _registerCiContracts() {
     ]);
   });
 
+  test('OMDS consumers fail closed to the selected organization secret', () {
+    const secret = 'secrets.JEEB_MOBILE_OMDS_READ_TOKEN';
+    const consumers = [
+      '.github/workflows/ci-android-stage.yml',
+      '.github/workflows/ci-flutter-stage.yml',
+      '.github/workflows/ci-ios-stage.yml',
+      '.github/workflows/flutter-ci.yml',
+      '.github/workflows/mobile-ci.yml',
+      '.github/workflows/trusted-android-internal-devtool-rc.yml',
+      '.github/workflows/trusted-mobile-rc.yml',
+    ];
+    for (final path in consumers) {
+      final workflow = _source(path);
+      expect(workflow, contains(secret), reason: path);
+      expect(workflow, isNot(contains('OMDS_FLUTTER_PAT')), reason: path);
+      expect(
+        workflow,
+        isNot(contains('ANDROID_OMDS_READ_TOKEN')),
+        reason: path,
+      );
+      expect(workflow, isNot(contains('|| github.token')), reason: path);
+    }
+
+    final validator = _source('.github/workflows/omds-org-auth-check.yml');
+    _expectContainsAll(validator, [
+      'workflow_dispatch:',
+      'EXPECTED_ACTOR: oudaykhaled',
+      r'[[ "${GITHUB_REF}" == refs/heads/main ]]',
+      r'[[ "${RUN_ACTOR}" == "${EXPECTED_ACTOR}" ]]',
+      r'REF_PROTECTED: ${{ github.ref_protected }}',
+      r'REVIEWED_SHA: ${{ inputs.reviewed_sha }}',
+      r'[[ "${TRIGGER_SHA}" == "${REVIEWED_SHA}" ]]',
+      'persist-credentials: false',
+      secret,
+      'repository-pinned OMDS dependency',
+      r'git -C "${dependency}" rev-parse HEAD',
+      'omds_library/pubspec.yaml',
+    ]);
+    expect(validator, isNot(contains('flutter build')));
+    expect(validator, isNot(contains('upload-artifact')));
+    expect(validator, isNot(contains('deploy')));
+  });
+
   test('ordinary CI regenerates source and gates the measured coverage floor', () {
     for (final path in [
       '.github/workflows/ci-flutter-stage.yml',
@@ -716,7 +759,7 @@ void _registerCiContracts() {
       'flutter build appbundle --flavor production --release --no-pub',
       'bash tool/build_signed_ios_internal_candidate.sh',
       'environment: mobile-internal-distribution',
-      'secrets.OMDS_FLUTTER_PAT',
+      'secrets.JEEB_MOBILE_OMDS_READ_TOKEN',
       'secrets.APP_STORE_KEY_ID',
       'secrets.APP_STORE_ISSUER_ID',
       'secrets.APP_STORE_KEY_CONTENT_B64',
@@ -854,7 +897,7 @@ void _registerCiContracts() {
       expect(iosStart, greaterThan(androidStart));
       final android = workflow.substring(androidStart, iosStart);
       final ios = workflow.substring(iosStart);
-      expect(android, contains('secrets.OMDS_FLUTTER_PAT'));
+      expect(android, contains('secrets.JEEB_MOBILE_OMDS_READ_TOKEN'));
       expect(android, contains('secrets.ANDROID_UPLOAD_KEYSTORE_B64'));
       expect(
         android,
@@ -862,7 +905,7 @@ void _registerCiContracts() {
       );
       expect(android, isNot(contains('secrets.IOS_')));
       expect(android, isNot(contains('secrets.APP_STORE_CONNECT_')));
-      expect(ios, contains('secrets.OMDS_FLUTTER_PAT'));
+      expect(ios, contains('secrets.JEEB_MOBILE_OMDS_READ_TOKEN'));
       expect(ios, contains('secrets.APP_STORE_KEY_ID'));
       expect(ios, contains('secrets.APP_STORE_ISSUER_ID'));
       expect(ios, contains('secrets.APP_STORE_KEY_CONTENT_B64'));

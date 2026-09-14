@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
         with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
@@ -82,7 +82,7 @@ jobs:
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
         with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:

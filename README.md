@@ -236,8 +236,9 @@ evidence does not satisfy this gate.
 The workflows use protected-branch-only GitHub environments for credential
 scoping; they do not depend on repository-ruleset or reviewer metadata APIs.
 Store binaries are uploaded only by `distribute-mobile-internal.yml`; manual
-store upload is unsupported. `OMDS_FLUTTER_PAT` is the repository-level,
-read-only credential used to fetch the exact `.omds-revision`:
+store upload is unsupported. `JEEB_MOBILE_OMDS_READ_TOKEN` is the
+organization-level, `jeeb-mobile`-only read credential used to fetch the exact
+`.omds-revision`:
 
 - `mobile-rc`: `ANDROID_UPLOAD_KEYSTORE_B64`,
   `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`,

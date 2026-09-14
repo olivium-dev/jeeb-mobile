@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
         with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
 
       - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
         run: |
@@ -114,7 +114,7 @@ jobs:
       - name: Checkout repository-pinned OMDS dependency
         uses: ./.github/actions/checkout-omds
         with:
-          token: ${{ secrets.OMDS_FLUTTER_PAT || github.token }}
+          token: ${{ secrets.JEEB_MOBILE_OMDS_READ_TOKEN }}
 
       - name: Select Xcode 26.6 and require an iPhoneOS 26 SDK
         run: |
