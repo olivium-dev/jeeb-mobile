@@ -673,8 +673,9 @@ void _registerCiContracts() {
     final validator = _source('.github/workflows/omds-org-auth-check.yml');
     _expectContainsAll(validator, [
       'workflow_dispatch:',
-      "github.actor == 'oudaykhaled'",
-      "github.ref == 'refs/heads/main'",
+      'EXPECTED_ACTOR: oudaykhaled',
+      r'[[ "${GITHUB_REF}" == refs/heads/main ]]',
+      r'[[ "${RUN_ACTOR}" == "${EXPECTED_ACTOR}" ]]',
       r'REF_PROTECTED: ${{ github.ref_protected }}',
       r'REVIEWED_SHA: ${{ inputs.reviewed_sha }}',
       r'[[ "${TRIGGER_SHA}" == "${REVIEWED_SHA}" ]]',
