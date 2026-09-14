@@ -89,7 +89,8 @@ class AppConfig {
   /// Whether all release-owner gates form a valid Clarity configuration.
   static bool get clarityBuildConfigured =>
       clarityEnabled &&
-      (clarityPrivacyApproved || _stagingClarityConfigured) &&
+      ((clarityPrivacyApproved && appFlavor == 'production') ||
+          _stagingClarityConfigured) &&
       _isValidClarityProjectId(clarityProjectId);
 
   /// Runtime availability is release-only. Debug, profile, test, CI and the
@@ -144,7 +145,7 @@ class AppConfig {
   }) =>
       buildMode == AppBuildMode.release &&
       enabled &&
-      (privacyApproved ||
+      ((privacyApproved && flavor == 'production') ||
           stagingClarityPolicyAllows(
             approved: stagingInternalApproved,
             internalRelease: internalRelease,
